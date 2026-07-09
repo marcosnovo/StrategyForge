@@ -33,12 +33,22 @@ struct AgentActivityPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: Space.s) {
-                Text(model.t("activity.title"))
-                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.t("activity.title"))
+                        .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                    Text(model.strategyDisplayName(vm.config.strategy))
+                        .font(.sfCallout.weight(.semibold)).lineLimit(1)
+                }
                 Spacer()
                 if vm.isRunning {
-                    Circle().fill(Theme.success).frame(width: 6, height: 6)
-                    Text(model.t("activity.running")).font(.sfCaption2).foregroundStyle(Theme.success)
+                    HStack(spacing: 4) {
+                        Image(systemName: "circle.fill").font(.system(size: 6))
+                            .symbolEffect(.pulse, options: .repeating)
+                        Text(model.t("activity.running")).font(.sfCaption2.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.success)
+                    .padding(.horizontal, Space.s).padding(.vertical, 3)
+                    .glassEffect(.regular.tint(Theme.success.opacity(0.18)), in: .capsule)
                 }
             }
             .padding(Space.m)
@@ -228,18 +238,36 @@ struct ActivityStepRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: Space.s) {
             Image(systemName: step.isDelegation ? "arrow.turn.down.right" : activityToolIcon(step.title))
-                .font(.system(size: 10))
+                .font(.system(size: step.isDelegation || isActive ? 11 : 10, weight: step.isDelegation ? .semibold : .regular))
                 .foregroundStyle(step.isDelegation ? Theme.accent : (isActive ? Theme.success : .secondary))
                 .frame(width: 16)
                 .symbolEffect(.pulse, options: .repeating, isActive: isActive && !step.isDelegation)
             Text(activityPhrase(step, model))
                 .font(.sfCaption2.weight(step.isDelegation || isActive ? .semibold : .regular))
-                .foregroundStyle(step.isDelegation ? Theme.accent : .primary)
+                .foregroundStyle(step.isDelegation ? Theme.accent : (isActive ? .primary : .secondary))
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Space.xs)
             if let start = startedAt {
                 Text(activityElapsed(from: start, to: step.at))
                     .font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, step.isDelegation ? 6 : 2)
+        .padding(.horizontal, step.isDelegation ? Space.s : 0)
+        .background {
+            if step.isDelegation {
+                RoundedRectangle(cornerRadius: 8).fill(Theme.accentSoft)
+            } else if isActive {
+                RoundedRectangle(cornerRadius: 8).fill(Theme.success.opacity(0.10))
+            }
+        }
+        .overlay(alignment: .leading) {
+            if step.isDelegation || isActive {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(step.isDelegation ? Theme.accent : Theme.success)
+                    .frame(width: 2.5)
+                    .padding(.vertical, 2)
+                    .offset(x: -Space.s)
             }
         }
     }

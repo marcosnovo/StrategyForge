@@ -22,6 +22,9 @@ struct ChatView: View {
     @State private var showActivity = false
     @State private var showPreview = false
     @State private var agentFocus: AgentFocus?
+    @FocusState private var inputFocused: Bool
+    /// Bumps on each sent message to drive send haptics.
+    @State private var sendPulse = 0
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -100,6 +103,8 @@ struct ChatView: View {
             inputBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.spring(response: 0.38, dampingFraction: 0.82), value: vm.deniedTools)
+        .animation(.easeOut(duration: 0.25), value: vm.editedFiles.count)
     }
 
     private var header: some View {
@@ -190,11 +195,20 @@ struct ChatView: View {
                                    && message.role == .assistant
                                    && message.id == vm.messages.last?.id)
                             .id(message.id)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .offset(
+                                    x: message.role == .user ? 20 : -12, y: 8)),
+                                removal: .opacity))
                     }
-                    if vm.isRunning { activityRow.id("activity") }
+                    if vm.isRunning {
+                        activityRow.id("activity")
+                            .transition(.opacity.combined(with: .offset(y: 6)))
+                    }
                 }
                 .padding(Space.l)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(.easeOut(duration: 0.28), value: vm.messages.count)
+                .animation(.easeOut(duration: 0.2), value: vm.isRunning)
             }
             .onChange(of: vm.messages.last?.text) { scrollToBottom(proxy) }
             .onChange(of: vm.messages.count) { scrollToBottom(proxy) }
@@ -234,12 +248,16 @@ struct ChatView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     MarkdownView(text: message.text + (isStreaming ? " ▍" : ""))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    if !isStreaming {
+                    // Copy is always available (dimmed while still streaming), like
+                    // ChatGPT/Claude — no hover or context menu required.
+                    if !message.text.isEmpty {
                         Button { copyToClipboard(message.text) } label: {
                             Label(model.t("chat.copy"), systemImage: "doc.on.doc").font(.sfCaption2)
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(.tertiary)
+                        .opacity(isStreaming ? 0.35 : 1)
+                        .disabled(isStreaming)
                     }
                 }
                 .contextMenu { copyButton(message.text) }
@@ -257,6 +275,7 @@ struct ChatView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: Space.l) {
+            strategyHook
             Text(model.t("chat.empty"))
                 .font(.sfCallout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -282,6 +301,32 @@ struct ChatView: View {
         }
         .padding(.top, Space.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The differentiator, front and center on an empty chat: this chat is driven
+    /// by the team you designed — show it (diagram + name + size + what it's for).
+    private var strategyHook: some View {
+        let teammates = config.strategy.subagentRoles.reduce(0) { $0 + max(1, $1.count) }
+        return HStack(spacing: Space.m) {
+            StrategyThumbnail(strategy: config.strategy)
+                .frame(width: 104, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.hairline, lineWidth: 1))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.t("chat.team.ready"))
+                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Text(model.strategyDisplayName(config.strategy)).font(.sfCardTitle)
+                Text(teammates == 0 ? model.t("chat.team.solo") : model.t("chat.team.count", teammates))
+                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
+                Text(model.strategyGoodFor(config.strategy))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(Space.m)
+        .frame(maxWidth: 560, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
     }
 
     private var activityRow: some View {
@@ -363,6 +408,7 @@ struct ChatView: View {
     private var deniedStrip: some View {
         HStack(alignment: .top, spacing: Space.s) {
             Image(systemName: "hand.raised.fill").foregroundStyle(Theme.warning).font(.system(size: 11))
+                .symbolEffect(.pulse, options: .repeating)
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.t("chat.denied", vm.deniedTools.prefix(4).joined(separator: ", ")))
                     .font(.sfCaption2).foregroundStyle(.secondary)
@@ -378,6 +424,7 @@ struct ChatView: View {
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.warning.opacity(0.12))
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private func errorBanner(_ error: String) -> some View {
@@ -408,6 +455,13 @@ struct ChatView: View {
                 .lineLimit(1...5)
                 .padding(Space.s)
                 .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.innerCorner)
+                        .strokeBorder(Theme.accent, lineWidth: 1.5)
+                        .opacity(inputFocused ? 1 : 0)
+                )
+                .focused($inputFocused)
+                .animation(.easeOut(duration: 0.18), value: inputFocused)
                 .onSubmit { send() }
                 // Up arrow on an empty field recalls the last message to edit/resend.
                 .onKeyPress(.upArrow) {
@@ -435,6 +489,7 @@ struct ChatView: View {
         }
         .padding(Space.m)
         .background(.bar)
+        .sensoryFeedback(.impact(weight: .medium), trigger: sendPulse)
     }
 
     /// Chips for staged attachments, each removable.
@@ -479,8 +534,11 @@ struct ChatView: View {
     }
 
     private func send() {
+        guard vm.canSend else { return }
+        sendPulse += 1          // tactile confirmation the message left
         vm.send()
-        saveDraft("")   // sent → clear the persisted draft
+        saveDraft("")           // sent → clear the persisted draft
+        inputFocused = true     // keep the composer focused for the next turn
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
