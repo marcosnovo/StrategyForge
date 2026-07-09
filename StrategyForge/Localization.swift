@@ -66,6 +66,8 @@ enum L10n {
             "Runs Claude Code on your Mac with your normal plan (no API key). You choose how much it can do — from read-only to full autonomy.",
             "Ejecuta Claude Code en tu Mac con tu plan habitual (sin clave de API). Tú eliges cuánto puede hacer — de solo lectura a autonomía total."),
         "onboard.cta": ("Start my first chat", "Empezar mi primer chat"),
+        "onboard.diagramCaption": ("A sample team: one orchestrator delegating to specialized teammates — you design yours.",
+                                   "Un equipo de ejemplo: un orquestador que delega en compañeros especializados — tú diseñas el tuyo."),
         "onboard.skip": ("Skip", "Omitir"),
 
         // MARK: Empty states

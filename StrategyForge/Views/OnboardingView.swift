@@ -28,6 +28,15 @@ struct OnboardingView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            // Show — not just tell — what "a team of agents" means: a live,
+            // animated topology of a real sample strategy.
+            VStack(alignment: .leading, spacing: Space.xs) {
+                StrategyDiagramView(strategy: StrategyLibrary.orchestratorWorkers())
+                    .frame(height: 188)
+                Text(model.t("onboard.diagramCaption"))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+            }
+
             VStack(alignment: .leading, spacing: Space.l) {
                 step(1, "onboard.step1.title", "onboard.step1.desc")
                 step(2, "onboard.step2.title", "onboard.step2.desc")
