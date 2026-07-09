@@ -37,9 +37,9 @@ struct RoleRowView: View {
                 }
             }
 
-            // Controls row: each labeled, laid out to fit the column with wrapping.
+            // Model as a visual capability grid, then the smaller controls below it.
+            modelField
             HStack(alignment: .bottom, spacing: 16) {
-                modelField
                 labeled("field.instances") { countStepper }
                 labeled("field.tools") { toolsMenu }
                 Spacer(minLength: 0)
@@ -115,36 +115,63 @@ struct RoleRowView: View {
     /// Fast) and a model-vs-effort explainer, so the model choice is understood as
     /// "how capable", separate from Claude Code's runtime effort setting.
     private var modelField: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
                 FieldLabel(text: model.t("field.model"))
                 InfoPopoverButton(text: model.t("glossary.modelEffort"))
             }
-            modelPicker
-            Text(model.t(role.model.tierNameKey))
-                .font(.sfCaption2.weight(.medium))
-                .foregroundStyle(Theme.accent)
-                .help(model.t(role.model.tierBlurbKey))
+            modelGrid
+            // The redirect caveat (e.g. Fable → Opus) shown inline when relevant.
+            if let note = role.model.safeguardNote {
+                Label(note, systemImage: "info.circle")
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
-    private var modelPicker: some View {
-        HStack(spacing: 4) {
-            Picker("Model", selection: $role.model) {
-                ForEach(ClaudeModel.allCases) { model in
-                    Text(model.displayName).tag(model)
-                }
-            }
-            .labelsHidden()
-            .frame(width: 128)
-
-            if let note = role.model.safeguardNote {
-                Image(systemName: "info.circle")
-                    .foregroundStyle(Theme.accent)
-                    .help(note)
-                    .accessibilityLabel(note)
-            }
+    /// A capability grid: one card per model showing its tier icon, tier name and
+    /// model name, so "how capable" is legible at a glance instead of a bare menu.
+    private var modelGrid: some View {
+        HStack(spacing: 6) {
+            ForEach(ClaudeModel.allCases) { m in modelChip(m) }
         }
+    }
+
+    private func modelChip(_ m: ClaudeModel) -> some View {
+        let selected = role.model == m
+        return Button {
+            withAnimation(.easeOut(duration: 0.15)) { role.model = m }
+        } label: {
+            VStack(spacing: 3) {
+                HStack(spacing: 3) {
+                    Image(systemName: m.tierIcon).font(.system(size: 12))
+                        .foregroundStyle(selected ? Theme.accent : .secondary)
+                    if m.safeguardNote != nil {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 7)).foregroundStyle(Theme.warning)
+                    }
+                }
+                Text(model.t(m.tierNameKey))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(selected ? .primary : .secondary)
+                    .lineLimit(1)
+                Text(m.displayName)
+                    .font(.system(size: 8)).foregroundStyle(.tertiary).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 9)
+                .fill(selected ? Theme.accentSoft : Theme.cardBg))
+            .overlay(RoundedRectangle(cornerRadius: 9)
+                .strokeBorder(selected ? Theme.accent : Theme.hairline,
+                              lineWidth: selected ? 1.5 : 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(m.safeguardNote ?? model.t(m.tierBlurbKey))
+        .accessibilityLabel("\(model.t(m.tierNameKey)) — \(m.displayName)")
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     @ViewBuilder

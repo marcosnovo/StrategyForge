@@ -50,4 +50,14 @@ enum ClaudeModel: String, Codable, CaseIterable, Identifiable, Hashable {
 
     /// A one-line hint about when to reach for this tier.
     var tierBlurbKey: String { tierNameKey + ".blurb" }
+
+    /// An SF Symbol that conveys the tier at a glance in the model grid.
+    var tierIcon: String {
+        switch self {
+        case .opus48:  return "star.fill"          // Expert
+        case .fable5:  return "scope"              // Specialist
+        case .sonnet5: return "book.fill"          // Generalist
+        case .haiku45: return "bolt.fill"          // Fast
+        }
+    }
 }
