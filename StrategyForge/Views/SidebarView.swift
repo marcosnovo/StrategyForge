@@ -10,6 +10,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var showSidebar: Bool
     @State private var pendingDelete: Configuration.ID?
 
@@ -117,12 +118,14 @@ struct SidebarView: View {
                 .fixedSize()
                 // Collapse the sidebar into the minimized rail.
                 Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { showSidebar = false }
+                    if reduceMotion { showSidebar = false }
+                    else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = false } }
                 } label: {
                     Image(systemName: "sidebar.left")
                 }
                 .buttonStyle(.borderless)
                 .help(model.t("sidebar.toggle"))
+                .accessibilityLabel(model.t("sidebar.toggle"))
             }
             // Primary: new chat.
             Button {
@@ -159,17 +162,20 @@ struct SidebarView: View {
 /// The minimized sidebar: a thin full-height rail with expand + new-chat + settings.
 struct CollapsedSidebarRail: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var showSidebar: Bool
 
     var body: some View {
         VStack(spacing: Space.l) {
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true }
+                if reduceMotion { showSidebar = true }
+                else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
             } label: {
                 Image(systemName: "sidebar.left")
             }
             .buttonStyle(.borderless)
             .help(model.t("sidebar.toggle"))
+            .accessibilityLabel(model.t("sidebar.toggle"))
 
             Button {
                 model.addConfiguration()
@@ -178,11 +184,13 @@ struct CollapsedSidebarRail: View {
             }
             .buttonStyle(.borderless)
             .help(model.t("sidebar.new"))
+            .accessibilityLabel(model.t("sidebar.new"))
 
             Spacer()
 
             SettingsLink { Image(systemName: "gearshape") }
                 .buttonStyle(.borderless)
+                .accessibilityLabel(model.t("sidebar.settings"))
         }
         .font(.title3)
         .padding(.vertical, Space.l)

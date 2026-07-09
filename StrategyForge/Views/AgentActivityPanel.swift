@@ -38,7 +38,7 @@ struct AgentActivityPanel: View {
             HStack(spacing: Space.s) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(model.t("activity.title"))
-                        .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                        .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
                     Text(model.strategyDisplayName(vm.config.strategy))
                         .font(.sfCallout.weight(.semibold)).lineLimit(1)
                 }
@@ -94,7 +94,7 @@ struct AgentActivityPanel: View {
                         .font(.sfCallout.weight(.semibold))
                         .foregroundStyle(subagent == nil ? .primary : Theme.accent)
                     Text(subagent == nil ? modelName : model.t("activity.viaOrchestrator"))
-                        .font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
+                        .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.secondaryOnMaterial)
                 }
                 Spacer()
             }
@@ -118,7 +118,7 @@ struct AgentActivityPanel: View {
             Image(systemName: icon).font(.system(size: 9))
             Text(text).font(.sfCaption2.weight(.medium))
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Theme.secondaryOnMaterial)
     }
 
     // MARK: Mode switch + diagram
@@ -147,7 +147,7 @@ struct AgentActivityPanel: View {
     /// to, each showing whether it's active now or already done.
     private var teamSection: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
-            Text(model.t("activity.team")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+            Text(model.t("activity.team")).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
             agentRow(name: model.t("activity.orchestrator"),
                      icon: "brain.head.profile",
                      target: .orchestrator,
@@ -159,7 +159,7 @@ struct AgentActivityPanel: View {
             }
             if vm.agentsInvolved.isEmpty {
                 Text(model.t("activity.soloNote"))
-                    .font(.system(size: 10)).foregroundStyle(.tertiary)
+                    .font(.system(size: 10)).foregroundStyle(Theme.tertiaryOnMaterial)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
             }
@@ -189,7 +189,7 @@ struct AgentActivityPanel: View {
                 }
                 if count > 0 {
                     Text("\(count)").font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.tertiaryOnMaterial)
                 }
                 // Disclosure arrow → opens the far-right detail column.
                 Image(systemName: "chevron.right")
@@ -209,7 +209,7 @@ struct AgentActivityPanel: View {
 
     private var tasksSection: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            Text(model.t("activity.tasks")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+            Text(model.t("activity.tasks")).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
             ForEach(Array(vm.todos.enumerated()), id: \.offset) { _, todo in
                 HStack(alignment: .top, spacing: Space.s) {
                     todoIcon(todo.status)
@@ -229,7 +229,7 @@ struct AgentActivityPanel: View {
         switch status {
         case "completed": Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
         case "in_progress": Image(systemName: "circle.dotted.circle").foregroundStyle(Theme.accent)
-        default: Image(systemName: "circle").foregroundStyle(.tertiary)
+        default: Image(systemName: "circle").foregroundStyle(Theme.tertiaryOnMaterial)
         }
     }
 
@@ -237,9 +237,9 @@ struct AgentActivityPanel: View {
 
     private var timelineSection: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            Text(model.t("activity.steps")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+            Text(model.t("activity.steps")).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
             if vm.timeline.isEmpty {
-                Text(model.t("activity.empty")).font(.sfCaption2).foregroundStyle(.secondary)
+                Text(model.t("activity.empty")).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
             } else {
                 ForEach(Array(vm.timeline.enumerated()), id: \.element.id) { idx, step in
                     ActivityStepRow(step: step, startedAt: vm.turnStartedAt,
@@ -280,7 +280,7 @@ struct ActivityStepRow: View {
             Spacer(minLength: Space.xs)
             if let start = startedAt {
                 Text(activityElapsed(from: start, to: step.at))
-                    .font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary)
+                    .font(.system(size: 9, design: .monospaced)).foregroundStyle(Theme.tertiaryOnMaterial)
             }
         }
         .padding(.vertical, step.isDelegation ? 6 : 2)
@@ -372,7 +372,7 @@ struct SubagentDetailPanel: View {
                     .foregroundStyle(Theme.accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.sfCallout.weight(.semibold)).lineLimit(1)
-                    Text(model.t("activity.agentDetail")).font(.sfCaption2).foregroundStyle(.secondary)
+                    Text(model.t("activity.agentDetail")).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
                 }
                 Spacer()
                 if isActiveAgent {
@@ -382,7 +382,7 @@ struct SubagentDetailPanel: View {
                 Button { onClose() } label: {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
                 }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
+                .buttonStyle(.plain).foregroundStyle(Theme.secondaryOnMaterial)
                 .help(model.t("common.done"))
             }
             .padding(Space.m)
@@ -394,9 +394,9 @@ struct SubagentDetailPanel: View {
 
             if steps.isEmpty {
                 VStack(spacing: Space.s) {
-                    Image(systemName: "hourglass").font(.title2).foregroundStyle(.tertiary)
+                    Image(systemName: "hourglass").font(.title2).foregroundStyle(Theme.tertiaryOnMaterial)
                     Text(model.t("activity.empty")).font(.sfCaption2)
-                        .foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        .foregroundStyle(Theme.secondaryOnMaterial).multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity).padding(Space.l)
             } else {

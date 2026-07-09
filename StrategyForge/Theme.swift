@@ -55,6 +55,16 @@ enum Theme {
         light: Color.black.opacity(0.10),
         dark:  Color.white.opacity(0.09))
 
+    // MARK: Text on translucent materials
+    // System .secondary/.tertiary lose contrast over thin/ultraThin materials in
+    // dark mode; these hold a readable level there while staying native in light.
+    static let secondaryOnMaterial = Color(
+        light: Color.secondary,
+        dark:  Color.white.opacity(0.72))
+    static let tertiaryOnMaterial = Color(
+        light: Color.secondary.opacity(0.75),
+        dark:  Color.white.opacity(0.55))
+
     // MARK: Status (cool, saturated — matched to the tech palette)
     static let success = Color(
         light: Color(red: 0.055, green: 0.612, blue: 0.471),   // #0E9C78 (teal-green)
@@ -72,6 +82,8 @@ enum Theme {
     static let sectionSpacing: CGFloat = 20
     /// Vertical gap between chat messages (Claude/Superhuman-like breathing room).
     static let messageSpacing: CGFloat = 18
+    /// Extra gap added above a user message to separate conversation turns.
+    static let turnGap: CGFloat = 10
     /// Extra line spacing for body copy so long replies read comfortably.
     static let bodyLineSpacing: CGFloat = 3
 }
@@ -88,17 +100,20 @@ enum Space {
 // MARK: - Type scale
 
 extension Font {
+    // Relative to the system text styles so everything scales with the user's
+    // Dynamic Type setting. The mapped styles sit within ~0.5pt of the previous
+    // fixed sizes at the default setting, so the tuned look is preserved.
     /// Tight bold display for the hero title / brand (no serif).
-    static let sfDisplay = Font.system(size: 22, weight: .bold)
-    static let sfCardTitle = Font.system(size: 15, weight: .semibold)
-    static let sfBodyM = Font.system(size: 13)
-    static let sfCallout = Font.system(size: 12.5)
-    static let sfCaption2 = Font.system(size: 11.5)
+    static let sfDisplay = Font.system(.title, design: .default).weight(.bold)          // ~22
+    static let sfCardTitle = Font.system(.title3).weight(.semibold)                     // ~15
+    static let sfBodyM = Font.system(.body)                                             // ~13
+    static let sfCallout = Font.system(.callout)                                        // ~12
+    static let sfCaption2 = Font.system(.subheadline)                                   // ~11
     /// Monospaced, all-caps field labels — the technical fingerprint.
-    static let sfFieldLabel = Font.system(size: 10, weight: .semibold, design: .monospaced)
-    static let sfCode = Font.system(size: 12, design: .monospaced)
+    static let sfFieldLabel = Font.system(.caption, design: .monospaced).weight(.semibold) // ~10
+    static let sfCode = Font.system(.callout, design: .monospaced)                      // ~12
     /// Monospaced wordmark / model tags.
-    static let sfMono = Font.system(size: 13, weight: .semibold, design: .monospaced)
+    static let sfMono = Font.system(.body, design: .monospaced).weight(.semibold)       // ~13
 }
 
 // MARK: - Card surface

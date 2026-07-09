@@ -25,6 +25,9 @@ struct ChatView: View {
     @FocusState private var inputFocused: Bool
     /// Bumps on each sent message to drive send haptics.
     @State private var sendPulse = 0
+    /// Which assistant message just had its text copied (shows a ✓ for a moment).
+    @State private var copiedMessageID: ChatMessage.ID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -101,8 +104,8 @@ struct ChatView: View {
             inputBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.38, dampingFraction: 0.82), value: vm.deniedTools)
-        .animation(.easeOut(duration: 0.25), value: vm.editedFiles.count)
+        .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82), value: vm.deniedTools)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.editedFiles.count)
     }
 
     private var header: some View {
@@ -195,7 +198,7 @@ struct ChatView: View {
                                    && message.role == .assistant
                                    && message.id == vm.messages.last?.id)
                             .id(message.id)
-                            .transition(.asymmetric(
+                            .transition(reduceMotion ? .opacity : .asymmetric(
                                 insertion: .opacity.combined(with: .offset(
                                     x: message.role == .user ? 20 : -12, y: 8)),
                                 removal: .opacity))
@@ -207,8 +210,8 @@ struct ChatView: View {
                 }
                 .padding(Space.l)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .animation(.easeOut(duration: 0.28), value: vm.messages.count)
-                .animation(.easeOut(duration: 0.2), value: vm.isRunning)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: vm.messages.count)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: vm.isRunning)
             }
             .onChange(of: vm.messages.last?.text) { scrollToBottom(proxy) }
             .onChange(of: vm.messages.count) { scrollToBottom(proxy) }
@@ -568,12 +571,12 @@ struct ChatView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation(.easeOut(duration: 0.15)) {
-            if vm.isRunning {
-                proxy.scrollTo("activity", anchor: .bottom)
-            } else if let last = vm.messages.last {
-                proxy.scrollTo(last.id, anchor: .bottom)
-            }
+        let target: (any Hashable)? = vm.isRunning ? "activity" : vm.messages.last?.id
+        guard let target else { return }
+        if reduceMotion {
+            proxy.scrollTo(AnyHashable(target), anchor: .bottom)
+        } else {
+            withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(AnyHashable(target), anchor: .bottom) }
         }
     }
 }
