@@ -14,6 +14,7 @@ struct StrategyPickerColumn: View {
     @Binding var config: Configuration
     @State private var showWizard = false
     @State private var showTaskGen = false
+    @State private var activeBucket: AppModel.TopicBucket?
 
     private var templates: [Strategy] { StrategyLibrary.all }
 
@@ -41,16 +42,30 @@ struct StrategyPickerColumn: View {
             }
             .padding(Space.m)
 
+            topicPills
+
             Divider()
 
             ScrollView {
                 VStack(spacing: Space.xs) {
-                    ForEach(templates) { template in
-                        strategyRow(template)
+                    if let bucket = activeBucket {
+                        let inBucket = templates.filter { model.strategyBuckets($0).contains(bucket) }
+                        let others = templates.filter { !model.strategyBuckets($0).contains(bucket) }
+                        ForEach(inBucket) { strategyRow($0) }
+                        if !others.isEmpty {
+                            Text(model.t("picker.otherStrategies"))
+                                .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, Space.s)
+                            ForEach(others) { strategyRow($0).opacity(0.5) }
+                        }
+                    } else {
+                        ForEach(templates) { strategyRow($0) }
                     }
                 }
                 .padding(Space.m)
                 .animation(.easeInOut(duration: 0.15), value: config.strategy.name)
+                .animation(.easeInOut(duration: 0.15), value: activeBucket)
             }
         }
         .frame(maxHeight: .infinity)
@@ -61,6 +76,30 @@ struct StrategyPickerColumn: View {
         .sheet(isPresented: $showTaskGen) {
             TaskToStrategySheet(config: $config)
         }
+    }
+
+    /// Topic pills that orient the list by everyday goal. Tapping filters (reorders
+    /// + dims) and stars the recommended strategy — it never changes the selection.
+    private var topicPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Space.xs) {
+                ForEach(AppModel.TopicBucket.allCases) { bucket in
+                    let on = activeBucket == bucket
+                    Button {
+                        activeBucket = on ? nil : bucket
+                    } label: {
+                        Label(model.t(bucket.labelKey), systemImage: bucket.icon)
+                            .font(.sfCaption2.weight(.medium))
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .foregroundStyle(on ? Theme.onAccent : .secondary)
+                            .background(Capsule().fill(on ? Theme.accent : Theme.hairline))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, Space.m)
+        }
+        .padding(.bottom, Space.s)
     }
 
     /// A selectable strategy row: mini-diagram thumbnail + name + cost-tier pill.
@@ -92,6 +131,15 @@ struct StrategyPickerColumn: View {
                             .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                     }
                     HStack(spacing: 5) {
+                        if let bucket = activeBucket, model.isRecommended(template, for: bucket) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "star.fill").font(.system(size: 8))
+                                Text(model.t("picker.recommended")).font(.sfCaption2.weight(.semibold))
+                            }
+                            .foregroundStyle(Theme.accent)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().fill(Theme.accentSoft))
+                        }
                         taskTagChip(template)   // WHAT task (neutral)
                         costTierPill(template)  // HOW MUCH it costs (green/amber/red)
                     }

@@ -351,6 +351,14 @@ enum L10n {
 
         // MARK: Strategy "best for" — task tags (all) + copy for the 3 new strategies
         "picker.bestfor": ("Best for", "Ideal para"),
+        "picker.bucket.write": ("Write & create", "Escribir y crear"),
+        "picker.bucket.understand": ("Understand & explain", "Entender y explicar"),
+        "picker.bucket.code": ("Code & build", "Programar y construir"),
+        "picker.bucket.faster": ("Work faster", "Trabajar más rápido"),
+        "picker.bucket.decide": ("Decide well", "Decidir mejor"),
+        "picker.bucket.pressure": ("Pressure-test", "Poner a prueba"),
+        "picker.recommended": ("Recommended", "Recomendada"),
+        "picker.otherStrategies": ("Other strategies", "Otras estrategias"),
         "strat.fanout.tag": ("Parallel work", "En paralelo"),
         "strat.execadv.tag": ("Guided work", "Con guía"),
         "strat.scout.tag": ("Explore first", "Explora antes"),

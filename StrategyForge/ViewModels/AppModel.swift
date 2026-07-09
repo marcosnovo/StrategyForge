@@ -132,6 +132,59 @@ final class AppModel {
         return t(key + ".tag")
     }
 
+    // MARK: - Topic buckets (strategy chooser filter)
+
+    /// Everyday "what do you want to do" buckets used to orient the strategy picker.
+    enum TopicBucket: String, CaseIterable, Identifiable {
+        case write, understand, code, faster, decide, pressure
+        var id: String { rawValue }
+        var labelKey: String { "picker.bucket.\(rawValue)" }
+        var icon: String {
+            switch self {
+            case .write: return "pencil.and.outline"
+            case .understand: return "lightbulb.max"
+            case .code: return "chevron.left.forwardslash.chevron.right"
+            case .faster: return "square.stack.3d.up"
+            case .decide: return "arrow.triangle.branch"
+            case .pressure: return "shield.lefthalf.filled"
+            }
+        }
+        /// The strategyKey of the single best strategy for this bucket.
+        var recommendedKey: String {
+            switch self {
+            case .write: return "strat.execadv"
+            case .understand: return "strat.research"
+            case .code: return "strat.planner"
+            case .faster: return "strat.fanout"
+            case .decide: return "strat.debate"
+            case .pressure: return "strat.sparring"
+            }
+        }
+    }
+
+    /// Buckets a strategy belongs to (soft, overlapping — a lens, not a partition).
+    func strategyBuckets(_ strategy: Strategy) -> Set<TopicBucket> {
+        switch strategyKey(strategy.name) {
+        case "strat.execadv":   return [.write, .faster]
+        case "strat.research":  return [.understand]
+        case "strat.planner":   return [.code, .faster]
+        case "strat.fanout":    return [.faster]
+        case "strat.debate":    return [.decide]
+        case "strat.sparring":  return [.pressure]
+        case "strat.scout":     return [.code, .understand, .faster]
+        case "strat.triage":    return [.faster]
+        case "strat.rootcause": return [.code, .pressure]
+        case "strat.domain":    return [.code, .faster]
+        case "strat.solo":      return [.write, .understand, .decide, .faster]
+        default:                return []
+        }
+    }
+
+    /// True when this strategy is the recommended one for the given bucket.
+    func isRecommended(_ strategy: Strategy, for bucket: TopicBucket) -> Bool {
+        strategyKey(strategy.name) == bucket.recommendedKey
+    }
+
     // MARK: - Banner helper
 
     /// Public helper for views to show an auto-dismissing success banner.
