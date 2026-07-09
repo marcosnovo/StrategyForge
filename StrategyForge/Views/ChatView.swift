@@ -150,14 +150,13 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: Space.m) {
-                    if vm.messages.isEmpty {
-                        Text(model.t("chat.empty"))
-                            .font(.sfCallout).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, Space.xl)
-                    }
+                    if vm.messages.isEmpty { emptyState }
                     ForEach(vm.messages) { message in
-                        bubble(message).id(message.id)
+                        bubble(message,
+                               isStreaming: vm.isRunning
+                                   && message.role == .assistant
+                                   && message.id == vm.messages.last?.id)
+                            .id(message.id)
                     }
                     if vm.isRunning { activityRow.id("activity") }
                 }
@@ -170,10 +169,11 @@ struct ChatView: View {
     }
 
     @ViewBuilder
-    private func bubble(_ message: ChatMessage) -> some View {
+    private func bubble(_ message: ChatMessage, isStreaming: Bool) -> some View {
         if message.role == .user {
+            // User: compact bubble on the right.
             HStack {
-                Spacer(minLength: 40)
+                Spacer(minLength: 60)
                 Text(message.text)
                     .font(.sfBodyM)
                     .foregroundStyle(Theme.onAccent)
@@ -183,28 +183,30 @@ struct ChatView: View {
                     .contextMenu { copyButton(message.text) }
             }
         } else {
-            HStack(alignment: .top) {
+            // Assistant: full-width, no bubble (like Claude/ChatGPT) with an avatar.
+            HStack(alignment: .top, spacing: Space.m) {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 24, height: 24)
+                    .background(Circle().fill(Theme.accentSoft))
+                    .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(rendered(message.text))         // markdown, newlines preserved
+                    (Text(rendered(message.text))
+                        + (isStreaming ? Text(" ▍").foregroundColor(Theme.accent) : Text("")))
                         .font(.sfBodyM)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    // Copy affordance like Claude/ChatGPT.
-                    Button {
-                        copyToClipboard(message.text)
-                    } label: {
-                        Label(model.t("chat.copy"), systemImage: "doc.on.doc")
-                            .font(.sfCaption2)
+                    if !isStreaming {
+                        Button { copyToClipboard(message.text) } label: {
+                            Label(model.t("chat.copy"), systemImage: "doc.on.doc").font(.sfCaption2)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.tertiary)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-                .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg)
-                    .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1)))
                 .contextMenu { copyButton(message.text) }
-                Spacer(minLength: 40)
             }
         }
     }
@@ -215,6 +217,35 @@ struct ChatView: View {
         } label: {
             Label(model.t("chat.copy"), systemImage: "doc.on.doc")
         }
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: Space.l) {
+            Text(model.t("chat.empty"))
+                .font(.sfCallout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: Space.s) {
+                ForEach(["chat.suggest1", "chat.suggest2", "chat.suggest3"], id: \.self) { key in
+                    Button { vm.input = model.t(key) } label: {
+                        HStack(spacing: Space.s) {
+                            Image(systemName: "arrow.up.forward.square").foregroundStyle(Theme.accent)
+                            Text(model.t(key)).font(.sfCallout).foregroundStyle(.primary)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(Space.m)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
+                            .fill(Theme.cardBg)
+                            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
+                                .strokeBorder(Theme.hairline, lineWidth: 1)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: 520)
+        }
+        .padding(.top, Space.xl)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var activityRow: some View {
