@@ -48,6 +48,8 @@ final class ChatViewModel {
     var editedFiles: [String] = []
     /// The subagent the orchestrator is currently delegating to (if any).
     var activeSubagent: String?
+    /// Every subagent the orchestrator has delegated to this turn, in order (unique).
+    var agentsInvolved: [String] = []
     /// Tool uses the last run wasn't permitted to perform (→ offer allow & retry).
     var deniedTools: [String] = []
     /// Live timeline of what the agents did this turn (for the activity panel).
@@ -142,6 +144,7 @@ final class ChatViewModel {
         errorText = nil
         activity = []
         activeSubagent = nil
+        agentsInvolved = []
         deniedTools = []
         timeline = []
         todos = []
@@ -220,6 +223,7 @@ final class ChatViewModel {
                 separatorPending = true
             case .delegated(let subagent):
                 activeSubagent = subagent
+                if !agentsInvolved.contains(subagent) { agentsInvolved.append(subagent) }
                 activity.append("→ \(subagent)")
                 timeline.append(ActivityStep(title: subagent, detail: nil, at: Date(), isDelegation: true))
                 separatorPending = true
@@ -252,6 +256,7 @@ final class ChatViewModel {
         guard !isRunning, let repo = config.repoPath,
               let lastUser = messages.last(where: { $0.role == .user })?.text else { return }
         deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
+        agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
         messages.append(ChatMessage(role: .assistant, text: ""))
         let assistantIndex = messages.count - 1
         isRunning = true

@@ -31,6 +31,7 @@ struct AgentActivityPanel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.l) {
                     statusCard
+                    teamSection
                     if !vm.todos.isEmpty { tasksSection }
                     timelineSection
                 }
@@ -82,6 +83,54 @@ struct AgentActivityPanel: View {
         .foregroundStyle(.secondary)
     }
 
+    // MARK: Team
+
+    /// The roster for this turn: the orchestrator plus every subagent it delegated
+    /// to, each showing whether it's active now or already done.
+    private var teamSection: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text(model.t("activity.team")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+            agentRow(name: model.t("activity.orchestrator"),
+                     icon: "brain.head.profile",
+                     active: vm.activeSubagent == nil && vm.isRunning)
+            ForEach(vm.agentsInvolved, id: \.self) { agent in
+                agentRow(name: agent, icon: "person.fill",
+                         active: agent == vm.activeSubagent && vm.isRunning)
+            }
+            if vm.agentsInvolved.isEmpty {
+                Text(model.t("activity.soloNote"))
+                    .font(.system(size: 10)).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func agentRow(name: String, icon: String, active: Bool) -> some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: icon)
+                .font(.system(size: 11))
+                .foregroundStyle(active ? Theme.accent : .secondary)
+                .frame(width: 16)
+            Text(name)
+                .font(.sfCaption2.weight(active ? .semibold : .regular))
+                .foregroundStyle(active ? .primary : .secondary)
+                .lineLimit(1)
+            Spacer(minLength: Space.xs)
+            if active {
+                HStack(spacing: 3) {
+                    Image(systemName: "circle.fill").font(.system(size: 5))
+                        .foregroundStyle(Theme.success)
+                        .symbolEffect(.pulse, options: .repeating)
+                    Text(model.t("activity.active")).font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Theme.success)
+                }
+            } else {
+                Text(model.t("activity.done")).font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
     // MARK: Tasks
 
     private var tasksSection: some View {
@@ -118,31 +167,50 @@ struct AgentActivityPanel: View {
             if vm.timeline.isEmpty {
                 Text(model.t("activity.empty")).font(.sfCaption2).foregroundStyle(.secondary)
             } else {
-                ForEach(vm.timeline) { step in stepRow(step) }
+                ForEach(Array(vm.timeline.enumerated()), id: \.element.id) { idx, step in
+                    stepRow(step, isActive: vm.isRunning && idx == vm.timeline.count - 1)
+                }
             }
         }
     }
 
-    private func stepRow(_ step: ActivityStep) -> some View {
+    private func stepRow(_ step: ActivityStep, isActive: Bool) -> some View {
         HStack(alignment: .top, spacing: Space.s) {
             Image(systemName: step.isDelegation ? "arrow.turn.down.right" : toolIcon(step.title))
                 .font(.system(size: 10))
-                .foregroundStyle(step.isDelegation ? Theme.accent : .secondary)
+                .foregroundStyle(step.isDelegation ? Theme.accent : (isActive ? Theme.success : .secondary))
                 .frame(width: 16)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(step.isDelegation ? "→ \(step.title)" : step.title)
-                    .font(.sfCaption2.weight(step.isDelegation ? .semibold : .regular))
-                    .foregroundStyle(step.isDelegation ? Theme.accent : .primary)
-                if let detail = step.detail {
-                    Text(detail).font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                }
-            }
+                .symbolEffect(.pulse, options: .repeating, isActive: isActive && !step.isDelegation)
+            Text(phrase(step))
+                .font(.sfCaption2.weight(step.isDelegation || isActive ? .semibold : .regular))
+                .foregroundStyle(step.isDelegation ? Theme.accent : .primary)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Space.xs)
             if let start = vm.turnStartedAt {
                 Text(elapsed(from: start, to: step.at))
                     .font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary)
             }
+        }
+    }
+
+    /// A human sentence for a step ("Reading App.swift", "Running npm test").
+    private func phrase(_ step: ActivityStep) -> String {
+        if step.isDelegation { return model.t("act.delegated", step.title) }
+        let target = step.detail ?? ""
+        func withTarget(_ key: String) -> String {
+            target.isEmpty ? model.t("act.using", step.title) : model.t(key, target)
+        }
+        switch step.title {
+        case "Read": return withTarget("act.reading")
+        case "Edit", "MultiEdit", "NotebookEdit": return withTarget("act.editing")
+        case "Write": return withTarget("act.writing")
+        case "Bash": return withTarget("act.running")
+        case "Grep", "Glob": return withTarget("act.searching")
+        case "WebFetch", "WebSearch": return withTarget("act.fetching")
+        case "TodoWrite": return model.t("act.planning")
+        default:
+            return target.isEmpty ? model.t("act.using", step.title)
+                                  : model.t("act.using", "\(step.title) · \(target)")
         }
     }
 

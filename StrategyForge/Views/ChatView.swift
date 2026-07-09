@@ -293,24 +293,59 @@ struct ChatView: View {
         }
     }
 
-    /// A compact strip listing files the agent changed; tap to preview/export them.
+    /// A strip of the files the agent produced — each a chip you can preview or
+    /// download straight from the chat.
     private var changedFilesStrip: some View {
-        Button { showPreview = true } label: {
-            HStack(spacing: Space.xs) {
-                Image(systemName: "pencil.and.list.clipboard").font(.system(size: 10))
-                Text(model.t("chat.changedFiles", vm.editedFiles.count)).font(.sfCaption2)
-                Image(systemName: "eye").font(.system(size: 9)).opacity(0.7)
+        HStack(spacing: Space.s) {
+            Image(systemName: "pencil.and.list.clipboard")
+                .font(.system(size: 11)).foregroundStyle(Theme.accent)
+            Text(model.t("chat.changedFiles", vm.editedFiles.count))
+                .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+                .fixedSize()
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Space.s) {
+                    ForEach(vm.editedFiles, id: \.self) { path in fileChip(path) }
+                }
             }
-            .foregroundStyle(Theme.accent)
+            Button { showPreview = true } label: {
+                Image(systemName: "eye").font(.system(size: 11))
+            }
+            .buttonStyle(.plain).foregroundStyle(Theme.accent)
+            .help(model.t("filepreview.title"))
         }
-        .buttonStyle(.plain)
-        .fixedSize()
         .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.accentSoft)
         .sheet(isPresented: $showPreview) {
             DocumentPreviewSheet(files: vm.editedFiles)
         }
+    }
+
+    /// One produced file: name + a one-click download.
+    private func fileChip(_ path: String) -> some View {
+        HStack(spacing: 4) {
+            Text((path as NSString).lastPathComponent)
+                .font(.sfCaption2).lineLimit(1)
+            Button { downloadFile(path) } label: {
+                Image(systemName: "arrow.down.circle").font(.system(size: 11))
+            }
+            .buttonStyle(.plain).foregroundStyle(Theme.accent)
+            .help(model.t("chat.download"))
+        }
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 9).padding(.vertical, 3)
+        .glassEffect(.regular, in: .capsule)
+    }
+
+    /// Save a copy of a produced file wherever the user chooses.
+    private func downloadFile(_ path: String) {
+        let url = URL(fileURLWithPath: path)
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = url.lastPathComponent
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        try? FileManager.default.removeItem(at: dest)
+        try? FileManager.default.copyItem(at: url, to: dest)
     }
 
     /// Shown after a run that was blocked by permission denials: what was blocked
