@@ -156,6 +156,11 @@ enum ClaudeRunner {
         extraDirs: [String] = []
     ) -> AsyncStream<ChatEvent> {
         AsyncStream { continuation in
+            // Resolving the binary spawns an interactive login shell (to source the
+            // user's PATH), which blocks for a beat. The AsyncStream closure runs
+            // synchronously on the caller — the main actor — so do ALL of the setup
+            // and launch on a background queue to keep the UI responsive.
+            DispatchQueue.global(qos: .userInitiated).async {
             // A GUI app doesn't inherit the user's shell PATH, so resolve `claude`
             // to an absolute path (via an interactive login shell + known locations)
             // and run it DIRECTLY — no shell, so no PATH/quoting surprises.
@@ -227,6 +232,7 @@ enum ClaudeRunner {
                 continuation.yield(.failed(error.localizedDescription))
                 continuation.finish()
             }
+            } // DispatchQueue.global
         }
     }
 
