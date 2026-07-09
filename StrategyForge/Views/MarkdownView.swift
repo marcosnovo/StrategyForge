@@ -1,0 +1,219 @@
+//
+//  MarkdownView.swift
+//  StrategyForge
+//
+//  A lightweight block-level Markdown renderer for chat replies. SwiftUI's
+//  AttributedString(markdown:) only does inline styling and collapses structure,
+//  so this splits the text into blocks — headings, paragraphs, lists, fenced code
+//  and tables — and renders each properly (real bullets, monospaced code with a
+//  copy button, and grid tables).
+//
+
+import SwiftUI
+import AppKit
+
+struct MarkdownView: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            ForEach(Array(MarkdownParser.blocks(from: text).enumerated()), id: \.offset) { _, block in
+                view(for: block)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func view(for block: MarkdownBlock) -> some View {
+        switch block {
+        case .heading(let level, let text):
+            Text(inline(text))
+                .font(.system(size: [20, 17, 15][min(level - 1, 2)], weight: .semibold))
+                .fixedSize(horizontal: false, vertical: true)
+        case .paragraph(let text):
+            Text(inline(text))
+                .font(.sfBodyM)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .bullet(let items):
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                        Text("•").foregroundStyle(Theme.accent)
+                        Text(inline(item)).font(.sfBodyM).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        case .ordered(let items):
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(items.enumerated()), id: \.offset) { i, item in
+                    HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                        Text("\(i + 1).").foregroundStyle(Theme.accent).monospacedDigit()
+                        Text(inline(item)).font(.sfBodyM).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        case .code(let code):
+            codeBlock(code)
+        case .table(let headers, let rows):
+            tableView(headers: headers, rows: rows)
+        }
+    }
+
+    private func codeBlock(_ code: String) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            Text(code)
+                .font(.sfCode)
+                .textSelection(.enabled)
+                .padding(Space.m)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+        .overlay(alignment: .topTrailing) {
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(code, forType: .string)
+            } label: { Image(systemName: "doc.on.doc").font(.system(size: 10)) }
+            .buttonStyle(.plain).foregroundStyle(.secondary).padding(6)
+        }
+    }
+
+    private func tableView(headers: [String], rows: [[String]]) -> some View {
+        let columns = max(headers.count, rows.map(\.count).max() ?? 0)
+        return Grid(alignment: .leading, horizontalSpacing: Space.m, verticalSpacing: 6) {
+            GridRow {
+                ForEach(0..<columns, id: \.self) { c in
+                    Text(inline(c < headers.count ? headers[c] : ""))
+                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(.secondary)
+                }
+            }
+            Divider().gridCellColumns(columns)
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                GridRow {
+                    ForEach(0..<columns, id: \.self) { c in
+                        Text(inline(c < row.count ? row[c] : "")).font(.sfCaption2)
+                    }
+                }
+            }
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+    }
+
+    /// Inline markdown (bold/italic/code/links) with newlines preserved.
+    private func inline(_ s: String) -> AttributedString {
+        (try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(s)
+    }
+}
+
+// MARK: - Parsing
+
+enum MarkdownBlock {
+    case heading(Int, String)
+    case paragraph(String)
+    case bullet([String])
+    case ordered([String])
+    case code(String)
+    case table(headers: [String], rows: [[String]])
+}
+
+enum MarkdownParser {
+    static func blocks(from text: String) -> [MarkdownBlock] {
+        var blocks: [MarkdownBlock] = []
+        let lines = text.components(separatedBy: "\n")
+        var i = 0
+
+        func cells(_ line: String) -> [String] {
+            var l = line.trimmingCharacters(in: .whitespaces)
+            if l.hasPrefix("|") { l.removeFirst() }
+            if l.hasSuffix("|") { l.removeLast() }
+            return l.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+        func isSeparator(_ line: String) -> Bool {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            guard t.contains("-"), t.contains("|") || t.hasPrefix("-") else { return false }
+            return t.allSatisfy { "|-: ".contains($0) }
+        }
+
+        while i < lines.count {
+            let line = lines[i]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.isEmpty { i += 1; continue }
+
+            // Fenced code.
+            if trimmed.hasPrefix("```") {
+                var code: [String] = []
+                i += 1
+                while i < lines.count, !lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                    code.append(lines[i]); i += 1
+                }
+                i += 1 // closing fence
+                blocks.append(.code(code.joined(separator: "\n")))
+                continue
+            }
+
+            // Table: a header row followed by a |---| separator.
+            if trimmed.contains("|"), i + 1 < lines.count, isSeparator(lines[i + 1]) {
+                let headers = cells(line)
+                i += 2
+                var rows: [[String]] = []
+                while i < lines.count, lines[i].contains("|"),
+                      !lines[i].trimmingCharacters(in: .whitespaces).isEmpty {
+                    rows.append(cells(lines[i])); i += 1
+                }
+                blocks.append(.table(headers: headers, rows: rows))
+                continue
+            }
+
+            // Heading.
+            if trimmed.hasPrefix("#") {
+                let hashes = trimmed.prefix(while: { $0 == "#" }).count
+                let content = trimmed.dropFirst(hashes).trimmingCharacters(in: .whitespaces)
+                blocks.append(.heading(hashes, content)); i += 1
+                continue
+            }
+
+            // Bulleted list.
+            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                var items: [String] = []
+                while i < lines.count {
+                    let t = lines[i].trimmingCharacters(in: .whitespaces)
+                    guard t.hasPrefix("- ") || t.hasPrefix("* ") else { break }
+                    items.append(String(t.dropFirst(2))); i += 1
+                }
+                blocks.append(.bullet(items)); continue
+            }
+
+            // Ordered list.
+            if let r = trimmed.range(of: #"^\d+\.\s"#, options: .regularExpression) {
+                var items: [String] = []
+                while i < lines.count {
+                    let t = lines[i].trimmingCharacters(in: .whitespaces)
+                    guard let rr = t.range(of: #"^\d+\.\s"#, options: .regularExpression) else { break }
+                    items.append(String(t[rr.upperBound...])); i += 1
+                }
+                _ = r
+                blocks.append(.ordered(items)); continue
+            }
+
+            // Paragraph: gather consecutive plain lines.
+            var para: [String] = []
+            while i < lines.count {
+                let t = lines[i].trimmingCharacters(in: .whitespaces)
+                if t.isEmpty || t.hasPrefix("```") || t.hasPrefix("#")
+                    || t.hasPrefix("- ") || t.hasPrefix("* ")
+                    || t.range(of: #"^\d+\.\s"#, options: .regularExpression) != nil
+                    || (t.contains("|") && i + 1 < lines.count && isSeparator(lines[i + 1])) {
+                    break
+                }
+                para.append(lines[i]); i += 1
+            }
+            if !para.isEmpty { blocks.append(.paragraph(para.joined(separator: "\n"))) }
+        }
+        return blocks
+    }
+}

@@ -134,14 +134,6 @@ struct ChatView: View {
         n >= 1000 ? String(format: "%.1fk", Double(n) / 1000) : "\(n)"
     }
 
-    /// Render Claude's markdown while PRESERVING newlines (plain markdown parsing
-    /// collapses single newlines into spaces, which produced the wall of text).
-    private func rendered(_ text: String) -> AttributedString {
-        (try? AttributedString(markdown: text,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-            ?? AttributedString(text)
-    }
-
     private func copyToClipboard(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
@@ -200,11 +192,7 @@ struct ChatView: View {
                 .frame(width: 24, height: 24)
                 .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 6) {
-                    (Text(rendered(message.text))
-                        + (isStreaming ? Text(" ▍").foregroundColor(Theme.accent) : Text("")))
-                        .font(.sfBodyM)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
+                    MarkdownView(text: message.text + (isStreaming ? " ▍" : ""))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if !isStreaming {
                         Button { copyToClipboard(message.text) } label: {
