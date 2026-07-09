@@ -1,0 +1,193 @@
+//
+//  Strategy.swift
+//  StrategyForge
+//
+//  A strategy is a topology: a named set of roles plus honest orchestration notes
+//  describing how the (single) orchestrator delegates and what the limitations are.
+//
+
+import Foundation
+
+/// A multi-agent topology, fully editable (model and count per role).
+struct Strategy: Codable, Identifiable, Hashable {
+    var id: UUID
+    var name: String
+    var description: String
+    var roles: [AgentRole]
+    /// Prose that goes into `CLAUDE.md` explaining how the orchestrator should
+    /// delegate and the limitations (single level of delegation, no lateral
+    /// worker-to-worker communication). Must be honest about the Claude Code model.
+    var orchestrationNotes: String
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        description: String,
+        roles: [AgentRole],
+        orchestrationNotes: String
+    ) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.roles = roles
+        self.orchestrationNotes = orchestrationNotes
+    }
+
+    // MARK: - Convenience
+
+    /// The single orchestrator role, if the strategy is well-formed.
+    var orchestrator: AgentRole? {
+        roles.first { $0.isOrchestrator }
+    }
+
+    /// All non-orchestrator roles — the ones that become subagent files.
+    var subagentRoles: [AgentRole] {
+        roles.filter { !$0.isOrchestrator }
+    }
+}
+
+// MARK: - Validation
+
+extension Strategy {
+
+    /// A single validation problem, surfaced inline in the editor.
+    struct ValidationIssue: Identifiable, Hashable {
+        enum Severity: Hashable { case error, warning }
+        let id = UUID()
+        let severity: Severity
+        let message: String
+        /// The role this issue relates to, if any (for row-level highlighting).
+        let roleID: UUID?
+
+        init(severity: Severity, message: String, roleID: UUID? = nil) {
+            self.severity = severity
+            self.message = message
+            self.roleID = roleID
+        }
+    }
+
+    /// All validation issues for the current state. Empty `errors` means the
+    /// strategy can be generated safely.
+    func validate() -> [ValidationIssue] {
+        var issues: [ValidationIssue] = []
+
+        // Exactly one orchestrator.
+        let orchestrators = roles.filter { $0.isOrchestrator }
+        switch orchestrators.count {
+        case 0:
+            issues.append(.init(severity: .error,
+                message: "A strategy must have exactly one orchestrator; none is marked."))
+        case 1:
+            break
+        default:
+            issues.append(.init(severity: .error,
+                message: "A strategy must have exactly one orchestrator; \(orchestrators.count) are marked."))
+        }
+
+        // Orchestrator constraints: count is always 1 and its model is a launch
+        // setting (documented in CLAUDE.md), never frontmatter — so we warn if a
+        // count other than 1 slipped in.
+        for orch in orchestrators where orch.count != 1 {
+            issues.append(.init(severity: .error,
+                message: "The orchestrator must have a count of 1.",
+                roleID: orch.id))
+        }
+
+        // Unique, non-empty, space-free subagent names.
+        var seen: [String: Int] = [:]
+        for role in roles {
+            let trimmed = role.name.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty {
+                issues.append(.init(severity: .error,
+                    message: "A role has an empty name.", roleID: role.id))
+            }
+            if role.name.contains(" ") {
+                issues.append(.init(severity: .error,
+                    message: "Role name “\(role.name)” contains spaces; use a slug like “code-reviewer”.",
+                    roleID: role.id))
+            }
+            seen[role.name, default: 0] += 1
+        }
+        for (name, freq) in seen where freq > 1 {
+            issues.append(.init(severity: .error,
+                message: "Duplicate role name “\(name)”. Subagent names must be unique."))
+        }
+
+        // Counts must be positive.
+        for role in roles where role.count < 1 {
+            issues.append(.init(severity: .error,
+                message: "Role “\(role.name)” has a count below 1.", roleID: role.id))
+        }
+
+        // Reviewers/advisors/researchers should not hold write tools.
+        let writeTools: Set<String> = ["Write", "Edit", "Bash"]
+        for role in roles where role.role.isReadOnlyByDefault && !role.isOrchestrator {
+            let granted = Set(role.tools)
+            let offending = granted.intersection(writeTools)
+            if !offending.isEmpty {
+                issues.append(.init(severity: .warning,
+                    message: "“\(role.name)” is a \(role.role.displayName.lowercased()) but can \(offending.sorted().joined(separator: ", ")). Consider read-only tools.",
+                    roleID: role.id))
+            }
+        }
+
+        // Workers should not hold the delegation tool — Claude Code allows only a
+        // single level of delegation.
+        for role in subagentRoles where role.tools.contains("Agent") {
+            issues.append(.init(severity: .warning,
+                message: "“\(role.name)” is granted the Agent tool, but subagents cannot delegate further (single level of delegation).",
+                roleID: role.id))
+        }
+
+        return issues
+    }
+
+    /// Only the blocking issues.
+    var errors: [ValidationIssue] {
+        validate().filter { $0.severity == .error }
+    }
+
+    /// True when there are no blocking errors.
+    var isValid: Bool { errors.isEmpty }
+
+    // MARK: - Auto-fix
+
+    /// True when at least one issue can be resolved automatically.
+    var hasAutoFixableIssues: Bool { self != autoFixed() }
+
+    /// Return a copy with all safe, mechanical issues fixed:
+    ///  • read-only roles (advisor/reviewer/researcher) lose write tools;
+    ///  • subagents lose the `Agent` tool (single level of delegation);
+    ///  • counts below 1 are clamped to 1;
+    ///  • duplicate role names get a numeric suffix.
+    /// Structural problems (e.g. missing orchestrator) are left for the user.
+    func autoFixed() -> Strategy {
+        var copy = self
+        let writeTools: Set<String> = ["Write", "Edit", "Bash"]
+
+        for i in copy.roles.indices {
+            if copy.roles[i].role.isReadOnlyByDefault && !copy.roles[i].isOrchestrator {
+                copy.roles[i].tools.removeAll { writeTools.contains($0) }
+            }
+            if !copy.roles[i].isOrchestrator {
+                copy.roles[i].tools.removeAll { $0 == "Agent" }
+            }
+            if copy.roles[i].count < 1 { copy.roles[i].count = 1 }
+            if copy.roles[i].isOrchestrator { copy.roles[i].count = 1 }
+        }
+
+        // De-duplicate names deterministically (append -2, -3, … to later dupes).
+        var seen: [String: Int] = [:]
+        for i in copy.roles.indices {
+            let name = copy.roles[i].name
+            if let n = seen[name] {
+                let next = n + 1
+                seen[name] = next
+                copy.roles[i].name = "\(name)-\(next)"
+            } else {
+                seen[name] = 1
+            }
+        }
+        return copy
+    }
+}
