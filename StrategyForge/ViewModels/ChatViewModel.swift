@@ -31,6 +31,8 @@ final class ChatViewModel {
     var editedFiles: [String] = []
     /// The subagent the orchestrator is currently delegating to (if any).
     var activeSubagent: String?
+    /// Tool uses the last run wasn't permitted to perform (→ offer allow & retry).
+    var deniedTools: [String] = []
     var input = ""
     var isRunning = false
     var errorText: String?
@@ -88,6 +90,7 @@ final class ChatViewModel {
         errorText = nil
         activity = []
         activeSubagent = nil
+        deniedTools = []
         if messages.isEmpty { onFirstUserMessage(text) }   // auto-title the chat
         ensureStrategyFiles()   // make sure .claude/agents + CLAUDE.md are in the repo
         messages.append(ChatMessage(role: .user, text: text))
@@ -157,6 +160,8 @@ final class ChatViewModel {
                 separatorPending = true
             case .fileEdited(let path):
                 if !editedFiles.contains(path) { editedFiles.append(path) }
+            case .denied(let items):
+                deniedTools = items
             case .usage(let tokens, let cost):
                 totalTokens += tokens
                 totalCostUSD += cost
@@ -172,6 +177,28 @@ final class ChatViewModel {
             }
         }
         return sessionMissing
+    }
+
+    /// Re-run the last user message granting full permissions — the "allow & retry"
+    /// path when a run was blocked by permission denials.
+    func retryAllowingAll() {
+        guard !isRunning, let repo = config.repoPath,
+              let lastUser = messages.last(where: { $0.role == .user })?.text else { return }
+        deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
+        messages.append(ChatMessage(role: .assistant, text: ""))
+        let assistantIndex = messages.count - 1
+        isRunning = true
+        let sessionID = config.id.uuidString.lowercased()
+        runTask = Task { [binary, model] in
+            _ = await runTurn(text: lastUser, repo: repo, sessionID: sessionID, resume: true,
+                              assistantIndex: assistantIndex, binary: binary, model: model,
+                              permissionMode: "bypassPermissions")
+            isRunning = false
+            if messages.indices.contains(assistantIndex), messages[assistantIndex].text.isEmpty {
+                messages.remove(at: assistantIndex)
+            }
+            persist(messages)
+        }
     }
 
     func stop() {

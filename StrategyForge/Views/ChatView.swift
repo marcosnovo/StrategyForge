@@ -60,6 +60,7 @@ struct ChatView: View {
             header
             Divider()
             messagesList
+            if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
             if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
             Divider()
@@ -294,6 +295,28 @@ struct ChatView: View {
         .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.accentSoft)
+    }
+
+    /// Shown after a run that was blocked by permission denials: what was blocked
+    /// and a one-click "allow all & retry".
+    private var deniedStrip: some View {
+        HStack(alignment: .top, spacing: Space.s) {
+            Image(systemName: "hand.raised.fill").foregroundStyle(Theme.warning).font(.system(size: 11))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.t("chat.denied", vm.deniedTools.prefix(4).joined(separator: ", ")))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: Space.s)
+            Button { vm.retryAllowingAll() } label: {
+                Label(model.t("chat.allowRetry"), systemImage: "checkmark.shield")
+            }
+            .controlSize(.small)
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.warning.opacity(0.12))
     }
 
     private func errorBanner(_ error: String) -> some View {

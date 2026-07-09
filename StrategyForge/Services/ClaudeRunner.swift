@@ -18,6 +18,7 @@ enum ChatEvent: Sendable, Equatable {
     case tool(String)            // a tool the agent invoked (shown as a status line)
     case delegated(String)       // the orchestrator delegated to this subagent
     case fileEdited(String)      // absolute path of a file the agent wrote/edited
+    case denied([String])        // tool uses the run wasn't permitted to perform
     case usage(tokens: Int, costUSD: Double)  // consumption for this turn
     case finished                // the run completed successfully
     case failed(String)          // the run could not start / errored
@@ -84,6 +85,16 @@ enum ClaudeStreamParser {
         // Final result line — carries token usage and success/failure.
         if type == "result" {
             var events: [ChatEvent] = []
+            if let denials = obj["permission_denials"] as? [[String: Any]], !denials.isEmpty {
+                let items = denials.map { den -> String in
+                    let name = den["tool_name"] as? String ?? "tool"
+                    let input = den["tool_input"] as? [String: Any]
+                    let detail = (input?["file_path"] as? String).map { ($0 as NSString).lastPathComponent }
+                        ?? (input?["command"] as? String) ?? ""
+                    return detail.isEmpty ? name : "\(name) \(detail)"
+                }
+                events.append(.denied(items))
+            }
             if let usage = obj["usage"] as? [String: Any] {
                 let input = (usage["input_tokens"] as? Int) ?? 0
                 let output = (usage["output_tokens"] as? Int) ?? 0
