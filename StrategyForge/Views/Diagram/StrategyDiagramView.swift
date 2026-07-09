@@ -220,12 +220,24 @@ private struct DiagramPalette {
 
 struct StrategyDiagramView: View {
     let strategy: Strategy
+    /// When live, the node for this agent (nil → the orchestrator) gets a bright
+    /// "at work" glow, so the diagram doubles as a live activity visualization.
+    var activeAgent: String? = nil
+    var isLive: Bool = false
     @Environment(\.colorScheme) private var scheme
     @Environment(AppModel.self) private var model
 
     var body: some View {
         let palette = DiagramPalette.make(scheme)
         let spec = DiagramSpecBuilder.build(from: strategy, t: { model.t($0) })
+        // Which node (if any) is the one currently working.
+        let activeID: UUID? = {
+            guard isLive else { return nil }
+            if let a = activeAgent {
+                return spec.subagents.first { Self.titlesMatch($0.title, a) }?.id
+            }
+            return spec.orchestrator.id
+        }()
 
         // Pure Canvas — no GeometryReader (which destabilizes ScrollView content
         // height) and no positioned subviews. Everything is drawn from `size`.
@@ -242,7 +254,7 @@ struct StrategyDiagramView: View {
                 )
                 drawBackground(spec: spec, frames: frames, size: size, pulse: pulse, ctx: &ctx, palette: palette)
                 drawEdges(spec: spec, frames: frames, time: t, ctx: &ctx, palette: palette)
-                drawNodes(spec: spec, frames: frames, pulse: pulse, ctx: &ctx, palette: palette)
+                drawNodes(spec: spec, frames: frames, pulse: pulse, activeID: activeID, ctx: &ctx, palette: palette)
                 drawLabels(spec: spec, frames: frames, size: size, ctx: &ctx, palette: palette)
                 drawLegend(spec: spec, size: size, ctx: &ctx, palette: palette)
             }
@@ -472,9 +484,10 @@ struct StrategyDiagramView: View {
 
     // MARK: Nodes (drawn in Canvas)
 
-    private func drawNodes(spec: DiagramSpec, frames: [UUID: CGRect], pulse: CGFloat, ctx: inout GraphicsContext, palette: DiagramPalette) {
+    private func drawNodes(spec: DiagramSpec, frames: [UUID: CGRect], pulse: CGFloat, activeID: UUID?, ctx: inout GraphicsContext, palette: DiagramPalette) {
         for node in spec.allNodes {
             guard let rect = frames[node.id] else { continue }
+            let live = node.id == activeID
 
             // Stacked cards behind (for collapsed ×N roles).
             if node.stackCount > 1 {
@@ -482,10 +495,10 @@ struct StrategyDiagramView: View {
                     let off = CGFloat(6 * i)
                     var faint = ctx
                     faint.opacity = 0.5
-                    drawBox(rect.offsetBy(dx: off, dy: off), node: node, pulse: pulse, ctx: &faint, palette: palette)
+                    drawBox(rect.offsetBy(dx: off, dy: off), node: node, pulse: pulse, live: false, ctx: &faint, palette: palette)
                 }
             }
-            drawBox(rect, node: node, pulse: pulse, ctx: &ctx, palette: palette)
+            drawBox(rect, node: node, pulse: pulse, live: live, ctx: &ctx, palette: palette)
 
             // Text — crisp, non-serif, with a monospaced model tag (technical feel).
             let cx = rect.midX
@@ -515,16 +528,26 @@ struct StrategyDiagramView: View {
 
     /// All node boxes share the surface fill; the accent (top-tier / root) node is
     /// "lit" with a Voltage glow ring instead of a fill, like a powered component.
-    private func drawBox(_ rect: CGRect, node: DiagramNode, pulse: CGFloat, ctx: inout GraphicsContext, palette: DiagramPalette) {
+    private func drawBox(_ rect: CGRect, node: DiagramNode, pulse: CGFloat, live: Bool, ctx: inout GraphicsContext, palette: DiagramPalette) {
         let shape = Path(roundedRect: rect, cornerRadius: 12)
-        ctx.fill(shape, with: .color(palette.surface))
-        if node.isAccent {
+        if live {
+            // The agent currently at work: a strong breathing green halo + fill tint,
+            // on top of whatever the node normally looks like.
+            let green = Theme.success
+            let spread = 4.0 + 5.0 * pulse
+            let halo = Path(roundedRect: rect.insetBy(dx: -spread, dy: -spread), cornerRadius: 12 + spread)
+            ctx.fill(shape, with: .color(green.opacity(0.16)))
+            ctx.stroke(halo, with: .color(green.opacity(0.28 + 0.30 * pulse)), lineWidth: 6)
+            ctx.stroke(shape, with: .color(green), lineWidth: 2)
+        } else if node.isAccent {
+            ctx.fill(shape, with: .color(palette.surface))
             // Breathing glow ring around the powered node.
             let spread = 2.0 + 3.0 * pulse
             let halo = Path(roundedRect: rect.insetBy(dx: -spread, dy: -spread), cornerRadius: 12 + spread)
             ctx.stroke(halo, with: .color(palette.accent.opacity(0.20 + 0.25 * pulse)), lineWidth: 5)
             ctx.stroke(shape, with: .color(palette.accent), lineWidth: 1.6)
         } else {
+            ctx.fill(shape, with: .color(palette.surface))
             ctx.stroke(shape, with: .color(palette.border), lineWidth: 1)
         }
     }
@@ -554,6 +577,15 @@ struct StrategyDiagramView: View {
                      at: CGPoint(x: rect.maxX, y: max(rect.minY - 10, 10)),
                      color: palette.secondary, anchor: .trailing)
         }
+    }
+
+    /// Loose match between a diagram node title and a streamed agent name (which may
+    /// be a subagent_type slug or a free-text description).
+    static func titlesMatch(_ a: String, _ b: String) -> Bool {
+        func norm(_ s: String) -> String { String(s.lowercased().filter { $0.isLetter || $0.isNumber }) }
+        let na = norm(a), nb = norm(b)
+        guard !na.isEmpty, !nb.isEmpty else { return false }
+        return na.contains(nb) || nb.contains(na)
     }
 
     private func drawText(_ ctx: inout GraphicsContext, _ text: Text, at point: CGPoint, color: Color, anchor: UnitPoint = .center) {

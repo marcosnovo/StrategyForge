@@ -471,6 +471,8 @@ enum L10n {
         "activity.empty": ("Steps will appear here as the agents work.", "Los pasos aparecerán aquí según trabajen los agentes."),
         "activity.team": ("TEAM", "EQUIPO"),
         "activity.agentDetail": ("Agent activity", "Actividad del agente"),
+        "activity.tab.steps": ("Steps", "Pasos"),
+        "activity.tab.diagram": ("Diagram", "Diagrama"),
         "activity.active": ("active", "activo"),
         "activity.done": ("done", "hecho"),
         "activity.soloNote": ("The orchestrator is handling this itself — it delegates to teammates only when the task needs it.",

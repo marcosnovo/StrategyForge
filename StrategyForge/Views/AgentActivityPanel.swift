@@ -23,12 +23,15 @@ enum AgentFocus: Hashable {
     }
 }
 
+enum ActivityPanelMode: String, CaseIterable { case timeline, diagram }
+
 struct AgentActivityPanel: View {
     @Environment(AppModel.self) private var model
     var vm: ChatViewModel
     /// The agent whose detail column is open (nil = closed). Bound to the parent
     /// so the drill-down column lives at the far right of the window.
     @Binding var focus: AgentFocus?
+    @State private var mode: ActivityPanelMode = .timeline
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -59,8 +62,13 @@ struct AgentActivityPanel: View {
                 VStack(alignment: .leading, spacing: Space.l) {
                     statusCard
                     teamSection
-                    if !vm.todos.isEmpty { tasksSection }
-                    timelineSection
+                    modePicker
+                    if mode == .timeline {
+                        if !vm.todos.isEmpty { tasksSection }
+                        timelineSection
+                    } else {
+                        diagramSection
+                    }
                 }
                 .padding(Space.m)
             }
@@ -108,6 +116,25 @@ struct AgentActivityPanel: View {
             Text(text).font(.sfCaption2.weight(.medium))
         }
         .foregroundStyle(.secondary)
+    }
+
+    // MARK: Mode switch + diagram
+
+    private var modePicker: some View {
+        Picker("", selection: $mode) {
+            Text(model.t("activity.tab.steps")).tag(ActivityPanelMode.timeline)
+            Text(model.t("activity.tab.diagram")).tag(ActivityPanelMode.diagram)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+    }
+
+    /// The live topology: the strategy diagram with the working agent's node lit.
+    private var diagramSection: some View {
+        StrategyDiagramView(strategy: vm.config.strategy,
+                            activeAgent: vm.activeSubagent,
+                            isLive: vm.isRunning)
+            .frame(height: 260)
     }
 
     // MARK: Team
