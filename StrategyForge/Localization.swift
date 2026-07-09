@@ -426,6 +426,7 @@ enum L10n {
         "chat.empty": ("Ask a question, review a document, or start a task. Claude works here with the team you designed, in the folder you chose.",
                        "Haz una pregunta, revisa un documento o empieza una tarea. Claude trabaja aquí con el equipo que diseñaste, en la carpeta que elegiste."),
         "chat.needRepo": ("Choose a folder in Chat settings.", "Elige una carpeta en Ajustes del chat."),
+        "chat.scratch": ("Scratch folder (no project)", "Carpeta temporal (sin proyecto)"),
         "chat.untitled": ("New chat", "Nuevo chat"),
         "chat.settings": ("Chat settings", "Ajustes del chat"),
         "chat.noMessages": ("No messages yet", "Aún sin mensajes"),

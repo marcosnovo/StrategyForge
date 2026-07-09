@@ -92,15 +92,26 @@ final class ChatViewModel {
     var model: String { config.strategy.orchestrator?.model.rawValue ?? "claude-fable-5" }
     var canSend: Bool {
         let hasText = !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return (hasText || !attachments.isEmpty) && !isRunning && config.repoPath != nil
+        return (hasText || !attachments.isEmpty) && !isRunning
+    }
+
+    /// The folder Claude runs in: the chosen repo, or a per-chat scratch folder so
+    /// questions / document reviews work without picking a project.
+    private func workingDirectory() -> String {
+        if let repo = config.repoPath, !repo.isEmpty { return repo }
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = base.appendingPathComponent("StrategyForge/sessions/\(config.id.uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.path
     }
 
     func send() {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !isRunning, let repo = config.repoPath else { return }
+        guard !isRunning else { return }
         // Allow sending attachments alone with a sensible default ask.
         if text.isEmpty, !attachments.isEmpty { text = "Please review the attached files." }
         guard !text.isEmpty else { return }
+        let repo = workingDirectory()
 
         // Fold any attached files into the prompt + grant read access to their dirs.
         let atts = attachments
@@ -118,7 +129,13 @@ final class ChatViewModel {
         activeSubagent = nil
         deniedTools = []
         if messages.isEmpty { onFirstUserMessage(text) }   // auto-title the chat
-        ensureStrategyFiles()   // make sure .claude/agents + CLAUDE.md are in the repo
+        // Put the strategy's .claude files in the working folder so the team applies.
+        if config.repoPath?.isEmpty ?? true {
+            try? StrategyWriter(repoURL: URL(fileURLWithPath: repo), binary: binary)
+                .write(strategy: config.strategy)
+        } else {
+            ensureStrategyFiles()
+        }
         messages.append(ChatMessage(role: .user, text: displayText))
         messages.append(ChatMessage(role: .assistant, text: ""))
         let assistantIndex = messages.count - 1

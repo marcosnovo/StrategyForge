@@ -131,7 +131,7 @@ struct SidebarView: View {
                 Label(model.t("sidebar.new"), systemImage: "square.and.pencil")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
             .controlSize(.large)
             .help(model.t("sidebar.new"))
         }

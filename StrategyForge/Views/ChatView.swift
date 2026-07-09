@@ -95,12 +95,12 @@ struct ChatView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if let path = config.repoPath {
+                    if let path = config.repoPath, !path.isEmpty {
                         Text(model.t("chat.subtitle", (path as NSString).lastPathComponent))
                             .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
                     } else {
-                        Text(model.t("chat.needRepo"))
-                            .font(.sfCaption2).foregroundStyle(Theme.warning).lineLimit(1)
+                        Text(model.t("chat.scratch"))
+                            .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
             }
@@ -341,12 +341,12 @@ struct ChatView: View {
             .buttonStyle(.borderless)
             .help(model.t("chat.attach"))
 
-            TextField(model.t(vm.config.repoPath == nil ? "chat.needRepo" : "chat.placeholder"),
+            TextField(model.t("chat.placeholder"),
                       text: Bindable(vm).input, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...5)
                 .padding(Space.s)
-                .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+                .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
                 .onSubmit { send() }
                 // Up arrow on an empty field recalls the last message to edit/resend.
                 .onKeyPress(.upArrow) {
@@ -365,7 +365,7 @@ struct ChatView: View {
                 Button { send() } label: {
                     Label(model.t("chat.send"), systemImage: "arrow.up.circle.fill")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
                 .controlSize(.large)
                 .disabled(!vm.canSend)
                 .keyboardShortcut(.return, modifiers: .command)

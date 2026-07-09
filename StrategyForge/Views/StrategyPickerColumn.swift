@@ -28,7 +28,7 @@ struct StrategyPickerColumn: View {
                     Label(model.t("task2strat.open"), systemImage: "sparkles")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
                 .controlSize(.small)
                 .help(model.t("task2strat.subtitle"))
 
@@ -36,7 +36,7 @@ struct StrategyPickerColumn: View {
                     Label(model.t("wizard.open"), systemImage: "wand.and.stars")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
                 .controlSize(.small)
                 .help(model.t("wizard.help"))
             }

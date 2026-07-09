@@ -79,7 +79,8 @@ struct ContentView: View {
             Divider()
             ChatInspector(config: model.configurationBinding(id))
         }
-        .frame(minWidth: 560, idealWidth: 640, minHeight: 600, idealHeight: 720)
+        .frame(minWidth: 820, idealWidth: 1040, maxWidth: .infinity,
+               minHeight: 640, idealHeight: 820, maxHeight: .infinity)
     }
 }
 
