@@ -80,7 +80,10 @@ final class AppModel {
         let n = name.lowercased()
         if n.contains("fan-out") && n.contains("worker") { return "strat.fanout" }
         if n.contains("advisor") { return "strat.execadv" }
+        if n.contains("scout") { return "strat.scout" }
+        if n.contains("triage") { return "strat.triage" }
         if n.contains("planner") { return "strat.planner" }
+        if (n.contains("root") && n.contains("cause")) || n.contains("debug") { return "strat.rootcause" }
         if n.contains("specialist") { return "strat.domain" }
         if n.contains("research") { return "strat.research" }
         if n.contains("debate") || n.contains("consensus") { return "strat.debate" }
@@ -121,6 +124,12 @@ final class AppModel {
     func strategyNotFor(_ strategy: Strategy) -> String {
         guard let key = strategyKey(strategy.name) else { return "" }
         return t(key + ".not")
+    }
+
+    /// A 1-2 word task category ("Debug", "Explore", …) for the strategy chooser.
+    func strategyTaskTag(_ strategy: Strategy) -> String {
+        guard let key = strategyKey(strategy.name) else { return "" }
+        return t(key + ".tag")
     }
 
     // MARK: - Banner helper

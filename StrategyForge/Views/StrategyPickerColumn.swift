@@ -73,7 +73,7 @@ struct StrategyPickerColumn: View {
             HStack(spacing: Space.m) {
                 StrategyThumbnail(strategy: template)
                     .frame(width: 60, height: 40)
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 5) {
                         Text(model.strategyDisplayName(template))
                             .font(.sfCallout.weight(.medium))
@@ -84,7 +84,17 @@ struct StrategyPickerColumn: View {
                                 .font(.system(size: 8)).foregroundStyle(Theme.success)
                         }
                     }
-                    costTierPill(template)
+                    // Best-for: which task this team fits, at a glance.
+                    let goodFor = model.strategyGoodFor(template)
+                    if !goodFor.isEmpty {
+                        Text("\(model.t("picker.bestfor")): \(goodFor)")
+                            .font(.sfCaption2).foregroundStyle(.secondary)
+                            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                    }
+                    HStack(spacing: 5) {
+                        taskTagChip(template)   // WHAT task (neutral)
+                        costTierPill(template)  // HOW MUCH it costs (green/amber/red)
+                    }
                 }
                 Spacer(minLength: 0)
                 if selected {
@@ -104,6 +114,20 @@ struct StrategyPickerColumn: View {
         }
         .buttonStyle(.plain)
         .help(model.strategyDisplayName(template))
+    }
+
+    /// Neutral "what task" chip — deliberately NOT colored so it reads as a
+    /// different axis from the (green/amber/red) cost pill beside it.
+    @ViewBuilder
+    private func taskTagChip(_ template: Strategy) -> some View {
+        let tag = model.strategyTaskTag(template)
+        if !tag.isEmpty {
+            Text(tag)
+                .font(.sfCaption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Capsule().fill(Theme.hairline))
+        }
     }
 
     private func costTierPill(_ template: Strategy) -> some View {
