@@ -25,6 +25,7 @@ struct AgentActivityPanel: View {
                 }
             }
             .padding(Space.m)
+            .background(.bar)
             Divider()
 
             ScrollView {
@@ -37,7 +38,7 @@ struct AgentActivityPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.appBg)
+        .background(.regularMaterial)
     }
 
     // MARK: Status

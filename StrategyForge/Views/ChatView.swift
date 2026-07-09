@@ -110,8 +110,9 @@ struct ChatView: View {
                         Text(model.strategyDisplayName(config.strategy))
                             .font(.sfCaption2.weight(.medium))
                             .foregroundStyle(Theme.accent)
-                            .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(Capsule().fill(Theme.accent.opacity(0.15)))
+                            .padding(.horizontal, 9).padding(.vertical, 3)
+                            .glassEffect(.regular.tint(Theme.accent.opacity(0.18)).interactive(),
+                                         in: .capsule)
                     }
                     .buttonStyle(.plain)
 
@@ -136,8 +137,8 @@ struct ChatView: View {
                     }
                 }
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.hairline))
+                .padding(.horizontal, 9).padding(.vertical, 3)
+                .glassEffect(.regular, in: .capsule)
                 .help(model.t("chat.tokens.help"))
             }
             Button {
@@ -146,13 +147,13 @@ struct ChatView: View {
                 Image(systemName: "sidebar.trailing")
                     .foregroundStyle(showActivity ? Theme.accent : .secondary)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.glass)
             .help(model.t("chat.activity.help"))
 
             Button { showInspector = true } label: {
                 Image(systemName: "slider.horizontal.3")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.glass)
             .help(model.t("inspector.toggle"))
         }
         .padding(Space.m)
@@ -353,7 +354,7 @@ struct ChatView: View {
             } label: {
                 Image(systemName: "paperclip").font(.system(size: 15))
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.glass)
             .help(model.t("chat.attach"))
 
             TextField(model.t("chat.placeholder"),
@@ -405,9 +406,8 @@ struct ChatView: View {
                         .buttonStyle(.plain)
                     }
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(Theme.insetBg)
-                        .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1)))
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .glassEffect(.regular, in: .capsule)
                 }
             }
         }
