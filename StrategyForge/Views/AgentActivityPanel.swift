@@ -133,8 +133,9 @@ struct AgentActivityPanel: View {
     private var diagramSection: some View {
         StrategyDiagramView(strategy: vm.config.strategy,
                             activeAgent: vm.activeSubagent,
-                            isLive: vm.isRunning)
-            .frame(height: 260)
+                            isLive: vm.isRunning,
+                            compact: true)
+            .frame(height: 280)
     }
 
     // MARK: Team

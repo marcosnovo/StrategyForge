@@ -224,6 +224,10 @@ struct StrategyDiagramView: View {
     /// "at work" glow, so the diagram doubles as a live activity visualization.
     var activeAgent: String? = nil
     var isLive: Bool = false
+    /// Compact mode for narrow columns (e.g. the activity panel): drops edge
+    /// labels, the legend and node subtitles, and tightens spacing so the topology
+    /// stays legible at ~300pt instead of overlapping.
+    var compact: Bool = false
     @Environment(\.colorScheme) private var scheme
     @Environment(AppModel.self) private var model
 
@@ -255,8 +259,10 @@ struct StrategyDiagramView: View {
                 drawBackground(spec: spec, frames: frames, size: size, pulse: pulse, ctx: &ctx, palette: palette)
                 drawEdges(spec: spec, frames: frames, time: t, ctx: &ctx, palette: palette)
                 drawNodes(spec: spec, frames: frames, pulse: pulse, activeID: activeID, ctx: &ctx, palette: palette)
-                drawLabels(spec: spec, frames: frames, size: size, ctx: &ctx, palette: palette)
-                drawLegend(spec: spec, size: size, ctx: &ctx, palette: palette)
+                if !compact {
+                    drawLabels(spec: spec, frames: frames, size: size, ctx: &ctx, palette: palette)
+                    drawLegend(spec: spec, size: size, ctx: &ctx, palette: palette)
+                }
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -278,7 +284,8 @@ struct StrategyDiagramView: View {
     }
 
     private func nodeWidth(in size: CGSize) -> CGFloat {
-        min(max(size.width * 0.22, 104), 180)
+        compact ? min(max(size.width * 0.30, 84), 120)
+                : min(max(size.width * 0.22, 104), 180)
     }
 
     private func layout(spec: DiagramSpec, in size: CGSize) -> [UUID: CGRect] {
@@ -295,7 +302,7 @@ struct StrategyDiagramView: View {
 
         // Reserve room on the left for the Main loop and on the right for the
         // per-node loops and labels (scaled so the diagram fits narrow widths).
-        let reserve: CGFloat = min(48, size.width * 0.11)
+        let reserve: CGFloat = compact ? min(16, size.width * 0.05) : min(48, size.width * 0.11)
         let leftX: CGFloat = reserve
         let rightX = size.width - w - reserve
 
@@ -502,11 +509,12 @@ struct StrategyDiagramView: View {
 
             // Text — crisp, non-serif, with a monospaced model tag (technical feel).
             let cx = rect.midX
-            let title = Text(node.title).font(.system(size: 14, weight: .semibold))
+            let titleSize: CGFloat = compact ? 12 : 14
+            let title = Text(node.title).font(.system(size: titleSize, weight: .semibold))
             let modelT = Text(node.model.uppercased())
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .font(.system(size: compact ? 9 : 10, weight: .semibold, design: .monospaced))
 
-            if let subtitle = node.subtitle {
+            if let subtitle = node.subtitle, !compact {
                 drawText(&ctx, title, at: CGPoint(x: cx, y: rect.midY - 15), color: palette.text)
                 drawText(&ctx, modelT, at: CGPoint(x: cx, y: rect.midY + 1), color: node.isAccent ? palette.accent : palette.secondary)
                 drawText(&ctx, Text(subtitle).font(.system(size: 9.5)),
