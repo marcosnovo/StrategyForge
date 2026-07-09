@@ -33,6 +33,7 @@ struct MarkdownView: View {
         case .paragraph(let text):
             Text(inline(text))
                 .font(.sfBodyM)
+                .lineSpacing(Theme.bodyLineSpacing)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -40,8 +41,8 @@ struct MarkdownView: View {
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                        Text("•").foregroundStyle(Theme.accent)
-                        Text(inline(item)).font(.sfBodyM).fixedSize(horizontal: false, vertical: true)
+                        Text("•").foregroundStyle(.secondary)
+                        Text(inline(item)).font(.sfBodyM).lineSpacing(Theme.bodyLineSpacing).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -49,8 +50,8 @@ struct MarkdownView: View {
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(items.enumerated()), id: \.offset) { i, item in
                     HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                        Text("\(i + 1).").foregroundStyle(Theme.accent).monospacedDigit()
-                        Text(inline(item)).font(.sfBodyM).fixedSize(horizontal: false, vertical: true)
+                        Text("\(i + 1).").foregroundStyle(.secondary).monospacedDigit()
+                        Text(inline(item)).font(.sfBodyM).lineSpacing(Theme.bodyLineSpacing).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }

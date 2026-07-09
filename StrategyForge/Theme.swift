@@ -70,6 +70,10 @@ enum Theme {
     static let corner: CGFloat = 14
     static let innerCorner: CGFloat = 10
     static let sectionSpacing: CGFloat = 20
+    /// Vertical gap between chat messages (Claude/Superhuman-like breathing room).
+    static let messageSpacing: CGFloat = 18
+    /// Extra line spacing for body copy so long replies read comfortably.
+    static let bodyLineSpacing: CGFloat = 3
 }
 
 /// 4-based spacing scale.

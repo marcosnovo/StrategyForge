@@ -55,8 +55,11 @@ struct AgentActivityPanel: View {
                 }
             }
             .padding(Space.m)
-            .background(.bar)
-            Divider()
+            .background {
+                Rectangle().fill(.bar)
+                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
+            }
+            .zIndex(1)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.l) {
@@ -74,7 +77,7 @@ struct AgentActivityPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
+        .background(.thinMaterial)
     }
 
     // MARK: Status
@@ -383,8 +386,11 @@ struct SubagentDetailPanel: View {
                 .help(model.t("common.done"))
             }
             .padding(Space.m)
-            .background(.bar)
-            Divider()
+            .background {
+                Rectangle().fill(.bar)
+                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
+            }
+            .zIndex(1)
 
             if steps.isEmpty {
                 VStack(spacing: Space.s) {
@@ -406,6 +412,6 @@ struct SubagentDetailPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
+        .background(.ultraThinMaterial)
     }
 }

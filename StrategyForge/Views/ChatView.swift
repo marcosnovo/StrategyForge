@@ -94,7 +94,6 @@ struct ChatView: View {
     private var chatColumn: some View {
         VStack(spacing: 0) {
             header
-            Divider()
             messagesList
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
             if !vm.editedFiles.isEmpty { changedFilesStrip }
@@ -172,7 +171,11 @@ struct ChatView: View {
             .help(model.t("inspector.toggle"))
         }
         .padding(Space.m)
-        .background(.bar)
+        .background {
+            Rectangle().fill(.bar)
+                .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
+        }
+        .zIndex(1)
     }
 
     private func formatTokens(_ n: Int) -> String {
@@ -187,7 +190,7 @@ struct ChatView: View {
     private var messagesList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: Space.m) {
+                LazyVStack(alignment: .leading, spacing: Theme.messageSpacing) {
                     if vm.messages.isEmpty { emptyState }
                     ForEach(vm.messages) { message in
                         bubble(message,
@@ -223,6 +226,7 @@ struct ChatView: View {
                 Spacer(minLength: 60)
                 Text(message.text)
                     .font(.sfBodyM)
+                    .lineSpacing(Theme.bodyLineSpacing)
                     .foregroundStyle(Theme.onAccent)
                     .textSelection(.enabled)
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
@@ -245,7 +249,7 @@ struct ChatView: View {
                 }
                 .frame(width: 24, height: 24)
                 .padding(.top, 2)
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Space.s) {
                     MarkdownView(text: message.text + (isStreaming ? " ▍" : ""))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     // Copy is always available (dimmed while still streaming), like
@@ -353,9 +357,9 @@ struct ChatView: View {
     private var changedFilesStrip: some View {
         HStack(spacing: Space.s) {
             Image(systemName: "pencil.and.list.clipboard")
-                .font(.system(size: 11)).foregroundStyle(Theme.accent)
+                .font(.system(size: 11)).foregroundStyle(.secondary)
             Text(model.t("chat.changedFiles", vm.editedFiles.count))
-                .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+                .font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
                 .fixedSize()
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Space.s) {
@@ -370,7 +374,7 @@ struct ChatView: View {
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.accentSoft)
+        .background(Theme.hairline.opacity(0.6))
         .sheet(isPresented: $showPreview) {
             DocumentPreviewSheet(files: vm.editedFiles)
         }
