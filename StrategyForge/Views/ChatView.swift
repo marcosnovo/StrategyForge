@@ -20,6 +20,7 @@ struct ChatView: View {
     @State private var vm: ChatViewModel
     @State private var editingTitle: String
     @State private var showActivity = false
+    @State private var showPreview = false
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -291,26 +292,24 @@ struct ChatView: View {
         }
     }
 
-    /// A compact strip listing files the agent changed; each reveals in Finder.
+    /// A compact strip listing files the agent changed; tap to preview/export them.
     private var changedFilesStrip: some View {
-        Menu {
-            ForEach(vm.editedFiles, id: \.self) { path in
-                Button((path as NSString).lastPathComponent) {
-                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-                }
-            }
-        } label: {
+        Button { showPreview = true } label: {
             HStack(spacing: Space.xs) {
                 Image(systemName: "pencil.and.list.clipboard").font(.system(size: 10))
                 Text(model.t("chat.changedFiles", vm.editedFiles.count)).font(.sfCaption2)
+                Image(systemName: "eye").font(.system(size: 9)).opacity(0.7)
             }
             .foregroundStyle(Theme.accent)
         }
-        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
         .fixedSize()
         .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.accentSoft)
+        .sheet(isPresented: $showPreview) {
+            DocumentPreviewSheet(files: vm.editedFiles)
+        }
     }
 
     /// Shown after a run that was blocked by permission denials: what was blocked
