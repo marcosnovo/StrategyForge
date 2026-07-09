@@ -430,6 +430,7 @@ enum L10n {
         "chat.delegating": ("Orchestrator → %@", "Orquestador → %@"),
         "chat.denied": ("Needed permission for: %@", "Necesitó permiso para: %@"),
         "chat.allowRetry": ("Allow all & retry", "Permitir y reintentar"),
+        "chat.attach": ("Attach files for Claude to review", "Adjuntar archivos para que Claude los revise"),
         "chat.suggest1": ("Explain how this project is structured", "Explica cómo está estructurado este proyecto"),
         "chat.suggest2": ("Find and fix the failing tests", "Encuentra y arregla los tests que fallan"),
         "chat.suggest3": ("Add a small feature end-to-end", "Añade una función pequeña de principio a fin"),

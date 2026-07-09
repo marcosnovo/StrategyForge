@@ -127,7 +127,8 @@ enum ClaudeRunner {
         model: String,
         sessionID: String,
         resume: Bool,
-        permissionMode: String
+        permissionMode: String,
+        extraDirs: [String] = []
     ) -> AsyncStream<ChatEvent> {
         AsyncStream { continuation in
             // A GUI app doesn't inherit the user's shell PATH, so resolve `claude`
@@ -150,6 +151,8 @@ enum ClaudeRunner {
             } else {
                 args.append(contentsOf: ["--session-id", sessionID])
             }
+            // Grant read access to the folders of any attached files.
+            for dir in extraDirs { args.append(contentsOf: ["--add-dir", dir]) }
             args.append(contentsOf: ["-p", prompt])
             process.arguments = args
 

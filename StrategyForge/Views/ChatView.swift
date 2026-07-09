@@ -329,7 +329,18 @@ struct ChatView: View {
     }
 
     private var inputBar: some View {
-        HStack(spacing: Space.s) {
+        VStack(alignment: .leading, spacing: Space.s) {
+            if !vm.attachments.isEmpty { attachmentChips }
+            HStack(spacing: Space.s) {
+            // Attach files for Claude to review.
+            Button {
+                pickAttachments()
+            } label: {
+                Image(systemName: "paperclip").font(.system(size: 15))
+            }
+            .buttonStyle(.borderless)
+            .help(model.t("chat.attach"))
+
             TextField(model.t(vm.config.repoPath == nil ? "chat.needRepo" : "chat.placeholder"),
                       text: Bindable(vm).input, axis: .vertical)
                 .textFieldStyle(.plain)
@@ -359,9 +370,44 @@ struct ChatView: View {
                 .disabled(!vm.canSend)
                 .keyboardShortcut(.return, modifiers: .command)
             }
+            }
         }
         .padding(Space.m)
         .background(.bar)
+    }
+
+    /// Chips for staged attachments, each removable.
+    private var attachmentChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Space.s) {
+                ForEach(vm.attachments, id: \.self) { url in
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc").font(.system(size: 9))
+                        Text(url.lastPathComponent).font(.sfCaption2).lineLimit(1)
+                        Button { vm.attachments.removeAll { $0 == url } } label: {
+                            Image(systemName: "xmark").font(.system(size: 8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(Theme.insetBg)
+                        .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1)))
+                }
+            }
+        }
+    }
+
+    private func pickAttachments() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.prompt = model.t("chat.attach")
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls where !vm.attachments.contains(url) {
+            vm.attachments.append(url)
+        }
     }
 
     private func send() {

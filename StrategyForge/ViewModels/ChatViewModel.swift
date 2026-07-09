@@ -33,6 +33,10 @@ final class ChatViewModel {
     var activeSubagent: String?
     /// Tool uses the last run wasn't permitted to perform (→ offer allow & retry).
     var deniedTools: [String] = []
+    /// Files staged to attach to the next message for Claude to review.
+    var attachments: [URL] = []
+    /// Dirs granted for the last run (reused on allow-and-retry).
+    @ObservationIgnored private var lastExtraDirs: [String] = []
     var input = ""
     var isRunning = false
     var errorText: String?
@@ -79,12 +83,26 @@ final class ChatViewModel {
     /// Orchestrator (session) model — the launch model, per Claude Code's rules.
     var model: String { config.strategy.orchestrator?.model.rawValue ?? "claude-fable-5" }
     var canSend: Bool {
-        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isRunning && config.repoPath != nil
+        let hasText = !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return (hasText || !attachments.isEmpty) && !isRunning && config.repoPath != nil
     }
 
     func send() {
-        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isRunning, let repo = config.repoPath else { return }
+        var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !isRunning, let repo = config.repoPath else { return }
+        // Allow sending attachments alone with a sensible default ask.
+        if text.isEmpty, !attachments.isEmpty { text = "Please review the attached files." }
+        guard !text.isEmpty else { return }
+
+        // Fold any attached files into the prompt + grant read access to their dirs.
+        let atts = attachments
+        attachments = []
+        let extraDirs = Array(Set(atts.map { $0.deletingLastPathComponent().path }))
+        lastExtraDirs = extraDirs
+        let promptText: String = atts.isEmpty ? text
+            : text + "\n\nAttached files to review:\n" + atts.map { "- \($0.path)" }.joined(separator: "\n")
+        let displayText: String = atts.isEmpty ? text
+            : text + "\n\n📎 " + atts.map { $0.lastPathComponent }.joined(separator: ", ")
 
         input = ""
         errorText = nil
@@ -93,7 +111,7 @@ final class ChatViewModel {
         deniedTools = []
         if messages.isEmpty { onFirstUserMessage(text) }   // auto-title the chat
         ensureStrategyFiles()   // make sure .claude/agents + CLAUDE.md are in the repo
-        messages.append(ChatMessage(role: .user, text: text))
+        messages.append(ChatMessage(role: .user, text: displayText))
         messages.append(ChatMessage(role: .assistant, text: ""))
         let assistantIndex = messages.count - 1
         isRunning = true
@@ -104,15 +122,17 @@ final class ChatViewModel {
         runTask = Task { [binary, model, permissionMode] in
             // Try to resume; if the CLI has no session with this id (e.g. a chat from
             // before per-chat sessions existed), start fresh once, invisibly.
-            var missing = await runTurn(text: text, repo: repo, sessionID: sessionID,
+            var missing = await runTurn(text: promptText, repo: repo, sessionID: sessionID,
                                         resume: resume, assistantIndex: assistantIndex,
-                                        binary: binary, model: model, permissionMode: permissionMode)
+                                        binary: binary, model: model, permissionMode: permissionMode,
+                                        extraDirs: extraDirs)
             if missing, resume {
                 if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = "" }
                 activity = []; activeSubagent = nil
-                missing = await runTurn(text: text, repo: repo, sessionID: sessionID,
+                missing = await runTurn(text: promptText, repo: repo, sessionID: sessionID,
                                         resume: false, assistantIndex: assistantIndex,
-                                        binary: binary, model: model, permissionMode: permissionMode)
+                                        binary: binary, model: model, permissionMode: permissionMode,
+                                        extraDirs: extraDirs)
             }
             isRunning = false
             hasSession = true
@@ -128,14 +148,14 @@ final class ChatViewModel {
     /// specifically because the CLI session was missing (so the caller can retry fresh).
     private func runTurn(text: String, repo: String, sessionID: String, resume: Bool,
                          assistantIndex: Int, binary: String, model: String,
-                         permissionMode: String) async -> Bool {
+                         permissionMode: String, extraDirs: [String] = []) async -> Bool {
         var gotDelta = false          // did live streaming deliver text this turn?
         var separatorPending = false  // insert a blank line before the next text
         var sessionMissing = false
         for await event in ClaudeRunner.stream(binary: binary, repoPath: repo,
                                                prompt: text, model: model,
                                                sessionID: sessionID, resume: resume,
-                                               permissionMode: permissionMode) {
+                                               permissionMode: permissionMode, extraDirs: extraDirs) {
             guard messages.indices.contains(assistantIndex) else { continue }
             switch event {
             case .assistantDelta(let chunk):
@@ -192,7 +212,7 @@ final class ChatViewModel {
         runTask = Task { [binary, model] in
             _ = await runTurn(text: lastUser, repo: repo, sessionID: sessionID, resume: true,
                               assistantIndex: assistantIndex, binary: binary, model: model,
-                              permissionMode: "bypassPermissions")
+                              permissionMode: "bypassPermissions", extraDirs: lastExtraDirs)
             isRunning = false
             if messages.indices.contains(assistantIndex), messages[assistantIndex].text.isEmpty {
                 messages.remove(at: assistantIndex)
