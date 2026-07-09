@@ -18,6 +18,15 @@ struct ChatMessage: Identifiable, Hashable, Codable {
     var text: String
 }
 
+/// One entry in the live agent-activity timeline.
+struct ActivityStep: Identifiable, Hashable {
+    let id = UUID()
+    let title: String
+    let detail: String?
+    let at: Date
+    let isDelegation: Bool
+}
+
 /// A staged attachment: the name shown to the user and the (possibly converted)
 /// file Claude actually reads.
 struct Attachment: Identifiable, Hashable {
@@ -41,6 +50,12 @@ final class ChatViewModel {
     var activeSubagent: String?
     /// Tool uses the last run wasn't permitted to perform (→ offer allow & retry).
     var deniedTools: [String] = []
+    /// Live timeline of what the agents did this turn (for the activity panel).
+    var timeline: [ActivityStep] = []
+    /// The agent's task list (from TodoWrite).
+    var todos: [AgentTodo] = []
+    /// When the current turn started (for the elapsed timer).
+    var turnStartedAt: Date?
     /// Files staged to attach to the next message for Claude to review.
     var attachments: [Attachment] = []
     /// Dirs granted for the last run (reused on allow-and-retry).
@@ -128,6 +143,9 @@ final class ChatViewModel {
         activity = []
         activeSubagent = nil
         deniedTools = []
+        timeline = []
+        todos = []
+        turnStartedAt = Date()
         if messages.isEmpty { onFirstUserMessage(text) }   // auto-title the chat
         // Put the strategy's .claude files in the working folder so the team applies.
         if config.repoPath?.isEmpty ?? true {
@@ -196,13 +214,17 @@ final class ChatViewModel {
                     messages[assistantIndex].text += "\n\n"
                 }
                 messages[assistantIndex].text += chunk
-            case .tool(let name):
+            case .tool(let name, let detail):
                 activity.append(name)
+                timeline.append(ActivityStep(title: name, detail: detail, at: Date(), isDelegation: false))
                 separatorPending = true
             case .delegated(let subagent):
                 activeSubagent = subagent
                 activity.append("→ \(subagent)")
+                timeline.append(ActivityStep(title: subagent, detail: nil, at: Date(), isDelegation: true))
                 separatorPending = true
+            case .todos(let items):
+                todos = items
             case .fileEdited(let path):
                 if !editedFiles.contains(path) { editedFiles.append(path) }
             case .denied(let items):

@@ -443,6 +443,17 @@ enum L10n {
         "chat.suggest1": ("Review the files here and give me feedback", "Revisa los archivos de aquí y dame feedback"),
         "chat.suggest2": ("Summarize this into key points", "Resume esto en puntos clave"),
         "chat.suggest3": ("Explain how this works, step by step", "Explica cómo funciona esto, paso a paso"),
+        "chat.activity": ("Activity", "Actividad"),
+        "chat.activity.help": ("Show what the agents are doing", "Ver qué están haciendo los agentes"),
+
+        // MARK: Agent activity panel
+        "activity.title": ("AGENT ACTIVITY", "ACTIVIDAD DE AGENTES"),
+        "activity.running": ("Working", "Trabajando"),
+        "activity.orchestrator": ("Orchestrator", "Orquestador"),
+        "activity.viaOrchestrator": ("via orchestrator", "vía orquestador"),
+        "activity.tasks": ("TASKS", "TAREAS"),
+        "activity.steps": ("TIMELINE", "CRONOLOGÍA"),
+        "activity.empty": ("Steps will appear here as the agents work.", "Los pasos aparecerán aquí según trabajen los agentes."),
         "autonomy.acceptEdits": ("Accept edits", "Aceptar ediciones"),
         "autonomy.full": ("Full autonomy", "Autonomía total"),
         "autonomy.plan": ("Plan only (read-only)", "Solo planificar (solo lectura)"),

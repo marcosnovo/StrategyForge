@@ -17,13 +17,18 @@ struct ClaudeStreamParserTests {
     }
 
     @Test func parsesToolUse() {
-        let line = #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{}}]}}"#
-        #expect(ClaudeStreamParser.events(from: line) == [.tool("Edit")])
+        let line = #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/a/b/App.swift"}}]}}"#
+        #expect(ClaudeStreamParser.events(from: line) == [.tool(name: "Read", detail: "App.swift")])
     }
 
     @Test func mixedTextAndToolInOneMessage() {
-        let line = #"{"type":"assistant","message":{"content":[{"type":"text","text":"Editing"},{"type":"tool_use","name":"Write"}]}}"#
-        #expect(ClaudeStreamParser.events(from: line) == [.assistantText("Editing"), .tool("Write")])
+        let line = #"{"type":"assistant","message":{"content":[{"type":"text","text":"Editing"},{"type":"tool_use","name":"Bash","input":{"command":"npm test"}}]}}"#
+        #expect(ClaudeStreamParser.events(from: line) == [.assistantText("Editing"), .tool(name: "Bash", detail: "npm test")])
+    }
+
+    @Test func parsesTodos() {
+        let line = #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Audit HUD","status":"in_progress"}]}}]}}"#
+        #expect(ClaudeStreamParser.events(from: line) == [.todos([AgentTodo(content: "Audit HUD", status: "in_progress")])])
     }
 
     @Test func resultSuccessFinishes() {

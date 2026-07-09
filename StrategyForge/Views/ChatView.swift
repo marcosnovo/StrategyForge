@@ -19,6 +19,7 @@ struct ChatView: View {
     let config: Configuration
     @State private var vm: ChatViewModel
     @State private var editingTitle: String
+    @State private var showActivity = false
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -56,6 +57,29 @@ struct ChatView: View {
     }
 
     var body: some View {
+        HStack(spacing: 0) {
+            chatColumn
+            if showActivity {
+                Divider()
+                AgentActivityPanel(vm: vm)
+                    .frame(width: 320)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.22), value: showActivity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.appBg)
+        // Reflect an auto-generated title (set in AppModel after the first message).
+        .onChange(of: config.name) { _, new in editingTitle = new }
+        // Auto-open the panel the first time an agent starts working.
+        .onChange(of: vm.isRunning) { _, running in
+            if running && vm.timeline.isEmpty && !showActivity { showActivity = true }
+        }
+        // Preserve unsent text when leaving this chat.
+        .onDisappear { saveDraft(vm.input) }
+    }
+
+    private var chatColumn: some View {
         VStack(spacing: 0) {
             header
             Divider()
@@ -67,11 +91,6 @@ struct ChatView: View {
             inputBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.appBg)
-        // Reflect an auto-generated title (set in AppModel after the first message).
-        .onChange(of: config.name) { _, new in editingTitle = new }
-        // Preserve unsent text when leaving this chat.
-        .onDisappear { saveDraft(vm.input) }
     }
 
     private var header: some View {
@@ -120,6 +139,15 @@ struct ChatView: View {
                 .background(Capsule().fill(Theme.hairline))
                 .help(model.t("chat.tokens.help"))
             }
+            Button {
+                withAnimation(.easeInOut(duration: 0.22)) { showActivity.toggle() }
+            } label: {
+                Image(systemName: "sidebar.trailing")
+                    .foregroundStyle(showActivity ? Theme.accent : .secondary)
+            }
+            .buttonStyle(.borderless)
+            .help(model.t("chat.activity.help"))
+
             Button { showInspector = true } label: {
                 Image(systemName: "slider.horizontal.3")
             }

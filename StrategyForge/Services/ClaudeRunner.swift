@@ -12,16 +12,23 @@
 import Foundation
 
 /// A single event streamed back from a headless Claude Code run.
+/// A task item from Claude Code's TodoWrite tool.
+struct AgentTodo: Sendable, Equatable {
+    let content: String
+    let status: String   // "pending" | "in_progress" | "completed"
+}
+
 enum ChatEvent: Sendable, Equatable {
-    case assistantText(String)   // a complete assistant text block
-    case assistantDelta(String)  // a streamed text fragment (partial messages)
-    case tool(String)            // a tool the agent invoked (shown as a status line)
-    case delegated(String)       // the orchestrator delegated to this subagent
-    case fileEdited(String)      // absolute path of a file the agent wrote/edited
-    case denied([String])        // tool uses the run wasn't permitted to perform
+    case assistantText(String)          // a complete assistant text block
+    case assistantDelta(String)         // a streamed text fragment (partial messages)
+    case tool(name: String, detail: String?)  // a tool the agent invoked (+ target)
+    case delegated(String)              // the orchestrator delegated to this subagent
+    case todos([AgentTodo])             // the agent's task list (TodoWrite)
+    case fileEdited(String)             // absolute path of a file the agent wrote/edited
+    case denied([String])               // tool uses the run wasn't permitted to perform
     case usage(tokens: Int, costUSD: Double)  // consumption for this turn
-    case finished                // the run completed successfully
-    case failed(String)          // the run could not start / errored
+    case finished                       // the run completed successfully
+    case failed(String)                 // the run could not start / errored
 }
 
 /// Pure, tolerant parser for Claude Code's `--output-format stream-json` lines.
@@ -66,8 +73,13 @@ enum ClaudeStreamParser {
                             let sub = (input?["subagent_type"] as? String)
                                 ?? (input?["description"] as? String) ?? name
                             events.append(.delegated(sub))
+                        } else if name == "TodoWrite", let todos = input?["todos"] as? [[String: Any]] {
+                            events.append(.todos(todos.map {
+                                AgentTodo(content: $0["content"] as? String ?? "",
+                                          status: $0["status"] as? String ?? "pending")
+                            }))
                         } else {
-                            events.append(.tool(name))
+                            events.append(.tool(name: name, detail: toolDetail(name, input)))
                         }
                         // Note which files it edits, for a post-turn summary.
                         if ["Write", "Edit", "MultiEdit", "NotebookEdit"].contains(name),
@@ -112,6 +124,19 @@ enum ClaudeStreamParser {
         }
 
         return []
+    }
+
+    /// A short human-readable "what it's acting on" for a tool use.
+    private static func toolDetail(_ name: String, _ input: [String: Any]?) -> String? {
+        guard let input else { return nil }
+        if let path = input["file_path"] as? String { return (path as NSString).lastPathComponent }
+        if let cmd = input["command"] as? String {
+            return cmd.count > 60 ? String(cmd.prefix(60)) + "…" : cmd
+        }
+        if let pattern = input["pattern"] as? String { return pattern }
+        if let url = input["url"] as? String { return url }
+        if let q = input["query"] as? String { return q }
+        return nil
     }
 }
 
