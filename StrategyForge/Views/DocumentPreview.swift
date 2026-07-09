@@ -47,7 +47,7 @@ struct DocumentPreviewSheet: View {
         VStack(spacing: 0) {
             HStack(spacing: Space.s) {
                 Image(systemName: "doc.text.magnifyingglass").foregroundStyle(Theme.accent)
-                Text(model.t("preview.title")).font(.sfCardTitle)
+                Text(model.t("filepreview.title")).font(.sfCardTitle)
                 Spacer()
                 Button(model.t("common.done")) { dismiss() }
                     .keyboardShortcut(.defaultAction)
@@ -64,7 +64,7 @@ struct DocumentPreviewSheet: View {
                     if let url = selectedURL {
                         QuickLookPreview(url: url)
                     } else {
-                        Text(model.t("preview.none")).foregroundStyle(.secondary)
+                        Text(model.t("filepreview.none")).foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
@@ -100,10 +100,10 @@ struct DocumentPreviewSheet: View {
                     Label(model.t("chat.reveal"), systemImage: "folder")
                 }
                 Button { NSWorkspace.shared.open(url) } label: {
-                    Label(model.t("preview.open"), systemImage: "arrow.up.forward.app")
+                    Label(model.t("filepreview.open"), systemImage: "arrow.up.forward.app")
                 }
                 Button { saveCopy(of: url) } label: {
-                    Label(model.t("preview.save"), systemImage: "square.and.arrow.down")
+                    Label(model.t("filepreview.save"), systemImage: "square.and.arrow.down")
                 }
                 .buttonStyle(.borderedProminent)
             }

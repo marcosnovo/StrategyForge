@@ -456,10 +456,10 @@ enum L10n {
         "activity.empty": ("Steps will appear here as the agents work.", "Los pasos aparecerán aquí según trabajen los agentes."),
 
         // MARK: Document preview
-        "preview.title": ("Files produced", "Archivos generados"),
-        "preview.none": ("Select a file to preview.", "Selecciona un archivo para previsualizar."),
-        "preview.open": ("Open", "Abrir"),
-        "preview.save": ("Save a copy…", "Guardar una copia…"),
+        "filepreview.title": ("Files produced", "Archivos generados"),
+        "filepreview.none": ("Select a file to preview.", "Selecciona un archivo para previsualizar."),
+        "filepreview.open": ("Open", "Abrir"),
+        "filepreview.save": ("Save a copy…", "Guardar una copia…"),
         "autonomy.acceptEdits": ("Accept edits", "Aceptar ediciones"),
         "autonomy.full": ("Full autonomy", "Autonomía total"),
         "autonomy.plan": ("Plan only (read-only)", "Solo planificar (solo lectura)"),
