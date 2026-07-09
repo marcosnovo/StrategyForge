@@ -29,6 +29,8 @@ final class ChatViewModel {
     var activity: [String] = []
     /// Absolute paths of files the agent has written/edited in this chat.
     var editedFiles: [String] = []
+    /// The subagent the orchestrator is currently delegating to (if any).
+    var activeSubagent: String?
     var input = ""
     var isRunning = false
     var errorText: String?
@@ -85,6 +87,7 @@ final class ChatViewModel {
         input = ""
         errorText = nil
         activity = []
+        activeSubagent = nil
         if messages.isEmpty { onFirstUserMessage(text) }   // auto-title the chat
         ensureStrategyFiles()   // make sure .claude/agents + CLAUDE.md are in the repo
         messages.append(ChatMessage(role: .user, text: text))
@@ -121,6 +124,10 @@ final class ChatViewModel {
                 case .tool(let name):
                     activity.append(name)
                     separatorPending = true   // start a new paragraph after a tool step
+                case .delegated(let subagent):
+                    activeSubagent = subagent
+                    activity.append("→ \(subagent)")
+                    separatorPending = true
                 case .fileEdited(let path):
                     if !editedFiles.contains(path) { editedFiles.append(path) }
                 case .usage(let tokens, let cost):

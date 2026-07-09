@@ -16,6 +16,7 @@ enum ChatEvent: Sendable, Equatable {
     case assistantText(String)   // a complete assistant text block
     case assistantDelta(String)  // a streamed text fragment (partial messages)
     case tool(String)            // a tool the agent invoked (shown as a status line)
+    case delegated(String)       // the orchestrator delegated to this subagent
     case fileEdited(String)      // absolute path of a file the agent wrote/edited
     case usage(tokens: Int, costUSD: Double)  // consumption for this turn
     case finished                // the run completed successfully
@@ -58,11 +59,18 @@ enum ClaudeStreamParser {
                     }
                 case "tool_use":
                     if let name = block["name"] as? String {
-                        events.append(.tool(name))
+                        let input = block["input"] as? [String: Any]
+                        // Delegation (the differentiator): surface WHICH subagent runs.
+                        if name == "Task" || name == "Agent" {
+                            let sub = (input?["subagent_type"] as? String)
+                                ?? (input?["description"] as? String) ?? name
+                            events.append(.delegated(sub))
+                        } else {
+                            events.append(.tool(name))
+                        }
                         // Note which files it edits, for a post-turn summary.
                         if ["Write", "Edit", "MultiEdit", "NotebookEdit"].contains(name),
-                           let input = block["input"] as? [String: Any],
-                           let path = input["file_path"] as? String {
+                           let path = input?["file_path"] as? String {
                             events.append(.fileEdited(path))
                         }
                     }

@@ -391,6 +391,7 @@ enum L10n {
         "chat.tokens.help": ("Approximate tokens used in this chat", "Tokens aproximados usados en este chat"),
         "chat.changedFiles": ("%lld files changed", "%lld archivos modificados"),
         "chat.reveal": ("Reveal in Finder", "Mostrar en Finder"),
+        "chat.delegating": ("Orchestrator → %@", "Orquestador → %@"),
         "autonomy.acceptEdits": ("Accept edits", "Aceptar ediciones"),
         "autonomy.full": ("Full autonomy", "Autonomía total"),
         "autonomy.plan": ("Plan only (read-only)", "Solo planificar (solo lectura)"),

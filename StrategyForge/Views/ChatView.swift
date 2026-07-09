@@ -220,10 +220,19 @@ struct ChatView: View {
     private var activityRow: some View {
         HStack(spacing: Space.s) {
             ProgressView().controlSize(.small)
-            Text(vm.activity.isEmpty
-                 ? model.t("chat.thinking")
-                 : model.t("chat.using", Array(vm.activity.suffix(3)).joined(separator: ", ")))
-                .font(.sfCaption2).foregroundStyle(.secondary)
+            if let sub = vm.activeSubagent {
+                // Show the strategy at work: which teammate the orchestrator called.
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.turn.down.right").font(.system(size: 9))
+                    Text(model.t("chat.delegating", sub)).font(.sfCaption2.weight(.medium))
+                }
+                .foregroundStyle(Theme.accent)
+            } else {
+                Text(vm.activity.isEmpty
+                     ? model.t("chat.thinking")
+                     : model.t("chat.using", Array(vm.activity.suffix(3)).joined(separator: ", ")))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+            }
         }
     }
 

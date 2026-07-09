@@ -20,7 +20,10 @@ enum StrategyLibrary {
         [
             orchestratorWorkers(),
             executorAdvisor(),
+            scoutAct(),
+            triageRouter(),
             plannerImplementersReviewer(),
+            rootCauseDebugging(),
             domainSpecialists(),
             researchFanout(),
             debateConsensus(),
@@ -138,7 +141,7 @@ enum StrategyLibrary {
                 AgentRole(
                     name: "advisor",
                     role: .advisor,
-                    model: .fable5,
+                    model: .sonnet5,   // parity with the executor; avoids cost inversion
                     systemPrompt: """
                     You are a high-level advisor. You are consulted on demand for \
                     difficult design decisions, trade-offs, and strategy. You do NOT \
@@ -161,6 +164,230 @@ enum StrategyLibrary {
             The advisor is read-only and never writes code; the executor owns every \
             final decision. Single level of delegation: the advisor cannot delegate \
             and does not communicate with any other agent.
+            """
+        )
+    }
+
+    // MARK: - Scout → Act (cost-gated)
+
+    static func scoutAct() -> Strategy {
+        Strategy(
+            name: "Scout → Act (cost-gated)",
+            description: "A cheap scout maps the terrain (files, call sites, "
+                + "conventions, risks) first; then an implementer acts on a precise "
+                + "brief — so expensive tokens go to the change, not exploration.",
+            roles: [
+                orchestrator(
+                    name: "orchestrator",
+                    model: .sonnet5,
+                    description: "Main session. Sends the scout to map the terrain, "
+                        + "then hands the implementer a self-contained brief.",
+                    systemPrompt: """
+                    You run a two-phase, cost-gated team.
+                    1. First delegate to `scout` (read-only) to map exactly what the \
+                    task touches: files, call sites, conventions, and risks.
+                    2. Turn the scout's findings into a precise, self-contained brief \
+                    and delegate to `implementer` to make the change — it should not \
+                    re-explore. If the brief turns out wrong, re-scout rather than \
+                    letting the implementer wander.
+                    You are the sole channel between them.
+                    """
+                ),
+                AgentRole(
+                    name: "scout",
+                    role: .researcher,
+                    model: .haiku45,
+                    systemPrompt: """
+                    You are the scout. Read-only. Map precisely what the task touches: \
+                    the relevant files and call sites, the conventions to follow, and \
+                    the risks/edge cases. Return a tight brief the implementer can act \
+                    on without re-exploring. Do not write code.
+                    """,
+                    description: "Use FIRST to map files, call sites, conventions and "
+                        + "risks for the task. Read-only; returns a brief.",
+                    tools: Constants.readOnlyTools,
+                    count: 1
+                ),
+                AgentRole(
+                    name: "implementer",
+                    role: .worker,
+                    model: .sonnet5,
+                    systemPrompt: """
+                    You implement the change from the orchestrator's self-contained \
+                    brief. Trust the brief; don't re-explore the codebase. Follow the \
+                    conventions it names, make the change, and verify it. If the brief \
+                    is wrong or insufficient, say so precisely and stop — don't guess.
+                    """,
+                    description: "Use AFTER the scout, to implement the change from a "
+                        + "self-contained brief. Does not re-explore.",
+                    tools: [],
+                    count: 1
+                ),
+            ],
+            orchestrationNotes: """
+            Two phases: scout (read-only, cheap) maps the terrain, then implementer \
+            acts on a self-contained brief. The orchestrator is the sole channel; \
+            subagents never talk to each other. The cost win is that a cheap scout \
+            shrinks the expensive implementer's context. Re-scout if the brief proves \
+            wrong instead of letting the implementer explore.
+            """
+        )
+    }
+
+    // MARK: - Triage Router (cost-tiered)
+
+    static func triageRouter() -> Strategy {
+        Strategy(
+            name: "Triage Router (cost-tiered)",
+            description: "A cheap triager classifies each request; the orchestrator "
+                + "then spends proportionally — routine work to a mid worker, only "
+                + "genuinely hard work to a top specialist.",
+            roles: [
+                orchestrator(
+                    name: "orchestrator",
+                    model: .sonnet5,
+                    description: "Main session. Routes work by difficulty and answers "
+                        + "trivial requests itself.",
+                    systemPrompt: """
+                    You route work by difficulty to control cost.
+                    1. For anything non-trivial, delegate to `triager` (read-only) to \
+                    classify it: trivial / standard / hard, with a one-line reason.
+                    2. Handle trivial yourself. Send standard work to `standard-worker`. \
+                    Reserve `deep-specialist` for genuinely hard design or correctness.
+                    If a worker flags mid-task that the work is harder than triaged, \
+                    re-route or escalate it yourself — workers never call the \
+                    specialist directly.
+                    """
+                ),
+                AgentRole(
+                    name: "triager",
+                    role: .researcher,
+                    model: .haiku45,
+                    systemPrompt: """
+                    You are the triager. Read-only. Classify the request as trivial, \
+                    standard, or hard, with a one-line reason. Be fast and decisive; \
+                    do not solve it.
+                    """,
+                    description: "Use FIRST to classify a request as trivial / standard "
+                        + "/ hard with a one-line reason. Read-only.",
+                    tools: Constants.readOnlyTools,
+                    count: 1
+                ),
+                AgentRole(
+                    name: "standard-worker",
+                    role: .worker,
+                    model: .sonnet5,
+                    systemPrompt: """
+                    You handle standard, pattern-following work: well-scoped changes \
+                    that don't need deep design. If mid-task you find the work is \
+                    genuinely hard (subtle design or correctness), stop and report that \
+                    to the orchestrator so it can escalate — do not push through.
+                    """,
+                    description: "Use for routine, pattern-following work. Flags back "
+                        + "to the orchestrator if a task turns out to be hard.",
+                    tools: [],
+                    count: 1
+                ),
+                AgentRole(
+                    name: "deep-specialist",
+                    role: .specialist,
+                    model: .opus48,
+                    systemPrompt: """
+                    You take only the genuinely hard work: subtle design decisions, \
+                    tricky correctness, gnarly refactors. Bring deep reasoning, name \
+                    the trade-offs, and implement carefully with verification.
+                    """,
+                    description: "Use ONLY for genuinely hard design or correctness "
+                        + "work that the standard worker shouldn't attempt.",
+                    tools: [],
+                    count: 1
+                ),
+            ],
+            orchestrationNotes: """
+            Spend proportional to difficulty: a cheap triager classifies, the \
+            orchestrator answers trivial requests, routes standard work to a mid-tier \
+            worker, and reserves the top-tier specialist for genuinely hard work. \
+            Single level of delegation — the standard worker escalates via the \
+            orchestrator, never by calling the specialist directly.
+            """
+        )
+    }
+
+    // MARK: - Root-Cause Debugging
+
+    static func rootCauseDebugging() -> Strategy {
+        Strategy(
+            name: "Root-Cause Debugging",
+            description: "Reproduce and gather evidence, rank hypotheses, apply the "
+                + "minimal fix for the real cause, then confirm — never mask the "
+                + "symptom or weaken tests.",
+            roles: [
+                orchestrator(
+                    name: "orchestrator",
+                    model: .opus48,
+                    description: "Main session. Ranks hypotheses from evidence, "
+                        + "directs the minimal fix, and confirms the root cause.",
+                    systemPrompt: """
+                    You lead a root-cause debugging loop.
+                    1. Send `investigator` (read-only) to reproduce the bug and build an \
+                    evidence dossier — no fixes.
+                    2. From the evidence, rank hypotheses and pick the most likely root \
+                    cause. Delegate a MINIMAL fix (cause, not symptom) to `fixer`.
+                    3. Send `reviewer` (read-only) to confirm the root cause is \
+                    addressed and the regression test fails without the fix.
+                    Cap the loop: if two fix attempts don't confirm, stop and report \
+                    the evidence and open hypotheses.
+                    """
+                ),
+                AgentRole(
+                    name: "investigator",
+                    role: .researcher,
+                    model: .sonnet5,
+                    systemPrompt: """
+                    You reproduce the bug and assemble an evidence dossier: exact repro \
+                    steps, observed vs expected, relevant code paths, and candidate \
+                    hypotheses. Read-only — you do NOT fix anything.
+                    """,
+                    description: "Use FIRST to reproduce the bug and gather evidence + "
+                        + "candidate hypotheses. Read-only, no fixes.",
+                    tools: Constants.readOnlyTools,
+                    count: 1
+                ),
+                AgentRole(
+                    name: "fixer",
+                    role: .worker,
+                    model: .sonnet5,
+                    systemPrompt: """
+                    You apply the MINIMAL fix for the root cause the orchestrator \
+                    chose, plus a regression test that fails without your fix. Fix the \
+                    cause, not the symptom. Do not weaken or delete existing tests.
+                    """,
+                    description: "Use to apply the minimal fix for the chosen root "
+                        + "cause plus a regression test.",
+                    tools: [],
+                    count: 1
+                ),
+                AgentRole(
+                    name: "reviewer",
+                    role: .reviewer,
+                    model: .haiku45,
+                    systemPrompt: """
+                    You confirm the fix addresses the root cause: the regression test \
+                    fails without the fix and passes with it, and no existing test was \
+                    weakened. Read-only. Judge the diff against the evidence, not the \
+                    author's confidence.
+                    """,
+                    description: "Use LAST to confirm the root cause is fixed and tests "
+                        + "are intact. Read-only.",
+                    tools: Constants.readOnlyTools,
+                    count: 1
+                ),
+            ],
+            orchestrationNotes: """
+            Evidence → rank hypotheses → minimal fix → confirm. The orchestrator is the \
+            sole channel and owns hypothesis ranking. Guardrails: fix the cause not the \
+            symptom, never weaken tests. Cap the loop (≈2 fix attempts) so a headless \
+            run can't spin forever — stop and report if unconfirmed.
             """
         )
     }
