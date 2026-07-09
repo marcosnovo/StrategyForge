@@ -185,12 +185,19 @@ struct ChatView: View {
         } else {
             // Assistant: full-width, no bubble (like Claude/ChatGPT) with an avatar.
             HStack(alignment: .top, spacing: Space.m) {
-                Image(systemName: "sparkle")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
-                    .frame(width: 24, height: 24)
-                    .background(Circle().fill(Theme.accentSoft))
-                    .padding(.top, 2)
+                Group {
+                    if isStreaming {
+                        WorkingLogo(size: 20)
+                    } else {
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(Theme.accentSoft))
+                    }
+                }
+                .frame(width: 24, height: 24)
+                .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 6) {
                     (Text(rendered(message.text))
                         + (isStreaming ? Text(" ▍").foregroundColor(Theme.accent) : Text("")))
@@ -250,7 +257,7 @@ struct ChatView: View {
 
     private var activityRow: some View {
         HStack(spacing: Space.s) {
-            ProgressView().controlSize(.small)
+            WorkingLogo(size: 18)
             if let sub = vm.activeSubagent {
                 // Show the strategy at work: which teammate the orchestrator called.
                 HStack(spacing: 4) {

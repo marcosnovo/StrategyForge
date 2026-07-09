@@ -98,47 +98,18 @@ final class ChatViewModel {
         persist(messages) // save the question immediately, before the (long) run
 
         let sessionID = config.id.uuidString.lowercased()
-        var gotDelta = false          // did live streaming deliver text this turn?
-        var separatorPending = false  // insert a blank line before the next text
         runTask = Task { [binary, model, permissionMode] in
-            for await event in ClaudeRunner.stream(binary: binary, repoPath: repo,
-                                                   prompt: text, model: model,
-                                                   sessionID: sessionID, resume: resume,
-                                                   permissionMode: permissionMode) {
-                guard messages.indices.contains(assistantIndex) else { continue }
-                switch event {
-                case .assistantDelta(let chunk):
-                    gotDelta = true
-                    if separatorPending, !messages[assistantIndex].text.isEmpty {
-                        messages[assistantIndex].text += "\n\n"
-                    }
-                    separatorPending = false
-                    messages[assistantIndex].text += chunk
-                case .assistantText(let chunk):
-                    // Only used as a fallback when partial streaming didn't deliver.
-                    guard !gotDelta else { break }
-                    if !messages[assistantIndex].text.isEmpty {
-                        messages[assistantIndex].text += "\n\n"
-                    }
-                    messages[assistantIndex].text += chunk
-                case .tool(let name):
-                    activity.append(name)
-                    separatorPending = true   // start a new paragraph after a tool step
-                case .delegated(let subagent):
-                    activeSubagent = subagent
-                    activity.append("→ \(subagent)")
-                    separatorPending = true
-                case .fileEdited(let path):
-                    if !editedFiles.contains(path) { editedFiles.append(path) }
-                case .usage(let tokens, let cost):
-                    totalTokens += tokens
-                    totalCostUSD += cost
-                    persistUsage(totalTokens, totalCostUSD)
-                case .finished:
-                    break
-                case .failed(let message):
-                    errorText = message
-                }
+            // Try to resume; if the CLI has no session with this id (e.g. a chat from
+            // before per-chat sessions existed), start fresh once, invisibly.
+            var missing = await runTurn(text: text, repo: repo, sessionID: sessionID,
+                                        resume: resume, assistantIndex: assistantIndex,
+                                        binary: binary, model: model, permissionMode: permissionMode)
+            if missing, resume {
+                if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = "" }
+                activity = []; activeSubagent = nil
+                missing = await runTurn(text: text, repo: repo, sessionID: sessionID,
+                                        resume: false, assistantIndex: assistantIndex,
+                                        binary: binary, model: model, permissionMode: permissionMode)
             }
             isRunning = false
             hasSession = true
@@ -148,6 +119,59 @@ final class ChatViewModel {
             }
             persist(messages)
         }
+    }
+
+    /// Run one streamed turn into `assistantIndex`. Returns true if it failed
+    /// specifically because the CLI session was missing (so the caller can retry fresh).
+    private func runTurn(text: String, repo: String, sessionID: String, resume: Bool,
+                         assistantIndex: Int, binary: String, model: String,
+                         permissionMode: String) async -> Bool {
+        var gotDelta = false          // did live streaming deliver text this turn?
+        var separatorPending = false  // insert a blank line before the next text
+        var sessionMissing = false
+        for await event in ClaudeRunner.stream(binary: binary, repoPath: repo,
+                                               prompt: text, model: model,
+                                               sessionID: sessionID, resume: resume,
+                                               permissionMode: permissionMode) {
+            guard messages.indices.contains(assistantIndex) else { continue }
+            switch event {
+            case .assistantDelta(let chunk):
+                gotDelta = true
+                if separatorPending, !messages[assistantIndex].text.isEmpty {
+                    messages[assistantIndex].text += "\n\n"
+                }
+                separatorPending = false
+                messages[assistantIndex].text += chunk
+            case .assistantText(let chunk):
+                guard !gotDelta else { break }
+                if !messages[assistantIndex].text.isEmpty {
+                    messages[assistantIndex].text += "\n\n"
+                }
+                messages[assistantIndex].text += chunk
+            case .tool(let name):
+                activity.append(name)
+                separatorPending = true
+            case .delegated(let subagent):
+                activeSubagent = subagent
+                activity.append("→ \(subagent)")
+                separatorPending = true
+            case .fileEdited(let path):
+                if !editedFiles.contains(path) { editedFiles.append(path) }
+            case .usage(let tokens, let cost):
+                totalTokens += tokens
+                totalCostUSD += cost
+                persistUsage(totalTokens, totalCostUSD)
+            case .finished:
+                break
+            case .failed(let message):
+                if resume, message.localizedCaseInsensitiveContains("No conversation found") {
+                    sessionMissing = true   // retry fresh, don't surface
+                } else {
+                    errorText = message
+                }
+            }
+        }
+        return sessionMissing
     }
 
     func stop() {
