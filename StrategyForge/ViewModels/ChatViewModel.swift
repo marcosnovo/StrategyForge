@@ -88,6 +88,8 @@ final class ChatViewModel {
     private let permissionMode: String
     /// Persists cumulative usage (tokens, cost).
     @ObservationIgnored private let persistUsage: (Int, Double) -> Void
+    /// Last time we flushed the transcript mid-stream (throttles disk writes).
+    @ObservationIgnored private var lastStreamPersist = Date.distantPast
 
     init(config: Configuration,
          binary: String,
@@ -109,6 +111,11 @@ final class ChatViewModel {
         self.totalCostUSD = config.totalCostUSD
         // A prior transcript implies the repo already has a Claude Code session.
         self.hasSession = !config.transcript.isEmpty
+    }
+
+    deinit {
+        // If the chat is torn down mid-run, stop the subprocess/stream.
+        runTask?.cancel()
     }
 
     /// Orchestrator (session) model — the launch model, per Claude Code's rules.
@@ -155,6 +162,8 @@ final class ChatViewModel {
         timeline = []
         todos = []
         turnStartedAt = Date()
+        lastStreamPersist = .distantPast
+        runTask?.cancel()   // never leave a prior run's subprocess orphaned
         if messages.isEmpty { onFirstUserMessage(text) }   // auto-title the chat
         // Put the strategy's .claude files in the working folder so the team applies.
         if config.repoPath?.isEmpty ?? true {
@@ -219,12 +228,14 @@ final class ChatViewModel {
                 }
                 separatorPending = false
                 messages[assistantIndex].text += chunk
+                persistStreaming()
             case .assistantText(let chunk):
                 guard !gotDelta else { break }
                 if !messages[assistantIndex].text.isEmpty {
                     messages[assistantIndex].text += "\n\n"
                 }
                 messages[assistantIndex].text += chunk
+                persistStreaming()
             case .tool(let name, let detail):
                 activity.append(name)
                 timeline.append(ActivityStep(title: name, detail: detail, at: Date(),
@@ -261,6 +272,16 @@ final class ChatViewModel {
         return sessionMissing
     }
 
+    /// Flush the transcript to disk at most every ~1.5s during streaming, so a
+    /// crash mid-reply doesn't lose the whole response (the full flush still
+    /// happens when the turn ends).
+    private func persistStreaming() {
+        let now = Date()
+        guard now.timeIntervalSince(lastStreamPersist) > 1.5 else { return }
+        lastStreamPersist = now
+        persist(messages)
+    }
+
     /// Re-run the last user message granting full permissions — the "allow & retry"
     /// path when a run was blocked by permission denials. Works with or without a
     /// project folder (scratch sessions use their per-chat folder).
@@ -271,9 +292,12 @@ final class ChatViewModel {
         let repo = workingDirectory()
         deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
+        lastStreamPersist = .distantPast
+        runTask?.cancel()   // don't orphan a prior run
         messages.append(ChatMessage(role: .assistant, text: ""))
         let assistantIndex = messages.count - 1
         isRunning = true
+        persist(messages)
         let sessionID = config.id.uuidString.lowercased()
         runTask = Task { [binary, model] in
             // Resume with full permissions; fall back to a fresh session if the CLI

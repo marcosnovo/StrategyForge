@@ -111,7 +111,8 @@ enum ClaudeStreamParser {
                 let input = (usage["input_tokens"] as? Int) ?? 0
                 let output = (usage["output_tokens"] as? Int) ?? 0
                 let cacheCreate = (usage["cache_creation_input_tokens"] as? Int) ?? 0
-                let tokens = input + output + cacheCreate
+                let cacheRead = (usage["cache_read_input_tokens"] as? Int) ?? 0
+                let tokens = input + output + cacheCreate + cacheRead
                 let cost = (obj["total_cost_usd"] as? Double) ?? 0
                 if tokens > 0 || cost > 0 { events.append(.usage(tokens: tokens, costUSD: cost)) }
             }
@@ -211,6 +212,11 @@ enum ClaudeRunner {
 
             process.terminationHandler = { proc in
                 stdout.fileHandleForReading.readabilityHandler = nil
+                // Flush a final line that arrived without a trailing newline, so the
+                // closing `result` (usage/denials) is never lost.
+                for line in buffer.drain() {
+                    for event in ClaudeStreamParser.events(from: line) { continuation.yield(event) }
+                }
                 if proc.terminationStatus != 0 {
                     let errText = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
                     let trimmed = errText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -222,6 +228,8 @@ enum ClaudeRunner {
             }
 
             continuation.onTermination = { _ in
+                // Break the read handler's hold on the continuation, then stop claude.
+                stdout.fileHandleForReading.readabilityHandler = nil
                 if process.isRunning { process.terminate() }
             }
 
@@ -261,7 +269,12 @@ enum ClaudeRunner {
     private nonisolated static func which(_ name: String) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-ilc", "command -v \(name)"]
+        // Pass the name via the environment, NOT string-interpolated into the
+        // command, so a name with shell metacharacters can't inject anything.
+        process.arguments = ["-ilc", "command -v \"$SF_CLAUDE_BIN\""]
+        var env = ProcessInfo.processInfo.environment
+        env["SF_CLAUDE_BIN"] = name
+        process.environment = env
         let out = Pipe()
         process.standardOutput = out
         process.standardError = Pipe()
@@ -291,5 +304,16 @@ private final class LineBuffer: @unchecked Sendable {
             data.removeSubrange(data.startIndex...nl)
         }
         return lines
+    }
+
+    /// Return any remaining buffered bytes as a final line (for output that didn't
+    /// end with a newline) and clear the buffer.
+    func drain() -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        guard !data.isEmpty, let line = String(data: data, encoding: .utf8) else {
+            data.removeAll(); return []
+        }
+        data.removeAll()
+        return line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [line]
     }
 }

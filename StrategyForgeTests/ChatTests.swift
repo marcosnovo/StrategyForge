@@ -31,6 +31,13 @@ struct ClaudeStreamParserTests {
         #expect(ClaudeStreamParser.events(from: line) == [.todos([AgentTodo(content: "Audit HUD", status: "in_progress")])])
     }
 
+    @Test func usageSumsAllInputTokenKinds() {
+        let line = #"{"type":"result","subtype":"success","usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":3,"cache_read_input_tokens":2},"total_cost_usd":0.01}"#
+        let events = ClaudeStreamParser.events(from: line)
+        #expect(events.contains(.usage(tokens: 20, costUSD: 0.01)))
+        #expect(events.contains(.finished))
+    }
+
     @Test func resultSuccessFinishes() {
         let line = #"{"type":"result","subtype":"success","result":"done"}"#
         #expect(ClaudeStreamParser.events(from: line) == [.finished])

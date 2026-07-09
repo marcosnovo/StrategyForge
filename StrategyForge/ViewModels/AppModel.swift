@@ -13,6 +13,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 @Observable
+@MainActor
 final class AppModel {
 
     // MARK: - State
@@ -383,6 +384,7 @@ final class AppModel {
     func applyTemplate(_ template: Strategy, to id: Configuration.ID) {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
         configurations[i].strategy = template
+        save()   // persist the strategy change so it survives relaunch
     }
 
     /// Persist a chat's transcript. Device-local, so it does not bump `updatedAt`

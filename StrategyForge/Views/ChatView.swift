@@ -250,7 +250,10 @@ struct ChatView: View {
                 .frame(width: 24, height: 24)
                 .padding(.top, 2)
                 VStack(alignment: .leading, spacing: Space.s) {
-                    MarkdownView(text: message.text + (isStreaming ? " ▍" : ""))
+                    // Pass the raw text (no appended cursor) so identical text between
+                    // stream frames doesn't force a fresh markdown re-parse; the
+                    // animated avatar already signals that a reply is streaming.
+                    MarkdownView(text: message.text)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     // Copy is always available (dimmed while still streaming), like
                     // ChatGPT/Claude — no hover or context menu required.
