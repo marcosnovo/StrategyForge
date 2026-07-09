@@ -68,17 +68,16 @@ struct ChatView: View {
                 Divider()
                 AgentActivityPanel(vm: vm, focus: $agentFocus)
                     .frame(width: 320)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
             if showActivity, let focus = agentFocus {
                 Divider()
                 SubagentDetailPanel(vm: vm, focus: focus) { agentFocus = nil }
                     .frame(width: 300)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.22), value: showActivity)
-        .animation(.easeInOut(duration: 0.22), value: agentFocus)
+        // NOTE: no implicit animation / transition here. These panels contain
+        // continuously-redrawing TimelineViews (WorkingLogo, live diagram) over
+        // materials; animating their insertion made the UI hang. Snap them in.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
         // Reflect an auto-generated title (set in AppModel after the first message).
@@ -153,10 +152,8 @@ struct ChatView: View {
             .glassEffect(.regular, in: .capsule)
             .help(model.t("chat.tokens.help"))
             Button {
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    showActivity.toggle()
-                    if !showActivity { agentFocus = nil }
-                }
+                showActivity.toggle()
+                if !showActivity { agentFocus = nil }
             } label: {
                 Image(systemName: "sidebar.trailing")
                     .foregroundStyle(showActivity ? Theme.accent : .secondary)

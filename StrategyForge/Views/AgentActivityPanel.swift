@@ -170,7 +170,7 @@ struct AgentActivityPanel: View {
         let isOpen = focus == target
         let count = vm.timeline.filter { target.matches($0) }.count
         return Button {
-            withAnimation(.easeInOut(duration: 0.22)) { focus = isOpen ? nil : target }
+            focus = isOpen ? nil : target
         } label: {
             HStack(spacing: Space.s) {
                 Image(systemName: icon)
@@ -379,7 +379,7 @@ struct SubagentDetailPanel: View {
                     Image(systemName: "circle.fill").font(.system(size: 6))
                         .foregroundStyle(Theme.success).symbolEffect(.pulse, options: .repeating)
                 }
-                Button { withAnimation(.easeInOut(duration: 0.22)) { onClose() } } label: {
+                Button { onClose() } label: {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
                 }
                 .buttonStyle(.plain).foregroundStyle(.secondary)
