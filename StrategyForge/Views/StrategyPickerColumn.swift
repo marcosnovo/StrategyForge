@@ -72,7 +72,7 @@ struct StrategyPickerColumn: View {
         } label: {
             HStack(spacing: Space.m) {
                 StrategyThumbnail(strategy: template)
-                    .frame(width: 60, height: 40)
+                    .frame(width: 84, height: 54)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 5) {
                         Text(model.strategyDisplayName(template))

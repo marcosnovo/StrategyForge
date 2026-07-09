@@ -380,11 +380,11 @@ struct ChatView: View {
     private var attachmentChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Space.s) {
-                ForEach(vm.attachments, id: \.self) { url in
+                ForEach(vm.attachments) { att in
                     HStack(spacing: 4) {
                         Image(systemName: "doc").font(.system(size: 9))
-                        Text(url.lastPathComponent).font(.sfCaption2).lineLimit(1)
-                        Button { vm.attachments.removeAll { $0 == url } } label: {
+                        Text(att.name).font(.sfCaption2).lineLimit(1)
+                        Button { vm.attachments.removeAll { $0.id == att.id } } label: {
                             Image(systemName: "xmark").font(.system(size: 8))
                         }
                         .buttonStyle(.plain)
@@ -405,8 +405,16 @@ struct ChatView: View {
         panel.allowsMultipleSelection = true
         panel.prompt = model.t("chat.attach")
         guard panel.runModal() == .OK else { return }
-        for url in panel.urls where !vm.attachments.contains(url) {
-            vm.attachments.append(url)
+        for url in panel.urls {
+            // Convert Office docs to text so Claude can read them; images/PDF/code
+            // pass through. Append when ready.
+            Task {
+                let readable = await AttachmentConverter.convert(url)
+                let att = Attachment(name: url.lastPathComponent, url: readable)
+                if !vm.attachments.contains(where: { $0.name == att.name }) {
+                    vm.attachments.append(att)
+                }
+            }
         }
     }
 

@@ -72,7 +72,7 @@ struct SidebarView: View {
     private func chatRow(_ config: Configuration) -> some View {
         HStack(spacing: Space.s) {
             StrategyThumbnail(strategy: config.strategy)
-                .frame(width: 44, height: 30)
+                .frame(width: 52, height: 34)
                 .help(model.strategyDisplayName(config.strategy))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: Space.xs) {

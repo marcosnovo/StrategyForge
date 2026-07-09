@@ -18,6 +18,14 @@ struct ChatMessage: Identifiable, Hashable, Codable {
     var text: String
 }
 
+/// A staged attachment: the name shown to the user and the (possibly converted)
+/// file Claude actually reads.
+struct Attachment: Identifiable, Hashable {
+    let id = UUID()
+    let name: String   // original file name (for display)
+    let url: URL       // file to hand to Claude (original or converted .txt)
+}
+
 @Observable
 @MainActor
 final class ChatViewModel {
@@ -34,7 +42,7 @@ final class ChatViewModel {
     /// Tool uses the last run wasn't permitted to perform (→ offer allow & retry).
     var deniedTools: [String] = []
     /// Files staged to attach to the next message for Claude to review.
-    var attachments: [URL] = []
+    var attachments: [Attachment] = []
     /// Dirs granted for the last run (reused on allow-and-retry).
     @ObservationIgnored private var lastExtraDirs: [String] = []
     var input = ""
@@ -97,12 +105,12 @@ final class ChatViewModel {
         // Fold any attached files into the prompt + grant read access to their dirs.
         let atts = attachments
         attachments = []
-        let extraDirs = Array(Set(atts.map { $0.deletingLastPathComponent().path }))
+        let extraDirs = Array(Set(atts.map { $0.url.deletingLastPathComponent().path }))
         lastExtraDirs = extraDirs
         let promptText: String = atts.isEmpty ? text
-            : text + "\n\nAttached files to review:\n" + atts.map { "- \($0.path)" }.joined(separator: "\n")
+            : text + "\n\nAttached files to review:\n" + atts.map { "- \($0.name): \($0.url.path)" }.joined(separator: "\n")
         let displayText: String = atts.isEmpty ? text
-            : text + "\n\n📎 " + atts.map { $0.lastPathComponent }.joined(separator: ", ")
+            : text + "\n\n📎 " + atts.map { $0.name }.joined(separator: ", ")
 
         input = ""
         errorText = nil

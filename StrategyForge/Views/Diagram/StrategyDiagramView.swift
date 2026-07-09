@@ -581,44 +581,54 @@ struct StrategyThumbnail: View {
             ctx.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 6),
                      with: .color(palette.canvas))
 
-            // Read the shape at a glance: a hub on the left with spokes to N smaller
-            // satellite dots on the right. Circles (not boxes) stay legible tiny.
+            // A shrunk version of the full diagram: a hub node on the left, N
+            // subagent nodes on the right, delegate arrows out + dashed return
+            // arrows back — the same visual language, just tiny and label-less.
             let subs = spec.subagents
             let solo = subs.isEmpty
-            // Show at most 4 satellites so they never cram; a "+N" is implied visually.
             let shown = Array(subs.prefix(4))
             let k = max(shown.count, 1)
 
-            let hubR = min(size.height * 0.22, 6.5)
-            let satR = max(hubR * 0.62, 2.5)
-            let inset = hubR + 3
-            let hub = CGPoint(x: solo ? size.width / 2 : inset + 2, y: size.height / 2)
-            let rightX = size.width - inset
-            let span = size.height - inset * 2
-            let sats: [CGPoint] = shown.indices.map { i in
+            let pad: CGFloat = 5
+            let nodeW = min(max(size.width * 0.30, 16), 26)
+            let nodeH = min(max((size.height - pad * 2) / CGFloat(k) - 4, 7), 14)
+            let hubY = size.height / 2
+            let hubRect = CGRect(x: solo ? (size.width - nodeW) / 2 : pad,
+                                 y: hubY - nodeH / 2, width: nodeW, height: nodeH)
+            let rightX = size.width - nodeW - pad
+            let span = size.height - pad * 2
+            let satRects: [CGRect] = shown.indices.map { i in
                 let t = k == 1 ? 0.5 : CGFloat(i) / CGFloat(k - 1)
-                return CGPoint(x: rightX, y: inset + t * span)
+                return CGRect(x: rightX, y: pad + t * span - nodeH / 2, width: nodeW, height: nodeH)
             }
 
-            // Spokes.
-            for p in sats {
-                var wire = Path()
-                wire.move(to: hub)
-                wire.addLine(to: p)
-                ctx.stroke(wire, with: .color(palette.accent.opacity(0.55)),
-                           style: StrokeStyle(lineWidth: 1, lineCap: .round))
+            func arrowHead(_ tip: CGPoint, _ angle: CGFloat, _ s: CGFloat) -> Path {
+                var p = Path(); p.move(to: tip)
+                p.addLine(to: CGPoint(x: tip.x + cos(angle + .pi - 0.5) * s, y: tip.y + sin(angle + .pi - 0.5) * s))
+                p.addLine(to: CGPoint(x: tip.x + cos(angle + .pi + 0.5) * s, y: tip.y + sin(angle + .pi + 0.5) * s))
+                p.closeSubpath(); return p
+            }
+            for r in satRects {
+                // Return (dashed, quiet) slightly below.
+                let rs = CGPoint(x: r.minX, y: r.midY + 2), re = CGPoint(x: hubRect.maxX, y: hubRect.midY + 2)
+                var back = Path(); back.move(to: rs); back.addLine(to: re)
+                ctx.stroke(back, with: .color(palette.returnArrow),
+                           style: StrokeStyle(lineWidth: 0.8, dash: [2, 2]))
+                // Delegate (solid accent) with arrowhead into the subagent.
+                let ds = CGPoint(x: hubRect.maxX, y: hubRect.midY - 1), de = CGPoint(x: r.minX, y: r.midY - 1)
+                var wire = Path(); wire.move(to: ds); wire.addLine(to: de)
+                ctx.stroke(wire, with: .color(palette.accent.opacity(0.8)), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+                let ang = atan2(de.y - ds.y, de.x - ds.x)
+                ctx.fill(arrowHead(de, ang, 3.2), with: .color(palette.accent.opacity(0.8)))
             }
 
-            func dot(_ c: CGPoint, _ r: CGFloat, accent: Bool) {
-                let rect = CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)
-                ctx.fill(Path(ellipseIn: rect), with: .color(accent ? palette.accent : palette.secondary))
+            func box(_ rect: CGRect, accent: Bool) {
+                let shape = Path(roundedRect: rect, cornerRadius: 3)
+                ctx.fill(shape, with: .color(accent ? palette.accent.opacity(0.20) : palette.surface))
+                ctx.stroke(shape, with: .color(accent ? palette.accent : palette.border), lineWidth: accent ? 1.2 : 0.8)
             }
-            for (p, node) in zip(sats, shown) { dot(p, satR, accent: node.isAccent) }
-            // Hub on top, slightly larger, with a soft ring so it reads as the lead.
-            ctx.fill(Path(ellipseIn: CGRect(x: hub.x - hubR - 1.5, y: hub.y - hubR - 1.5,
-                                            width: (hubR + 1.5) * 2, height: (hubR + 1.5) * 2)),
-                     with: .color(palette.accent.opacity(0.18)))
-            dot(hub, hubR, accent: true)
+            for (r, node) in zip(satRects, shown) { box(r, accent: node.isAccent) }
+            box(hubRect, accent: true)   // orchestrator always highlighted
         }
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.hairline, lineWidth: 1))
