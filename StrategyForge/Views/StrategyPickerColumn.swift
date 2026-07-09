@@ -109,9 +109,12 @@ struct StrategyPickerColumn: View {
         return Button {
             model.applyTemplate(template, to: config.id)
         } label: {
-            HStack(spacing: Space.m) {
-                StrategyThumbnail(strategy: template)
-                    .frame(width: 84, height: 54)
+            VStack(alignment: .leading, spacing: Space.s) {
+              HStack(spacing: Space.m) {
+                if !selected {
+                    StrategyThumbnail(strategy: template)
+                        .frame(width: 84, height: 54)
+                }
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 5) {
                         Text(model.strategyDisplayName(template))
@@ -149,6 +152,16 @@ struct StrategyPickerColumn: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 12)).foregroundStyle(Theme.accent)
                 }
+              }
+              // The selected strategy expands to the full, labelled diagram — the
+              // same one shown in the config view — so it's fully understood.
+              if selected {
+                  StrategyDiagramView(strategy: template)
+                      .frame(height: StrategyDiagramView.preferredHeight(for: template))
+                  Text(model.t("editor.diagram.note"))
+                      .font(.caption).foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+              }
             }
             .padding(.vertical, Space.s)
             .padding(.horizontal, Space.s)
