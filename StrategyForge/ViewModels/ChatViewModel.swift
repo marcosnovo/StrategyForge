@@ -55,6 +55,9 @@ final class ChatViewModel {
     var agentsInvolved: [String] = []
     /// Tool uses the last run wasn't permitted to perform (→ offer allow & retry).
     var deniedTools: [String] = []
+    /// Once the user chooses "always allow", elevate every subsequent turn in this
+    /// chat to full permissions (headless has no per-prompt approval).
+    var elevatedPermissions = false
     /// Live timeline of what the agents did this turn (for the activity panel).
     var timeline: [ActivityStep] = []
     /// The agent's task list (from TodoWrite).
@@ -168,19 +171,21 @@ final class ChatViewModel {
         persist(messages) // save the question immediately, before the (long) run
 
         let sessionID = config.id.uuidString.lowercased()
-        runTask = Task { [binary, model, permissionMode] in
+        // Elevate the whole turn if the user chose "always allow" earlier.
+        let effectiveMode = elevatedPermissions ? "bypassPermissions" : permissionMode
+        runTask = Task { [binary, model] in
             // Try to resume; if the CLI has no session with this id (e.g. a chat from
             // before per-chat sessions existed), start fresh once, invisibly.
             var missing = await runTurn(text: promptText, repo: repo, sessionID: sessionID,
                                         resume: resume, assistantIndex: assistantIndex,
-                                        binary: binary, model: model, permissionMode: permissionMode,
+                                        binary: binary, model: model, permissionMode: effectiveMode,
                                         extraDirs: extraDirs)
             if missing, resume {
                 if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = "" }
                 activity = []; activeSubagent = nil
                 missing = await runTurn(text: promptText, repo: repo, sessionID: sessionID,
                                         resume: false, assistantIndex: assistantIndex,
-                                        binary: binary, model: model, permissionMode: permissionMode,
+                                        binary: binary, model: model, permissionMode: effectiveMode,
                                         extraDirs: extraDirs)
             }
             isRunning = false
@@ -259,7 +264,8 @@ final class ChatViewModel {
     /// Re-run the last user message granting full permissions — the "allow & retry"
     /// path when a run was blocked by permission denials. Works with or without a
     /// project folder (scratch sessions use their per-chat folder).
-    func retryAllowingAll() {
+    func retryAllowingAll(persistElevation: Bool = false) {
+        if persistElevation { elevatedPermissions = true }
         guard !isRunning,
               let lastUser = messages.last(where: { $0.role == .user })?.text else { return }
         let repo = workingDirectory()

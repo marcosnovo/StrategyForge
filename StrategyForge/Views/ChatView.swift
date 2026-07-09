@@ -406,25 +406,47 @@ struct ChatView: View {
     /// Shown after a run that was blocked by permission denials: what was blocked
     /// and a one-click "allow all & retry".
     private var deniedStrip: some View {
-        HStack(alignment: .top, spacing: Space.s) {
-            Image(systemName: "hand.raised.fill").foregroundStyle(Theme.warning).font(.system(size: 11))
-                .symbolEffect(.pulse, options: .repeating)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.t("chat.denied", vm.deniedTools.prefix(4).joined(separator: ", ")))
-                    .font(.sfCaption2).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: Space.s) {
+                Image(systemName: "hand.raised.fill").foregroundStyle(Theme.warning).font(.system(size: 12))
+                    .symbolEffect(.pulse, options: .repeating)
+                Text(model.t("chat.denied.title")).font(.sfCallout.weight(.semibold))
+                Spacer()
             }
-            Spacer(minLength: Space.s)
-            Button { vm.retryAllowingAll() } label: {
-                Label(model.t("chat.allowRetry"), systemImage: "checkmark.shield")
+            // What was blocked, and what each of those tools actually does.
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(vm.deniedTools.prefix(4).enumerated()), id: \.offset) { _, entry in
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(entry).font(.sfCaption2.weight(.medium)).foregroundStyle(.primary)
+                        Text("— \(explainTool(entry))")
+                            .font(.sfCaption2).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
-            .controlSize(.small)
-            .buttonStyle(.borderedProminent)
+            HStack(spacing: Space.s) {
+                Spacer()
+                Button { vm.retryAllowingAll(persistElevation: false) } label: {
+                    Text(model.t("chat.allowOnce"))
+                }
+                .controlSize(.small).buttonStyle(.bordered)
+                Button { vm.retryAllowingAll(persistElevation: true) } label: {
+                    Label(model.t("chat.allowAlways"), systemImage: "checkmark.shield")
+                }
+                .controlSize(.small).buttonStyle(.borderedProminent)
+            }
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.warning.opacity(0.12))
         .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    /// One-line, plain explanation of what a denied tool does.
+    private func explainTool(_ entry: String) -> String {
+        let name = entry.split(separator: " ").first.map(String.init) ?? entry
+        let known = ["Bash", "Write", "Edit", "MultiEdit", "Read", "WebFetch", "WebSearch"]
+        return model.t(known.contains(name) ? "perm.explain.\(name)" : "perm.explain.default")
     }
 
     private func errorBanner(_ error: String) -> some View {
