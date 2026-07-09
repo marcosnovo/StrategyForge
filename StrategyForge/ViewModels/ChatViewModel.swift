@@ -27,6 +27,8 @@ final class ChatViewModel {
     var messages: [ChatMessage] = []
     /// Tools the agent used during the current turn (shown as a status line).
     var activity: [String] = []
+    /// Absolute paths of files the agent has written/edited in this chat.
+    var editedFiles: [String] = []
     var input = ""
     var isRunning = false
     var errorText: String?
@@ -92,22 +94,35 @@ final class ChatViewModel {
         let resume = hasSession
         persist(messages) // save the question immediately, before the (long) run
 
+        let sessionID = config.id.uuidString.lowercased()
+        var gotDelta = false          // did live streaming deliver text this turn?
+        var separatorPending = false  // insert a blank line before the next text
         runTask = Task { [binary, model, permissionMode] in
             for await event in ClaudeRunner.stream(binary: binary, repoPath: repo,
                                                    prompt: text, model: model,
-                                                   continueSession: resume, permissionMode: permissionMode) {
+                                                   sessionID: sessionID, resume: resume,
+                                                   permissionMode: permissionMode) {
+                guard messages.indices.contains(assistantIndex) else { continue }
                 switch event {
-                case .assistantText(let chunk):
-                    if messages.indices.contains(assistantIndex) {
-                        // Separate distinct assistant blocks with a blank line so the
-                        // reply doesn't run together into a wall of text.
-                        if !messages[assistantIndex].text.isEmpty {
-                            messages[assistantIndex].text += "\n\n"
-                        }
-                        messages[assistantIndex].text += chunk
+                case .assistantDelta(let chunk):
+                    gotDelta = true
+                    if separatorPending, !messages[assistantIndex].text.isEmpty {
+                        messages[assistantIndex].text += "\n\n"
                     }
+                    separatorPending = false
+                    messages[assistantIndex].text += chunk
+                case .assistantText(let chunk):
+                    // Only used as a fallback when partial streaming didn't deliver.
+                    guard !gotDelta else { break }
+                    if !messages[assistantIndex].text.isEmpty {
+                        messages[assistantIndex].text += "\n\n"
+                    }
+                    messages[assistantIndex].text += chunk
                 case .tool(let name):
                     activity.append(name)
+                    separatorPending = true   // start a new paragraph after a tool step
+                case .fileEdited(let path):
+                    if !editedFiles.contains(path) { editedFiles.append(path) }
                 case .usage(let tokens, let cost):
                     totalTokens += tokens
                     totalCostUSD += cost

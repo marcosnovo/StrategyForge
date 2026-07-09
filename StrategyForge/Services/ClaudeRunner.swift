@@ -13,8 +13,10 @@ import Foundation
 
 /// A single event streamed back from a headless Claude Code run.
 enum ChatEvent: Sendable, Equatable {
-    case assistantText(String)   // incremental assistant prose
+    case assistantText(String)   // a complete assistant text block
+    case assistantDelta(String)  // a streamed text fragment (partial messages)
     case tool(String)            // a tool the agent invoked (shown as a status line)
+    case fileEdited(String)      // absolute path of a file the agent wrote/edited
     case usage(tokens: Int, costUSD: Double)  // consumption for this turn
     case finished                // the run completed successfully
     case failed(String)          // the run could not start / errored
@@ -34,6 +36,16 @@ enum ClaudeStreamParser {
         }
         let type = obj["type"] as? String
 
+        // Streamed text fragment (with --include-partial-messages).
+        if type == "stream_event",
+           let event = obj["event"] as? [String: Any],
+           event["type"] as? String == "content_block_delta",
+           let delta = event["delta"] as? [String: Any],
+           delta["type"] as? String == "text_delta",
+           let text = delta["text"] as? String, !text.isEmpty {
+            return [.assistantDelta(text)]
+        }
+
         // Assistant turn: pull text + tool_use blocks from message.content.
         if type == "assistant", let message = obj["message"] as? [String: Any],
            let content = message["content"] as? [[String: Any]] {
@@ -45,7 +57,15 @@ enum ClaudeStreamParser {
                         events.append(.assistantText(text))
                     }
                 case "tool_use":
-                    if let name = block["name"] as? String { events.append(.tool(name)) }
+                    if let name = block["name"] as? String {
+                        events.append(.tool(name))
+                        // Note which files it edits, for a post-turn summary.
+                        if ["Write", "Edit", "MultiEdit", "NotebookEdit"].contains(name),
+                           let input = block["input"] as? [String: Any],
+                           let path = input["file_path"] as? String {
+                            events.append(.fileEdited(path))
+                        }
+                    }
                 default:
                     break
                 }
@@ -86,7 +106,8 @@ enum ClaudeRunner {
         repoPath: String,
         prompt: String,
         model: String,
-        continueSession: Bool,
+        sessionID: String,
+        resume: Bool,
         permissionMode: String
     ) -> AsyncStream<ChatEvent> {
         AsyncStream { continuation in
@@ -103,8 +124,13 @@ enum ClaudeRunner {
             process.executableURL = URL(fileURLWithPath: resolved)
             process.currentDirectoryURL = URL(fileURLWithPath: repoPath)
             var args = ["--model", model, "--output-format", "stream-json", "--verbose",
-                        "--permission-mode", permissionMode]
-            if continueSession { args.append("--continue") }
+                        "--include-partial-messages", "--permission-mode", permissionMode]
+            // A per-chat session id keeps chats on the same repo from mixing.
+            if resume {
+                args.append(contentsOf: ["--resume", sessionID])
+            } else {
+                args.append(contentsOf: ["--session-id", sessionID])
+            }
             args.append(contentsOf: ["-p", prompt])
             process.arguments = args
 

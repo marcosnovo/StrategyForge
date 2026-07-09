@@ -60,6 +60,7 @@ struct ChatView: View {
             header
             Divider()
             messagesList
+            if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
             Divider()
             inputBar
@@ -224,6 +225,28 @@ struct ChatView: View {
                  : model.t("chat.using", Array(vm.activity.suffix(3)).joined(separator: ", ")))
                 .font(.sfCaption2).foregroundStyle(.secondary)
         }
+    }
+
+    /// A compact strip listing files the agent changed; each reveals in Finder.
+    private var changedFilesStrip: some View {
+        Menu {
+            ForEach(vm.editedFiles, id: \.self) { path in
+                Button((path as NSString).lastPathComponent) {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+                }
+            }
+        } label: {
+            HStack(spacing: Space.xs) {
+                Image(systemName: "pencil.and.list.clipboard").font(.system(size: 10))
+                Text(model.t("chat.changedFiles", vm.editedFiles.count)).font(.sfCaption2)
+            }
+            .foregroundStyle(Theme.accent)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.accentSoft)
     }
 
     private func errorBanner(_ error: String) -> some View {
