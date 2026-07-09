@@ -25,6 +25,9 @@ struct ActivityStep: Identifiable, Hashable {
     let detail: String?
     let at: Date
     let isDelegation: Bool
+    /// Which agent performed this step — nil means the orchestrator. Used to
+    /// attribute steps to a subagent for the per-agent drill-down.
+    var agent: String? = nil
 }
 
 /// A staged attachment: the name shown to the user and the (possibly converted)
@@ -219,13 +222,16 @@ final class ChatViewModel {
                 messages[assistantIndex].text += chunk
             case .tool(let name, let detail):
                 activity.append(name)
-                timeline.append(ActivityStep(title: name, detail: detail, at: Date(), isDelegation: false))
+                timeline.append(ActivityStep(title: name, detail: detail, at: Date(),
+                                             isDelegation: false, agent: activeSubagent))
                 separatorPending = true
             case .delegated(let subagent):
                 activeSubagent = subagent
                 if !agentsInvolved.contains(subagent) { agentsInvolved.append(subagent) }
                 activity.append("→ \(subagent)")
-                timeline.append(ActivityStep(title: subagent, detail: nil, at: Date(), isDelegation: true))
+                // The delegation itself is an orchestrator action (agent: nil).
+                timeline.append(ActivityStep(title: subagent, detail: nil, at: Date(),
+                                             isDelegation: true, agent: nil))
                 separatorPending = true
             case .todos(let items):
                 todos = items
@@ -251,10 +257,12 @@ final class ChatViewModel {
     }
 
     /// Re-run the last user message granting full permissions — the "allow & retry"
-    /// path when a run was blocked by permission denials.
+    /// path when a run was blocked by permission denials. Works with or without a
+    /// project folder (scratch sessions use their per-chat folder).
     func retryAllowingAll() {
-        guard !isRunning, let repo = config.repoPath,
+        guard !isRunning,
               let lastUser = messages.last(where: { $0.role == .user })?.text else { return }
+        let repo = workingDirectory()
         deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
         messages.append(ChatMessage(role: .assistant, text: ""))
@@ -262,10 +270,20 @@ final class ChatViewModel {
         isRunning = true
         let sessionID = config.id.uuidString.lowercased()
         runTask = Task { [binary, model] in
-            _ = await runTurn(text: lastUser, repo: repo, sessionID: sessionID, resume: true,
-                              assistantIndex: assistantIndex, binary: binary, model: model,
-                              permissionMode: "bypassPermissions", extraDirs: lastExtraDirs)
+            // Resume with full permissions; fall back to a fresh session if the CLI
+            // has no record of this one (mirrors send()).
+            var missing = await runTurn(text: lastUser, repo: repo, sessionID: sessionID, resume: true,
+                                        assistantIndex: assistantIndex, binary: binary, model: model,
+                                        permissionMode: "bypassPermissions", extraDirs: lastExtraDirs)
+            if missing {
+                if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = "" }
+                activity = []; activeSubagent = nil
+                missing = await runTurn(text: lastUser, repo: repo, sessionID: sessionID, resume: false,
+                                        assistantIndex: assistantIndex, binary: binary, model: model,
+                                        permissionMode: "bypassPermissions", extraDirs: lastExtraDirs)
+            }
             isRunning = false
+            hasSession = true
             if messages.indices.contains(assistantIndex), messages[assistantIndex].text.isEmpty {
                 messages.remove(at: assistantIndex)
             }

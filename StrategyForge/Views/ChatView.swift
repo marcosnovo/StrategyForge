@@ -21,6 +21,7 @@ struct ChatView: View {
     @State private var editingTitle: String
     @State private var showActivity = false
     @State private var showPreview = false
+    @State private var agentFocus: AgentFocus?
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -62,12 +63,19 @@ struct ChatView: View {
             chatColumn
             if showActivity {
                 Divider()
-                AgentActivityPanel(vm: vm)
+                AgentActivityPanel(vm: vm, focus: $agentFocus)
                     .frame(width: 320)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+            if showActivity, let focus = agentFocus {
+                Divider()
+                SubagentDetailPanel(vm: vm, focus: focus) { agentFocus = nil }
+                    .frame(width: 300)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.22), value: showActivity)
+        .animation(.easeInOut(duration: 0.22), value: agentFocus)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
         // Reflect an auto-generated title (set in AppModel after the first message).
@@ -126,23 +134,25 @@ struct ChatView: View {
                 }
             }
             Spacer()
-            if vm.totalTokens > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "circle.hexagongrid").font(.system(size: 9))
-                    Text(model.t("chat.tokens", formatTokens(vm.totalTokens)))
-                        .font(.sfCaption2.weight(.semibold))
-                    if vm.totalCostUSD > 0 {
-                        Text(String(format: "· $%.2f", vm.totalCostUSD))
-                            .font(.sfCaption2)
-                    }
+            HStack(spacing: 4) {
+                Image(systemName: "circle.hexagongrid").font(.system(size: 9))
+                Text(model.t("chat.tokens", formatTokens(vm.totalTokens)))
+                    .font(.sfCaption2.weight(.semibold))
+                    .contentTransition(.numericText())
+                if vm.totalCostUSD > 0 {
+                    Text(String(format: "· $%.2f", vm.totalCostUSD))
+                        .font(.sfCaption2)
                 }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 9).padding(.vertical, 3)
-                .glassEffect(.regular, in: .capsule)
-                .help(model.t("chat.tokens.help"))
             }
+            .foregroundStyle(vm.totalTokens > 0 ? .secondary : .tertiary)
+            .padding(.horizontal, 9).padding(.vertical, 3)
+            .glassEffect(.regular, in: .capsule)
+            .help(model.t("chat.tokens.help"))
             Button {
-                withAnimation(.easeInOut(duration: 0.22)) { showActivity.toggle() }
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    showActivity.toggle()
+                    if !showActivity { agentFocus = nil }
+                }
             } label: {
                 Image(systemName: "sidebar.trailing")
                     .foregroundStyle(showActivity ? Theme.accent : .secondary)
