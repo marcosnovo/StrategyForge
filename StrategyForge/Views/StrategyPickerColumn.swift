@@ -48,6 +48,7 @@ struct StrategyPickerColumn: View {
 
             ScrollView {
                 VStack(spacing: Space.xs) {
+                    savedTeamsSection
                     if let bucket = activeBucket {
                         let inBucket = templates.filter { model.strategyBuckets($0).contains(bucket) }
                         let others = templates.filter { !model.strategyBuckets($0).contains(bucket) }
@@ -75,6 +76,51 @@ struct StrategyPickerColumn: View {
         }
         .sheet(isPresented: $showTaskGen) {
             TaskToStrategySheet(config: $config)
+        }
+    }
+
+    /// Your saved team presets, shown above the built-in templates so choosing a
+    /// reusable team is the first thing you see. Tapping applies it to this chat.
+    @ViewBuilder
+    private var savedTeamsSection: some View {
+        if !model.savedTeams.isEmpty {
+            HStack {
+                Label(model.t("team.library.yours"), systemImage: "bookmark.fill")
+                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Spacer()
+            }
+            .padding(.top, Space.xs)
+            ForEach(model.savedTeams) { team in
+                Button {
+                    model.applyTeam(team, to: config.id)
+                } label: {
+                    HStack(spacing: Space.s) {
+                        Image(systemName: "person.3.fill")
+                            .font(.system(size: 12)).foregroundStyle(Theme.accent)
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(team.name).font(.sfCallout.weight(.medium)).lineLimit(1)
+                            Text(model.t("team.members.count", team.strategy.roles.count))
+                                .font(.sfCaption2).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, Space.s).padding(.horizontal, Space.s)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
+                        .strokeBorder(Theme.hairline, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button(role: .destructive) { model.deleteTeam(team.id) } label: {
+                        Label(model.t("team.library.delete"), systemImage: "trash")
+                    }
+                }
+                .help(model.t("team.library.applyHelp"))
+            }
+            Divider().padding(.vertical, Space.xs)
         }
     }
 

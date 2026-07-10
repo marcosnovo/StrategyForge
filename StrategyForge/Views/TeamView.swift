@@ -16,6 +16,8 @@ struct TeamView: View {
     @Binding var config: Configuration
 
     @State private var selectedRoleID: AgentRole.ID?
+    @State private var showSaveTeam = false
+    @State private var newTeamName = ""
 
     var body: some View {
         HStack(spacing: 0) {
@@ -30,6 +32,16 @@ struct TeamView: View {
             if selectedRoleID == nil {
                 selectedRoleID = config.strategy.orchestrator?.id ?? config.strategy.roles.first?.id
             }
+        }
+        .alert(model.t("team.save.title"), isPresented: $showSaveTeam) {
+            TextField(model.t("team.save.placeholder"), text: $newTeamName)
+            Button(model.t("common.cancel"), role: .cancel) { newTeamName = "" }
+            Button(model.t("team.save.confirm")) {
+                model.saveTeam(named: newTeamName, from: config.id)
+                newTeamName = ""
+            }
+        } message: {
+            Text(model.t("team.save.message"))
         }
     }
 
@@ -79,6 +91,7 @@ struct TeamView: View {
             }
             Spacer()
             costPill
+            teamsMenu
             Button {
                 if model.save() { model.flashSuccess(model.t("banner.saved")) }
             } label: {
@@ -88,6 +101,42 @@ struct TeamView: View {
             .controlSize(.large)
         }
         .padding(Space.l)
+    }
+
+    /// The saved-team library menu: apply an existing preset, save the current team
+    /// as a new preset, or overwrite one.
+    private var teamsMenu: some View {
+        Menu {
+            if !model.savedTeams.isEmpty {
+                Section(model.t("team.library.apply")) {
+                    ForEach(model.savedTeams) { team in
+                        Button {
+                            model.applyTeam(team, to: config.id)
+                            selectedRoleID = config.strategy.orchestrator?.id
+                        } label: {
+                            Label("\(team.name)  ·  \(team.strategy.roles.count) 👥", systemImage: "person.3.fill")
+                        }
+                    }
+                }
+                Section(model.t("team.library.update")) {
+                    ForEach(model.savedTeams) { team in
+                        Button(team.name) { model.updateTeam(team.id, from: config.id) }
+                    }
+                }
+                Divider()
+            }
+            Button {
+                newTeamName = ""
+                showSaveTeam = true
+            } label: {
+                Label(model.t("team.save.new"), systemImage: "square.and.arrow.down.on.square")
+            }
+        } label: {
+            Label(model.t("team.library"), systemImage: "bookmark")
+        }
+        .menuStyle(.button)
+        .controlSize(.large)
+        .fixedSize()
     }
 
     private var costPill: some View {

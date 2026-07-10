@@ -22,6 +22,9 @@ final class AppModel {
     var selectedConfigID: Configuration.ID?
     var settings = AppSettings()
 
+    /// Global library of named team presets, reusable across chats.
+    var savedTeams: [SavedTeam] = []
+
     // MARK: - Providers
     /// Providers whose CLI is currently installed/detected. Drives locked vs
     /// selectable state in the model/provider pickers.
@@ -453,6 +456,52 @@ final class AppModel {
         save()
     }
 
+    // MARK: - Saved teams (named presets)
+
+    /// Save a chat's current team as a named, reusable preset in the global library.
+    @discardableResult
+    func saveTeam(named name: String, from configID: Configuration.ID) -> SavedTeam? {
+        guard let config = configurations.first(where: { $0.id == configID }) else { return nil }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let label = trimmed.isEmpty ? strategyDisplayName(config.strategy) : trimmed
+        let team = SavedTeam(name: label, strategy: config.strategy)
+        savedTeams.insert(team, at: 0)
+        save()
+        flashSuccess(t("team.saved", label))
+        return team
+    }
+
+    /// Apply a saved preset to a chat (fresh ids so chats never share role ids).
+    func applyTeam(_ team: SavedTeam, to configID: Configuration.ID) {
+        guard let i = configurations.firstIndex(where: { $0.id == configID }) else { return }
+        configurations[i].strategy = team.strategyCopy()
+        save()
+    }
+
+    func renameTeam(_ id: SavedTeam.ID, to name: String) {
+        guard let i = savedTeams.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        savedTeams[i].name = trimmed
+        savedTeams[i].updatedAt = Date()
+        save()
+    }
+
+    func deleteTeam(_ id: SavedTeam.ID) {
+        savedTeams.removeAll { $0.id == id }
+        save()
+    }
+
+    /// Overwrite an existing preset with a chat's current team.
+    func updateTeam(_ id: SavedTeam.ID, from configID: Configuration.ID) {
+        guard let ti = savedTeams.firstIndex(where: { $0.id == id }),
+              let config = configurations.first(where: { $0.id == configID }) else { return }
+        savedTeams[ti].strategy = config.strategy
+        savedTeams[ti].updatedAt = Date()
+        save()
+        flashSuccess(t("team.saved", savedTeams[ti].name))
+    }
+
     /// Set which AI back-end a chat runs on.
     func setProvider(_ id: Configuration.ID, _ provider: AIProvider) {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
@@ -778,24 +827,28 @@ final class AppModel {
         var schemaVersion: Int
         var configurations: [Configuration]
         var settings: AppSettings
+        var savedTeams: [SavedTeam]
 
         init(configurations: [Configuration],
              settings: AppSettings,
+             savedTeams: [SavedTeam] = [],
              schemaVersion: Int = currentVersion) {
             self.schemaVersion = schemaVersion
             self.configurations = configurations
             self.settings = settings
+            self.savedTeams = savedTeams
         }
 
-        enum CodingKeys: String, CodingKey { case schemaVersion, configurations, settings }
+        enum CodingKeys: String, CodingKey { case schemaVersion, configurations, settings, savedTeams }
 
         // Tolerant decode: older files have no schemaVersion (→ 0). Missing
-        // settings default rather than failing the whole load.
+        // settings/savedTeams default rather than failing the whole load.
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 0
             configurations = try c.decodeIfPresent([Configuration].self, forKey: .configurations) ?? []
             settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
+            savedTeams = try c.decodeIfPresent([SavedTeam].self, forKey: .savedTeams) ?? []
         }
 
         /// Forward-migrate a decoded state to the current schema version.
@@ -817,7 +870,7 @@ final class AppModel {
     @discardableResult
     func save(stamp: Bool = true) -> Bool {
         if stamp { stampChanges() }
-        let state = PersistedState(configurations: configurations, settings: settings)
+        let state = PersistedState(configurations: configurations, settings: settings, savedTeams: savedTeams)
         do {
             let data = try JSONEncoder().encode(state)
             try data.write(to: storeURL, options: .atomic)
