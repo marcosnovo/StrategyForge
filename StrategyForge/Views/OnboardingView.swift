@@ -58,7 +58,7 @@ struct OnboardingView: View {
                     dismiss()
                     onCreate()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.moon)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
             }

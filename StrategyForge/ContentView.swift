@@ -123,7 +123,7 @@ private struct EmptyEditorState: View {
                     Label(model.t("setup.oneClick"), systemImage: "wand.and.stars")
                         .frame(maxWidth: 320)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.moon)
                 .controlSize(.large)
                 .help(model.t("setup.oneClick.sub"))
 

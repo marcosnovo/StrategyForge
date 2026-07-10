@@ -123,7 +123,7 @@ struct ChatView: View {
             Button(model.t("chat.locate")) { locateClaude() }
                 .controlSize(.small)
             Button(model.t("chat.install")) { showInstall = true }
-                .controlSize(.small).buttonStyle(.borderedProminent)
+                .controlSize(.small).buttonStyle(.moon)
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -647,7 +647,7 @@ struct ChatView: View {
                 Button { vm.retryAllowingAll(persistElevation: true) } label: {
                     Label(model.t("chat.allowAlways"), systemImage: "checkmark.shield")
                 }
-                .controlSize(.small).buttonStyle(.borderedProminent)
+                .controlSize(.small).buttonStyle(.moon)
             }
         }
         .padding(Space.m)
@@ -717,7 +717,7 @@ struct ChatView: View {
                 Button { send() } label: {
                     Label(model.t("chat.send"), systemImage: "arrow.up.circle.fill")
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.moon)
                 .controlSize(.large)
                 .disabled(!vm.canSend || engineMissing)
                 .keyboardShortcut(.return, modifiers: .command)

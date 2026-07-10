@@ -57,7 +57,7 @@ struct ProviderInstallSheet: View {
                 Spacer()
                 if state == .done {
                     Button(model.t("provider.signin")) { ProviderInstaller.launchSignIn(provider) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.moon)
                 }
                 Button(model.t("common.done")) { dismiss() }
                     .keyboardShortcut(.defaultAction).disabled(state == .running)

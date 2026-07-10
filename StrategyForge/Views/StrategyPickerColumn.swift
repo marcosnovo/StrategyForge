@@ -28,7 +28,7 @@ struct StrategyPickerColumn: View {
                     Label(model.t("task2strat.open"), systemImage: "sparkles")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.moon)
                 .controlSize(.small)
                 .help(model.t("task2strat.subtitle"))
 

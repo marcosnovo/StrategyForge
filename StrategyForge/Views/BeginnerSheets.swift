@@ -80,7 +80,7 @@ struct ChooseStrategyWizard: View {
                     } label: {
                         Label(model.t("wizard.apply"), systemImage: "checkmark")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.moon)
                     .keyboardShortcut(.defaultAction)
                 }
             }
@@ -170,7 +170,7 @@ struct WhatNowSheet: View {
                         } label: {
                             Label(model.t("whatnow.step1.button"), systemImage: "terminal")
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.moon)
                     }
                 }
 
@@ -221,7 +221,7 @@ struct WhatNowSheet: View {
                 }
                 Spacer()
                 Button(model.t("common.done")) { dismiss() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.moon)
                     .keyboardShortcut(.defaultAction)
             }
         }

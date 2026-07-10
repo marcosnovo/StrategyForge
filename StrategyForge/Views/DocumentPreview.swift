@@ -105,7 +105,7 @@ struct DocumentPreviewSheet: View {
                 Button { saveCopy(of: url) } label: {
                     Label(model.t("filepreview.save"), systemImage: "square.and.arrow.down")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.moon)
             }
         }
         .padding(Space.m)

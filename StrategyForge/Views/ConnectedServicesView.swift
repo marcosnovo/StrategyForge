@@ -90,7 +90,7 @@ struct ConnectedServicesSection: View {
         switch status[provider] ?? .checking {
         case .missing:
             Button(model.t("provider.connect")) { startConnect(provider) }
-                .controlSize(.small).buttonStyle(.borderedProminent)
+                .controlSize(.small).buttonStyle(.moon)
         case .found:
             Button(model.t("provider.signin")) { ProviderInstaller.launchSignIn(provider) }
                 .controlSize(.small)
@@ -162,7 +162,7 @@ struct ConnectedServicesSection: View {
                 Spacer()
                 if installState == .done {
                     Button(model.t("provider.signin")) { ProviderInstaller.launchSignIn(provider) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.moon)
                 }
                 Button(model.t("common.done")) { connecting = nil }
                     .keyboardShortcut(.defaultAction)

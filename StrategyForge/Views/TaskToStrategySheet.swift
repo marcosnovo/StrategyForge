@@ -69,7 +69,7 @@ struct TaskToStrategySheet: View {
                     Label(model.t("task2strat.generate"), systemImage: "sparkles")
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.moon)
             .controlSize(.large)
             .disabled(task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
 
@@ -89,7 +89,7 @@ struct TaskToStrategySheet: View {
                     } label: {
                         Label(model.t("task2strat.use"), systemImage: "checkmark")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.moon)
                     .keyboardShortcut(.defaultAction)
                 }
             }

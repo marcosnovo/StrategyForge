@@ -46,6 +46,8 @@ enum Theme {
         dark:  Color(red: 0.741, green: 0.612, blue: 0.855).opacity(0.55))
     /// Readable text/foreground to place ON a solid accent fill.
     static let onAccent = Color.white
+    /// Dark ink for text on the light "Moon White" primary buttons (from the palette).
+    static let moonInk = Color(red: 0.165, green: 0.149, blue: 0.133)   // #2A2622
 
     /// The "Wisteria haze" gradient, used as a soft ambient app background.
     static let haze = LinearGradient(
@@ -110,6 +112,41 @@ enum Theme {
     static let turnGap: CGFloat = 10
     /// Extra line spacing for body copy so long replies read comfortably.
     static let bodyLineSpacing: CGFloat = 3
+}
+
+// MARK: - Primary "Moon White" button style
+
+/// Light, airy primary button (Moon White fill + dark ink), replacing the saturated
+/// purple prominent style. Reads as primary against the Wisteria-haze background.
+struct MoonButtonStyle: ButtonStyle {
+    // Explicit type: bare `Configuration` collides with the app's Configuration model.
+    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
+        MoonButtonBody(configuration: configuration)
+    }
+}
+
+private struct MoonButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+    var body: some View {
+        configuration.label
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(Theme.moonInk)
+            .padding(.horizontal, Space.m)
+            .padding(.vertical, Space.s)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.moonWhite))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Theme.wisteria.opacity(0.35), lineWidth: 1))
+            .shadow(color: Theme.wisteria.opacity(0.22), radius: 6, x: 0, y: 2)
+            .opacity(isEnabled ? 1 : 0.45)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .contentShape(Rectangle())
+    }
+}
+extension ButtonStyle where Self == MoonButtonStyle {
+    /// Light Moon-White primary button.
+    static var moon: MoonButtonStyle { MoonButtonStyle() }
 }
 
 /// 4-based spacing scale.

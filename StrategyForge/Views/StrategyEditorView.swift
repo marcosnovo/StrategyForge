@@ -86,7 +86,7 @@ struct StrategyEditorView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     Button(model.t("preview.needRepo.button")) { model.pickRepo(for: config.id) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.moon)
                 }
                 .padding(Space.m)
                 .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.accentSoft))
@@ -167,7 +167,7 @@ struct StrategyEditorView: View {
                     attemptGenerate { if model.generate(config) { showWhatNow = true } }
                 }
                 .menuStyle(.button)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.moon)
                 .controlSize(.large)
                 .fixedSize()
                 .disabled(!canGenerate)
@@ -351,7 +351,7 @@ struct StrategyEditorView: View {
                         .buttonStyle(.bordered)
                 } else {
                     Button(model.t("common.choose")) { model.pickRepo(for: config.id) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.moon)
                 }
             }
             .padding(Space.m)

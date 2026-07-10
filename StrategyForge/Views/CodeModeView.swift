@@ -284,7 +284,7 @@ struct CodeModeView: View {
                     .onSubmit { if !commitMessage.trimmingCharacters(in: .whitespaces).isEmpty { confirmCommit = true } }
                 if gitBusy { ProgressView().controlSize(.small) }
                 Button(model.t("code.commit")) { confirmCommit = true }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.moon)
                     .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty || gitBusy)
             }
             .padding(Space.m)
