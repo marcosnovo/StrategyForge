@@ -25,29 +25,47 @@ extension Color {
 
 enum Theme {
 
-    // MARK: Brand — "Pulse" (vibrant electric violet — AI / premium)
+    // MARK: Brand — "Wisteria haze" palette
+    /// The four gradient stops (from the user's palette).
+    static let moonWhite = Color(red: 0.918, green: 0.957, blue: 0.988)   // #EAF4FC
+    static let wisteria   = Color(red: 0.698, green: 0.561, blue: 0.808)  // #B28FCE
+    static let ibisPink   = Color(red: 0.957, green: 0.702, blue: 0.761)  // #F4B3C2
+    static let sky        = Color(red: 0.627, green: 0.847, blue: 0.937)  // #A0D8EF
+
+    /// Accent = Wisteria; slightly deeper in light for legible small text/icons,
+    /// lighter in dark so it glows on the near-black surfaces.
     static let accent = Color(
-        light: Color(red: 0.427, green: 0.365, blue: 0.910),   // #6D5DE8 (holds on white)
-        dark:  Color(red: 0.545, green: 0.490, blue: 1.000))   // #8B7DFF (glows on near-black)
+        light: Color(red: 0.588, green: 0.427, blue: 0.729),   // #966DBA (deepened wisteria)
+        dark:  Color(red: 0.741, green: 0.612, blue: 0.855))   // #BD9CDA
     static let accentHover = Color(
-        light: Color(red: 0.490, green: 0.431, blue: 0.941),
-        dark:  Color(red: 0.620, green: 0.573, blue: 1.000))
-    static let accentSoft = accent.opacity(0.16)
+        light: Color(red: 0.647, green: 0.486, blue: 0.784),
+        dark:  Color(red: 0.800, green: 0.678, blue: 0.898))
+    static let accentSoft = wisteria.opacity(0.20)
     static let accentGlow = Color(
-        light: Color(red: 0.427, green: 0.365, blue: 0.910).opacity(0.30),
-        dark:  Color(red: 0.545, green: 0.490, blue: 1.000).opacity(0.55))
+        light: wisteria.opacity(0.35),
+        dark:  Color(red: 0.741, green: 0.612, blue: 0.855).opacity(0.55))
     /// Readable text/foreground to place ON a solid accent fill.
     static let onAccent = Color.white
 
+    /// The "Wisteria haze" gradient, used as a soft ambient app background.
+    static let haze = LinearGradient(
+        stops: [
+            .init(color: moonWhite, location: 0.10),
+            .init(color: wisteria,  location: 0.40),
+            .init(color: ibisPink,  location: 0.66),
+            .init(color: sky,       location: 0.92),
+        ],
+        startPoint: .topLeading, endPoint: .bottomTrailing)
+
     // MARK: Surfaces — soft lavender in light, cool graphite in dark
     static let appBg = Color(
-        light: Color(red: 0.945, green: 0.941, blue: 0.980),   // #F1F0FA soft lavender
+        light: Color(red: 0.929, green: 0.918, blue: 0.965),   // #EDEAF6 wisteria-white
         dark:  Color(red: 0.051, green: 0.059, blue: 0.071))   // #0D0F12
     static let cardBg = Color(
         light: .white,
         dark:  Color(red: 0.086, green: 0.098, blue: 0.118))   // #16191E
     static let insetBg = Color(
-        light: Color(red: 0.914, green: 0.906, blue: 0.965),   // #E9E7F6 lavender inset
+        light: Color(red: 0.890, green: 0.867, blue: 0.941),   // #E3DDF0 wisteria inset
         dark:  Color(red: 0.039, green: 0.047, blue: 0.059))   // #0A0C0F
     /// Near-black surface for the left navigation rail (dark in both appearances).
     static let railBg = Color(

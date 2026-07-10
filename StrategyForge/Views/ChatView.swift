@@ -92,7 +92,9 @@ struct ChatView: View {
         // continuously-redrawing TimelineViews (WorkingLogo, live diagram) over
         // materials; animating their insertion made the UI hang. Snap them in.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.appBg)
+        // Transparent so the app's Wisteria-haze background shows behind the chat
+        // canvas; bubbles and chrome keep their own solid/material surfaces.
+        .background(.clear)
         // Reflect an auto-generated title (set in AppModel after the first message).
         .onChange(of: config.name) { _, new in editingTitle = new }
         // Auto-open the panel the first time an agent starts working.

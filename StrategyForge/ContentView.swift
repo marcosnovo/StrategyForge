@@ -10,6 +10,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("didOnboard") private var didOnboard = false
     @State private var showOnboarding = false
 
@@ -57,6 +58,7 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 720, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
+        .background(hazeBackground)
         // Per-chat configuration as a modal sheet (strategy + file generation).
         .sheet(isPresented: $model.showInspector) {
             if let id = model.selectedConfigID { configSheet(id) }
@@ -66,6 +68,22 @@ struct ContentView: View {
         .onAppear { if !didOnboard { showOnboarding = true } }
         .sheet(isPresented: $showOnboarding, onDismiss: { didOnboard = true }) {
             OnboardingView(onCreate: { model.addConfiguration() })
+        }
+    }
+
+    /// Soft "Wisteria haze" wash behind everything (light mode only); solid dark base
+    /// in dark mode. Content panels paint their own surfaces on top, so text stays
+    /// readable while the haze shows through translucent chrome and the chat canvas.
+    @ViewBuilder
+    private var hazeBackground: some View {
+        if colorScheme == .dark {
+            Theme.appBg.ignoresSafeArea()
+        } else {
+            ZStack {
+                Color(red: 0.98, green: 0.975, blue: 0.99)
+                Theme.haze.opacity(0.40)
+            }
+            .ignoresSafeArea()
         }
     }
 
