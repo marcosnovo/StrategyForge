@@ -187,6 +187,19 @@ struct ChatView: View {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
+    /// Copy an assistant message and flash a ✓ on its button for ~1.5s.
+    private func copy(_ message: ChatMessage) {
+        copyToClipboard(message.text)
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { copiedMessageID = message.id }
+        let id = message.id
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            if copiedMessageID == id {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { copiedMessageID = nil }
+            }
+        }
+    }
+
     private var messagesList: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -198,6 +211,10 @@ struct ChatView: View {
                                    && message.role == .assistant
                                    && message.id == vm.messages.last?.id)
                             .id(message.id)
+                            // Extra breathing room above each new turn (user message),
+                            // so a turn reads as a unit distinct from the previous reply.
+                            .padding(.top, message.role == .user
+                                     && message.id != vm.messages.first?.id ? Theme.turnGap : 0)
                             .transition(reduceMotion ? .opacity : .asymmetric(
                                 insertion: .opacity.combined(with: .offset(
                                     x: message.role == .user ? 20 : -12, y: 8)),
@@ -258,11 +275,14 @@ struct ChatView: View {
                     // Copy is always available (dimmed while still streaming), like
                     // ChatGPT/Claude — no hover or context menu required.
                     if !message.text.isEmpty {
-                        Button { copyToClipboard(message.text) } label: {
-                            Label(model.t("chat.copy"), systemImage: "doc.on.doc").font(.sfCaption2)
+                        let copied = copiedMessageID == message.id
+                        Button { copy(message) } label: {
+                            Label(copied ? model.t("chat.copied") : model.t("chat.copy"),
+                                  systemImage: copied ? "checkmark" : "doc.on.doc")
+                                .font(.sfCaption2)
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(copied ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.tertiary))
                         .opacity(isStreaming ? 0.35 : 1)
                         .disabled(isStreaming)
                     }

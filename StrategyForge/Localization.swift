@@ -434,6 +434,7 @@ enum L10n {
         "chat.noMessages": ("No messages yet", "Aún sin mensajes"),
         "chat.noRepo": ("No folder yet", "Sin carpeta todavía"),
         "chat.copy": ("Copy", "Copiar"),
+        "chat.copied": ("Copied", "Copiado"),
         "chat.tokens": ("%@ tokens", "%@ tokens"),
         "chat.tokens.help": ("Approximate tokens used in this chat", "Tokens aproximados usados en este chat"),
         "chat.changedFiles": ("%lld files changed", "%lld archivos modificados"),

@@ -17,6 +17,8 @@ struct RoleRowView: View {
 
     @State private var editingPrompt = false
     @State private var editingDescription = false
+    @State private var hoveredModel: ClaudeModel?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var hasError: Bool { issues.contains { $0.severity == .error } }
 
@@ -164,11 +166,19 @@ struct RoleRowView: View {
             .background(RoundedRectangle(cornerRadius: 9)
                 .fill(selected ? Theme.accentSoft : Theme.cardBg))
             .overlay(RoundedRectangle(cornerRadius: 9)
-                .strokeBorder(selected ? Theme.accent : Theme.hairline,
+                .strokeBorder(selected ? Theme.accent
+                              : (hoveredModel == m ? Theme.accent.opacity(0.5) : Theme.hairline),
                               lineWidth: selected ? 1.5 : 1))
             .contentShape(Rectangle())
+            .scaleEffect(hoveredModel == m && !selected ? 1.03 : 1)
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
+                if hovering { hoveredModel = m }
+                else if hoveredModel == m { hoveredModel = nil }
+            }
+        }
         .help(m.safeguardNote ?? model.t(m.tierBlurbKey))
         .accessibilityLabel("\(model.t(m.tierNameKey)) — \(m.displayName)")
         .accessibilityAddTraits(selected ? [.isSelected] : [])

@@ -32,6 +32,7 @@ struct AgentActivityPanel: View {
     /// so the drill-down column lives at the far right of the window.
     @Binding var focus: AgentFocus?
     @State private var mode: ActivityPanelMode = .timeline
+    @State private var hoveredAgent: AgentFocus?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -199,10 +200,15 @@ struct AgentActivityPanel: View {
             }
             .padding(.horizontal, Space.s).padding(.vertical, 5)
             .background(RoundedRectangle(cornerRadius: 7)
-                .fill(isOpen ? Theme.accentSoft : .clear))
+                .fill(isOpen ? Theme.accentSoft
+                      : (hoveredAgent == target ? Theme.hairline.opacity(0.7) : .clear)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            if hovering { hoveredAgent = target }
+            else if hoveredAgent == target { hoveredAgent = nil }
+        }
     }
 
     // MARK: Tasks
