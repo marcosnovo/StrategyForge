@@ -108,6 +108,8 @@ enum L10n {
         "team.import": ("Import a team", "Importar un equipo"),
         "team.import.paste": ("Paste from clipboard", "Pegar del portapapeles"),
         "team.import.file": ("Import from file…", "Importar desde archivo…"),
+        "team.import.repo": ("Import from repo folder…", "Importar desde carpeta de repo…"),
+        "team.dropRepoHint": ("…or drop a folder with a .claude/ setup", "…o suelta una carpeta con un setup .claude/"),
         "team.import.noText": ("The clipboard has no team share text.", "El portapapeles no tiene texto de equipo."),
         "team.import.done": ("Team imported.", "Equipo importado."),
         "team.deleteTeam.confirm": ("Delete this team? This can't be undone.", "¿Eliminar este equipo? No se puede deshacer."),

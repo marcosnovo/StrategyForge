@@ -32,6 +32,11 @@ struct TeamSelectorColumn: View {
         .frame(width: 260)
         .frame(maxHeight: .infinity)
         .background(.regularMaterial)
+        // "Drag your repo and visualize your setup" — drop a folder with .claude/.
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first(where: { $0.hasDirectoryPath }) else { return false }
+            return model.importTeamFromRepo(at: url)
+        }
     }
 
     private var header: some View {
@@ -44,6 +49,9 @@ struct TeamSelectorColumn: View {
                 }
                 Button { model.importTeamFromFile() } label: {
                     Label(model.t("team.import.file"), systemImage: "arrow.down.doc")
+                }
+                Button { model.importTeamFromRepoPanel() } label: {
+                    Label(model.t("team.import.repo"), systemImage: "folder")
                 }
             } label: {
                 Image(systemName: "square.and.arrow.down")
@@ -74,6 +82,9 @@ struct TeamSelectorColumn: View {
                 Label(model.t("team.create"), systemImage: "plus")
             }
             .buttonStyle(.moon)
+            Label(model.t("team.dropRepoHint"), systemImage: "arrow.down.doc.fill")
+                .font(.sfCaption2).foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             Spacer()
         }
         .padding(Space.l)

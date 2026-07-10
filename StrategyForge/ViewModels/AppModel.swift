@@ -457,9 +457,25 @@ final class AppModel {
         if let base = resolvedDefaultReposURL() { panel.directoryURL = base }
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
+        guard let strategy = repoStrategy(at: url) else {
+            show(.failure(t("import.notFound")))
+            return
+        }
+        var config = Configuration(name: strategy.name, strategy: strategy, repoPath: url.path)
+        config.repoBookmark = try? url.bookmarkData(options: [.withSecurityScope],
+                                                    includingResourceValuesForKeys: nil, relativeTo: nil)
+        configurations.append(config)
+        selectedConfigID = config.id
+        liveRepoURLs[config.id] = url
+        save()
+        flashSuccess(t("import.done", strategy.subagentRoles.count))
+    }
+
+    /// Parse a folder's `.claude/` (agents + CLAUDE.md) into a Strategy, or nil if
+    /// the folder has no Claude Code config. Handles security-scoped access.
+    func repoStrategy(at url: URL) -> Strategy? {
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-
         let fm = FileManager.default
         let agentsDir = url.appendingPathComponent(".claude/agents", isDirectory: true)
         var agentFiles: [ClaudeConfigParser.AgentFile] = []
@@ -471,25 +487,38 @@ final class AppModel {
             }
         }
         let claudeMd = try? String(contentsOf: url.appendingPathComponent(ClaudeMdGenerator.fileName), encoding: .utf8)
-
-        guard !agentFiles.isEmpty || claudeMd != nil else {
-            show(.failure(t("import.notFound")))
-            return
-        }
-
-        let strategy = ClaudeConfigParser.parse(
+        guard !agentFiles.isEmpty || claudeMd != nil else { return nil }
+        return ClaudeConfigParser.parse(
             agentFiles: agentFiles.sorted { $0.fileName < $1.fileName },
             claudeMd: claudeMd,
-            fallbackName: url.lastPathComponent
-        )
-        var config = Configuration(name: strategy.name, strategy: strategy, repoPath: url.path)
-        config.repoBookmark = try? url.bookmarkData(options: [.withSecurityScope],
-                                                    includingResourceValuesForKeys: nil, relativeTo: nil)
-        configurations.append(config)
-        selectedConfigID = config.id
-        liveRepoURLs[config.id] = url
-        save()
+            fallbackName: url.lastPathComponent)
+    }
+
+    /// "Drag your repo and visualize your setup" → import a folder's `.claude/` as a
+    /// new team (the onboarding hook). Returns whether it found a config.
+    @discardableResult
+    func importTeamFromRepo(at url: URL) -> Bool {
+        guard let strategy = repoStrategy(at: url) else {
+            show(.failure(t("import.notFound")))
+            return false
+        }
+        _ = createTeam(from: strategy, named: strategy.name)
+        Analytics.log(.strategyImported(kind: "repo"))
         flashSuccess(t("import.done", strategy.subagentRoles.count))
+        return true
+    }
+
+    /// Pick a repo folder and import its `.claude/` config as a new team.
+    func importTeamFromRepoPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = t("common.choose")
+        panel.message = t("import.pickMessage")
+        if let base = resolvedDefaultReposURL() { panel.directoryURL = base }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        importTeamFromRepo(at: url)
     }
 
     // MARK: - Strategy document (.sfstrategy) export / import
