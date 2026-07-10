@@ -317,30 +317,39 @@ final class AppModel {
         return Self.inferredTitle(from: text)
     }
 
-    /// Ordered keyword → topic-category map. Returns a localization key ("topic.*")
-    /// for the first category whose stems appear in the message, else nil. Stems are
-    /// accent- and language-tolerant (Spanish + English), matched case-insensitively.
+    /// Map a message to a topic-category key ("topic.*"), or nil. Strategy: the
+    /// leading action verb carries the intent ("Revisa…" = Review even if it also
+    /// mentions "errores"), so we scan the FIRST few words first; only if nothing
+    /// matches there do we scan the whole message. Stems are accent- and language-
+    /// tolerant (Spanish + English), matched case-insensitively.
     static func topicCategoryKey(for text: String) -> String? {
-        let s = text.lowercased()
-        // Most specific first so e.g. "revisa el diseño" reads as Review, not Design.
+        var s = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        while s.contains("  ") { s = s.replacingOccurrences(of: "  ", with: " ") }
+        // Intent verbs (Review/Research…) come BEFORE Bug fix so an incidental
+        // "error"/"falla" in a review or research request doesn't hijack the title.
         let table: [(key: String, stems: [String])] = [
-            ("topic.bugfix",  ["bug", "error", "crash", "arregl", "fix", "solucion", "falla", "fallo", "corrig", "rompe", "roto", "no funciona", "broken"]),
-            ("topic.tests",   ["test", "prueb", "testea", "cobertura", "unit test", "xctest"]),
-            ("topic.review",  ["revis", "review", "audit", "comprob", "verif", "evalú", "evalua"]),
-            // "documento" (the object) must NOT trigger docs — only writing docs does.
-            ("topic.docs",    ["documenta", "documentaci", "readme", " docs", "docstring", "javadoc"]),
-            ("topic.refactor",["refactor", "reorganiz", "reestructur", "restructur", "limpia el códig", "limpiar el códig", "clean up"]),
-            ("topic.perf",    ["optimiz", "rendimiento", "performance", "velocidad", "más rápid", "mas rapid", "lento", "latenc"]),
-            ("topic.design",  ["diseñ", "rediseñ", "design", "interfaz", "ui/ux", " ui ", " ux ", "visual", "estétic", "estetic", "maquet", "layout", "look and feel"]),
+            ("topic.review",  ["revis", "review", "audit", "comprob", "verif", "evalú", "evalua", "repasa", "repás"]),
             ("topic.research",["investig", "explor", "analiz", "research", "entend", "entiend", "understand", "estudi", "averigu", "descubr"]),
             ("topic.explain", ["explic", "explíc", "cómo funciona", "como funciona", "how does", "qué hace", "que hace", "walk me through"]),
+            ("topic.design",  ["diseñ", "rediseñ", "design", "interfaz", "ui/ux", " ui ", " ux ", "visual", "estétic", "estetic", "maquet", "layout", "look and feel"]),
+            ("topic.refactor",["refactor", "reorganiz", "reestructur", "restructur", "limpia el códig", "limpiar el códig", "clean up"]),
+            ("topic.perf",    ["optimiz", "rendimiento", "performance", "velocidad", "más rápid", "mas rapid", "lento", "latenc"]),
+            // "documento" (the object) must NOT trigger docs — only writing docs does.
+            ("topic.docs",    ["documenta", "documentaci", "readme", " docs", "docstring", "javadoc"]),
+            ("topic.tests",   ["test", "prueb", "testea", "cobertura", "unit test", "xctest"]),
             ("topic.plan",    ["planific", "planea", "roadmap", "estrategia", "hoja de ruta", "plan de"]),
+            ("topic.bugfix",  ["bug", "crash", "arregl", "soluciona", "corrig", "rompe", "roto", "no funciona", "broken", "peta", "fix "]),
             ("topic.feature", ["implement", "añad", "agreg", "crea ", "crear", "add ", "build", "desarroll", "nueva func", "feature", "construye"]),
         ]
-        for entry in table where entry.stems.contains(where: { s.contains($0) }) {
-            return entry.key
+        func firstMatch(in haystack: String) -> String? {
+            for entry in table where entry.stems.contains(where: { haystack.contains($0) }) {
+                return entry.key
+            }
+            return nil
         }
-        return nil
+        // 1) Leading words (intent). 2) Whole message (fallback).
+        let head = s.split(separator: " ").prefix(5).joined(separator: " ")
+        return firstMatch(in: head) ?? firstMatch(in: s)
     }
 
     /// Re-derive titles for chats that were auto-named (never set by the user),

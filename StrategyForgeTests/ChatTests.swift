@@ -40,6 +40,14 @@ struct ChatTitleTests {
         #expect(AppModel.topicCategoryKey(for: "Añade una nueva pantalla de ajustes") == "topic.feature")
     }
 
+    @Test func leadingVerbBeatsIncidentalKeywords() {
+        // A document review that mentions "errores" must stay Review, not Bug fix.
+        #expect(AppModel.topicCategoryKey(for: "Revisa este documento y dime si hay errores") == "topic.review")
+        #expect(AppModel.topicCategoryKey(for: "Investiga por qué falla el módulo de red") == "topic.research")
+        // But a real fix request is still a Bug fix.
+        #expect(AppModel.topicCategoryKey(for: "Arregla el crash al abrir la app") == "topic.bugfix")
+    }
+
     @Test func categoryFallsBackToCleanedPhrase() {
         // No category keyword → nil, so the caller uses the cleaned phrase instead.
         #expect(AppModel.topicCategoryKey(for: "Quiero hablar sobre el proyecto") == nil)
