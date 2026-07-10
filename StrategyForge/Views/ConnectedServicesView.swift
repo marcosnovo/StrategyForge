@@ -16,6 +16,12 @@ struct ConnectedServicesSection: View {
     enum DetectStatus: Equatable { case checking, found(String), missing }
     @State private var status: [AIProvider: DetectStatus] = [:]
 
+    // One-tap install/connect flow.
+    @State private var connecting: AIProvider?
+    @State private var installLog: [String] = []
+    @State private var installState: InstallUIState = .running
+    enum InstallUIState: Equatable { case running, needsNode, failed(String), done }
+
     var body: some View {
         Section(model.t("settings.connected")) {
             Text(model.t("settings.connected.caption"))
@@ -26,6 +32,7 @@ struct ConnectedServicesSection: View {
             }
         }
         .task { await detectAll() }
+        .sheet(item: $connecting) { provider in connectSheet(provider) }
     }
 
     @ViewBuilder
@@ -45,6 +52,7 @@ struct ConnectedServicesSection: View {
                 }
                 Spacer()
                 statusBadge(provider)
+                actionButton(provider)
             }
 
             HStack {
@@ -74,6 +82,95 @@ struct ConnectedServicesSection: View {
             Label(model.t("provider.notFound"), systemImage: "xmark.circle")
                 .font(.caption.weight(.medium)).foregroundStyle(.secondary)
         }
+    }
+
+    /// Primary action per provider: install+connect when missing, or re-sign-in.
+    @ViewBuilder
+    private func actionButton(_ provider: AIProvider) -> some View {
+        switch status[provider] ?? .checking {
+        case .missing:
+            Button(model.t("provider.connect")) { startConnect(provider) }
+                .controlSize(.small).buttonStyle(.borderedProminent)
+        case .found:
+            Button(model.t("provider.signin")) { ProviderInstaller.launchSignIn(provider) }
+                .controlSize(.small)
+        case .checking:
+            EmptyView()
+        }
+    }
+
+    // MARK: Install / connect flow
+
+    private func startConnect(_ provider: AIProvider) {
+        installLog = []
+        installState = .running
+        connecting = provider
+        Task {
+            for await event in ProviderInstaller.install(provider) {
+                switch event {
+                case .log(let line): installLog.append(line)
+                case .needsNode: installState = .needsNode
+                case .failed(let msg): installState = .failed(msg)
+                case .finished:
+                    installState = .done
+                    await detect(provider)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func connectSheet(_ provider: AIProvider) -> some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack(spacing: Space.s) {
+                Image(systemName: provider.icon).foregroundStyle(provider.tint)
+                Text(model.t("provider.installing", provider.displayName)).font(.sfCardTitle)
+                Spacer()
+                if installState == .running { ProgressView().controlSize(.small) }
+            }
+
+            switch installState {
+            case .needsNode:
+                Label(model.t("provider.needsNode"), systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout).foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+                Link(model.t("provider.getNode"), destination: URL(string: "https://nodejs.org/en/download")!)
+            case .failed(let msg):
+                Label(msg, systemImage: "xmark.octagon.fill")
+                    .font(.callout).foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .done:
+                Label(model.t("provider.installed"), systemImage: "checkmark.circle.fill")
+                    .font(.callout).foregroundStyle(Theme.success)
+            case .running:
+                Text(model.t("provider.installNote")).font(.caption).foregroundStyle(.secondary)
+            }
+
+            // Live installer output.
+            ScrollView {
+                Text(installLog.suffix(200).joined(separator: "\n"))
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .frame(height: 160)
+            .padding(Space.s)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+
+            HStack {
+                Spacer()
+                if installState == .done {
+                    Button(model.t("provider.signin")) { ProviderInstaller.launchSignIn(provider) }
+                        .buttonStyle(.borderedProminent)
+                }
+                Button(model.t("common.done")) { connecting = nil }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(installState == .running)
+            }
+        }
+        .padding(Space.l)
+        .frame(width: 460)
     }
 
     private func binaryBinding(_ provider: AIProvider) -> Binding<String> {

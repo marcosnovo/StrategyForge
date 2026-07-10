@@ -58,6 +58,25 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
     /// Whether the app can actually *run* a chat on this provider today.
     var isExecutable: Bool { self == .claude }
 
+    /// The npm package the app installs to get this provider's CLI (login-based).
+    var npmPackage: String {
+        switch self {
+        case .claude: return "@anthropic-ai/claude-code"
+        case .openai: return "@openai/codex"
+        case .gemini: return "@google/gemini-cli"
+        }
+    }
+
+    /// The command that starts the provider's browser sign-in with the user's
+    /// subscription account (run in Terminal so the OAuth flow completes normally).
+    var loginCommand: String {
+        switch self {
+        case .claude: return "claude"          // first run signs in
+        case .openai: return "codex login"
+        case .gemini: return "gemini"          // first run signs in
+        }
+    }
+
     /// Localization keys for the "how to connect" help.
     var connectHelpKey: String { "provider.\(rawValue).connect" }
 
