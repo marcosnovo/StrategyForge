@@ -81,10 +81,10 @@ enum L10n {
 
         // MARK: Editor
         "editor.t.name": ("Name this setup", "Nombra esta configuración"),
-        "editor.advanced": ("Advanced — customize roles & models", "Avanzado — personaliza roles y modelos"),
+        "editor.advanced": ("Team members — customize each agent", "Miembros del equipo — personaliza cada agente"),
         "editor.advanced.hint": ("The defaults work well. Open this only if you want to change models, counts, tools or prompts.",
                                  "Los valores por defecto funcionan bien. Ábrelo solo si quieres cambiar modelos, cantidades, herramientas o prompts."),
-        "editor.t.strategy": ("Choose a strategy", "Elige una estrategia"),
+        "editor.t.strategy": ("Choose your team", "Elige tu equipo"),
         "editor.t.folder": ("Choose your project folder", "Elige la carpeta de tu proyecto"),
         "editor.repo.example": ("Must be a folder on your Mac — for example ~/Projects/my-app.",
                                 "Debe ser una carpeta de tu Mac — por ejemplo ~/Proyectos/mi-app."),
@@ -441,7 +441,7 @@ enum L10n {
         "lint.title": ("Checks", "Comprobaciones"),
         "lint.fixAll": ("Fix automatically", "Arreglar automáticamente"),
         "lint.fixedAll": ("Applied automatic fixes.", "Se aplicaron los arreglos automáticos."),
-        "picker.header": ("Strategy", "Estrategia"),
+        "picker.header": ("Your team", "Tu equipo"),
 
         // MARK: Chat (headless Claude Code)
         "chat.open": ("Work here (chat)", "Trabajar aquí (chat)"),
@@ -489,6 +489,12 @@ enum L10n {
         "chat.suggest2": ("Summarize this into key points", "Resume esto en puntos clave"),
         "chat.suggest3": ("Explain how this works, step by step", "Explica cómo funciona esto, paso a paso"),
         "chat.provider": ("AI provider for this chat", "IA de este chat"),
+        "chat.engineMissing": ("Claude Code is needed to run this chat — set it up in one tap.",
+                               "Se necesita Claude Code para este chat — configúralo en un toque."),
+        "chat.install": ("Install for me", "Instalar por mí"),
+        "chat.locate": ("Locate…", "Buscar…"),
+        "chat.mixedProviders": ("This team mixes AIs whose engines aren't running yet — those roles run on Claude for now.",
+                                "Este equipo mezcla IAs cuyos motores aún no están listos — esos roles corren en Claude de momento."),
         "chat.activity": ("Activity", "Actividad"),
         "chat.activity.help": ("Show what the agents are doing", "Ver qué están haciendo los agentes"),
 

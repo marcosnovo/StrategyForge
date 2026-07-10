@@ -28,6 +28,9 @@ struct ChatView: View {
     /// Which assistant message just had its text copied (shows a ✓ for a moment).
     @State private var copiedMessageID: ChatMessage.ID?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// True when this chat's engine CLI (Claude) isn't installed — offer one-tap setup.
+    @State private var engineMissing = false
+    @State private var showInstall = false
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -92,14 +95,78 @@ struct ChatView: View {
         .onChange(of: vm.isRunning) { _, running in
             if running && vm.timeline.isEmpty && !showActivity { showActivity = true }
         }
+        // Proactively check the engine is installed (Claude), so the user is guided
+        // to one-tap setup instead of hitting a technical error after sending.
+        .task(id: config.provider) { await checkEngine() }
+        .sheet(isPresented: $showInstall) {
+            ProviderInstallSheet(provider: .claude) { Task { await checkEngine() } }
+        }
         // Preserve unsent text when leaving this chat.
         .onDisappear { saveDraft(vm.input) }
+    }
+
+    /// A friendly card shown when the chat's engine CLI isn't installed yet.
+    private var engineMissingCard: some View {
+        HStack(alignment: .top, spacing: Space.s) {
+            Image(systemName: "wand.and.stars").foregroundStyle(Theme.accent).font(.system(size: 13))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.t("chat.engineMissing")).font(.sfCallout.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: Space.s)
+            Button(model.t("chat.locate")) { locateClaude() }
+                .controlSize(.small)
+            Button(model.t("chat.install")) { showInstall = true }
+                .controlSize(.small).buttonStyle(.borderedProminent)
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.accentSoft)
+    }
+
+    /// Honest note when the team mixes providers that don't run yet.
+    private var mixedProvidersStrip: some View {
+        HStack(alignment: .top, spacing: Space.s) {
+            Image(systemName: "info.circle.fill").foregroundStyle(Theme.warning).font(.system(size: 11))
+            Text(model.t("chat.mixedProviders")).font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Space.s)
+            Button { vm.mixedProvidersNote = false } label: {
+                Image(systemName: "xmark").font(.system(size: 9))
+            }
+            .buttonStyle(.plain).foregroundStyle(.secondary)
+            .accessibilityLabel(model.t("common.done"))
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.warning.opacity(0.10))
+    }
+
+    private func checkEngine() async {
+        guard config.provider == .claude else { engineMissing = false; return }
+        let name = model.settings.claudeBinary
+        let path = await Task.detached { ClaudeRunner.resolveBinary(name) }.value
+        engineMissing = (path == nil)
+    }
+
+    /// Let the user point at an existing `claude` binary if auto-detection missed it.
+    private func locateClaude() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        model.settings.claudeBinary = url.path
+        model.save()
+        Task { await checkEngine() }
     }
 
     private var chatColumn: some View {
         VStack(spacing: 0) {
             header
             messagesList
+            if engineMissing { engineMissingCard }
+            if vm.mixedProvidersNote { mixedProvidersStrip }
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
             if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
@@ -570,7 +637,7 @@ struct ChatView: View {
                 }
                 .buttonStyle(.glassProminent)
                 .controlSize(.large)
-                .disabled(!vm.canSend)
+                .disabled(!vm.canSend || engineMissing)
                 .keyboardShortcut(.return, modifiers: .command)
             }
             }

@@ -58,6 +58,8 @@ final class ChatViewModel {
     /// Once the user chooses "always allow", elevate every subsequent turn in this
     /// chat to full permissions (headless has no per-prompt approval).
     var elevatedPermissions = false
+    /// True when the team mixes non-Claude providers that fall back to Claude for now.
+    var mixedProvidersNote = false
     /// Live timeline of what the agents did this turn (for the activity panel).
     var timeline: [ActivityStep] = []
     /// The agent's task list (from TodoWrite).
@@ -147,6 +149,9 @@ final class ChatViewModel {
         // Allow sending attachments alone with a sensible default ask.
         if text.isEmpty, !attachments.isEmpty { text = "Please review the attached files." }
         guard !text.isEmpty else { return }
+        // If the team mixes in providers whose engine isn't running yet, be honest
+        // that those roles fall back to Claude for now (shown once, non-blocking).
+        mixedProvidersNote = config.strategy.roles.contains { !$0.provider.isExecutable }
         let repo = workingDirectory()
 
         // Fold any attached files into the prompt + grant read access to their dirs.
