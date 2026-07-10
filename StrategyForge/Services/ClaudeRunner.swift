@@ -284,7 +284,9 @@ enum ClaudeRunner {
         // 2. Ask an interactive login shell (sources ~/.zshrc → nvm/npm/Homebrew).
         if let viaShell = which(name), fm.isExecutableFile(atPath: viaShell) { return viaShell }
 
-        // 3. Fall back to common install locations.
+        // 3. Fall back to common install locations — ONLY for claude. (These are
+        // claude-specific; using them for codex/gemini falsely resolved to claude.)
+        guard (name as NSString).lastPathComponent == "claude" else { return nil }
         let home = fm.homeDirectoryForCurrentUser.path
         let candidates = [
             "\(home)/.local/bin/claude", "\(home)/.claude/local/claude",

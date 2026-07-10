@@ -32,23 +32,28 @@ enum Theme {
     static let ibisPink   = Color(red: 0.957, green: 0.702, blue: 0.761)  // #F4B3C2
     static let sky        = Color(red: 0.627, green: 0.847, blue: 0.937)  // #A0D8EF
 
-    /// Accent = the screenshot's indigo-violet (send button / outgoing bubble).
+    /// Accent = neutral graphite (sober, Linear-like). Color is reserved for small
+    /// details (status greens, provider tints, the diagram).
     static let accent = Color(
-        light: Color(red: 0.424, green: 0.361, blue: 0.906),   // #6C5CE7
-        dark:  Color(red: 0.608, green: 0.549, blue: 1.000))   // #9B8CFF
+        light: Color(red: 0.227, green: 0.247, blue: 0.290),   // #3A3F4A graphite
+        dark:  Color(red: 0.729, green: 0.749, blue: 0.796))   // #BABFCB (light on dark)
     static let accentHover = Color(
-        light: Color(red: 0.478, green: 0.416, blue: 0.933),
-        dark:  Color(red: 0.678, green: 0.627, blue: 1.000))
-    static let accentSoft = accent.opacity(0.16)
+        light: Color(red: 0.290, green: 0.314, blue: 0.361),   // #4A505C
+        dark:  Color(red: 0.808, green: 0.827, blue: 0.867))
+    static let accentSoft = Color(
+        light: Color(red: 0.227, green: 0.247, blue: 0.290).opacity(0.10),
+        dark:  Color.white.opacity(0.10))
     static let accentGlow = Color(
-        light: Color(red: 0.424, green: 0.361, blue: 0.906).opacity(0.30),
-        dark:  Color(red: 0.608, green: 0.549, blue: 1.000).opacity(0.55))
+        light: Color(red: 0.227, green: 0.247, blue: 0.290).opacity(0.18),
+        dark:  Color.white.opacity(0.30))
     /// Readable text/foreground to place ON a solid accent fill.
     static let onAccent = Color.white
 
-    /// Primary button fill — solid violet like the screenshot's send button.
+    /// Primary button fill — a subtle graphite gradient (deeper at the bottom).
     static let primaryFill = LinearGradient(
-        colors: [accent, accentHover], startPoint: .topLeading, endPoint: .bottomTrailing)
+        colors: [Color(red: 0.271, green: 0.294, blue: 0.341),   // #454B57
+                 Color(red: 0.196, green: 0.216, blue: 0.259)],  // #323742
+        startPoint: .top, endPoint: .bottom)
 
     /// A soft lavender ambient wash (subtle Wisteria nuances) behind the app.
     static let haze = LinearGradient(

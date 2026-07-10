@@ -507,21 +507,24 @@ struct StrategyDiagramView: View {
             }
             drawBox(rect, node: node, pulse: pulse, live: live, ctx: &ctx, palette: palette)
 
-            // Text — crisp, non-serif, with a monospaced model tag (technical feel).
+            // Text — clipped to the node so long names/models never overflow the box.
+            var tctx = ctx
+            tctx.clip(to: Path(roundedRect: rect.insetBy(dx: 3, dy: 3), cornerRadius: 10))
             let cx = rect.midX
-            let titleSize: CGFloat = compact ? 12 : 14
-            let title = Text(node.title).font(.system(size: titleSize, weight: .semibold))
-            let modelT = Text(node.model.uppercased())
-                .font(.system(size: compact ? 9 : 10, weight: .semibold, design: .monospaced))
+            let titleSize: CGFloat = compact ? 11 : 14
+            let fitTitle = truncated(node.title, toWidth: rect.width - 8, fontSize: titleSize, weight: 0.60)
+            let fitModel = truncated(node.model.uppercased(), toWidth: rect.width - 8, fontSize: compact ? 8.5 : 10, weight: 0.62)
+            let title = Text(fitTitle).font(.system(size: titleSize, weight: .semibold))
+            let modelT = Text(fitModel).font(.system(size: compact ? 8.5 : 10, weight: .semibold, design: .monospaced))
 
             if let subtitle = node.subtitle, !compact {
-                drawText(&ctx, title, at: CGPoint(x: cx, y: rect.midY - 15), color: palette.text)
-                drawText(&ctx, modelT, at: CGPoint(x: cx, y: rect.midY + 1), color: node.isAccent ? palette.accent : palette.secondary)
-                drawText(&ctx, Text(subtitle).font(.system(size: 9.5)),
+                drawText(&tctx, title, at: CGPoint(x: cx, y: rect.midY - 15), color: palette.text)
+                drawText(&tctx, modelT, at: CGPoint(x: cx, y: rect.midY + 1), color: node.isAccent ? palette.accent : palette.secondary)
+                drawText(&tctx, Text(truncated(subtitle, toWidth: rect.width - 8, fontSize: 9.5, weight: 0.55)).font(.system(size: 9.5)),
                          at: CGPoint(x: cx, y: rect.midY + 15), color: palette.secondary)
             } else {
-                drawText(&ctx, title, at: CGPoint(x: cx, y: rect.midY - 8), color: palette.text)
-                drawText(&ctx, modelT, at: CGPoint(x: cx, y: rect.midY + 9), color: node.isAccent ? palette.accent : palette.secondary)
+                drawText(&tctx, title, at: CGPoint(x: cx, y: rect.midY - 8), color: palette.text)
+                drawText(&tctx, modelT, at: CGPoint(x: cx, y: rect.midY + 9), color: node.isAccent ? palette.accent : palette.secondary)
             }
 
             // ×N badge.
@@ -594,6 +597,14 @@ struct StrategyDiagramView: View {
         let na = norm(a), nb = norm(b)
         guard !na.isEmpty, !nb.isEmpty else { return false }
         return na.contains(nb) || nb.contains(na)
+    }
+
+    /// Estimate-and-truncate a label so it fits within `width` at `fontSize`.
+    private func truncated(_ s: String, toWidth width: CGFloat, fontSize: CGFloat, weight: CGFloat) -> String {
+        let charW = max(1, fontSize * weight)
+        let maxChars = max(1, Int(width / charW))
+        guard s.count > maxChars else { return s }
+        return String(s.prefix(max(1, maxChars - 1))) + "…"
     }
 
     private func drawText(_ ctx: inout GraphicsContext, _ text: Text, at point: CGPoint, color: Color, anchor: UnitPoint = .center) {

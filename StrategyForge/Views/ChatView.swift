@@ -266,7 +266,7 @@ struct ChatView: View {
                     Image(systemName: "chevron.left.forwardslash.chevron.right")
                         .foregroundStyle(codeMode ? Theme.accent : .secondary)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.borderless)
                 .help(model.t("chat.codeMode.help"))
                 .accessibilityLabel(model.t("chat.codeMode"))
             }
@@ -278,14 +278,14 @@ struct ChatView: View {
                 Image(systemName: "sidebar.trailing")
                     .foregroundStyle(showActivity ? Theme.accent : .secondary)
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.borderless)
             .help(model.t("chat.activity.help"))
             .accessibilityLabel(model.t("chat.activity"))
 
             Button { showInspector = true } label: {
                 Image(systemName: "slider.horizontal.3")
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.borderless)
             .help(model.t("inspector.toggle"))
             .accessibilityLabel(model.t("chat.settings"))
         }
@@ -682,7 +682,7 @@ struct ChatView: View {
             } label: {
                 Image(systemName: "paperclip").font(.system(size: 15))
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.borderless)
             .help(model.t("chat.attach"))
             .accessibilityLabel(model.t("chat.attach"))
 
