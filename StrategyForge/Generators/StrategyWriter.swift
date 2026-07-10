@@ -8,8 +8,8 @@
 //
 //  Safety rules:
 //   • Only ever writes `.claude/agents/*.md` and the repo-root CLAUDE.md.
-//   • Never deletes files — regeneration overwrites the current strategy's files
-//     but leaves any other files (including stale agents) untouched.
+//   • Deletes ONLY agent files it previously generated (managed-signature) that are
+//     no longer part of the strategy; hand-written agent files are never touched.
 //   • CLAUDE.md is merged, never clobbered: only the marked section changes.
 //
 
@@ -52,7 +52,23 @@ struct StrategyWriter {
         // 1. Subagent files.
         let agentsDir = repoURL.appendingPathComponent(AgentFileGenerator.agentsDirectory, isDirectory: true)
         try fm.createDirectory(at: agentsDir, withIntermediateDirectories: true)
-        for file in AgentFileGenerator.generate(for: strategy) {
+        let generated = AgentFileGenerator.generate(for: strategy)
+        let newPaths = Set(generated.map(\.relativePath))
+
+        // Prune stale agents WE previously generated (renamed/removed roles) so they
+        // don't linger as active subagents. Only deletes files bearing our managed
+        // signature — hand-written agent files are never touched.
+        if let entries = try? fm.contentsOfDirectory(at: agentsDir, includingPropertiesForKeys: nil) {
+            for entry in entries where entry.pathExtension == "md" {
+                let rel = "\(AgentFileGenerator.agentsDirectory)/\(entry.lastPathComponent)"
+                guard !newPaths.contains(rel),
+                      let content = try? String(contentsOf: entry, encoding: .utf8),
+                      content.contains(AgentFileGenerator.managedSignature) else { continue }
+                try? fm.removeItem(at: entry)
+            }
+        }
+
+        for file in generated {
             let url = repoURL.appendingPathComponent(file.relativePath)
             try file.contents.write(to: url, atomically: true, encoding: .utf8)
             written.append(file.relativePath)

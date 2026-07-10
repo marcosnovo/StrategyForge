@@ -109,6 +109,15 @@ struct ClaudeMdGeneratorTests {
         #expect(markerCount == 1)
     }
 
+    @Test func disorderedMarkersDoNotCrash() {
+        // End marker before start (corrupted/injected) must NOT crash on an invalid
+        // Range — it should ignore the markers and append a fresh managed block.
+        let corrupted = "\(ClaudeMdGenerator.endMarker)\nstray\n\(ClaudeMdGenerator.startMarker)\n"
+        let out = ClaudeMdGenerator.merged(existing: corrupted, strategy: StrategyLibrary.solo())
+        #expect(out.contains("Solo (baseline)"))
+        #expect(out.hasPrefix(ClaudeMdGenerator.endMarker) || out.contains("stray"))
+    }
+
     @Test func replacesStaleSectionOnStrategyChange() {
         let first = ClaudeMdGenerator.merged(existing: "# Repo\n",
                                              strategy: StrategyLibrary.solo())

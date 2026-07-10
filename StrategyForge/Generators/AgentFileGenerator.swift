@@ -15,6 +15,12 @@ enum AgentFileGenerator {
     /// Directory (relative to repo root) where subagent files live.
     static let agentsDirectory = ".claude/agents"
 
+    /// Frontmatter marker identifying an agent file StrategyForge generated, so a
+    /// re-write can safely prune the ones it wrote for now-removed/renamed roles
+    /// WITHOUT ever touching hand-written agent files. (Ignored by Claude Code and
+    /// by our own parser, which only reads name/model/tools/description.)
+    static let managedSignature = "strategyforge: managed"
+
     /// Generate one `GeneratedFile` per subagent instance, expanding `count`.
     ///
     /// A role with `count == 1` produces `<name>.md`; a role with `count > 1`
@@ -47,6 +53,7 @@ enum AgentFileGenerator {
         }
         // Workers pin their model in frontmatter (unlike the orchestrator).
         frontmatter += "model: \(role.model.rawValue)\n"
+        frontmatter += "\(managedSignature)\n"
         frontmatter += "---\n"
 
         let body = role.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -170,9 +170,23 @@ final class ChatViewModel {
         return providers.count > 1 || orch != .claude
     }
 
+    /// The chat's bound project folder is set but no longer exists on disk (moved or
+    /// deleted after it was picked) — we can't run there and must say so clearly.
+    var repoFolderMissing: Bool {
+        guard let repo = config.repoPath, !repo.isEmpty else { return false }
+        var isDir: ObjCBool = false
+        return !(FileManager.default.fileExists(atPath: repo, isDirectory: &isDir) && isDir.boolValue)
+    }
+
     func send() {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isRunning else { return }
+        // Fail clearly if the chosen project folder was moved/deleted, instead of
+        // spawning the CLI in a missing directory and getting a cryptic error.
+        if repoFolderMissing {
+            errorText = "The project folder for this chat is missing (moved or deleted). Pick it again in Setup."
+            return
+        }
         // Allow sending attachments alone with a sensible default ask.
         if text.isEmpty, !attachments.isEmpty { text = "Please review the attached files." }
         guard !text.isEmpty else { return }

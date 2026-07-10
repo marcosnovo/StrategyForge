@@ -144,9 +144,12 @@ enum ClaudeMdGenerator {
     }
 
     /// The range covering the marked block (inclusive of both markers), or nil.
+    /// The end marker is searched ONLY after the start, so disordered/duplicated
+    /// markers (end before start) yield nil (→ safe append) instead of crashing on
+    /// an invalid Range.
     private static func markedRange(in text: String) -> Range<String.Index>? {
-        guard let start = text.range(of: startMarker),
-              let end = text.range(of: endMarker) else {
+        guard let start = text.range(of: startMarker) else { return nil }
+        guard let end = text.range(of: endMarker, range: start.upperBound..<text.endIndex) else {
             return nil
         }
         return start.lowerBound..<end.upperBound
