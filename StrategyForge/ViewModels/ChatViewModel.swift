@@ -158,21 +158,25 @@ final class ChatViewModel {
         return dir.path
     }
 
+    /// True when the team can't run as a plain Claude Code session — either it mixes
+    /// providers or its orchestrator isn't Claude. These runs go through our own
+    /// cross-provider MetaOrchestrator instead of ClaudeRunner (Level 2).
+    var usesMetaOrchestrator: Bool {
+        let providers = Set(config.strategy.roles.map(\.provider))
+        let orch = config.strategy.orchestrator?.provider ?? .claude
+        return providers.count > 1 || orch != .claude
+    }
+
     func send() {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isRunning else { return }
-        // Only Claude has a running engine today; other connected providers are
-        // selectable but not yet executable — say so instead of silently using Claude.
-        guard config.provider.isExecutable else {
-            errorText = "\(config.provider.displayName): engine coming soon. Switch this chat to Claude to run it now."
-            return
-        }
         // Allow sending attachments alone with a sensible default ask.
         if text.isEmpty, !attachments.isEmpty { text = "Please review the attached files." }
         guard !text.isEmpty else { return }
-        // If the team mixes in providers whose engine isn't running yet, be honest
-        // that those roles fall back to Claude for now (shown once, non-blocking).
-        mixedProvidersNote = config.strategy.roles.contains { !$0.provider.isExecutable }
+        // A single-provider Claude team runs as a native Claude Code session; a mixed
+        // or non-Claude team runs through our own orchestrator (each role on its CLI).
+        let useMeta = usesMetaOrchestrator
+        mixedProvidersNote = false
         let repo = workingDirectory()
 
         // Fold any attached files into the prompt + grant read access to their dirs.
@@ -216,20 +220,25 @@ final class ChatViewModel {
         let sessionID = config.id.uuidString.lowercased()
         // Elevate the whole turn if the user chose "always allow" earlier.
         let effectiveMode = elevatedPermissions ? "bypassPermissions" : permissionMode
-        runTask = Task { [binary, model] in
-            // Try to resume; if the CLI has no session with this id (e.g. a chat from
-            // before per-chat sessions existed), start fresh once, invisibly.
-            var missing = await runTurn(text: promptText, repo: repo, sessionID: sessionID,
-                                        resume: resume, assistantIndex: assistantIndex,
-                                        binary: binary, model: model, permissionMode: effectiveMode,
-                                        extraDirs: extraDirs)
-            if missing, resume {
-                if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = "" }
-                activity = []; activeSubagent = nil
-                missing = await runTurn(text: promptText, repo: repo, sessionID: sessionID,
-                                        resume: false, assistantIndex: assistantIndex,
-                                        binary: binary, model: model, permissionMode: effectiveMode,
-                                        extraDirs: extraDirs)
+        runTask = Task { [binary, model, useMeta] in
+            if useMeta {
+                // Cross-provider run: our orchestrator drives each role's CLI.
+                await runMetaTurn(task: promptText, repo: repo, assistantIndex: assistantIndex)
+            } else {
+                // Try to resume; if the CLI has no session with this id (e.g. a chat
+                // from before per-chat sessions existed), start fresh once, invisibly.
+                var missing = await runTurn(text: promptText, repo: repo, sessionID: sessionID,
+                                            resume: resume, assistantIndex: assistantIndex,
+                                            binary: binary, model: model, permissionMode: effectiveMode,
+                                            extraDirs: extraDirs)
+                if missing, resume {
+                    if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = "" }
+                    activity = []; activeSubagent = nil
+                    missing = await runTurn(text: promptText, repo: repo, sessionID: sessionID,
+                                            resume: false, assistantIndex: assistantIndex,
+                                            binary: binary, model: model, permissionMode: effectiveMode,
+                                            extraDirs: extraDirs)
+                }
             }
             isRunning = false
             hasSession = true
@@ -312,6 +321,64 @@ final class ChatViewModel {
             }
         }
         return sessionMissing
+    }
+
+    /// Run one turn through the cross-provider MetaOrchestrator: it plans on the
+    /// orchestrator's model, delegates each subtask to its role's provider/model,
+    /// and synthesizes a final answer. Events are bridged to an ordered stream so
+    /// UI state mutates on the main actor.
+    private func runMetaTurn(task: String, repo: String, assistantIndex: Int) async {
+        let runner = CLIOneShotRunner(binaries: [.claude: binary], permissionMode: permissionMode)
+        let strategy = config.strategy
+        let stream = AsyncStream<MetaEvent> { cont in
+            Task.detached {
+                await MetaOrchestrator.run(strategy: strategy, task: task, cwd: repo, runner: runner) {
+                    cont.yield($0)
+                }
+                cont.finish()
+            }
+        }
+        for await event in stream {
+            apply(event, assistantIndex: assistantIndex)
+        }
+    }
+
+    /// Map a MetaOrchestrator event onto the same chat/activity state the Claude
+    /// path uses, so the activity panel and transcript work identically.
+    private func apply(_ event: MetaEvent, assistantIndex: Int) {
+        let orchName = config.strategy.orchestrator?.name
+        switch event {
+        case .phase(let p):
+            activity.append(p)
+            if p != "delegate" { activeSubagent = nil }   // orchestrator is planning/synthesizing
+        case .roleStarted(let role, _, let model):
+            if role == orchName {
+                activeSubagent = nil
+            } else {
+                activeSubagent = role
+                if !agentsInvolved.contains(role) { agentsInvolved.append(role) }
+                activity.append("→ \(role)")
+                timeline.append(ActivityStep(title: role, detail: model, at: Date(),
+                                             isDelegation: true, agent: nil))
+            }
+        case .roleFinished(let role, _):
+            if role != orchName {
+                // Attribute a completed step to the agent so the panel marks it done.
+                timeline.append(ActivityStep(title: "done", detail: nil, at: Date(),
+                                             isDelegation: false, agent: role))
+            }
+        case .assistantText(let text):
+            if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = text }
+            persistStreaming()
+        case .usage(let tokens, let cost):
+            totalTokens += tokens
+            totalCostUSD += cost
+            persistUsage(totalTokens, totalCostUSD)
+        case .failed(let message):
+            errorText = message
+        case .finished:
+            break
+        }
     }
 
     /// Flush the transcript to disk at most every ~1.5s during streaming, so a

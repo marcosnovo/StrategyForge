@@ -204,7 +204,7 @@ struct StrategyPickerColumn: View {
               // full, labelled diagram lives in the wider Team canvas / config view).
               if selected {
                   StrategyDiagramView(strategy: template, compact: true)
-                      .frame(height: StrategyDiagramView.preferredHeight(for: template))
+                      .frame(height: min(StrategyDiagramView.preferredHeight(for: template), 190))
               }
             }
             .padding(.vertical, Space.s)

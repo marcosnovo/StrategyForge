@@ -78,6 +78,9 @@ struct NavRail: View {
                     .foregroundStyle(active ? Color.white : Color.white.opacity(0.55))
                     .lineLimit(1)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())   // whole item is tappable (fixes missed clicks)
         }
         .buttonStyle(.plain)
         .help(model.t(labelKey))

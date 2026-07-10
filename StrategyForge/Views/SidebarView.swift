@@ -103,8 +103,8 @@ struct SidebarView: View {
     private func chatRow(_ config: Configuration) -> some View {
         HStack(spacing: Space.s) {
             StrategyThumbnail(strategy: config.strategy)
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(width: 38, height: 38)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .help(model.strategyDisplayName(config.strategy))
             VStack(alignment: .leading, spacing: 2) {
                 // Title on its own full-width line so it isn't crowded by the time.
