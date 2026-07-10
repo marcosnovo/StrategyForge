@@ -188,11 +188,12 @@ struct ChatView: View {
         .overlay {
             if isDropTargeted {
                 RoundedRectangle(cornerRadius: Theme.corner)
-                    .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
-                    .background(Theme.accent.opacity(0.06))
+                    .strokeBorder(Theme.accentHover, style: StrokeStyle(lineWidth: 2.5, dash: [9, 6]))
+                    .background(Theme.accentHover.opacity(0.10))
                     .overlay(
-                        Label(model.t("chat.dropHint"), systemImage: "paperclip")
-                            .font(.sfCardTitle).foregroundStyle(Theme.accent)
+                        Label(model.t("chat.dropHint"), systemImage: "paperclip.badge.plus")
+                            .font(.sfCardTitle).foregroundStyle(Theme.accentHover)
+                            .symbolEffect(.bounce, value: isDropTargeted)
                             .padding(Space.m)
                             .background(.regularMaterial, in: Capsule())
                     )
@@ -465,8 +466,8 @@ struct ChatView: View {
                                 .font(.sfCaption2)
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(copied ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.tertiary))
-                        .opacity(isStreaming ? 0.35 : 1)
+                        .foregroundStyle(isStreaming ? AnyShapeStyle(.quaternary)
+                                         : (copied ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.secondary)))
                         .disabled(isStreaming)
                         .padding(.leading, Space.xs)
                     }
@@ -694,7 +695,7 @@ struct ChatView: View {
                 .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
                 .overlay(
                     RoundedRectangle(cornerRadius: Theme.innerCorner)
-                        .strokeBorder(Theme.accent, lineWidth: 1.5)
+                        .strokeBorder(Theme.accentHover, lineWidth: 2)
                         .opacity(inputFocused ? 1 : 0)
                 )
                 .focused($inputFocused)

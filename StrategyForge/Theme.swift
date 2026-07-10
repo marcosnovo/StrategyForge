@@ -144,6 +144,7 @@ private struct MoonButtonBody: View {
             .opacity(isEnabled ? 1 : 0.45)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed)
             .contentShape(Rectangle())
     }
 }

@@ -31,6 +31,7 @@ struct AgentActivityPanel: View {
     /// The agent whose detail column is open (nil = closed). Bound to the parent
     /// so the drill-down column lives at the far right of the window.
     @Binding var focus: AgentFocus?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hoveredAgent: AgentFocus?
     @State private var showDiagram = true
 
@@ -131,6 +132,8 @@ struct AgentActivityPanel: View {
         HStack(spacing: 3) {
             Image(systemName: icon).font(.system(size: 9))
             Text(text).font(.sfCaption2.weight(.medium))
+                .contentTransition(.numericText())
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: text)
         }
         .foregroundStyle(Theme.secondaryOnMaterial)
     }
@@ -268,11 +271,19 @@ struct AgentActivityPanel: View {
             }
             .padding(.horizontal, Space.s).padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: 8)
-                .fill(isOpen ? Theme.accentSoft
-                      : (hoveredAgent == target ? Theme.hairline.opacity(0.6) : .clear)))
+                .fill(status == .active ? Theme.success.opacity(0.10)
+                      : (isOpen ? Theme.accentSoft
+                         : (hoveredAgent == target ? Theme.hairline.opacity(0.6) : .clear))))
+            .overlay(alignment: .leading) {
+                if status == .active {
+                    RoundedRectangle(cornerRadius: 1.5).fill(Theme.success)
+                        .frame(width: 2.5).padding(.vertical, 4)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: status == .active)
         .onHover { hovering in
             if hovering { hoveredAgent = target }
             else if hoveredAgent == target { hoveredAgent = nil }
@@ -293,7 +304,8 @@ struct AgentActivityPanel: View {
             Label(model.t("activity.done"), systemImage: "checkmark.circle.fill")
                 .font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.success)
         case .idle:
-            Text(model.t("activity.idle")).font(.system(size: 9)).foregroundStyle(Theme.tertiaryOnMaterial)
+            Label(model.t("activity.idle"), systemImage: "hourglass")
+                .font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
         }
     }
 
@@ -307,7 +319,7 @@ struct AgentActivityPanel: View {
         case .done:
             Capsule().fill(Theme.success).frame(height: 4)
         case .idle:
-            Capsule().fill(Theme.hairline.opacity(0.8)).frame(height: 4)
+            Capsule().fill(Theme.secondaryOnMaterial.opacity(0.25)).frame(height: 4)
         }
     }
 
