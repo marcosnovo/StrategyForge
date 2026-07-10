@@ -21,7 +21,7 @@ struct SidebarView: View {
             Divider()
 
             List(selection: $model.selectedConfigID) {
-                ForEach(model.configurations) { config in
+                ForEach(model.configurations.sorted { $0.recency > $1.recency }) { config in
                     chatRow(config)
                         .padding(.vertical, 3)
                         .tag(config.id)

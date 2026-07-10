@@ -25,6 +25,9 @@ struct Configuration: Codable, Identifiable, Hashable {
     /// When this configuration last wrote its files into the repo (nil = never).
     /// Device-local (like the repo binding); never synced.
     var lastGeneratedAt: Date?
+    /// Last time the chat saw activity (created or messaged). Drives newest-first
+    /// ordering in the sidebar. Device-local; never synced.
+    var lastActiveAt: Date?
     /// The chat history for this configuration. Device-local — never synced (the
     /// portable projection excludes it), so conversations stay on this Mac.
     var transcript: [ChatMessage]
@@ -46,6 +49,7 @@ struct Configuration: Codable, Identifiable, Hashable {
         repoBookmark: Data? = nil,
         updatedAt: Date = .distantPast,
         lastGeneratedAt: Date? = nil,
+        lastActiveAt: Date? = nil,
         transcript: [ChatMessage] = [],
         titleWasManuallySet: Bool = false,
         draft: String = "",
@@ -60,6 +64,7 @@ struct Configuration: Codable, Identifiable, Hashable {
         self.repoBookmark = repoBookmark
         self.updatedAt = updatedAt
         self.lastGeneratedAt = lastGeneratedAt
+        self.lastActiveAt = lastActiveAt
         self.transcript = transcript
         self.titleWasManuallySet = titleWasManuallySet
         self.draft = draft
@@ -68,7 +73,7 @@ struct Configuration: Codable, Identifiable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, strategy, provider, repoPath, repoBookmark, updatedAt, lastGeneratedAt, transcript, titleWasManuallySet, draft, totalTokens, totalCostUSD
+        case id, name, strategy, provider, repoPath, repoBookmark, updatedAt, lastGeneratedAt, lastActiveAt, transcript, titleWasManuallySet, draft, totalTokens, totalCostUSD
     }
 
     // Tolerant decode: files written before sync existed have no updatedAt.
@@ -82,6 +87,7 @@ struct Configuration: Codable, Identifiable, Hashable {
         repoBookmark = try c.decodeIfPresent(Data.self, forKey: .repoBookmark)
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .distantPast
         lastGeneratedAt = try c.decodeIfPresent(Date.self, forKey: .lastGeneratedAt)
+        lastActiveAt = try c.decodeIfPresent(Date.self, forKey: .lastActiveAt)
         transcript = try c.decodeIfPresent([ChatMessage].self, forKey: .transcript) ?? []
         titleWasManuallySet = try c.decodeIfPresent(Bool.self, forKey: .titleWasManuallySet) ?? false
         draft = try c.decodeIfPresent(String.self, forKey: .draft) ?? ""
@@ -98,6 +104,9 @@ struct Configuration: Codable, Identifiable, Hashable {
             && repoPath == other.repoPath
             && repoBookmark == other.repoBookmark
     }
+
+    /// Ordering key for the sidebar: most recent activity (or last content change).
+    var recency: Date { max(lastActiveAt ?? .distantPast, updatedAt) }
 
     /// A short subtitle for the sidebar (strategy + repo folder name).
     var subtitle: String {

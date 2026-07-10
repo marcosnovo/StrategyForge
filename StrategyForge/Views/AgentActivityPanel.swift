@@ -53,6 +53,9 @@ struct AgentActivityPanel: View {
                     .foregroundStyle(Theme.success)
                     .padding(.horizontal, Space.s).padding(.vertical, 3)
                     .glassEffect(.regular.tint(Theme.success.opacity(0.18)), in: .capsule)
+                } else if vm.hasFinishedActivity {
+                    Label(model.t("activity.done.turn"), systemImage: "checkmark.circle.fill")
+                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.success)
                 }
             }
             .padding(Space.m)
@@ -187,6 +190,10 @@ struct AgentActivityPanel: View {
                     Image(systemName: "circle.fill").font(.system(size: 5))
                         .foregroundStyle(Theme.success)
                         .symbolEffect(.pulse, options: .repeating)
+                } else if count > 0 {
+                    // This agent did work and isn't the active one → its task is done.
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 10))
+                        .foregroundStyle(Theme.success)
                 }
                 if count > 0 {
                     Text("\(count)").font(.system(size: 9, weight: .medium))

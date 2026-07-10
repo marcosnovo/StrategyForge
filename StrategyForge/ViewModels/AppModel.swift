@@ -239,7 +239,8 @@ final class AppModel {
         // default strategy.
         let config = Configuration(
             name: "",
-            strategy: StrategyLibrary.executorAdvisor()
+            strategy: StrategyLibrary.executorAdvisor(),
+            lastActiveAt: Date()   // newest chat sorts to the top
         )
         configurations.append(config)
         selectedConfigID = config.id
@@ -407,6 +408,7 @@ final class AppModel {
     func updateTranscript(_ id: Configuration.ID, _ messages: [ChatMessage]) {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
         configurations[i].transcript = messages
+        configurations[i].lastActiveAt = Date()   // bump so active chats rise to the top
         save(stamp: false)
     }
 

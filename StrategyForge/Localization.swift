@@ -495,6 +495,8 @@ enum L10n {
         "chat.locate": ("Locate…", "Buscar…"),
         "chat.mixedProviders": ("This team mixes AIs whose engines aren't running yet — those roles run on Claude for now.",
                                 "Este equipo mezcla IAs cuyos motores aún no están listos — esos roles corren en Claude de momento."),
+        "chat.tasksProgress": ("%lld/%lld tasks", "%lld/%lld tareas"),
+        "chat.dropHint": ("Drop files to attach", "Suelta archivos para adjuntar"),
         "chat.activity": ("Activity", "Actividad"),
         "chat.activity.help": ("Show what the agents are doing", "Ver qué están haciendo los agentes"),
 
@@ -509,6 +511,7 @@ enum L10n {
         "activity.team": ("TEAM", "EQUIPO"),
         "activity.agentDetail": ("Agent activity", "Actividad del agente"),
         "activity.tab.steps": ("Steps", "Pasos"),
+        "activity.done.turn": ("Completed", "Completado"),
         "activity.tab.diagram": ("Diagram", "Diagrama"),
         "activity.active": ("active", "activo"),
         "activity.done": ("done", "hecho"),

@@ -31,6 +31,7 @@ struct ChatView: View {
     /// True when this chat's engine CLI (Claude) isn't installed — offer one-tap setup.
     @State private var engineMissing = false
     @State private var showInstall = false
+    @State private var isDropTargeted = false
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -164,6 +165,7 @@ struct ChatView: View {
     private var chatColumn: some View {
         VStack(spacing: 0) {
             header
+            if vm.isRunning { runningProgressBar }
             messagesList
             if engineMissing { engineMissingCard }
             if vm.mixedProvidersNote { mixedProvidersStrip }
@@ -176,6 +178,35 @@ struct ChatView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82), value: vm.deniedTools)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.editedFiles.count)
+        // Drop files anywhere on the chat to attach them for review.
+        .dropDestination(for: URL.self) { urls, _ in handleDrop(urls); return true } isTargeted: { isDropTargeted = $0 }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: Theme.corner)
+                    .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
+                    .background(Theme.accent.opacity(0.06))
+                    .overlay(
+                        Label(model.t("chat.dropHint"), systemImage: "paperclip")
+                            .font(.sfCardTitle).foregroundStyle(Theme.accent)
+                            .padding(Space.m)
+                            .background(.regularMaterial, in: Capsule())
+                    )
+                    .padding(Space.s).allowsHitTesting(false)
+            }
+        }
+    }
+
+    /// Convert dropped files (Office docs → text) and stage them as attachments.
+    private func handleDrop(_ urls: [URL]) {
+        for url in urls {
+            Task {
+                let readable = await AttachmentConverter.convert(url)
+                let att = Attachment(name: url.lastPathComponent, url: readable)
+                if !vm.attachments.contains(where: { $0.name == att.name }) {
+                    vm.attachments.append(att)
+                }
+            }
+        }
     }
 
     private var header: some View {
@@ -249,6 +280,28 @@ struct ChatView: View {
                 .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
         }
         .zIndex(1)
+    }
+
+    /// Progress for the running turn. Determinate from the agent's task list
+    /// (real completed/total), else a slim indeterminate bar so it never feels stuck.
+    private var runningProgressBar: some View {
+        VStack(spacing: 0) {
+            if let p = vm.taskProgress, p.total > 0 {
+                HStack(spacing: Space.s) {
+                    ProgressView(value: Double(p.done), total: Double(p.total))
+                        .progressViewStyle(.linear).tint(Theme.accent)
+                    Text(model.t("chat.tasksProgress", p.done, p.total))
+                        .font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
+                        .monospacedDigit().fixedSize()
+                }
+                .padding(.horizontal, Space.m).padding(.vertical, 5)
+            } else {
+                ProgressView().progressViewStyle(.linear).tint(Theme.accent)
+                    .padding(.horizontal, Space.m).padding(.vertical, 5)
+            }
+            Divider()
+        }
+        .background(.bar)
     }
 
     /// Which AI back-end this chat runs on — a menu to switch providers.

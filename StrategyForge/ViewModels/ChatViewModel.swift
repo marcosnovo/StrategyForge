@@ -122,6 +122,15 @@ final class ChatViewModel {
 
     /// Orchestrator (session) model — the launch model, per Claude Code's rules.
     var model: String { config.strategy.orchestrator?.model.rawValue ?? "claude-fable-5" }
+
+    /// Real progress signal for the current turn: the agent's own task list
+    /// (TodoWrite). nil until the agent plans tasks — then done/total is genuine.
+    var taskProgress: (done: Int, total: Int)? {
+        guard !todos.isEmpty else { return nil }
+        return (todos.filter { $0.status == "completed" }.count, todos.count)
+    }
+    /// Whether the last/most-recent turn produced any completed work to mark as done.
+    var hasFinishedActivity: Bool { !isRunning && !timeline.isEmpty }
     var canSend: Bool {
         let hasText = !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return (hasText || !attachments.isEmpty) && !isRunning
