@@ -38,6 +38,31 @@ struct ClaudeStreamParserTests {
         #expect(events.contains(.finished))
     }
 
+    @Test func diffParserTagsAddsRemovesAndNumbers() {
+        let diff = """
+        diff --git a/App.swift b/App.swift
+        index 111..222 100644
+        --- a/App.swift
+        +++ b/App.swift
+        @@ -1,3 +1,4 @@
+         let a = 1
+        -let b = 2
+        +let b = 3
+        +let c = 4
+        """
+        let lines = CodeGit.parse(diff)
+        // Header noise dropped; one hunk header kept.
+        #expect(lines.contains { $0.kind == .hunk })
+        let adds = lines.filter { $0.kind == .add }
+        let dels = lines.filter { $0.kind == .del }
+        #expect(adds.count == 2)
+        #expect(dels.count == 1)
+        // Context line keeps both old and new numbers starting at 1.
+        let firstContext = lines.first { $0.kind == .context }
+        #expect(firstContext?.oldNumber == 1)
+        #expect(firstContext?.newNumber == 1)
+    }
+
     @Test func resultSuccessFinishes() {
         let line = #"{"type":"result","subtype":"success","result":"done"}"#
         #expect(ClaudeStreamParser.events(from: line) == [.finished])

@@ -13,6 +13,10 @@ struct CodeModeView: View {
     @Environment(AppModel.self) private var model
     var vm: ChatViewModel
     @State private var selected: String?
+    @State private var diffLines: [DiffLine]?
+    @State private var loadingDiff = false
+    @State private var viewMode: ViewMode = .diff
+    enum ViewMode: String, CaseIterable { case diff, file }
 
     private var files: [String] { vm.editedFiles }
 
@@ -25,10 +29,20 @@ struct CodeModeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { if selected == nil { selected = files.first } }
+        .onAppear { if selected == nil { selected = files.first }; Task { await loadDiff() } }
         .onChange(of: vm.editedFiles) { _, new in
             if selected == nil || !(new.contains(selected ?? "")) { selected = new.first }
         }
+        .onChange(of: selected) { Task { await loadDiff() } }
+    }
+
+    private func loadDiff() async {
+        guard let path = selected, let repo = vm.config.repoPath, !repo.isEmpty else {
+            diffLines = nil; return
+        }
+        loadingDiff = true
+        diffLines = await CodeGit.diff(repo: repo, file: path)
+        loadingDiff = false
     }
 
     // MARK: Left — changed files
@@ -94,26 +108,37 @@ struct CodeModeView: View {
                     HStack(spacing: Space.s) {
                         Image(systemName: icon(for: path)).foregroundStyle(Theme.accent)
                         Text((path as NSString).lastPathComponent).font(.sfCallout.weight(.semibold))
+                        if loadingDiff { ProgressView().controlSize(.small) }
                         Spacer()
+                        // Diff / File switch (Diff only offered when we have one).
+                        if diffLines != nil {
+                            Picker("", selection: $viewMode) {
+                                Text(model.t("code.diff")).tag(ViewMode.diff)
+                                Text(model.t("code.file")).tag(ViewMode.file)
+                            }
+                            .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        }
                         Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) } label: {
                             Image(systemName: "folder")
                         }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
-                        .help(model.t("chat.reveal"))
+                        .buttonStyle(.plain).foregroundStyle(.secondary).help(model.t("chat.reveal"))
                         Button { NSWorkspace.shared.open(URL(fileURLWithPath: path)) } label: {
                             Image(systemName: "arrow.up.forward.app")
                         }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
-                        .help(model.t("filepreview.open"))
+                        .buttonStyle(.plain).foregroundStyle(.secondary).help(model.t("filepreview.open"))
                     }
                     .padding(Space.m)
                     Divider()
-                    ScrollView([.vertical, .horizontal]) {
-                        Text(fileContents(path))
-                            .font(.system(size: 12, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(Space.m)
+                    if let diff = diffLines, viewMode == .diff {
+                        DiffScrollView(lines: diff)
+                    } else {
+                        ScrollView([.vertical, .horizontal]) {
+                            Text(fileContents(path))
+                                .font(.system(size: 12, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(Space.m)
+                        }
                     }
                 }
             } else {
@@ -139,6 +164,64 @@ struct CodeModeView: View {
         case "json", "yml", "yaml", "toml": return "curlybraces"
         case "png", "jpg", "jpeg", "gif", "pdf": return "photo"
         default: return "doc"
+        }
+    }
+}
+
+/// Renders a parsed unified diff with line numbers and add/remove coloring.
+struct DiffScrollView: View {
+    let lines: [DiffLine]
+
+    var body: some View {
+        ScrollView([.vertical, .horizontal]) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(lines) { line in row(line) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, Space.s)
+        }
+    }
+
+    private func row(_ l: DiffLine) -> some View {
+        HStack(spacing: 0) {
+            gutter(l.oldNumber)
+            gutter(l.newNumber)
+            Text(prefix(l) + l.text)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(fg(l))
+                .textSelection(.enabled)
+                .padding(.leading, 8)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 1)
+        .background(bg(l))
+    }
+
+    private func gutter(_ n: Int?) -> some View {
+        Text(n.map(String.init) ?? "")
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundStyle(.tertiary)
+            .frame(width: 38, alignment: .trailing)
+            .padding(.trailing, 4)
+    }
+
+    private func prefix(_ l: DiffLine) -> String {
+        switch l.kind { case .add: return "+ "; case .del: return "- "; case .hunk: return ""; case .context: return "  " }
+    }
+    private func fg(_ l: DiffLine) -> Color {
+        switch l.kind {
+        case .add: return Theme.success
+        case .del: return Theme.danger
+        case .hunk: return Theme.accent
+        case .context: return .primary
+        }
+    }
+    private func bg(_ l: DiffLine) -> Color {
+        switch l.kind {
+        case .add: return Theme.success.opacity(0.10)
+        case .del: return Theme.danger.opacity(0.10)
+        case .hunk: return Theme.accent.opacity(0.08)
+        case .context: return .clear
         }
     }
 }

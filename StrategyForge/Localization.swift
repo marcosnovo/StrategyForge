@@ -507,6 +507,8 @@ enum L10n {
         "code.noChanges": ("No changes yet. Ask the agent to edit or create files.",
                            "Sin cambios aún. Pide al agente que edite o cree archivos."),
         "code.pick": ("Pick a file to view its contents.", "Elige un archivo para ver su contenido."),
+        "code.diff": ("Diff", "Diff"),
+        "code.file": ("File", "Archivo"),
         "code.unreadable": ("(This file can't be shown as text.)", "(Este archivo no se puede mostrar como texto.)"),
         "chat.activity": ("Activity", "Actividad"),
         "chat.activity.help": ("Show what the agents are doing", "Ver qué están haciendo los agentes"),
