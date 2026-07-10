@@ -61,6 +61,7 @@ struct ContentView: View {
             if let id = model.selectedConfigID { configSheet(id) }
         }
         .onChange(of: model.selectedConfigID) { model.rememberSelection() }
+        .task { await model.refreshConnectedProviders() }
         .onAppear { if !didOnboard { showOnboarding = true } }
         .sheet(isPresented: $showOnboarding, onDismiss: { didOnboard = true }) {
             OnboardingView(onCreate: { model.addConfiguration() })
@@ -106,16 +107,6 @@ private struct EmptyEditorState: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .help(model.t("setup.oneClick.sub"))
-
-                // Zero-risk practice folder.
-                Button {
-                    model.trySampleFolder()
-                } label: {
-                    Label(model.t("setup.sample"), systemImage: "sparkles")
-                        .frame(maxWidth: 320)
-                }
-                .controlSize(.large)
-                .help(model.t("setup.sample.sub"))
 
                 Button(model.t("sidebar.new")) { model.addConfiguration() }
                     .buttonStyle(.link)

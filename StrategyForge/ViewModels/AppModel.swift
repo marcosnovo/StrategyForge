@@ -22,6 +22,26 @@ final class AppModel {
     var selectedConfigID: Configuration.ID?
     var settings = AppSettings()
 
+    // MARK: - Providers
+    /// Providers whose CLI is currently installed/detected. Drives locked vs
+    /// selectable state in the model/provider pickers.
+    var connectedProviders: Set<AIProvider> = [.claude]
+
+    /// Re-detect which provider CLIs are installed (off the main thread).
+    func refreshConnectedProviders() async {
+        var found: Set<AIProvider> = []
+        for p in AIProvider.allCases {
+            let name = settings.binary(for: p)
+            if await Task.detached(operation: { ClaudeRunner.resolveBinary(name) }).value != nil {
+                found.insert(p)
+            }
+        }
+        connectedProviders = found
+    }
+
+    /// Whether a provider can be selected right now (its CLI is installed).
+    func isConnected(_ provider: AIProvider) -> Bool { connectedProviders.contains(provider) }
+
     // MARK: - UI layout state (restored across launches; see settings)
     var showSidebar = true
     var showInspector = false

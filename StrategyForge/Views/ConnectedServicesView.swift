@@ -191,5 +191,8 @@ struct ConnectedServicesSection: View {
         // resolveBinary spawns a login shell — keep it off the main actor.
         let path = await Task.detached { ClaudeRunner.resolveBinary(name) }.value
         status[provider] = path.map { .found($0) } ?? .missing
+        // Keep the app-wide connected set in sync so pickers unlock immediately.
+        if path != nil { model.connectedProviders.insert(provider) }
+        else { model.connectedProviders.remove(provider) }
     }
 }

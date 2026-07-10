@@ -217,6 +217,8 @@ enum L10n {
         "provider.connected": ("Connected", "Conectado"),
         "provider.notFound": ("Not found", "No encontrado"),
         "provider.soon": ("Engine soon", "Motor pronto"),
+        "provider.locked": ("Add or sign in to use", "Añadir o iniciar sesión"),
+        "provider.manage": ("Manage connections…", "Gestionar conexiones…"),
         "provider.soon.note": ("Runs on Claude for now; this provider's engine is coming.",
                                "De momento corre en Claude; el motor de este proveedor llega pronto."),
         "provider.connect": ("Install & connect", "Instalar y conectar"),
@@ -240,6 +242,7 @@ enum L10n {
         "settings.language.system": ("System", "Sistema"),
 
         // MARK: Roles
+        "role.configure": ("Configure", "Configurar"),
         "role.systemPrompt": ("Instructions…", "Instrucciones…"),
         "role.description": ("When to use…", "Cuándo usarlo…"),
         "role.toolsAll": ("All", "Todas"),

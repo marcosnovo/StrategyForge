@@ -11,20 +11,22 @@ import SwiftUI
 
 struct RoleRowView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
     @Binding var role: AgentRole
     /// Validation issues that target this specific role.
     let issues: [Strategy.ValidationIssue]
 
-    @State private var editingPrompt = false
-    @State private var editingDescription = false
+    @State private var configuring = false
     @State private var hoveredModel: ClaudeModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var hasError: Bool { issues.contains { $0.severity == .error } }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Name row: badge + editable name, name flexible so it never overflows.
+        // COMPACT row: badge + name + a one-line summary + a Configure button.
+        // Everything advanced (model, provider, tools, prompts) lives in a sheet so
+        // beginners see a clean team list and only dive in when they want to.
+        VStack(alignment: .leading, spacing: Space.s) {
             HStack(alignment: .center, spacing: 10) {
                 RoleBadge(kind: role.role, name: model.roleKindName(role.role))
                 if role.isOrchestrator {
@@ -37,36 +39,17 @@ struct RoleRowView: View {
                         .font(.body.monospaced())
                         .frame(maxWidth: .infinity)
                 }
+                Button { configuring = true } label: {
+                    Label(model.t("role.configure"), systemImage: "slider.horizontal.3")
+                }
+                .buttonStyle(.bordered).controlSize(.small).fixedSize()
             }
 
-            // Model as a visual capability grid, then the smaller controls below it.
-            modelField
-            HStack(alignment: .bottom, spacing: 16) {
-                labeled("field.instances") { countStepper }
-                labeled("field.tools") { toolsMenu }
-                Spacer(minLength: 0)
-            }
-
-            HStack(spacing: 8) {
-                Button {
-                    editingPrompt = true
-                } label: {
-                    Label(model.t("role.systemPrompt"), systemImage: "text.alignleft")
-                }
-                Button {
-                    editingDescription = true
-                } label: {
-                    Label(model.t("role.description"), systemImage: "arrow.triangle.branch")
-                }
-                Spacer()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            summaryChip
 
             if role.isOrchestrator {
                 Label(model.t("role.orchestratorNote"), systemImage: "info.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(.secondary)
                     .accessibilityLabel(model.t("role.orchestratorNote"))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -87,20 +70,53 @@ struct RoleRowView: View {
             RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
                 .strokeBorder(hasError ? Theme.danger.opacity(0.55) : Theme.hairline, lineWidth: 1)
         )
-        .sheet(isPresented: $editingPrompt) {
-            TextEditingSheet(
-                title: "\(model.t("role.systemPrompt")) — \(role.name)",
-                subtitle: model.t("sheet.systemPrompt.subtitle"),
-                text: $role.systemPrompt
-            )
+        .sheet(isPresented: $configuring) { configureSheet }
+    }
+
+    /// A one-line summary of this role's setup (provider · model · count · tools).
+    private var summaryChip: some View {
+        HStack(spacing: 5) {
+            Image(systemName: role.provider.icon).font(.system(size: 9)).foregroundStyle(role.provider.tint)
+            Text(role.modelDisplayName).font(.sfCaption2.weight(.medium))
+            Text("· ×\(role.count)").font(.sfCaption2).foregroundStyle(.secondary)
+            if !role.tools.isEmpty {
+                Text("· \(toolsSummary)").font(.sfCaption2).foregroundStyle(.secondary)
+            }
         }
-        .sheet(isPresented: $editingDescription) {
-            TextEditingSheet(
-                title: "\(model.t("role.description")) — \(role.name)",
-                subtitle: model.t("sheet.description.subtitle"),
-                text: $role.description
-            )
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .background(Capsule().fill(Theme.cardBg).overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1)))
+    }
+
+    /// The full role editor, opened on demand from the compact row.
+    private var configureSheet: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            Text("\(model.roleKindName(role.role)) — \(role.name)").font(.sfCardTitle)
+            modelField
+            HStack(alignment: .bottom, spacing: 16) {
+                labeled("field.instances") { countStepper }
+                labeled("field.tools") { toolsMenu }
+                Spacer(minLength: 0)
+            }
+            labeled("role.systemPrompt") {
+                TextEditor(text: $role.systemPrompt)
+                    .font(.body.monospaced()).frame(height: 120)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
+            }
+            labeled("role.description") {
+                TextEditor(text: $role.description)
+                    .font(.body.monospaced()).frame(height: 80)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
+            }
+            ForEach(issues) { issue in
+                Label(issue.message, systemImage: issue.severity == .error ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
+                    .font(.sfCaption2)
+                    .foregroundStyle(issue.severity == .error ? Theme.danger : Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack { Spacer(); Button(model.t("common.done")) { configuring = false }.keyboardShortcut(.defaultAction) }
         }
+        .padding(Space.l)
+        .frame(width: 540)
     }
 
     // MARK: - Controls
@@ -147,13 +163,22 @@ struct RoleRowView: View {
     private var providerMenu: some View {
         Menu {
             ForEach(AIProvider.allCases) { p in
-                Button {
-                    role.provider = p
-                    role.providerModelID = p == .claude ? nil : p.models.first?.id
-                } label: {
-                    Label(p.displayName, systemImage: role.provider == p ? "checkmark" : p.icon)
+                if model.isConnected(p) {
+                    Button {
+                        role.provider = p
+                        role.providerModelID = p == .claude ? nil : p.models.first?.id
+                    } label: {
+                        Label(p.displayName, systemImage: role.provider == p ? "checkmark" : p.icon)
+                    }
+                } else {
+                    // Not installed yet → locked; tap goes to Connected services.
+                    Button { openSettings() } label: {
+                        Label("\(p.displayName) — \(model.t("provider.locked"))", systemImage: "lock.fill")
+                    }
                 }
             }
+            Divider()
+            Button(model.t("provider.manage")) { openSettings() }
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: role.provider.icon).font(.system(size: 8))

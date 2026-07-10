@@ -9,8 +9,11 @@ import XCTest
 
 final class StrategyForgeUITestsLaunchTests: XCTestCase {
 
+    // Run once in the current appearance only. `true` (the Apple template default)
+    // re-runs the test in every UI configuration — including Dark — and switches the
+    // system appearance to do so, leaving the Mac in Dark Mode after tests.
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
-        true
+        false
     }
 
     override func setUpWithError() throws {

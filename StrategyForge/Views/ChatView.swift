@@ -28,6 +28,7 @@ struct ChatView: View {
     /// Which assistant message just had its text copied (shows a ✓ for a moment).
     @State private var copiedMessageID: ChatMessage.ID?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openSettings) private var openSettings
     /// True when this chat's engine CLI (Claude) isn't installed — offer one-tap setup.
     @State private var engineMissing = false
     @State private var showInstall = false
@@ -308,16 +309,24 @@ struct ChatView: View {
     private var providerPill: some View {
         Menu {
             ForEach(AIProvider.allCases) { p in
-                Button {
-                    model.setProvider(config.id, p)
-                } label: {
-                    Label {
-                        Text(p.displayName + (p.isExecutable ? "" : " · \(model.t("provider.soon"))"))
-                    } icon: {
-                        Image(systemName: config.provider == p ? "checkmark" : p.icon)
+                if model.isConnected(p) {
+                    Button {
+                        model.setProvider(config.id, p)
+                    } label: {
+                        Label {
+                            Text(p.displayName + (p.isExecutable ? "" : " · \(model.t("provider.soon"))"))
+                        } icon: {
+                            Image(systemName: config.provider == p ? "checkmark" : p.icon)
+                        }
+                    }
+                } else {
+                    Button { openSettings() } label: {
+                        Label("\(p.displayName) — \(model.t("provider.locked"))", systemImage: "lock.fill")
                     }
                 }
             }
+            Divider()
+            Button(model.t("provider.manage")) { openSettings() }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: config.provider.icon).font(.system(size: 8))
