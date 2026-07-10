@@ -80,8 +80,8 @@ struct ContentView: View {
             Theme.appBg.ignoresSafeArea()
         } else {
             ZStack {
-                Color(red: 0.965, green: 0.984, blue: 0.988)   // indigo-white base
-                Theme.haze.opacity(0.38)
+                Color(red: 0.965, green: 0.961, blue: 0.984)   // soft lavender-white base
+                Theme.haze.opacity(0.30)
             }
             .ignoresSafeArea()
         }

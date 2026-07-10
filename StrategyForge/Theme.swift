@@ -25,56 +25,55 @@ extension Color {
 
 enum Theme {
 
-    // MARK: Brand — "Deep sea" palette
-    /// The four gradient stops (from the user's palette).
-    static let indigoWhite   = Color(red: 0.922, green: 0.965, blue: 0.969)  // #EBF6F7
-    static let storeroomBlue = Color(red: 0.000, green: 0.533, blue: 0.600)  // #008899 teal
-    static let indigo        = Color(red: 0.153, green: 0.290, blue: 0.471)  // #274A78
-    static let youngBamboo   = Color(red: 0.408, green: 0.745, blue: 0.553)  // #68BE8D
+    // MARK: Brand — messenger-screenshot violet, with Wisteria-haze nuances
+    /// Nuance colors (from the Wisteria palette) for the soft background wash.
+    static let moonWhite = Color(red: 0.918, green: 0.957, blue: 0.988)   // #EAF4FC
+    static let wisteria   = Color(red: 0.698, green: 0.561, blue: 0.808)  // #B28FCE
+    static let ibisPink   = Color(red: 0.957, green: 0.702, blue: 0.761)  // #F4B3C2
+    static let sky        = Color(red: 0.627, green: 0.847, blue: 0.937)  // #A0D8EF
 
-    /// Accent = the deep-sea teal; slightly deepened in light for legible small
-    /// text/icons, brighter in dark so it glows on the near-black surfaces.
+    /// Accent = the screenshot's indigo-violet (send button / outgoing bubble).
     static let accent = Color(
-        light: Color(red: 0.000, green: 0.478, blue: 0.541),   // #007A8A (deep teal)
-        dark:  Color(red: 0.275, green: 0.718, blue: 0.788))   // #46B7C9
+        light: Color(red: 0.424, green: 0.361, blue: 0.906),   // #6C5CE7
+        dark:  Color(red: 0.608, green: 0.549, blue: 1.000))   // #9B8CFF
     static let accentHover = Color(
-        light: Color(red: 0.000, green: 0.533, blue: 0.600),
-        dark:  Color(red: 0.361, green: 0.780, blue: 0.851))
+        light: Color(red: 0.478, green: 0.416, blue: 0.933),
+        dark:  Color(red: 0.678, green: 0.627, blue: 1.000))
     static let accentSoft = accent.opacity(0.16)
     static let accentGlow = Color(
-        light: storeroomBlue.opacity(0.32),
-        dark:  Color(red: 0.275, green: 0.718, blue: 0.788).opacity(0.55))
+        light: Color(red: 0.424, green: 0.361, blue: 0.906).opacity(0.30),
+        dark:  Color(red: 0.608, green: 0.549, blue: 1.000).opacity(0.55))
     /// Readable text/foreground to place ON a solid accent fill.
     static let onAccent = Color.white
 
-    /// Fill for the primary "deep sea" buttons: teal → indigo.
+    /// Primary button fill — solid violet like the screenshot's send button.
     static let primaryFill = LinearGradient(
-        colors: [storeroomBlue, indigo], startPoint: .topLeading, endPoint: .bottomTrailing)
+        colors: [accent, accentHover], startPoint: .topLeading, endPoint: .bottomTrailing)
 
-    /// The "Deep sea" gradient, used as a soft ambient app background.
+    /// A soft lavender ambient wash (subtle Wisteria nuances) behind the app.
     static let haze = LinearGradient(
         stops: [
-            .init(color: indigoWhite,   location: 0.10),
-            .init(color: storeroomBlue, location: 0.40),
-            .init(color: indigo,        location: 0.66),
-            .init(color: youngBamboo,   location: 0.92),
+            .init(color: moonWhite, location: 0.05),
+            .init(color: wisteria,  location: 0.45),
+            .init(color: ibisPink,  location: 0.70),
+            .init(color: sky,       location: 0.95),
         ],
         startPoint: .topLeading, endPoint: .bottomTrailing)
 
     // MARK: Surfaces — soft lavender in light, cool graphite in dark
     static let appBg = Color(
-        light: Color(red: 0.922, green: 0.965, blue: 0.969),   // #EBF6F7 indigo-white
-        dark:  Color(red: 0.043, green: 0.055, blue: 0.071))   // #0B0E12
+        light: Color(red: 0.929, green: 0.922, blue: 0.965),   // #EDEBF7 soft lavender
+        dark:  Color(red: 0.051, green: 0.055, blue: 0.078))   // #0D0E14
     static let cardBg = Color(
         light: .white,
-        dark:  Color(red: 0.075, green: 0.094, blue: 0.118))   // #13181E
+        dark:  Color(red: 0.086, green: 0.090, blue: 0.118))   // #16171E
     static let insetBg = Color(
-        light: Color(red: 0.859, green: 0.918, blue: 0.925),   // #DBEAEC teal inset
-        dark:  Color(red: 0.035, green: 0.047, blue: 0.059))   // #090C0F
-    /// Deep-navy surface for the left navigation rail (dark in both appearances).
+        light: Color(red: 0.902, green: 0.890, blue: 0.953),   // #E6E3F3 lavender inset
+        dark:  Color(red: 0.039, green: 0.043, blue: 0.063))   // #0A0B10
+    /// Near-black surface for the left navigation rail (like the screenshot).
     static let railBg = Color(
-        light: Color(red: 0.098, green: 0.184, blue: 0.298),   // #192F4C deep indigo
-        dark:  Color(red: 0.063, green: 0.106, blue: 0.169))   // #101B2B
+        light: Color(red: 0.125, green: 0.122, blue: 0.153),   // #201F27
+        dark:  Color(red: 0.078, green: 0.075, blue: 0.098))   // #141319
 
     // MARK: Lines
     static let hairline = Color(
@@ -93,8 +92,8 @@ enum Theme {
 
     // MARK: Status (cool, saturated — matched to the tech palette)
     static let success = Color(
-        light: Color(red: 0.239, green: 0.588, blue: 0.408),   // #3D9668 (deep bamboo)
-        dark:  Color(red: 0.408, green: 0.745, blue: 0.553))   // #68BE8D young bamboo
+        light: Color(red: 0.180, green: 0.620, blue: 0.420),   // #2E9E6B green
+        dark:  Color(red: 0.306, green: 0.796, blue: 0.557))   // #4ECB8E
     static let warning = Color(
         light: Color(red: 0.722, green: 0.525, blue: 0.043),   // #B8860B
         dark:  Color(red: 1.000, green: 0.773, blue: 0.239))   // #FFC53D
@@ -136,7 +135,7 @@ private struct MoonButtonBody: View {
             .padding(.horizontal, Space.m)
             .padding(.vertical, Space.s)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.primaryFill))
-            .shadow(color: Theme.storeroomBlue.opacity(0.30), radius: 6, x: 0, y: 2)
+            .shadow(color: Theme.accent.opacity(0.32), radius: 6, x: 0, y: 2)
             .opacity(isEnabled ? 1 : 0.45)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
