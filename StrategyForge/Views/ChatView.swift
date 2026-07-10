@@ -427,12 +427,12 @@ struct ChatView: View {
                     .foregroundStyle(Theme.onAccent)
                     .textSelection(.enabled)
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-                    .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.accent))
+                    .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.accent))
                     .contextMenu { copyButton(message.text) }
             }
         } else {
-            // Assistant: full-width, no bubble (like Claude/ChatGPT) with an avatar.
-            HStack(alignment: .top, spacing: Space.m) {
+            // Assistant: a soft rounded bubble (reference-style), with an avatar.
+            HStack(alignment: .top, spacing: Space.s) {
                 Group {
                     if isStreaming {
                         WorkingLogo(size: 20)
@@ -440,20 +440,21 @@ struct ChatView: View {
                         Image(systemName: "sparkle")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Theme.accent)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 28, height: 28)
                             .background(Circle().fill(Theme.accentSoft))
                     }
                 }
-                .frame(width: 24, height: 24)
+                .frame(width: 28, height: 28)
                 .padding(.top, 2)
-                VStack(alignment: .leading, spacing: Space.s) {
-                    // Pass the raw text (no appended cursor) so identical text between
-                    // stream frames doesn't force a fresh markdown re-parse; the
-                    // animated avatar already signals that a reply is streaming.
+                VStack(alignment: .leading, spacing: 4) {
                     MarkdownView(text: message.text)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    // Copy is always available (dimmed while still streaming), like
-                    // ChatGPT/Claude — no hover or context menu required.
+                        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+                        .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
+                            .fill(Theme.cardBg))
+                        .overlay(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
+                            .strokeBorder(Theme.hairline.opacity(0.6), lineWidth: 1))
+                        .contextMenu { copyButton(message.text) }
                     if !message.text.isEmpty {
                         let copied = copiedMessageID == message.id
                         Button { copy(message) } label: {
@@ -465,9 +466,11 @@ struct ChatView: View {
                         .foregroundStyle(copied ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.tertiary))
                         .opacity(isStreaming ? 0.35 : 1)
                         .disabled(isStreaming)
+                        .padding(.leading, Space.xs)
                     }
                 }
-                .contextMenu { copyButton(message.text) }
+                .frame(maxWidth: 720, alignment: .leading)
+                Spacer(minLength: 32)
             }
         }
     }
