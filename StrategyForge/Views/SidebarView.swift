@@ -13,15 +13,29 @@ struct SidebarView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var showSidebar: Bool
     @State private var pendingDelete: Configuration.ID?
+    @State private var searchText = ""
+
+    /// Chats sorted newest-first, filtered by the search field.
+    private var visibleConfigs: [Configuration] {
+        let sorted = model.configurations.sorted { $0.recency > $1.recency }
+        let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return sorted }
+        return sorted.filter {
+            $0.name.lowercased().contains(q)
+            || ($0.repoPath ?? "").lowercased().contains(q)
+            || model.strategyDisplayName($0.strategy).lowercased().contains(q)
+        }
+    }
 
     var body: some View {
         @Bindable var model = model
         VStack(spacing: 0) {
             header
+            searchField
             Divider()
 
             List(selection: $model.selectedConfigID) {
-                ForEach(model.configurations.sorted { $0.recency > $1.recency }) { config in
+                ForEach(visibleConfigs) { config in
                     chatRow(config)
                         .padding(.vertical, 3)
                         .tag(config.id)
@@ -68,30 +82,57 @@ struct SidebarView: View {
         }
     }
 
-    /// A conversation row: the strategy as a small diagram thumbnail (hover to read
-    /// its name), then the chat title (primary) and the project it acts on.
+    /// Rounded search field (reference-style pill) at the top of the chat list.
+    private var searchField: some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+            TextField(model.t("sidebar.search"), text: $searchText)
+                .textFieldStyle(.plain).font(.sfCaption2)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 11)) }
+                    .buttonStyle(.plain).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+        .background(Capsule().fill(Theme.insetBg))
+        .padding(.horizontal, Space.m).padding(.bottom, Space.s)
+    }
+
+    /// A conversation row: a rounded strategy-diagram avatar, the chat title, a
+    /// preview of the last message, and the time — like a modern messenger.
     private func chatRow(_ config: Configuration) -> some View {
         HStack(spacing: Space.s) {
             StrategyThumbnail(strategy: config.strategy)
-                .frame(width: 52, height: 34)
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .help(model.strategyDisplayName(config.strategy))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: Space.xs) {
                     Text(config.name.isEmpty ? model.t("chat.untitled") : config.name)
-                        .font(.sfBodyM.weight(.medium))
+                        .font(.sfBodyM.weight(.semibold))
                         .lineLimit(1)
                     Spacer(minLength: Space.xs)
-                    if config.updatedAt != .distantPast {
-                        Text(config.updatedAt.formatted(.relative(presentation: .named)))
-                            .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
-                    }
+                    Text(config.recency.formatted(.relative(presentation: .named)))
+                        .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
                 }
-                Text(config.repoPath.map { ($0 as NSString).lastPathComponent } ?? model.t("chat.noRepo"))
+                Text(previewLine(config))
                     .font(.sfCaption2)
-                    .foregroundStyle(config.repoPath == nil ? Theme.warning : .secondary)
-                    .lineLimit(1).truncationMode(.middle)
+                    .foregroundStyle(config.repoPath == nil && lastMessage(config) == nil ? Theme.warning : .secondary)
+                    .lineLimit(1).truncationMode(.tail)
             }
         }
+    }
+
+    /// The most recent non-empty message, if any (for the row preview).
+    private func lastMessage(_ config: Configuration) -> String? {
+        config.transcript.last(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?.text
+    }
+
+    private func previewLine(_ config: Configuration) -> String {
+        if let msg = lastMessage(config) {
+            return msg.replacingOccurrences(of: "\n", with: " ")
+        }
+        return config.repoPath.map { ($0 as NSString).lastPathComponent } ?? model.t("chat.noRepo")
     }
 
     private var header: some View {
