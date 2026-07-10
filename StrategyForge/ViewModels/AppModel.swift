@@ -1190,8 +1190,21 @@ final class AppModel {
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: storeURL),
+        let url = storeURL
+        // First launch: no store yet — start empty, saving is fine.
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        guard let data = try? Data(contentsOf: url),
               let decoded = try? JSONDecoder().decode(PersistedState.self, from: data) else {
+            // The store exists but can't be read (truncated by a force-quit, a
+            // corrupt byte, a newer schema…). Starting empty is unavoidable, but
+            // the next save() would overwrite the file and destroy every chat,
+            // team and setting — so preserve it first and tell the user.
+            let stamp = ISO8601DateFormatter().string(from: Date())
+                .replacingOccurrences(of: ":", with: "-")
+            let backup = url.deletingLastPathComponent()
+                .appendingPathComponent("data-corrupt-\(stamp).json")
+            try? FileManager.default.copyItem(at: url, to: backup)
+            show(.failure(t("banner.storeCorrupt", backup.lastPathComponent)))
             return
         }
         let state = decoded.migrated()

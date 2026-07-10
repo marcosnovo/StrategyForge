@@ -93,17 +93,20 @@ extension Strategy {
                 roleID: orch.id))
         }
 
-        // Unique, non-empty, space-free subagent names.
+        // Unique, non-empty slug names. Names become file paths under
+        // .claude/agents/ and YAML `name:` scalars, so anything beyond
+        // [A-Za-z0-9_-] (slashes, "..", newlines, colons…) must be blocked —
+        // an imported strategy could otherwise write outside the repo or
+        // inject frontmatter.
         var seen: [String: Int] = [:]
         for role in roles {
             let trimmed = role.name.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty {
                 issues.append(.init(severity: .error,
                     message: "A role has an empty name.", roleID: role.id))
-            }
-            if role.name.contains(" ") {
+            } else if !Strategy.isValidRoleName(role.name) {
                 issues.append(.init(severity: .error,
-                    message: "Role name “\(role.name)” contains spaces; use a slug like “code-reviewer”.",
+                    message: "Role name “\(role.name)” is invalid; use only letters, digits, “-” or “_” (e.g. “code-reviewer”).",
                     roleID: role.id))
             }
             seen[role.name, default: 0] += 1
@@ -149,6 +152,13 @@ extension Strategy {
 
     /// True when there are no blocking errors.
     var isValid: Bool { errors.isEmpty }
+
+    /// Safe slug for a subagent name: it is used verbatim as a file name and as a
+    /// YAML scalar, so restrict it to ASCII letters, digits, "-" and "_".
+    static func isValidRoleName(_ name: String) -> Bool {
+        guard !name.isEmpty else { return false }
+        return name.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+    }
 
     // MARK: - Auto-fix
 

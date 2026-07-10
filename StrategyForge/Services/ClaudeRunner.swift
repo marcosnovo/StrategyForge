@@ -231,7 +231,7 @@ enum ClaudeRunner {
             let buffer = LineBuffer()
             stdout.fileHandleForReading.readabilityHandler = { handle in
                 let data = handle.availableData
-                guard !data.isEmpty else { return }
+                guard !data.isEmpty else { handle.readabilityHandler = nil; return }
                 for line in buffer.append(data) {
                     for event in ClaudeStreamParser.events(from: line) {
                         continuation.yield(event)
@@ -239,15 +239,31 @@ enum ClaudeRunner {
                 }
             }
 
+            // Drain stderr continuously: a pipe holds ~64KB, and claude (plus the
+            // MCP servers/hooks it spawns, which inherit this fd) can exceed that
+            // mid-turn. Left unread, the child blocks in write(2) and never exits.
+            let errBuffer = ByteBuffer()
+            stderr.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                guard !data.isEmpty else { handle.readabilityHandler = nil; return }
+                errBuffer.append(data)
+            }
+
             process.terminationHandler = { proc in
                 stdout.fileHandleForReading.readabilityHandler = nil
-                // Flush a final line that arrived without a trailing newline, so the
-                // closing `result` (usage/denials) is never lost.
-                for line in buffer.drain() {
+                stderr.fileHandleForReading.readabilityHandler = nil
+                // The readability handlers race with termination and can miss the
+                // last chunks still sitting in the pipes — including the closing
+                // `result` line (usage/denials/errors). Drain them without blocking
+                // (grandchild processes may still hold the write ends open).
+                var lines = buffer.append(drainPipe(stdout.fileHandleForReading))
+                lines += buffer.drain()
+                for line in lines {
                     for event in ClaudeStreamParser.events(from: line) { continuation.yield(event) }
                 }
                 if proc.terminationStatus != 0 {
-                    let errText = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                    errBuffer.append(drainPipe(stderr.fileHandleForReading))
+                    let errText = String(data: errBuffer.contents(), encoding: .utf8) ?? ""
                     let trimmed = errText.trimmingCharacters(in: .whitespacesAndNewlines)
                     continuation.yield(.failed(trimmed.isEmpty ? "claude exited with code \(proc.terminationStatus)" : trimmed))
                 } else {
@@ -257,8 +273,9 @@ enum ClaudeRunner {
             }
 
             continuation.onTermination = { _ in
-                // Break the read handler's hold on the continuation, then stop claude.
+                // Break the read handlers' hold on the continuation, then stop claude.
                 stdout.fileHandleForReading.readabilityHandler = nil
+                stderr.fileHandleForReading.readabilityHandler = nil
                 if process.isRunning { process.terminate() }
             }
 
@@ -296,6 +313,23 @@ enum ClaudeRunner {
         return candidates.first { fm.isExecutableFile(atPath: $0) }
     }
 
+    /// Read whatever is currently buffered in a pipe without blocking. Used at
+    /// termination, where `readDataToEndOfFile` could hang forever if a grandchild
+    /// process (an MCP server claude spawned) still holds the write end open.
+    private nonisolated static func drainPipe(_ handle: FileHandle) -> Data {
+        let fd = handle.fileDescriptor
+        let flags = fcntl(fd, F_GETFL)
+        if flags != -1 { _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK) }
+        var result = Data()
+        var chunk = [UInt8](repeating: 0, count: 65536)
+        while true {
+            let n = read(fd, &chunk, chunk.count)
+            guard n > 0 else { break }
+            result.append(contentsOf: chunk[0..<n])
+        }
+        return result
+    }
+
     /// `command -v <name>` via an interactive login shell; nil if not found.
     private nonisolated static func which(_ name: String) -> String? {
         let process = Process()
@@ -316,6 +350,22 @@ enum ClaudeRunner {
             .split(separator: "\n").last.map(String.init)?
             .trimmingCharacters(in: .whitespaces)
         return (path?.isEmpty == false) ? path : nil
+    }
+}
+
+/// Thread-safe raw byte accumulator (for stderr, which has no line semantics).
+private final class ByteBuffer: @unchecked Sendable {
+    private var buffer = Data()
+    private let lock = NSLock()
+
+    func append(_ chunk: Data) {
+        lock.lock(); defer { lock.unlock() }
+        buffer.append(chunk)
+    }
+
+    func contents() -> Data {
+        lock.lock(); defer { lock.unlock() }
+        return buffer
     }
 }
 

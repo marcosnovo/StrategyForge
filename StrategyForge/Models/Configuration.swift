@@ -82,7 +82,10 @@ struct Configuration: Codable, Identifiable, Hashable {
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         strategy = try c.decode(Strategy.self, forKey: .strategy)
-        provider = try c.decodeIfPresent(AIProvider.self, forKey: .provider) ?? .claude
+        // Tolerate unknown provider rawValues from newer app versions — a throw
+        // here would fail the whole store's decode (see AgentRole.init(from:)).
+        let providerRaw = ((try? c.decodeIfPresent(String.self, forKey: .provider)) ?? nil) ?? ""
+        provider = AIProvider(rawValue: providerRaw) ?? .claude
         repoPath = try c.decodeIfPresent(String.self, forKey: .repoPath)
         repoBookmark = try c.decodeIfPresent(Data.self, forKey: .repoBookmark)
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .distantPast
