@@ -517,6 +517,7 @@ enum L10n {
         "code.commitConfirm": ("Commit all current changes with this message?",
                                "¿Guardar todos los cambios actuales con este mensaje?"),
         "code.commitPlaceholder": ("Describe these changes…", "Describe estos cambios…"),
+        "code.terminal": ("TERMINAL", "TERMINAL"),
         "code.unreadable": ("(This file can't be shown as text.)", "(Este archivo no se puede mostrar como texto.)"),
         "chat.activity": ("Activity", "Actividad"),
         "chat.activity.help": ("Show what the agents are doing", "Ver qué están haciendo los agentes"),

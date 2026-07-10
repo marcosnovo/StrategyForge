@@ -26,6 +26,18 @@ struct ClaudeStreamParserTests {
         #expect(ClaudeStreamParser.events(from: line) == [.assistantText("Editing"), .tool(name: "Bash", detail: "npm test")])
     }
 
+    @Test func bashToolUseEmitsCommandStarted() {
+        let line = #"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tu_1","name":"Bash","input":{"command":"npm test"}}]}}"#
+        let events = ClaudeStreamParser.events(from: line)
+        #expect(events.contains(.tool(name: "Bash", detail: "npm test")))
+        #expect(events.contains(.commandStarted(id: "tu_1", command: "npm test")))
+    }
+
+    @Test func toolResultEmitsCommandOutput() {
+        let line = #"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu_1","content":[{"type":"text","text":"3 passed"}]}]}}"#
+        #expect(ClaudeStreamParser.events(from: line) == [.commandOutput(id: "tu_1", output: "3 passed")])
+    }
+
     @Test func parsesTodos() {
         let line = #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Audit HUD","status":"in_progress"}]}}]}}"#
         #expect(ClaudeStreamParser.events(from: line) == [.todos([AgentTodo(content: "Audit HUD", status: "in_progress")])])

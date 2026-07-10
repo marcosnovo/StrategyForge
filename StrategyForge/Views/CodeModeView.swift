@@ -25,6 +25,7 @@ struct CodeModeView: View {
     @State private var confirmCommit = false
     @State private var gitBusy = false
     @State private var gitError: String?
+    @State private var showTerminal = true
 
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
@@ -206,6 +207,7 @@ struct CodeModeView: View {
                                 .padding(Space.m)
                         }
                     }
+                    if !vm.commandLog.isEmpty { terminalPane }
                     if isRepo { commitBar }
                 }
             } else {
@@ -218,6 +220,52 @@ struct CodeModeView: View {
             }
         }
         .background(Theme.appBg)
+    }
+
+    /// Collapsible terminal: the shell commands the agent ran + their output.
+    private var terminalPane: some View {
+        VStack(spacing: 0) {
+            Divider()
+            Button { withAnimation(.easeInOut(duration: 0.15)) { showTerminal.toggle() } } label: {
+                HStack(spacing: Space.s) {
+                    Image(systemName: "terminal").font(.system(size: 11))
+                    Text(model.t("code.terminal")).font(.sfFieldLabel).tracking(0.8)
+                    Text("\(vm.commandLog.count)").font(.sfCaption2).foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: showTerminal ? "chevron.down" : "chevron.up").font(.system(size: 9))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if showTerminal {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        ForEach(vm.commandLog) { run in
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text("$").foregroundStyle(Theme.accent)
+                                    Text(run.command).foregroundStyle(.primary)
+                                }
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                if !run.output.isEmpty {
+                                    Text(run.output.count > 4000 ? String(run.output.suffix(4000)) : run.output)
+                                        .font(.system(size: 10.5, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        }
+                    }
+                    .padding(Space.m)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(height: 180)
+                .background(Theme.insetBg)
+            }
+        }
     }
 
     /// Commit staged/working changes with an editable, auto-drafted message.

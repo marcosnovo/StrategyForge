@@ -30,6 +30,14 @@ struct ActivityStep: Identifiable, Hashable {
     var agent: String? = nil
 }
 
+/// One shell command the agent ran, with its output (for the code-mode terminal).
+struct CommandRun: Identifiable, Hashable {
+    let id = UUID()
+    let command: String
+    let output: String
+    let at: Date
+}
+
 /// A staged attachment: the name shown to the user and the (possibly converted)
 /// file Claude actually reads.
 struct Attachment: Identifiable, Hashable {
@@ -64,6 +72,10 @@ final class ChatViewModel {
     var timeline: [ActivityStep] = []
     /// The agent's task list (from TodoWrite).
     var todos: [AgentTodo] = []
+    /// Shell commands the agent ran this turn, with output (code-mode terminal).
+    var commandLog: [CommandRun] = []
+    /// Bash tool_use id → command, to pair output (tool_result) back to its command.
+    @ObservationIgnored private var pendingCommands: [String: String] = [:]
     /// When the current turn started (for the elapsed timer).
     var turnStartedAt: Date?
     /// Files staged to attach to the next message for Claude to review.
@@ -181,6 +193,8 @@ final class ChatViewModel {
         deniedTools = []
         timeline = []
         todos = []
+        commandLog = []
+        pendingCommands = [:]
         turnStartedAt = Date()
         lastStreamPersist = .distantPast
         runTask?.cancel()   // never leave a prior run's subprocess orphaned
@@ -269,6 +283,14 @@ final class ChatViewModel {
                 timeline.append(ActivityStep(title: subagent, detail: nil, at: Date(),
                                              isDelegation: true, agent: nil))
                 separatorPending = true
+            case .commandStarted(let id, let command):
+                pendingCommands[id] = command
+            case .commandOutput(let id, let output):
+                // Only surface output for commands we tracked (Bash), not every tool.
+                if let cmd = pendingCommands[id] {
+                    commandLog.append(CommandRun(command: cmd, output: output, at: Date()))
+                    pendingCommands[id] = nil
+                }
             case .todos(let items):
                 todos = items
             case .fileEdited(let path):
@@ -312,6 +334,7 @@ final class ChatViewModel {
         let repo = workingDirectory()
         deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
+        commandLog = []; pendingCommands = [:]
         lastStreamPersist = .distantPast
         runTask?.cancel()   // don't orphan a prior run
         messages.append(ChatMessage(role: .assistant, text: ""))

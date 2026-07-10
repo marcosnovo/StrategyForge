@@ -22,6 +22,8 @@ enum ChatEvent: Sendable, Equatable {
     case assistantText(String)          // a complete assistant text block
     case assistantDelta(String)         // a streamed text fragment (partial messages)
     case tool(name: String, detail: String?)  // a tool the agent invoked (+ target)
+    case commandStarted(id: String, command: String)  // a Bash command began (id links to output)
+    case commandOutput(id: String, output: String)     // a tool_result's output text
     case delegated(String)              // the orchestrator delegated to this subagent
     case todos([AgentTodo])             // the agent's task list (TodoWrite)
     case fileEdited(String)             // absolute path of a file the agent wrote/edited
@@ -81,6 +83,12 @@ enum ClaudeStreamParser {
                         } else {
                             events.append(.tool(name: name, detail: toolDetail(name, input)))
                         }
+                        // Bash: remember the command so its later output (tool_result)
+                        // can be shown in the code-mode terminal.
+                        if name == "Bash", let id = block["id"] as? String,
+                           let cmd = input?["command"] as? String {
+                            events.append(.commandStarted(id: id, command: cmd))
+                        }
                         // Note which files it edits, for a post-turn summary.
                         if ["Write", "Edit", "MultiEdit", "NotebookEdit"].contains(name),
                            let path = input?["file_path"] as? String {
@@ -90,6 +98,18 @@ enum ClaudeStreamParser {
                 default:
                     break
                 }
+            }
+            return events
+        }
+
+        // User turn carrying tool_result blocks — the output of the tools/commands.
+        if type == "user", let message = obj["message"] as? [String: Any],
+           let content = message["content"] as? [[String: Any]] {
+            var events: [ChatEvent] = []
+            for block in content where block["type"] as? String == "tool_result" {
+                guard let id = block["tool_use_id"] as? String else { continue }
+                let text = toolResultText(block["content"])
+                events.append(.commandOutput(id: id, output: text))
             }
             return events
         }
@@ -125,6 +145,15 @@ enum ClaudeStreamParser {
         }
 
         return []
+    }
+
+    /// Flatten a tool_result's `content` (a String, or an array of text blocks).
+    private static func toolResultText(_ content: Any?) -> String {
+        if let s = content as? String { return s }
+        if let arr = content as? [[String: Any]] {
+            return arr.compactMap { $0["text"] as? String }.joined(separator: "\n")
+        }
+        return ""
     }
 
     /// A short human-readable "what it's acting on" for a tool use.
