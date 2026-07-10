@@ -42,6 +42,12 @@ final class AppModel {
     /// Whether a provider can be selected right now (its CLI is installed).
     func isConnected(_ provider: AIProvider) -> Bool { connectedProviders.contains(provider) }
 
+    /// Which top-level section the nav rail shows: the chats, or connected services.
+    enum NavSection { case chats, services }
+    var navSection: NavSection = .chats
+    /// The service shown in the main area while in the Services section.
+    var selectedService: AIProvider = .claude
+
     // MARK: - UI layout state (restored across launches; see settings)
     var showSidebar = true
     var showInspector = false

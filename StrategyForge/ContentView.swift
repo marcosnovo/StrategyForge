@@ -28,15 +28,22 @@ struct ContentView: View {
             NavRail(showSidebar: $model.showSidebar)
             Divider()
 
-            // Collapsible chat list (always shown when there's no active chat).
-            if model.showSidebar || model.selectedConfiguration == nil {
+            // Second column: the chat list, or the services list when in Services.
+            if model.navSection == .services {
+                ServicesListColumn().frame(width: 240)
+                Divider()
+            } else if model.showSidebar || model.selectedConfiguration == nil {
                 SidebarView(showSidebar: $model.showSidebar)
                     .frame(width: 240)
                     .transition(.move(edge: .leading).combined(with: .opacity))
                 Divider()
             }
 
-            if let id = model.selectedConfigID, let chat = model.selectedConfiguration {
+            // Main area: a provider's config in Services, else the chat.
+            if model.navSection == .services {
+                ProviderConfigView(provider: model.selectedService)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let id = model.selectedConfigID, let chat = model.selectedConfiguration {
                 // Center: the chat — the protagonist, full width.
                 ChatView(config: chat,
                          binary: model.settings.claudeBinary,

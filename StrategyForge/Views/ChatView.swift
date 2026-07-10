@@ -334,13 +334,13 @@ struct ChatView: View {
                         }
                     }
                 } else {
-                    Button { openSettings() } label: {
+                    Button { model.selectedService = p; model.navSection = .services } label: {
                         Label("\(p.displayName) — \(model.t("provider.locked"))", systemImage: "lock.fill")
                     }
                 }
             }
             Divider()
-            Button(model.t("provider.manage")) { openSettings() }
+            Button(model.t("provider.manage")) { model.navSection = .services }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: config.provider.icon).font(.system(size: 8))

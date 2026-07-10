@@ -23,12 +23,21 @@ struct NavRail: View {
                 .foregroundStyle(Theme.accent)
                 .padding(.top, Space.s)
 
-            item("square.and.pencil", "sidebar.new", tint: Theme.accent) { model.addConfiguration() }
-            item("bubble.left.and.bubble.right.fill", "sidebar.chats", active: showSidebar) {
-                if reduceMotion { showSidebar.toggle() }
-                else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar.toggle() } }
+            item("square.and.pencil", "sidebar.new", tint: Theme.accent) {
+                model.navSection = .chats
+                model.addConfiguration()
             }
-            item("link", "rail.connected") { openSettings() }
+            item("bubble.left.and.bubble.right.fill", "sidebar.chats",
+                 active: model.navSection == .chats) {
+                model.navSection = .chats
+                if !showSidebar {
+                    if reduceMotion { showSidebar = true }
+                    else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
+                }
+            }
+            item("link", "rail.connected", active: model.navSection == .services) {
+                model.navSection = .services
+            }
 
             Spacer()
 
