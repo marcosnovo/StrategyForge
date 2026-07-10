@@ -39,16 +39,20 @@ enum Theme {
     /// Readable text/foreground to place ON a solid accent fill.
     static let onAccent = Color.white
 
-    // MARK: Surfaces — cool graphite, never warm
+    // MARK: Surfaces — soft lavender in light, cool graphite in dark
     static let appBg = Color(
-        light: Color(red: 0.957, green: 0.965, blue: 0.973),   // #F4F6F8
+        light: Color(red: 0.945, green: 0.941, blue: 0.980),   // #F1F0FA soft lavender
         dark:  Color(red: 0.051, green: 0.059, blue: 0.071))   // #0D0F12
     static let cardBg = Color(
         light: .white,
         dark:  Color(red: 0.086, green: 0.098, blue: 0.118))   // #16191E
     static let insetBg = Color(
-        light: Color(red: 0.918, green: 0.933, blue: 0.949),   // #EAEEF2
+        light: Color(red: 0.914, green: 0.906, blue: 0.965),   // #E9E7F6 lavender inset
         dark:  Color(red: 0.039, green: 0.047, blue: 0.059))   // #0A0C0F
+    /// Near-black surface for the left navigation rail (dark in both appearances).
+    static let railBg = Color(
+        light: Color(red: 0.129, green: 0.125, blue: 0.157),   // #211F28
+        dark:  Color(red: 0.078, green: 0.075, blue: 0.098))   // #141319
 
     // MARK: Lines
     static let hairline = Color(
@@ -76,9 +80,11 @@ enum Theme {
         light: Color(red: 0.831, green: 0.173, blue: 0.227),   // #D42C3A
         dark:  Color(red: 1.000, green: 0.361, blue: 0.424))   // #FF5C6C
 
-    // MARK: Metrics
-    static let corner: CGFloat = 14
-    static let innerCorner: CGFloat = 10
+    // MARK: Metrics — softer, more rounded (reference-style)
+    static let corner: CGFloat = 18
+    static let innerCorner: CGFloat = 14
+    /// Chat message bubble radius.
+    static let bubbleCorner: CGFloat = 18
     static let sectionSpacing: CGFloat = 20
     /// Vertical gap between chat messages (Claude/Superhuman-like breathing room).
     static let messageSpacing: CGFloat = 18
