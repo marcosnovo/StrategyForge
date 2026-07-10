@@ -31,6 +31,10 @@ enum L10n {
         "common.required": ("Required", "Obligatorio"),
         "common.choose": ("Choose…", "Elegir…"),
         "common.apply": ("Apply", "Aplicar"),
+        "settings.privacy": ("Privacy", "Privacidad"),
+        "settings.telemetry": ("Share anonymous usage locally", "Registrar uso anónimo en local"),
+        "settings.telemetry.caption": ("Records key events (runs, cost, shares) to a local file only — nothing is sent anywhere. Off by default.",
+                                       "Registra eventos clave (runs, coste, compartidos) solo en un archivo local — no se envía nada a ningún sitio. Desactivado por defecto."),
 
         // MARK: App / sidebar
         "app.purpose": (

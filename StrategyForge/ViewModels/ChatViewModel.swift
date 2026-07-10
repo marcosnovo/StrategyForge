@@ -238,6 +238,10 @@ final class ChatViewModel {
         let sessionID = config.id.uuidString.lowercased()
         // Elevate the whole turn if the user chose "always allow" earlier.
         let effectiveMode = elevatedPermissions ? "bypassPermissions" : permissionMode
+        let agents = config.strategy.roles.count
+        let providerName = config.provider.rawValue
+        let startTokens = totalTokens, startCost = totalCostUSD
+        Analytics.log(.runStarted(provider: providerName, agents: agents, meta: useMeta))
         runTask = Task { [binary, model, useMeta] in
             if useMeta {
                 // Cross-provider run: our orchestrator drives each role's CLI.
@@ -260,6 +264,10 @@ final class ChatViewModel {
             }
             isRunning = false
             hasSession = true
+            Analytics.log(.runFinished(provider: providerName, agents: agents,
+                                       tokens: totalTokens - startTokens,
+                                       costCents: Int(((totalCostUSD - startCost) * 100).rounded()),
+                                       meta: useMeta))
             // Drop the assistant placeholder if nothing came back (e.g. it errored).
             if messages.indices.contains(assistantIndex), messages[assistantIndex].text.isEmpty {
                 messages.remove(at: assistantIndex)
@@ -468,5 +476,6 @@ final class ChatViewModel {
         runTask?.cancel()
         runTask = nil
         isRunning = false
+        Analytics.log(.runCancelled)
     }
 }

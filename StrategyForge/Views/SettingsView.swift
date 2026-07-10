@@ -11,6 +11,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(AuthModel.self) private var auth
+    @AppStorage(Analytics.enabledKey) private var telemetryEnabled = false
 
     var body: some View {
         @Bindable var model = model
@@ -56,6 +57,18 @@ struct SettingsView: View {
             }
 
             ConnectedServicesSection()
+
+            Section(model.t("settings.privacy")) {
+                Toggle(isOn: Binding(
+                    get: { telemetryEnabled },
+                    set: { telemetryEnabled = $0; if !$0 { Analytics.clear() } }
+                )) {
+                    Text(model.t("settings.telemetry"))
+                }
+                Text(model.t("settings.telemetry.caption"))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .formStyle(.grouped)
         .frame(width: 520, height: 620)
