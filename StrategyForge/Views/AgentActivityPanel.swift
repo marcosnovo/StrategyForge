@@ -66,13 +66,13 @@ struct AgentActivityPanel: View {
             .zIndex(1)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: Space.l) {
+                VStack(alignment: .leading, spacing: Space.m) {
                     statusCard
-                    teamSection
+                    teamSection.panelCard()
                     modePicker
                     if mode == .timeline {
-                        if !vm.todos.isEmpty { tasksSection }
-                        timelineSection
+                        if !vm.todos.isEmpty { tasksSection.panelCard() }
+                        timelineSection.panelCard()
                     } else {
                         diagramSection
                     }
@@ -268,6 +268,22 @@ struct AgentActivityPanel: View {
     private func formatTokens(_ n: Int) -> String {
         n >= 1000 ? String(format: "%.1fk", Double(n) / 1000) : "\(n)"
     }
+}
+
+// MARK: - Panel section card (reference "Group Info" look)
+
+private struct PanelCard: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.cardBg))
+            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+                .strokeBorder(Theme.hairline.opacity(0.6), lineWidth: 1))
+    }
+}
+extension View {
+    func panelCard() -> some View { modifier(PanelCard()) }
 }
 
 // MARK: - Shared step rendering
