@@ -34,6 +34,9 @@ struct AppSettings: Codable, Hashable {
     var defaultReposBookmark: Data?
     /// The `claude` binary name or absolute path used in generated launch commands.
     var claudeBinary: String
+    /// Binary name/paths for the other providers' CLIs (login-based, no API keys).
+    var codexBinary: String
+    var geminiBinary: String
     /// UI language. `.system` follows the OS language.
     var language: AppLanguage
     /// How autonomously the chat may act on the repo.
@@ -46,6 +49,8 @@ struct AppSettings: Codable, Hashable {
         defaultReposPath: String? = nil,
         defaultReposBookmark: Data? = nil,
         claudeBinary: String = "claude",
+        codexBinary: String = "codex",
+        geminiBinary: String = "gemini",
         language: AppLanguage = .system,
         chatAutonomy: ChatAutonomy = .acceptEdits,
         lastSelectedConfigID: String? = nil,
@@ -54,6 +59,8 @@ struct AppSettings: Codable, Hashable {
         self.defaultReposPath = defaultReposPath
         self.defaultReposBookmark = defaultReposBookmark
         self.claudeBinary = claudeBinary
+        self.codexBinary = codexBinary
+        self.geminiBinary = geminiBinary
         self.language = language
         self.chatAutonomy = chatAutonomy
         self.lastSelectedConfigID = lastSelectedConfigID
@@ -62,8 +69,8 @@ struct AppSettings: Codable, Hashable {
 
     // Tolerant decoding so older saved data (without newer keys) still loads.
     private enum CodingKeys: String, CodingKey {
-        case defaultReposPath, defaultReposBookmark, claudeBinary, language, chatAutonomy
-        case lastSelectedConfigID, showActivity
+        case defaultReposPath, defaultReposBookmark, claudeBinary, codexBinary, geminiBinary
+        case language, chatAutonomy, lastSelectedConfigID, showActivity
     }
 
     init(from decoder: Decoder) throws {
@@ -71,9 +78,20 @@ struct AppSettings: Codable, Hashable {
         defaultReposPath = try c.decodeIfPresent(String.self, forKey: .defaultReposPath)
         defaultReposBookmark = try c.decodeIfPresent(Data.self, forKey: .defaultReposBookmark)
         claudeBinary = try c.decodeIfPresent(String.self, forKey: .claudeBinary) ?? "claude"
+        codexBinary = try c.decodeIfPresent(String.self, forKey: .codexBinary) ?? "codex"
+        geminiBinary = try c.decodeIfPresent(String.self, forKey: .geminiBinary) ?? "gemini"
         language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
         chatAutonomy = try c.decodeIfPresent(ChatAutonomy.self, forKey: .chatAutonomy) ?? .acceptEdits
         lastSelectedConfigID = try c.decodeIfPresent(String.self, forKey: .lastSelectedConfigID)
         showActivity = try c.decodeIfPresent(Bool.self, forKey: .showActivity) ?? false
+    }
+
+    /// The configured binary name/path for a provider.
+    func binary(for provider: AIProvider) -> String {
+        switch provider {
+        case .claude: return claudeBinary
+        case .openai: return codexBinary
+        case .gemini: return geminiBinary
+        }
     }
 }

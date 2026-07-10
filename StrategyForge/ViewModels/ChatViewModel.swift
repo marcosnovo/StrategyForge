@@ -138,6 +138,12 @@ final class ChatViewModel {
     func send() {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isRunning else { return }
+        // Only Claude has a running engine today; other connected providers are
+        // selectable but not yet executable — say so instead of silently using Claude.
+        guard config.provider.isExecutable else {
+            errorText = "\(config.provider.displayName): engine coming soon. Switch this chat to Claude to run it now."
+            return
+        }
         // Allow sending attachments alone with a sensible default ask.
         if text.isEmpty, !attachments.isEmpty { text = "Please review the attached files." }
         guard !text.isEmpty else { return }

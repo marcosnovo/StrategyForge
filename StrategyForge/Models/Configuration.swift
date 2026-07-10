@@ -13,6 +13,8 @@ struct Configuration: Codable, Identifiable, Hashable {
     var id: UUID
     var name: String
     var strategy: Strategy
+    /// The AI back-end this chat runs on (Claude / ChatGPT·Codex / Gemini).
+    var provider: AIProvider
     /// POSIX path of the target repo, for display. Nil until the user picks one.
     var repoPath: String?
     /// Security-scoped bookmark for the repo folder, so write access persists.
@@ -39,6 +41,7 @@ struct Configuration: Codable, Identifiable, Hashable {
         id: UUID = UUID(),
         name: String,
         strategy: Strategy,
+        provider: AIProvider = .claude,
         repoPath: String? = nil,
         repoBookmark: Data? = nil,
         updatedAt: Date = .distantPast,
@@ -52,6 +55,7 @@ struct Configuration: Codable, Identifiable, Hashable {
         self.id = id
         self.name = name
         self.strategy = strategy
+        self.provider = provider
         self.repoPath = repoPath
         self.repoBookmark = repoBookmark
         self.updatedAt = updatedAt
@@ -64,7 +68,7 @@ struct Configuration: Codable, Identifiable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, strategy, repoPath, repoBookmark, updatedAt, lastGeneratedAt, transcript, titleWasManuallySet, draft, totalTokens, totalCostUSD
+        case id, name, strategy, provider, repoPath, repoBookmark, updatedAt, lastGeneratedAt, transcript, titleWasManuallySet, draft, totalTokens, totalCostUSD
     }
 
     // Tolerant decode: files written before sync existed have no updatedAt.
@@ -73,6 +77,7 @@ struct Configuration: Codable, Identifiable, Hashable {
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         strategy = try c.decode(Strategy.self, forKey: .strategy)
+        provider = try c.decodeIfPresent(AIProvider.self, forKey: .provider) ?? .claude
         repoPath = try c.decodeIfPresent(String.self, forKey: .repoPath)
         repoBookmark = try c.decodeIfPresent(Data.self, forKey: .repoBookmark)
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .distantPast
@@ -89,6 +94,7 @@ struct Configuration: Codable, Identifiable, Hashable {
     func hasSameContent(as other: Configuration) -> Bool {
         name == other.name
             && strategy == other.strategy
+            && provider == other.provider
             && repoPath == other.repoPath
             && repoBookmark == other.repoBookmark
     }

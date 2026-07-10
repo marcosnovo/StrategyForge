@@ -55,19 +55,10 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section(model.t("settings.claudeSection")) {
-                LabeledContent(model.t("settings.binary")) {
-                    TextField("claude", text: $model.settings.claudeBinary)
-                        .frame(width: 260)
-                        .onSubmit { model.save() }
-                }
-                Text(model.t("settings.binary.caption"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            ConnectedServicesSection()
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 520)
+        .frame(width: 520, height: 620)
         .onDisappear { model.save() }
     }
 

@@ -122,6 +122,7 @@ struct ChatView: View {
                     .onSubmit { rename(editingTitle) }
 
                 HStack(spacing: Space.s) {
+                    providerPill
                     // Strategy pill doubles as an entry point to the config sheet.
                     Button { showInspector = true } label: {
                         Text(model.strategyDisplayName(config.strategy))
@@ -181,6 +182,36 @@ struct ChatView: View {
                 .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
         }
         .zIndex(1)
+    }
+
+    /// Which AI back-end this chat runs on — a menu to switch providers.
+    private var providerPill: some View {
+        Menu {
+            ForEach(AIProvider.allCases) { p in
+                Button {
+                    model.setProvider(config.id, p)
+                } label: {
+                    Label {
+                        Text(p.displayName + (p.isExecutable ? "" : " · \(model.t("provider.soon"))"))
+                    } icon: {
+                        Image(systemName: config.provider == p ? "checkmark" : p.icon)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: config.provider.icon).font(.system(size: 8))
+                Text(config.provider.displayName).font(.sfCaption2.weight(.semibold))
+            }
+            .foregroundStyle(config.provider.tint)
+            .padding(.horizontal, 9).padding(.vertical, 3)
+            .glassEffect(.regular.tint(config.provider.tint.opacity(0.18)), in: .capsule)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(model.t("chat.provider"))
+        .accessibilityLabel(model.t("chat.provider"))
     }
 
     private func formatTokens(_ n: Int) -> String {

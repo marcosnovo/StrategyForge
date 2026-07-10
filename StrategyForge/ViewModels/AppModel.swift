@@ -395,6 +395,13 @@ final class AppModel {
         save()   // persist the strategy change so it survives relaunch
     }
 
+    /// Set which AI back-end a chat runs on.
+    func setProvider(_ id: Configuration.ID, _ provider: AIProvider) {
+        guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
+        configurations[i].provider = provider
+        save()
+    }
+
     /// Persist a chat's transcript. Device-local, so it does not bump `updatedAt`
     /// or trigger sync (stamp: false).
     func updateTranscript(_ id: Configuration.ID, _ messages: [ChatMessage]) {
