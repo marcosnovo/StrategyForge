@@ -33,6 +33,8 @@ struct ChatView: View {
     @State private var engineMissing = false
     @State private var showInstall = false
     @State private var isDropTargeted = false
+    /// Code mode: a developer workspace (files/diffs) instead of plain chat.
+    @State private var codeMode = false
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -167,7 +169,7 @@ struct ChatView: View {
         VStack(spacing: 0) {
             header
             if vm.isRunning { runningProgressBar }
-            messagesList
+            if codeMode { CodeModeView(vm: vm) } else { messagesList }
             if engineMissing { engineMissingCard }
             if vm.mixedProvidersNote { mixedProvidersStrip }
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
@@ -257,6 +259,16 @@ struct ChatView: View {
             .padding(.horizontal, 9).padding(.vertical, 3)
             .glassEffect(.regular, in: .capsule)
             .help(model.t("chat.tokens.help"))
+            if codeModeEligible {
+                Button { codeMode.toggle() } label: {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .foregroundStyle(codeMode ? Theme.accent : .secondary)
+                }
+                .buttonStyle(.glass)
+                .help(model.t("chat.codeMode.help"))
+                .accessibilityLabel(model.t("chat.codeMode"))
+            }
+
             Button {
                 showActivity.toggle()
                 if !showActivity { agentFocus = nil }
@@ -342,6 +354,9 @@ struct ChatView: View {
         .help(model.t("chat.provider"))
         .accessibilityLabel(model.t("chat.provider"))
     }
+
+    /// Code mode is offered only when the chat targets a real folder on disk.
+    private var codeModeEligible: Bool { !(config.repoPath ?? "").isEmpty }
 
     private func formatTokens(_ n: Int) -> String {
         n >= 1000 ? String(format: "%.1fk", Double(n) / 1000) : "\(n)"
