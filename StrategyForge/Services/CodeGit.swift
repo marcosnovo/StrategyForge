@@ -41,14 +41,55 @@ enum CodeGit {
     }
 
     private static func run(_ path: String, _ args: [String]) -> String? {
+        runResult(path, args).out
+    }
+
+    /// Run git and return whether it succeeded plus combined output.
+    private static func runResult(_ path: String, _ args: [String]) -> (ok: Bool, out: String) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = args
-        let out = Pipe(); p.standardOutput = out; p.standardError = Pipe()
-        do { try p.run() } catch { return nil }
+        let out = Pipe(); p.standardOutput = out; p.standardError = out
+        do { try p.run() } catch { return (false, "git \(args.joined(separator: " ")) failed") }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
-        return String(data: data, encoding: .utf8)
+        return (p.terminationStatus == 0, String(data: data, encoding: .utf8) ?? "")
+    }
+
+    // MARK: - Write operations (Code Mode git panel)
+
+    /// Current branch name (nil if not a repo / no git).
+    nonisolated static func currentBranch(repo: String) async -> String? {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return nil }
+            let r = runResult(git, ["-C", repo, "rev-parse", "--abbrev-ref", "HEAD"])
+            let name = r.out.trimmingCharacters(in: .whitespacesAndNewlines)
+            return r.ok && !name.isEmpty ? name : nil
+        }.value
+    }
+
+    /// Discard an agent's changes to one file (git checkout -- file).
+    nonisolated static func revert(repo: String, file: String) async -> Bool {
+        await runGit(repo, ["checkout", "--", file])
+    }
+    /// Stage a file (git add file).
+    nonisolated static func stage(repo: String, file: String) async -> Bool {
+        await runGit(repo, ["add", "--", file])
+    }
+    /// Stage everything and commit. Returns combined output (for error surfacing).
+    nonisolated static func commit(repo: String, message: String) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, "git not found") }
+            _ = runResult(git, ["-C", repo, "add", "-A"])
+            return runResult(git, ["-C", repo, "commit", "-m", message])
+        }.value
+    }
+
+    private nonisolated static func runGit(_ repo: String, _ args: [String]) async -> Bool {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return false }
+            return runResult(git, ["-C", repo] + args).ok
+        }.value
     }
 
     /// Parse a unified diff into displayable lines with old/new line numbers.

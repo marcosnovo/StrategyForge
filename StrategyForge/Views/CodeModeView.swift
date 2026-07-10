@@ -18,6 +18,16 @@ struct CodeModeView: View {
     @State private var viewMode: ViewMode = .diff
     enum ViewMode: String, CaseIterable { case diff, file }
 
+    // Git panel state
+    @State private var branch: String?
+    @State private var confirmRevert: String?
+    @State private var commitMessage = ""
+    @State private var confirmCommit = false
+    @State private var gitBusy = false
+    @State private var gitError: String?
+
+    private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
+
     private var files: [String] { vm.editedFiles }
 
     var body: some View {
@@ -29,11 +39,51 @@ struct CodeModeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { if selected == nil { selected = files.first }; Task { await loadDiff() } }
+        .onAppear {
+            if selected == nil { selected = files.first }
+            Task { await loadDiff() }
+            Task { if let repo = vm.config.repoPath { branch = await CodeGit.currentBranch(repo: repo) } }
+        }
         .onChange(of: vm.editedFiles) { _, new in
             if selected == nil || !(new.contains(selected ?? "")) { selected = new.first }
         }
         .onChange(of: selected) { Task { await loadDiff() } }
+        .confirmationDialog(model.t("code.revertConfirm"), isPresented: revertBinding, titleVisibility: .visible) {
+            Button(model.t("code.revert"), role: .destructive) { performRevert() }
+            Button(model.t("common.cancel"), role: .cancel) { confirmRevert = nil }
+        }
+        .confirmationDialog(model.t("code.commitConfirm"), isPresented: $confirmCommit, titleVisibility: .visible) {
+            Button(model.t("code.commit")) { performCommit() }
+            Button(model.t("common.cancel"), role: .cancel) {}
+        }
+    }
+
+    private var revertBinding: Binding<Bool> {
+        Binding(get: { confirmRevert != nil }, set: { if !$0 { confirmRevert = nil } })
+    }
+
+    private func performRevert() {
+        guard let file = confirmRevert, let repo = vm.config.repoPath else { return }
+        confirmRevert = nil; gitBusy = true
+        Task {
+            _ = await CodeGit.revert(repo: repo, file: file)
+            await loadDiff(); gitBusy = false
+        }
+    }
+    private func performStage() {
+        guard let file = selected, let repo = vm.config.repoPath else { return }
+        gitBusy = true
+        Task { _ = await CodeGit.stage(repo: repo, file: file); gitBusy = false }
+    }
+    private func performCommit() {
+        guard let repo = vm.config.repoPath, !commitMessage.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        gitBusy = true; gitError = nil
+        Task {
+            let r = await CodeGit.commit(repo: repo, message: commitMessage)
+            if r.ok { commitMessage = ""; await loadDiff() } else { gitError = r.out }
+            branch = await CodeGit.currentBranch(repo: repo)
+            gitBusy = false
+        }
     }
 
     private func loadDiff() async {
@@ -49,11 +99,20 @@ struct CodeModeView: View {
 
     private var fileList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(model.t("code.changed")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
-                Spacer()
-                if !files.isEmpty {
-                    Text("\(files.count)").font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(model.t("code.changed")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                    Spacer()
+                    if !files.isEmpty {
+                        Text("\(files.count)").font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
+                    }
+                }
+                if let branch {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.triangle.branch").font(.system(size: 9))
+                        Text(branch).font(.sfCaption2.weight(.medium)).lineLimit(1)
+                    }
+                    .foregroundStyle(Theme.accent)
                 }
             }
             .padding(Space.m)
@@ -126,6 +185,13 @@ struct CodeModeView: View {
                             Image(systemName: "arrow.up.forward.app")
                         }
                         .buttonStyle(.plain).foregroundStyle(.secondary).help(model.t("filepreview.open"))
+                        // Accept (stage) / Revert (discard) the agent's changes.
+                        if isRepo, diffLines != nil {
+                            Button(model.t("code.accept")) { performStage() }
+                                .controlSize(.small).disabled(gitBusy)
+                            Button(model.t("code.revert"), role: .destructive) { confirmRevert = path }
+                                .controlSize(.small).disabled(gitBusy)
+                        }
                     }
                     .padding(Space.m)
                     Divider()
@@ -140,6 +206,7 @@ struct CodeModeView: View {
                                 .padding(Space.m)
                         }
                     }
+                    if isRepo { commitBar }
                 }
             } else {
                 VStack(spacing: Space.s) {
@@ -151,6 +218,40 @@ struct CodeModeView: View {
             }
         }
         .background(Theme.appBg)
+    }
+
+    /// Commit staged/working changes with an editable, auto-drafted message.
+    private var commitBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            if let gitError {
+                Label(gitError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.sfCaption2).foregroundStyle(Theme.danger)
+                    .padding(.horizontal, Space.m).padding(.top, Space.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack(spacing: Space.s) {
+                TextField(model.t("code.commitPlaceholder"), text: $commitMessage)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { if !commitMessage.trimmingCharacters(in: .whitespaces).isEmpty { confirmCommit = true } }
+                if gitBusy { ProgressView().controlSize(.small) }
+                Button(model.t("code.commit")) { confirmCommit = true }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty || gitBusy)
+            }
+            .padding(Space.m)
+        }
+        .background(.bar)
+        .onAppear { if commitMessage.isEmpty { commitMessage = draftMessage() } }
+    }
+
+    /// Draft a commit message from the agent's last reply (editable by the user).
+    private func draftMessage() -> String {
+        guard let last = vm.messages.last(where: { $0.role == .assistant })?.text else { return "" }
+        let firstLine = last.split(separator: "\n").first.map(String.init) ?? last
+        let clean = firstLine.trimmingCharacters(in: .whitespaces)
+        let capped = clean.count > 64 ? String(clean.prefix(64)) + "…" : clean
+        return capped.isEmpty ? "" : capped
     }
 
     private func fileContents(_ path: String) -> String {
