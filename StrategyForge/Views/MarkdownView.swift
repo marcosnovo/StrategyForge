@@ -15,9 +15,25 @@ import AppKit
 struct MarkdownView: View {
     let text: String
 
+    /// Parsed blocks are memoized by their source text, so re-renders (streaming,
+    /// hover, scroll) don't re-parse the whole markdown of every message — only a
+    /// changed/streaming message misses the cache. This was the main cause of chat
+    /// sluggishness in long transcripts.
+    private static let cache = NSCache<NSString, BlockBox>()
+    private final class BlockBox { let blocks: [MarkdownBlock]; init(_ b: [MarkdownBlock]) { blocks = b } }
+
+    private var blocks: [MarkdownBlock] {
+        let key = text as NSString
+        if let hit = Self.cache.object(forKey: key) { return hit.blocks }
+        let parsed = MarkdownParser.blocks(from: text)
+        Self.cache.countLimit = 400
+        Self.cache.setObject(BlockBox(parsed), forKey: key)
+        return parsed
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            ForEach(Array(MarkdownParser.blocks(from: text).enumerated()), id: \.offset) { _, block in
+            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 view(for: block)
             }
         }

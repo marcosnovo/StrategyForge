@@ -1045,19 +1045,30 @@ final class AppModel {
         return dir.appendingPathComponent("data.json")
     }
 
+    /// Coalesces rapid saves; a new save supersedes an in-flight write.
+    @ObservationIgnored private var writeTask: Task<Void, Never>?
+
+    /// Persist the store. Encoding + disk I/O run OFF the main actor and are
+    /// coalesced, so streaming a reply (which saves on every chunk) never blocks the
+    /// UI re-writing the whole store synchronously. Returns optimistically; a write
+    /// failure surfaces as a banner.
     @discardableResult
     func save(stamp: Bool = true) -> Bool {
         if stamp { stampChanges() }
+        snapshotConfigurations()
         let state = PersistedState(configurations: configurations, settings: settings, savedTeams: savedTeams)
-        do {
-            let data = try JSONEncoder().encode(state)
-            try data.write(to: storeURL, options: .atomic)
-            snapshotConfigurations()
-            return true
-        } catch {
-            show(.failure(t("banner.saveFailed", error.localizedDescription)))
-            return false
+        let url = storeURL
+        writeTask?.cancel()
+        writeTask = Task.detached(priority: .utility) { [weak self] in
+            do {
+                let data = try JSONEncoder().encode(state)
+                guard !Task.isCancelled else { return }
+                try data.write(to: url, options: .atomic)
+            } catch {
+                await MainActor.run { self?.show(.failure(self?.t("banner.saveFailed", error.localizedDescription) ?? "\(error)")) }
+            }
         }
+        return true
     }
 
     /// Bump `updatedAt` on configurations whose portable content changed since the
