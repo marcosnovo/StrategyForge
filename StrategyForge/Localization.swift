@@ -154,10 +154,10 @@ enum L10n {
                               "Elimina el chat y su historial de esta lista. Los archivos ya escritos en tu repo no se borran."),
 
         // MARK: Onboarding
-        "onboard.title": ("Welcome to StrategyForge", "Bienvenido a StrategyForge"),
+        "onboard.title": ("Welcome to Coral", "Bienvenido a Coral"),
         "onboard.intro": (
-            "StrategyForge lets you chat with a team of Claude agents you design — over a folder of code, documents or notes. Ask questions, review files, or run a task.",
-            "StrategyForge te deja chatear con un equipo de agentes de Claude que tú diseñas — sobre una carpeta de código, documentos o notas. Pregunta, revisa archivos o lanza una tarea."),
+            "Coral lets you chat with a team of Claude agents you design — over a folder of code, documents or notes. Ask questions, review files, or run a task.",
+            "Coral te deja chatear con un equipo de agentes de Claude que tú diseñas — sobre una carpeta de código, documentos o notas. Pregunta, revisa archivos o lanza una tarea."),
         "onboard.step1.title": ("1. Design your agent team", "1. Diseña tu equipo de agentes"),
         "onboard.step1.desc": ("Pick a strategy — how the agents work together — and which Claude model each role uses. This is what Claude Code alone can't do.",
                                "Elige una estrategia — cómo colaboran los agentes — y qué modelo de Claude usa cada rol. Esto es lo que Claude Code por sí solo no permite."),
@@ -194,8 +194,8 @@ enum L10n {
         "editor.repo.example": ("Must be a folder on your Mac — for example ~/Projects/my-app.",
                                 "Debe ser una carpeta de tu Mac — por ejemplo ~/Proyectos/mi-app."),
         "editor.repo.willWrite": (
-            "When you generate, StrategyForge writes .claude/agents/ and CLAUDE.md here automatically. Nothing to add to Xcode — Claude Code reads them from the folder (the .claude folder is hidden in Xcode, that's normal).",
-            "Al generar, StrategyForge escribe aquí .claude/agents/ y CLAUDE.md automáticamente. No hay que añadir nada a Xcode — Claude Code los lee de la carpeta (la carpeta .claude no aparece en Xcode, es normal)."),
+            "When you generate, Coral writes .claude/agents/ and CLAUDE.md here automatically. Nothing to add to Xcode — Claude Code reads them from the folder (the .claude folder is hidden in Xcode, that's normal).",
+            "Al generar, Coral escribe aquí .claude/agents/ y CLAUDE.md automáticamente. No hay que añadir nada a Xcode — Claude Code los lee de la carpeta (la carpeta .claude no aparece en Xcode, es normal)."),
         "editor.repo.helpButton": ("Which folder?", "¿Qué carpeta?"),
         "editor.repo.helpTitle": ("Which folder should I choose?", "¿Qué carpeta elijo?"),
         "editor.repo.helpBody": (
@@ -206,7 +206,7 @@ enum L10n {
 
             • Working in Xcode? Choose the folder that contains your .xcodeproj (the project root). Already use Claude Code? It's the same folder where you run `claude`.
 
-            • StrategyForge writes only two things inside it: a `.claude/agents/` folder (one file per agent) and a `CLAUDE.md` file. It never changes or deletes your code.
+            • Coral writes only two things inside it: a `.claude/agents/` folder (one file per agent) and a `CLAUDE.md` file. It never changes or deletes your code.
 
             • No project yet? Create an empty folder anywhere and pick that — you can try it there.
             """,
@@ -217,7 +217,7 @@ enum L10n {
 
             • ¿Trabajas en Xcode? Elige la carpeta que contiene tu .xcodeproj (la raíz del proyecto). ¿Ya usas Claude Code? Es la misma carpeta donde ejecutas `claude`.
 
-            • StrategyForge escribe ahí solo dos cosas: una carpeta `.claude/agents/` (un archivo por agente) y un archivo `CLAUDE.md`. Nunca cambia ni borra tu código.
+            • Coral escribe ahí solo dos cosas: una carpeta `.claude/agents/` (un archivo por agente) y un archivo `CLAUDE.md`. Nunca cambia ni borra tu código.
 
             • ¿Aún no tienes un proyecto? Crea una carpeta vacía en cualquier sitio y elígela — puedes probarlo ahí.
             """),
@@ -231,8 +231,8 @@ enum L10n {
             "Cada fila es un asistente de Claude. El orquestador es tu sesión principal de Claude Code; los demás son subagentes a los que delega. Los valores por defecto funcionan bien: puedes dejarlos tal cual."),
         "editor.diagram.note": ("Single level of delegation: subagents report back to the orchestrator and never talk to each other.",
                                 "Un solo nivel de delegación: los subagentes reportan al orquestador y nunca hablan entre sí."),
-        "editor.repo.subtitle": ("Pick the folder of the coding project you want to use with Claude Code — the same folder you'd open in Terminal. StrategyForge saves the team's setup inside it and doesn't touch anything else.",
-                                 "Elige la carpeta del proyecto de código que quieras usar con Claude Code — la misma que abrirías en la Terminal. StrategyForge guarda ahí la configuración del equipo y no toca nada más."),
+        "editor.repo.subtitle": ("Pick the folder of the coding project you want to use with Claude Code — the same folder you'd open in Terminal. Coral saves the team's setup inside it and doesn't touch anything else.",
+                                 "Elige la carpeta del proyecto de código que quieras usar con Claude Code — la misma que abrirías en la Terminal. Coral guarda ahí la configuración del equipo y no toca nada más."),
         "editor.repo.empty": ("No folder chosen — pick your project root", "Sin carpeta — elige la raíz de tu proyecto"),
         "editor.save": ("Save", "Guardar"),
         "editor.save.help": ("Keep this setup in the sidebar. This does not write any files.",
@@ -293,8 +293,8 @@ enum L10n {
         "banner.writeFailed": ("Couldn’t write files: %@", "No se pudieron escribir los archivos: %@"),
         "banner.saved": ("Configuration saved.", "Configuración guardada."),
         "banner.saveFailed": ("Couldn’t save: %@", "No se pudo guardar: %@"),
-        "banner.storeCorrupt": ("Your saved data couldn’t be read. A backup was kept as “%@” in Application Support/StrategyForge.",
-                                "No se pudieron leer tus datos guardados. Se conservó una copia como «%@» en Application Support/StrategyForge."),
+        "banner.storeCorrupt": ("Your saved data couldn’t be read. A backup was kept as “%@” in Application Support/Coral.",
+                                "No se pudieron leer tus datos guardados. Se conservó una copia como «%@» en Application Support/Coral."),
         "banner.copied": ("Launch command copied.", "Comando de lanzamiento copiado."),
         "banner.terminalOK": ("Files written. Launch command copied — paste it in Terminal.",
                               "Archivos escritos. Comando copiado: pégalo en Terminal."),
@@ -470,8 +470,8 @@ enum L10n {
         "whatnow.step1.button": ("Open Terminal & start", "Abrir Terminal e iniciar"),
         "whatnow.step2": ("Or copy the launch command and run it yourself:", "O copia el comando de lanzamiento y ejecútalo tú:"),
         "whatnow.explain.toggle": ("What just happened?", "¿Qué acaba de pasar?"),
-        "whatnow.explain.body": ("StrategyForge added two things to your folder: a .claude/agents folder describing each teammate, and a CLAUDE.md with the instructions. Claude Code reads these automatically. Nothing runs on its own — you're always in control.",
-                                 "StrategyForge añadió dos cosas a tu carpeta: una carpeta .claude/agents que describe a cada compañero y un CLAUDE.md con las instrucciones. Claude Code las lee automáticamente. Nada se ejecuta solo: siempre tienes el control."),
+        "whatnow.explain.body": ("Coral added two things to your folder: a .claude/agents folder describing each teammate, and a CLAUDE.md with the instructions. Claude Code reads these automatically. Nothing runs on its own — you're always in control.",
+                                 "Coral añadió dos cosas a tu carpeta: una carpeta .claude/agents que describe a cada compañero y un CLAUDE.md con las instrucciones. Claude Code las lee automáticamente. Nada se ejecuta solo: siempre tienes el control."),
         "whatnow.showFiles": ("Show me the files", "Ver los archivos"),
 
         // MARK: One-click / sample folder
@@ -717,10 +717,10 @@ enum L10n {
         "effort.medium": ("Default", "Normal"),
         "effort.high": ("High", "Alto"),
         "cost.effort": ("Effort (estimate only)", "Esfuerzo (solo estimación)"),
-        "cost.effort.note": ("Higher effort means Claude reads, verifies and thinks more — more tokens. This only changes the estimate, not the files StrategyForge writes.",
-                             "Más esfuerzo = Claude lee, verifica y piensa más — más tokens. Solo cambia la estimación, no los archivos que escribe StrategyForge."),
-        "glossary.modelEffort": ("Model = which “brain” answers, i.e. how much it knows. Effort = how hard that brain works on one request: how much it reads, verifies and thinks. StrategyForge sets the model; effort is a runtime control you choose inside Claude Code — this app never writes it to any file.",
-                                 "Modelo = qué “cerebro” responde, es decir cuánto sabe. Esfuerzo = cuánto se esfuerza ese cerebro en una petición: cuánto lee, verifica y piensa. StrategyForge fija el modelo; el esfuerzo se elige dentro de Claude Code al usarlo — esta app nunca lo escribe en ningún archivo."),
+        "cost.effort.note": ("Higher effort means Claude reads, verifies and thinks more — more tokens. This only changes the estimate, not the files Coral writes.",
+                             "Más esfuerzo = Claude lee, verifica y piensa más — más tokens. Solo cambia la estimación, no los archivos que escribe Coral."),
+        "glossary.modelEffort": ("Model = which “brain” answers, i.e. how much it knows. Effort = how hard that brain works on one request: how much it reads, verifies and thinks. Coral sets the model; effort is a runtime control you choose inside Claude Code — this app never writes it to any file.",
+                                 "Modelo = qué “cerebro” responde, es decir cuánto sabe. Esfuerzo = cuánto se esfuerza ese cerebro en una petición: cuánto lee, verifica y piensa. Coral fija el modelo; el esfuerzo se elige dentro de Claude Code al usarlo — esta app nunca lo escribe en ningún archivo."),
 
         // MARK: Account & sync
         "account.title": ("Account & sync", "Cuenta y sincronización"),

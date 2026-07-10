@@ -155,8 +155,8 @@ final class ChatViewModel {
     /// questions / document reviews work without picking a project.
     private func workingDirectory() -> String {
         if let repo = config.repoPath, !repo.isEmpty { return repo }
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("StrategyForge/sessions/\(config.id.uuidString)", isDirectory: true)
+        let dir = AppPaths.supportDirectory()
+            .appendingPathComponent("sessions/\(config.id.uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.path
     }

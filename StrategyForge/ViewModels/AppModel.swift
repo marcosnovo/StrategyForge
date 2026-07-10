@@ -836,7 +836,7 @@ final class AppModel {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Choose repository"
-        panel.message = "Select the local repository where StrategyForge will write the Claude Code config."
+        panel.message = "Select the local repository where Coral will write the Claude Code config."
         if let base = resolvedDefaultReposURL() { panel.directoryURL = base }
 
         guard panel.runModal() == .OK, let url = panel.url,
@@ -987,7 +987,7 @@ final class AppModel {
         \(command)
         """
         let scriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("StrategyForge-\(UUID().uuidString).command")
+            .appendingPathComponent("Coral-\(UUID().uuidString).command")
         do {
             try script.write(to: scriptURL, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
@@ -1074,10 +1074,10 @@ final class AppModel {
 
         let didAccess = parent.startAccessingSecurityScopedResource()
         defer { if didAccess { parent.stopAccessingSecurityScopedResource() } }
-        let sample = parent.appendingPathComponent("StrategyForge Sandbox", isDirectory: true)
+        let sample = parent.appendingPathComponent("Coral Sandbox", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: sample, withIntermediateDirectories: true)
-            try "# Practice project\n\nMade by StrategyForge. Ask Claude to add a file here — you can delete this whole folder anytime.\n"
+            try "# Practice project\n\nMade by Coral. Ask Claude to add a file here — you can delete this whole folder anytime.\n"
                 .write(to: sample.appendingPathComponent("README.md"), atomically: true, encoding: .utf8)
             let bookmark = try? sample.bookmarkData(options: [.withSecurityScope],
                                                     includingResourceValuesForKeys: nil, relativeTo: nil)
@@ -1139,10 +1139,7 @@ final class AppModel {
     }
 
     private var storeURL: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("StrategyForge", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("data.json")
+        AppPaths.supportDirectory().appendingPathComponent("data.json")
     }
 
     /// Coalesces rapid saves; a new save supersedes an in-flight write.

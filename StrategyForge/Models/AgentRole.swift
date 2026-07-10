@@ -49,16 +49,18 @@ enum RoleKind: String, Codable, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// Accent color for the role kind (matches RoleBadge).
+    /// Accent color for the role kind (matches RoleBadge). Coral identity: the
+    /// orchestrator is always coral (warm, central, leads the eye); the team falls
+    /// in a cool spectrum so the director stands out in any topology.
     var tint: Color {
         switch self {
-        case .orchestrator: return .purple
-        case .worker: return .blue
-        case .advisor: return .teal
-        case .reviewer: return .orange
-        case .planner: return .indigo
-        case .researcher: return .green
-        case .specialist: return .pink
+        case .orchestrator: return Theme.coral                              // #FF6B54
+        case .worker:       return Theme.teal                               // #14C2AB
+        case .planner:      return Color(red: 0.243, green: 0.557, blue: 0.941) // #3E8EF0 blue
+        case .researcher:   return Color(red: 0.208, green: 0.690, blue: 0.416) // #35B06A green
+        case .advisor:      return Color(red: 0.608, green: 0.482, blue: 0.941) // #9B7BF0 violet
+        case .reviewer:     return Color(red: 0.898, green: 0.631, blue: 0.227) // #E5A13A amber
+        case .specialist:   return Color(red: 0.941, green: 0.416, blue: 0.627) // #F06AA0 pink
         }
     }
 

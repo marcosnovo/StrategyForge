@@ -85,7 +85,7 @@ struct MissionReportView: View {
             }
             HStack(spacing: 6) {
                 Image(systemName: "bolt.horizontal.circle.fill").foregroundStyle(Theme.accent)
-                Text("StrategyForge").font(.sfCaption2.weight(.semibold)).foregroundStyle(.secondary)
+                Text("Coral").font(.sfCaption2.weight(.semibold)).foregroundStyle(.secondary)
             }
         }
         .padding(Space.l)

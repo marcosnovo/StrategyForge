@@ -66,7 +66,7 @@ enum StrategyPackage {
         let b64 = trimmed.hasPrefix(textPrefix) ? String(trimmed.dropFirst(textPrefix.count)) : trimmed
         guard let data = Data(base64Encoded: b64) else {
             throw NSError(domain: "StrategyPackage", code: 1,
-                          userInfo: [NSLocalizedDescriptionKey: "Not a valid StrategyForge share string."])
+                          userInfo: [NSLocalizedDescriptionKey: "Not a valid Coral share string."])
         }
         return try `import`(data)
     }

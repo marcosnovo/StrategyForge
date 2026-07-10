@@ -166,10 +166,13 @@ enum ClaudeConfigParser {
     /// Best-effort recovery of metadata from the StrategyForge-managed block.
     static func parseClaudeMd(_ text: String) -> ClaudeMdMeta {
         var meta = ClaudeMdMeta()
-        // Restrict to the managed block if present.
+        // Restrict to the managed block if present (current or legacy markers).
         let scope: String
         if let s = text.range(of: ClaudeMdGenerator.startMarker),
-           let e = text.range(of: ClaudeMdGenerator.endMarker) {
+           let e = text.range(of: ClaudeMdGenerator.endMarker, range: s.upperBound..<text.endIndex) {
+            scope = String(text[s.upperBound..<e.lowerBound])
+        } else if let s = text.range(of: ClaudeMdGenerator.legacyStartMarker),
+                  let e = text.range(of: ClaudeMdGenerator.legacyEndMarker, range: s.upperBound..<text.endIndex) {
             scope = String(text[s.upperBound..<e.lowerBound])
         } else {
             scope = text

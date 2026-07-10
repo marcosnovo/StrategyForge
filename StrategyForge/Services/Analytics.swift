@@ -80,10 +80,7 @@ enum Analytics {
     // MARK: - Storage
 
     private static var fileURL: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("StrategyForge", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("telemetry.jsonl")
+        AppPaths.supportDirectory().appendingPathComponent("telemetry.jsonl")
     }
 
     private static func append(_ text: String, to url: URL) {
