@@ -13,6 +13,8 @@ struct OnboardingView: View {
     @Environment(\.dismiss) private var dismiss
     /// Called when the user wants to jump straight into creating a configuration.
     let onCreate: () -> Void
+    /// The primary path: describe a task and let AI build the team (onboarding gate).
+    var onDescribeTask: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.xl) {
@@ -54,9 +56,15 @@ struct OnboardingView: View {
             HStack {
                 Button(model.t("onboard.skip")) { dismiss() }
                 Spacer()
-                Button(model.t("onboard.cta")) {
+                Button(model.t("onboard.browse")) {
                     dismiss()
                     onCreate()
+                }
+                Button {
+                    dismiss()
+                    onDescribeTask()
+                } label: {
+                    Label(model.t("onboard.describeTask"), systemImage: "sparkles")
                 }
                 .buttonStyle(.moon)
                 .controlSize(.large)

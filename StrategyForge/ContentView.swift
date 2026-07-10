@@ -13,6 +13,14 @@ struct ContentView: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("didOnboard") private var didOnboard = false
     @State private var showOnboarding = false
+    /// The Task→Strategy generator, used as the onboarding gate + empty-state CTA.
+    @State private var showTaskGen = false
+
+    /// Create a fresh chat and open the "describe your task" generator on it.
+    private func startFromTask() {
+        model.addConfiguration()
+        showTaskGen = true
+    }
 
     var body: some View {
         @Bindable var model = model
@@ -83,7 +91,7 @@ struct ContentView: View {
                     .id("\(id)|\(chat.repoPath ?? "none")")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                EmptyEditorState()
+                EmptyEditorState(onDescribeTask: { startFromTask() })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -99,7 +107,14 @@ struct ContentView: View {
         .task { await model.refreshConnectedProviders() }
         .onAppear { if !didOnboard { showOnboarding = true } }
         .sheet(isPresented: $showOnboarding, onDismiss: { didOnboard = true }) {
-            OnboardingView(onCreate: { model.addConfiguration() })
+            OnboardingView(onCreate: { model.addConfiguration() },
+                           onDescribeTask: { startFromTask() })
+        }
+        // The onboarding gate + empty-state CTA: describe a task → AI builds the team.
+        .sheet(isPresented: $showTaskGen) {
+            if let id = model.selectedConfigID {
+                TaskToStrategySheet(config: model.configurationBinding(id))
+            }
         }
     }
 
@@ -158,6 +173,7 @@ private struct GlobalBanner: View {
 /// Shown in the center column when nothing is selected.
 private struct EmptyEditorState: View {
     @Environment(AppModel.self) private var model
+    var onDescribeTask: () -> Void = {}
 
     var body: some View {
         ContentUnavailableView {
@@ -166,15 +182,23 @@ private struct EmptyEditorState: View {
             Text(model.t("empty.editor.desc"))
         } actions: {
             VStack(spacing: Space.m) {
+                // The primary path: describe a task and let AI assemble the team.
+                Button {
+                    onDescribeTask()
+                } label: {
+                    Label(model.t("onboard.describeTask"), systemImage: "sparkles")
+                        .frame(maxWidth: 320)
+                }
+                .buttonStyle(.moon)
+                .controlSize(.large)
+
                 // Beginner: proven setup in one click.
                 Button {
                     model.setUpForMe()
                 } label: {
                     Label(model.t("setup.oneClick"), systemImage: "wand.and.stars")
-                        .frame(maxWidth: 320)
                 }
-                .buttonStyle(.moon)
-                .controlSize(.large)
+                .buttonStyle(.link)
                 .help(model.t("setup.oneClick.sub"))
 
                 Button(model.t("sidebar.new")) { model.addConfiguration() }

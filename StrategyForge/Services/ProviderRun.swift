@@ -77,23 +77,27 @@ struct CLIOneShotRunner: OneShotRunner {
 
     enum OutputMode { case claudeJSON, plainText }
 
-    /// The argv (after the binary) and how to read its output, per provider.
+    /// The argv (after the binary) and how to read its output, per provider. Flags
+    /// go BEFORE the positional prompt (robust across arg parsers).
     static func command(for provider: AIProvider, prompt: String, model: String,
                         permissionMode: String) -> (args: [String], mode: OutputMode) {
         switch provider {
         case .claude:
-            var a = ["-p", prompt, "--output-format", "json", "--permission-mode", permissionMode]
+            // Claude uses real, full model ids (e.g. claude-opus-4-8).
+            var a = ["--output-format", "json", "--permission-mode", permissionMode]
             if !model.isEmpty { a.append(contentsOf: ["--model", model]) }
+            a.append(contentsOf: ["-p", prompt])
             return (a, .claudeJSON)
         case .openai:
-            // Codex CLI, non-interactive.
-            var a = ["exec", prompt]
-            if !model.isEmpty { a.append(contentsOf: ["--model", model]) }
-            return (a, .plainText)
+            // Codex CLI, non-interactive (`codex exec`). NOTE: we do NOT pass --model
+            // yet — our per-role provider model ids are capability placeholders, not
+            // real Codex model names, so passing them would error. Use the CLI's
+            // logged-in default until real ids are wired.
+            return (["exec", prompt], .plainText)
         case .gemini:
-            var a = ["-p", prompt]
-            if !model.isEmpty { a.append(contentsOf: ["-m", model]) }
-            return (a, .plainText)
+            // Gemini CLI, non-interactive (`gemini -p`). Same placeholder-id caveat
+            // as Codex → let the CLI pick its default model.
+            return (["-p", prompt], .plainText)
         }
     }
 
