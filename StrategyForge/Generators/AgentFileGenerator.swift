@@ -19,7 +19,10 @@ enum AgentFileGenerator {
     /// re-write can safely prune the ones it wrote for now-removed/renamed roles
     /// WITHOUT ever touching hand-written agent files. (Ignored by Claude Code and
     /// by our own parser, which only reads name/model/tools/description.)
-    static let managedSignature = "strategyforge: managed"
+    static let managedSignature = "coral: managed"
+    /// Legacy signature from the app's former name — still recognized when pruning
+    /// so agent files written by an earlier version are managed, not orphaned.
+    static let legacyManagedSignature = "strategyforge: managed"
 
     /// Generate one `GeneratedFile` per subagent instance, expanding `count`.
     ///

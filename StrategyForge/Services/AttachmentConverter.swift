@@ -68,7 +68,7 @@ enum AttachmentConverter {
 
     private static func write(_ text: String, basename: String) -> URL? {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("StrategyForge-attachments/\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("Coral-attachments/\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let out = dir.appendingPathComponent("\(basename).txt")
         do { try text.write(to: out, atomically: true, encoding: .utf8); return out }

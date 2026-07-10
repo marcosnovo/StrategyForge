@@ -2,10 +2,10 @@
 //  Theme.swift
 //  StrategyForge
 //
-//  Visual identity: "Forge / Circuit" — a dark-first developer-tool look on a
-//  cool graphite base with a single electric spring-green signature accent
-//  ("Voltage"). Monospaced labels give it a technical fingerprint. All tokens
-//  ship both light and dark.
+//  Visual identity: "Coral" — a dark-first developer-tool look with a living
+//  coral accent (the brand, actions, the orchestrator) over a teal "reef water"
+//  secondary and neutrals biased warm/cool to harmonize. Monospaced labels give
+//  it a technical fingerprint. All tokens ship both light and dark.
 //
 
 import SwiftUI
@@ -32,27 +32,36 @@ enum Theme {
     static let ibisPink   = Color(red: 0.957, green: 0.702, blue: 0.761)  // #F4B3C2
     static let sky        = Color(red: 0.627, green: 0.847, blue: 0.937)  // #A0D8EF
 
-    /// Accent = neutral graphite (sober, Linear-like). Color is reserved for small
-    /// details (status greens, provider tints, the diagram).
+    // MARK: Coral brand accent + teal secondary
+    /// The brand coral. Bright on dark; a touch deeper on light so small text/icons
+    /// keep contrast. This is the app's action color and the orchestrator's hue.
+    static let coral      = Color(red: 1.000, green: 0.420, blue: 0.330)   // #FF6B54
+    static let coralDeep  = Color(red: 0.886, green: 0.251, blue: 0.165)   // #E24029 (fills/pressed)
+    /// The reef-water secondary: team agents, active/live state, secondary actions.
+    static let teal       = Color(red: 0.078, green: 0.761, blue: 0.671)   // #14C2AB
+    static let tealDeep   = Color(red: 0.047, green: 0.549, blue: 0.486)   // #0C8C7C
+
+    /// Accent = coral. Small text/icon tints resolve a hair deeper on light ground.
     static let accent = Color(
-        light: Color(red: 0.227, green: 0.247, blue: 0.290),   // #3A3F4A graphite
-        dark:  Color(red: 0.729, green: 0.749, blue: 0.796))   // #BABFCB (light on dark)
+        light: Color(red: 0.862, green: 0.290, blue: 0.180),   // #DC4A2E readable coral
+        dark:  Color(red: 1.000, green: 0.420, blue: 0.330))   // #FF6B54
     static let accentHover = Color(
-        light: Color(red: 0.290, green: 0.314, blue: 0.361),   // #4A505C
-        dark:  Color(red: 0.808, green: 0.827, blue: 0.867))
+        light: Color(red: 0.784, green: 0.243, blue: 0.145),   // #C83E25
+        dark:  Color(red: 1.000, green: 0.541, blue: 0.451))   // #FF8A73
     static let accentSoft = Color(
-        light: Color(red: 0.227, green: 0.247, blue: 0.290).opacity(0.10),
-        dark:  Color.white.opacity(0.10))
+        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.12),
+        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.16))
     static let accentGlow = Color(
-        light: Color(red: 0.227, green: 0.247, blue: 0.290).opacity(0.18),
-        dark:  Color.white.opacity(0.30))
-    /// Readable text/foreground to place ON a solid accent fill.
+        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.22),
+        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.30))
+    /// Readable text/foreground to place ON a solid accent (coral) fill.
     static let onAccent = Color.white
 
-    /// Primary button fill — a subtle graphite gradient (deeper at the bottom).
+    /// Primary button fill — a living-coral gradient (deeper at the bottom so white
+    /// text keeps contrast on the lower half).
     static let primaryFill = LinearGradient(
-        colors: [Color(red: 0.271, green: 0.294, blue: 0.341),   // #454B57
-                 Color(red: 0.196, green: 0.216, blue: 0.259)],  // #323742
+        colors: [Color(red: 1.000, green: 0.420, blue: 0.330),   // #FF6B54
+                 Color(red: 0.886, green: 0.251, blue: 0.165)],  // #E24029
         startPoint: .top, endPoint: .bottom)
 
     /// A soft lavender ambient wash (subtle Wisteria nuances) behind the app.
@@ -127,7 +136,7 @@ enum Theme {
 
 // MARK: - Primary "Deep sea" button style
 
-/// The primary action button: a teal→indigo gradient fill with white text.
+/// The primary action button: a living-coral gradient fill with white text.
 struct MoonButtonStyle: ButtonStyle {
     // Explicit type: bare `Configuration` collides with the app's Configuration model.
     func makeBody(configuration: ButtonStyleConfiguration) -> some View {
@@ -154,7 +163,7 @@ private struct MoonButtonBody: View {
     }
 }
 extension ButtonStyle where Self == MoonButtonStyle {
-    /// Primary deep-sea (teal→indigo) button.
+    /// Primary living-coral button.
     static var moon: MoonButtonStyle { MoonButtonStyle() }
 }
 

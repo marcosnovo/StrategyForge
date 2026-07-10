@@ -1,9 +1,13 @@
-# StrategyForge
+# Coral
 
 A native macOS app (SwiftUI, macOS 14+) that is a **visual generator of multi-agent
 configurations for Claude Code**.
 
-StrategyForge does **not** run agents and does **not** talk to any Anthropic API. What it
+> The app is branded **Coral**. The Xcode project, target and module are still named
+> `StrategyForge` (renaming those is a separate step); the bundle identifier is
+> unchanged so existing installs and iCloud data keep working.
+
+Coral does **not** run agents and does **not** talk to any Anthropic API. What it
 does: you pick a *strategy* (topology), assign a Claude model and instance count to each
 role, choose a local repository folder, and the app **writes the Claude Code configuration
 files** into that repo (`.claude/agents/*.md` and an orchestration `CLAUDE.md`).
@@ -45,14 +49,15 @@ Optionally, it launches Claude Code in that folder.
 - Subagents → `<repo>/.claude/agents/<name>.md` (one file per instance; `worker-1.md`,
   `worker-2.md`, …). Each has YAML frontmatter (`name`, `description`, `tools?`, `model`)
   followed by the system prompt.
-- Orchestration doc → `<repo>/CLAUDE.md`. StrategyForge only touches the block between
-  `<!-- STRATEGYFORGE:START -->` and `<!-- STRATEGYFORGE:END -->` — the rest of an
-  existing CLAUDE.md is preserved.
+- Orchestration doc → `<repo>/CLAUDE.md`. Coral only touches the block between
+  `<!-- CORAL:START -->` and `<!-- CORAL:END -->` — the rest of an existing
+  CLAUDE.md is preserved. (Blocks written by earlier versions, marked
+  `<!-- STRATEGYFORGE:START/END -->`, are still recognized and upgraded in place.)
 
 ### Launching Claude Code with the right orchestrator model
 
 The orchestrator's model is **not** in any file — it is the main session's model, set at
-launch. StrategyForge generates the exact command, e.g.:
+launch. Coral generates the exact command, e.g.:
 
 ```
 claude --model claude-fable-5
@@ -106,20 +111,20 @@ See `Generators/CostEstimationHooks.swift`:
 ## Project structure
 
 ```
-StrategyForge/
-  StrategyForge/            # app sources
+Coral/
+  Coral/            # app sources
     Constants.swift         # model catalog + Claude Code tool list (single source)
     Models/                 # data model (Phase 1)
     Generators/             # file generators (Phase 3)
     ViewModels/             # view models (Phase 4)
     Views/                  # SwiftUI views (Phase 4)
-  StrategyForgeTests/       # unit tests (Testing framework)
-  StrategyForgeUITests/     # UI tests
+  CoralTests/       # unit tests (Testing framework)
+  CoralUITests/     # UI tests
 ```
 
 ## Future direction — "AgentDeck" (not in scope here)
 
-StrategyForge targets **Claude Code** (config files, your normal plan, single-level
+Coral targets **Claude Code** (config files, your normal plan, single-level
 delegation, no backend). A separate, more powerful path is Anthropic's **Managed Agents
 API** (Research Preview): a coordinator with its own model invokes agents with their own
 models via the `multiagent` field + the `agent_toolset_*` tool, each in an isolated

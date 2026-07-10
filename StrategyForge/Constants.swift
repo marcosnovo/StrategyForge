@@ -18,6 +18,27 @@
 
 import Foundation
 
+/// Application-Support paths, with a one-time migration from the app's former
+/// name. All persisted data (data.json, per-chat sessions, telemetry) lives under
+/// a single folder, so moving that one folder migrates everything at once.
+enum AppPaths {
+    /// The app's data directory. Creates it and, on first access, migrates the
+    /// legacy "StrategyForge" folder so existing users keep their chats and teams.
+    static func supportDirectory() -> URL {
+        let fm = FileManager.default
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = base.appendingPathComponent("Coral", isDirectory: true)
+        if !fm.fileExists(atPath: dir.path) {
+            let legacy = base.appendingPathComponent("StrategyForge", isDirectory: true)
+            if fm.fileExists(atPath: legacy.path) {
+                try? fm.moveItem(at: legacy, to: dir)   // brings sessions/ + telemetry along
+            }
+        }
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+}
+
 /// Namespace for app-wide constants. Kept centralized because model ids and the
 /// available tool set evolve over time.
 enum Constants {

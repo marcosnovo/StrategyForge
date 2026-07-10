@@ -63,7 +63,8 @@ struct StrategyWriter {
                 let rel = "\(AgentFileGenerator.agentsDirectory)/\(entry.lastPathComponent)"
                 guard !newPaths.contains(rel),
                       let content = try? String(contentsOf: entry, encoding: .utf8),
-                      content.contains(AgentFileGenerator.managedSignature) else { continue }
+                      content.contains(AgentFileGenerator.managedSignature)
+                        || content.contains(AgentFileGenerator.legacyManagedSignature) else { continue }
                 try? fm.removeItem(at: entry)
             }
         }

@@ -27,7 +27,7 @@ enum LaunchCommandGenerator {
     /// a raw error.
     static func gitCommitCommand() -> String {
         "if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then "
-        + "git add .claude CLAUDE.md && git commit -m \"Add Claude Code multi-agent config (StrategyForge)\" && git push; "
+        + "git add .claude CLAUDE.md && git commit -m \"Add Claude Code multi-agent config (Coral)\" && git push; "
         + "else echo '⚠️  This folder is not a git repository — nothing to push. Run: git init, add a remote, then commit & push.'; fi"
     }
 
