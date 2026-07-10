@@ -107,6 +107,7 @@ struct AgentActivityPanel: View {
                 Spacer()
             }
             HStack(spacing: Space.m) {
+                stat("person.2.fill", "\(vm.config.strategy.roles.count)")
                 if let start = vm.turnStartedAt, vm.isRunning {
                     TimelineView(.periodic(from: start, by: 1)) { ctx in
                         stat("clock", elapsed(from: start, to: ctx.date))
@@ -210,6 +211,27 @@ struct AgentActivityPanel: View {
         return hasWork ? .done : .idle
     }
 
+    /// The tool steps attributed to one agent (Claude-Code-style per-agent metrics
+    /// derived from the live timeline — the orchestrator owns the un-delegated steps).
+    private func agentSteps(_ target: AgentFocus) -> [ActivityStep] {
+        vm.timeline.filter { step in
+            guard !step.isDelegation else { return false }
+            switch target {
+            case .orchestrator: return step.agent == nil
+            case .sub(let n): return StrategyDiagramView.titlesMatch(step.agent ?? "", n)
+            case .allSteps: return true
+            }
+        }
+    }
+
+    /// (tools used, elapsed span) for one agent, or nil span when it hasn't spanned time.
+    private func agentStats(_ target: AgentFocus) -> (tools: Int, span: String?) {
+        let steps = agentSteps(target)
+        guard let first = steps.first?.at, let last = steps.last?.at else { return (0, nil) }
+        let span = last.timeIntervalSince(first) >= 1 ? activityElapsed(from: first, to: last) : nil
+        return (steps.count, span)
+    }
+
     // MARK: Steps (recent + "see all" on the right)
 
     private var stepsSection: some View {
@@ -266,6 +288,20 @@ struct AgentActivityPanel: View {
                         .font(.system(size: 10)).foregroundStyle(Theme.secondaryOnMaterial)
                         .lineLimit(1).truncationMode(.tail)
                         .padding(.leading, 16 + Space.s)
+                }
+                let stats = agentStats(target)
+                if stats.tools > 0 {
+                    HStack(spacing: Space.s) {
+                        Label("\(stats.tools)", systemImage: "wrench.and.screwdriver")
+                            .font(.system(size: 9, weight: .medium))
+                            .contentTransition(.numericText())
+                        if let span = stats.span {
+                            Label(span, systemImage: "clock")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                    }
+                    .foregroundStyle(Theme.tertiaryOnMaterial)
+                    .padding(.leading, 16 + Space.s)
                 }
                 progressBar(status).padding(.leading, 16 + Space.s)
             }
@@ -327,7 +363,11 @@ struct AgentActivityPanel: View {
 
     private var tasksSection: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            Text(model.t("activity.tasks")).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
+            HStack {
+                Text(model.t("activity.tasks")).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
+                Spacer()
+                progressDots
+            }
             ForEach(Array(vm.todos.enumerated()), id: \.offset) { _, todo in
                 HStack(alignment: .top, spacing: Space.s) {
                     todoIcon(todo.status)
@@ -338,6 +378,18 @@ struct AgentActivityPanel: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
+            }
+        }
+    }
+
+    /// A compact "▪▪▪▫▫" progress readout for the task list (Claude-Code-style),
+    /// one square per todo: filled=done, accent=in-progress, hollow=pending.
+    private var progressDots: some View {
+        HStack(spacing: 3) {
+            ForEach(Array(vm.todos.enumerated()), id: \.offset) { _, todo in
+                let color: Color = todo.status == "completed" ? Theme.success
+                    : (todo.status == "in_progress" ? Theme.accent : Theme.secondaryOnMaterial.opacity(0.3))
+                RoundedRectangle(cornerRadius: 1.5).fill(color).frame(width: 6, height: 6)
             }
         }
     }
