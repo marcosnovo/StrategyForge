@@ -13,7 +13,9 @@ struct WorkingLogo: View {
     var size: CGFloat = 18
 
     var body: some View {
-        TimelineView(.animation) { timeline in
+        // Cap at ~30fps instead of the display's full refresh (120Hz on ProMotion)
+        // — the spinner reads identically and costs a quarter of the CPU.
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             Canvas { ctx, sz in
                 let c = CGPoint(x: sz.width / 2, y: sz.height / 2)

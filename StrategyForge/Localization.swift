@@ -415,6 +415,7 @@ enum L10n {
 
         // MARK: Help-me-choose wizard
         "wizard.open": ("Help me choose", "Ayúdame a elegir"),
+        "wizard.help": ("Answer a few questions and we'll suggest a strategy", "Responde unas preguntas y te sugerimos una estrategia"),
         "wizard.title": ("Let's find the right setup", "Encontremos la configuración adecuada"),
         "wizard.subtitle": ("Answer one or two quick questions. You can change everything later.", "Responde una o dos preguntas rápidas. Podrás cambiarlo todo después."),
         "wizard.q1": ("What do you want to do right now?", "¿Qué quieres hacer ahora mismo?"),
@@ -517,6 +518,8 @@ enum L10n {
         "doc.exported": ("Strategy exported.", "Estrategia exportada."),
         "doc.imported": ("Strategy imported.", "Estrategia importada."),
         "doc.importFailed": ("Couldn’t import that file: %@", "No se pudo importar ese archivo: %@"),
+        "doc.importInvalid": ("That strategy file is invalid or incomplete (it needs an orchestrator).",
+                              "Ese archivo de estrategia es inválido o incompleto (necesita un orquestador)."),
         "lint.title": ("Checks", "Comprobaciones"),
         "lint.fixAll": ("Fix automatically", "Arreglar automáticamente"),
         "lint.fixedAll": ("Applied automatic fixes.", "Se aplicaron los arreglos automáticos."),

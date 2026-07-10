@@ -28,7 +28,7 @@ Optionally, it launches Claude Code in that folder.
 ## How to use
 
 1. **New configuration** (＋ in the sidebar).
-2. **Pick a strategy** from the dropdown — one of the seven templates below. Its
+2. **Pick a strategy** from the dropdown — one of the eleven templates below. Its
    description shows what it does.
 3. **Edit the roles table:** assign a model per role (Fable's picker shows a safeguard
    tooltip), set instance counts, restrict each role's tools, and edit each subagent's
@@ -64,28 +64,33 @@ the generated `CLAUDE.md`.
 > **This does NOT consume the Managed Agents API.** It uses your normal Claude Code plan —
 > the app only writes local config files.
 
-## The seven strategies
+## The eleven strategies
 
 1. **Orchestrator + Workers (Fan-out)** — orchestrator (Fable 5) + N identical workers
    (Sonnet 5) working parallel slices.
 2. **Executor + Advisor** — executor (Sonnet 5, main session) consults a read-only advisor
    (Fable 5) on demand.
-3. **Planner → Implementers → Reviewer** — plan, delegate to implementers, then a
+3. **Scout → Act** — a scout explores unfamiliar material first, then the executor acts.
+4. **Triage Router (by cost)** — routes each subtask to the cheapest capable model, escalating
+   only when needed.
+5. **Planner → Implementers → Reviewer** — plan, delegate to implementers, then a
    read-only reviewer.
-4. **Domain Specialists** — orchestrator routing to backend / frontend / tests / security /
+6. **Root-cause Debugging** — reproduce, isolate and fix a failure methodically.
+7. **Domain Specialists** — orchestrator routing to backend / frontend / tests / security /
    docs.
-5. **Research Fan-out** — orchestrator + N read-only researchers (Haiku) exploring in
+8. **Research Fan-out** — orchestrator + N read-only researchers (Haiku) exploring in
    parallel.
-6. **Debate / Consensus (mediated)** — moderator collects arguments from N debaters and
+9. **Debate / Consensus (mediated)** — moderator collects arguments from N debaters and
    synthesizes; no lateral communication.
-7. **Solo (baseline)** — a single agent, no subagents.
+10. **Sparring** — a challenger stress-tests the executor's proposals.
+11. **Solo (baseline)** — a single agent, no subagents.
 
 ## Build phases
 
 - [x] **Phase 0 — Scaffolding.** Folder structure, `Constants.swift`, README.
 - [x] **Phase 1 — Data model (Codable).** `ClaudeModel`, `AgentRole`, `Strategy`,
   validations.
-- [x] **Phase 2 — Predefined strategies.** The 7 editable templates (`StrategyLibrary`).
+- [x] **Phase 2 — Predefined strategies.** The 11 editable templates (`StrategyLibrary`).
 - [x] **Phase 3 — Generators.** `AgentFileGenerator`, `ClaudeMdGenerator`,
   `LaunchCommandGenerator`, `StrategyWriter` + unit tests.
 - [x] **Phase 4 — UI.** `NavigationSplitView` editor with live preview and actions.

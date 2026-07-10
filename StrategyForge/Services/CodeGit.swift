@@ -41,7 +41,10 @@ enum CodeGit {
     }
 
     private static func run(_ path: String, _ args: [String]) -> String? {
-        runResult(path, args).out
+        let r = runResult(path, args)
+        // On failure the (merged) output is an error message, not diff/branch data —
+        // return nil so callers don't parse git errors as content.
+        return r.ok ? r.out : nil
     }
 
     /// Run git and return whether it succeeded plus combined output.

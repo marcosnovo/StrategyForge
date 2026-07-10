@@ -520,7 +520,13 @@ final class AppModel {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let data = try Data(contentsOf: url)
-            let strategy = try StrategyPackage.import(data)
+            let strategy = try StrategyPackage.import(data).autoFixed()   // apply safe fixes
+            // Reject structurally-broken imports (e.g. no orchestrator) instead of
+            // adding an unusable strategy that would fail to generate/run.
+            guard strategy.isValid, !strategy.roles.isEmpty else {
+                show(.failure(t("doc.importInvalid")))
+                return
+            }
             let config = Configuration(name: strategy.name, strategy: strategy)
             configurations.append(config)
             selectedConfigID = config.id

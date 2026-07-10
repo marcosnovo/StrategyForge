@@ -14,6 +14,9 @@ struct CodeModeView: View {
     var vm: ChatViewModel
     @State private var selected: String?
     @State private var diffLines: [DiffLine]?
+    /// Raw file text for the non-diff view, loaded off the main thread (never read
+    /// synchronously in `body`).
+    @State private var fileText = ""
     @State private var loadingDiff = false
     @State private var viewMode: ViewMode = .diff
     enum ViewMode: String, CaseIterable { case diff, file }
@@ -89,10 +92,15 @@ struct CodeModeView: View {
 
     private func loadDiff() async {
         guard let path = selected, let repo = vm.config.repoPath, !repo.isEmpty else {
-            diffLines = nil; return
+            diffLines = nil; fileText = ""; return
         }
         loadingDiff = true
         diffLines = await CodeGit.diff(repo: repo, file: path)
+        // Load the raw file off-main for the non-diff view.
+        let unreadable = model.t("code.unreadable")
+        fileText = await Task.detached(priority: .userInitiated) {
+            (try? String(contentsOfFile: path, encoding: .utf8)) ?? unreadable
+        }.value
         loadingDiff = false
     }
 
@@ -200,7 +208,7 @@ struct CodeModeView: View {
                         DiffScrollView(lines: diff)
                     } else {
                         ScrollView([.vertical, .horizontal]) {
-                            Text(fileContents(path))
+                            Text(fileText)
                                 .font(.system(size: 12, design: .monospaced))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -300,10 +308,6 @@ struct CodeModeView: View {
         let clean = firstLine.trimmingCharacters(in: .whitespaces)
         let capped = clean.count > 64 ? String(clean.prefix(64)) + "…" : clean
         return capped.isEmpty ? "" : capped
-    }
-
-    private func fileContents(_ path: String) -> String {
-        (try? String(contentsOfFile: path, encoding: .utf8)) ?? model.t("code.unreadable")
     }
 
     private func icon(for path: String) -> String {
