@@ -47,6 +47,7 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// SF Symbol fallback (used in menus, where custom images don't render).
     var icon: String {
         switch self {
         case .claude: return "sparkles"
@@ -54,6 +55,19 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
         case .gemini: return "diamond.fill"
         }
     }
+
+    /// Brand logo in the asset catalog, used by `ProviderLogo` for prominent spots.
+    var logoAsset: String {
+        switch self {
+        case .claude: return "LogoClaude"
+        case .openai: return "LogoOpenAI"
+        case .gemini: return "LogoGemini"
+        }
+    }
+
+    /// The OpenAI knot is monochrome → render as a tintable template; the Claude
+    /// starburst and Gemini star are full-color marks shown as-is.
+    var logoIsTemplate: Bool { self == .openai }
 
     /// Whether the app can actually *run* a chat on this provider today.
     var isExecutable: Bool { self == .claude }
@@ -109,4 +123,24 @@ struct ProviderModel: Identifiable, Hashable {
     let displayName: String
     /// Localization key for the capability tier (Expert / Generalist / Fast…).
     let tierKey: String
+}
+
+/// The provider's brand logo from the asset catalog, sized to `size`. Monochrome
+/// marks (OpenAI) render as a template tinted by `templateTint` (default: primary
+/// so it stays visible in both light and dark); color marks show as-is.
+struct ProviderLogo: View {
+    let provider: AIProvider
+    var size: CGFloat = 16
+    var templateTint: Color = .primary
+
+    var body: some View {
+        Image(provider.logoAsset)
+            .resizable()
+            .renderingMode(provider.logoIsTemplate ? .template : .original)
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
+            .foregroundStyle(templateTint)
+            .frame(width: size, height: size)
+            .accessibilityLabel(provider.displayName)
+    }
 }

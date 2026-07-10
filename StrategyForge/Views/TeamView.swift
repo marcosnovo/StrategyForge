@@ -199,7 +199,7 @@ struct TeamView: View {
                     }
                 }
                 HStack(spacing: 4) {
-                    Image(systemName: role.provider.icon).font(.system(size: 9)).foregroundStyle(role.provider.tint)
+                    ProviderLogo(provider: role.provider, size: 12, templateTint: role.provider.tint)
                     Text(role.modelDisplayName).font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }

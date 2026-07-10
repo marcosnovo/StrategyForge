@@ -39,7 +39,7 @@ struct ServicesListColumn: View {
 
     private func row(_ p: AIProvider) -> some View {
         HStack(spacing: Space.s) {
-            Image(systemName: p.icon).foregroundStyle(p.tint).frame(width: 22)
+            ProviderLogo(provider: p, size: 18, templateTint: p.tint).frame(width: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(p.displayName).font(.sfBodyM.weight(.medium)).lineLimit(1)
                 statusText(p)
@@ -90,7 +90,7 @@ struct ProviderConfigView: View {
 
     private var header: some View {
         HStack(spacing: Space.m) {
-            Image(systemName: provider.icon).font(.largeTitle).foregroundStyle(provider.tint)
+            ProviderLogo(provider: provider, size: 40, templateTint: provider.tint)
             VStack(alignment: .leading, spacing: 2) {
                 Text(provider.displayName).font(.sfDisplay)
                 Text(model.t(provider.connectHelpKey)).font(.sfCallout).foregroundStyle(.secondary)

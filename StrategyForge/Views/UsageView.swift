@@ -51,7 +51,7 @@ struct UsageView: View {
     private var claudeSection: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(spacing: Space.s) {
-                Image(systemName: "sparkles").foregroundStyle(AIProvider.claude.tint)
+                ProviderLogo(provider: .claude, size: 20)
                 Text(AIProvider.claude.displayName).font(.sfCardTitle)
                 Spacer()
                 if let u = model.claudeUsage, let last = u.lastActivity {
@@ -157,7 +157,7 @@ struct UsageView: View {
     private var otherProvidersSection: some View {
         ForEach([AIProvider.openai, AIProvider.gemini]) { p in
             HStack(spacing: Space.s) {
-                Image(systemName: p.icon).foregroundStyle(p.tint)
+                ProviderLogo(provider: p, size: 20, templateTint: p.tint)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(p.displayName).font(.sfCallout.weight(.semibold))
                     Text(model.t("usage.noProviderData"))

@@ -39,8 +39,7 @@ struct ConnectedServicesSection: View {
     private func providerRow(_ provider: AIProvider) -> some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack(spacing: Space.s) {
-                Image(systemName: provider.icon)
-                    .foregroundStyle(provider.tint)
+                ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
                     .frame(width: 20)
                 Text(provider.displayName).font(.body.weight(.medium))
                 if !provider.isExecutable {
@@ -123,7 +122,7 @@ struct ConnectedServicesSection: View {
     private func connectSheet(_ provider: AIProvider) -> some View {
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(spacing: Space.s) {
-                Image(systemName: provider.icon).foregroundStyle(provider.tint)
+                ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
                 Text(model.t("provider.installing", provider.displayName)).font(.sfCardTitle)
                 Spacer()
                 if installState == .running { ProgressView().controlSize(.small) }

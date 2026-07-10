@@ -344,7 +344,7 @@ struct ChatView: View {
             Button(model.t("provider.manage")) { model.navSection = .services }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: config.provider.icon).font(.system(size: 8))
+                ProviderLogo(provider: config.provider, size: 11, templateTint: config.provider.tint)
                 Text(config.provider.displayName).font(.sfCaption2.weight(.semibold))
             }
             .foregroundStyle(config.provider.tint)

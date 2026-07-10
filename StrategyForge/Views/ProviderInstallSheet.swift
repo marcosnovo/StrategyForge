@@ -23,7 +23,7 @@ struct ProviderInstallSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(spacing: Space.s) {
-                Image(systemName: provider.icon).foregroundStyle(provider.tint)
+                ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
                 Text(model.t("provider.installing", provider.displayName)).font(.sfCardTitle)
                 Spacer()
                 if state == .running { ProgressView().controlSize(.small) }

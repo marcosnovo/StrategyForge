@@ -85,7 +85,7 @@ struct RoleSummaryChip: View {
     let role: AgentRole
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: role.provider.icon).font(.system(size: 9)).foregroundStyle(role.provider.tint)
+            ProviderLogo(provider: role.provider, size: 12, templateTint: role.provider.tint)
             Text(role.modelDisplayName).font(.sfCaption2.weight(.medium))
             Text("· ×\(role.count)").font(.sfCaption2).foregroundStyle(.secondary)
             if !role.tools.isEmpty {
@@ -197,7 +197,7 @@ struct RoleEditorForm: View {
             Button(model.t("provider.manage")) { model.navSection = .services }
         } label: {
             HStack(spacing: 3) {
-                Image(systemName: role.provider.icon).font(.system(size: 8))
+                ProviderLogo(provider: role.provider, size: 11, templateTint: role.provider.tint)
                 Text(role.provider.displayName).font(.sfCaption2.weight(.semibold))
             }
             .foregroundStyle(role.provider.tint)
