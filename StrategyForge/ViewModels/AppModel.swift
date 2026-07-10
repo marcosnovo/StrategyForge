@@ -304,10 +304,43 @@ final class AppModel {
     func autoTitleIfNeeded(_ id: Configuration.ID, fromFirstMessage text: String) {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
         guard !configurations[i].titleWasManuallySet, configurations[i].name.isEmpty else { return }
-        let title = Self.inferredTitle(from: text)
+        let title = titleFromMessage(text)
         guard !title.isEmpty else { return }
         configurations[i].name = title   // leave titleWasManuallySet false (still auto)
         save()
+    }
+
+    /// A short, theme-style title for a chat: a category ("Research", "Review",
+    /// "Design"…) when the message clearly maps to one, else a cleaned-up topic.
+    func titleFromMessage(_ text: String) -> String {
+        if let key = Self.topicCategoryKey(for: text) { return t(key) }
+        return Self.inferredTitle(from: text)
+    }
+
+    /// Ordered keyword → topic-category map. Returns a localization key ("topic.*")
+    /// for the first category whose stems appear in the message, else nil. Stems are
+    /// accent- and language-tolerant (Spanish + English), matched case-insensitively.
+    static func topicCategoryKey(for text: String) -> String? {
+        let s = text.lowercased()
+        // Most specific first so e.g. "revisa el diseño" reads as Review, not Design.
+        let table: [(key: String, stems: [String])] = [
+            ("topic.bugfix",  ["bug", "error", "crash", "arregl", "fix", "solucion", "falla", "fallo", "corrig", "rompe", "roto", "no funciona", "broken"]),
+            ("topic.tests",   ["test", "prueb", "testea", "cobertura", "unit test", "xctest"]),
+            ("topic.review",  ["revis", "review", "audit", "comprob", "verif", "evalú", "evalua"]),
+            // "documento" (the object) must NOT trigger docs — only writing docs does.
+            ("topic.docs",    ["documenta", "documentaci", "readme", " docs", "docstring", "javadoc"]),
+            ("topic.refactor",["refactor", "reorganiz", "reestructur", "restructur", "limpia el códig", "limpiar el códig", "clean up"]),
+            ("topic.perf",    ["optimiz", "rendimiento", "performance", "velocidad", "más rápid", "mas rapid", "lento", "latenc"]),
+            ("topic.design",  ["diseñ", "rediseñ", "design", "interfaz", "ui/ux", " ui ", " ux ", "visual", "estétic", "estetic", "maquet", "layout", "look and feel"]),
+            ("topic.research",["investig", "explor", "analiz", "research", "entend", "entiend", "understand", "estudi", "averigu", "descubr"]),
+            ("topic.explain", ["explic", "explíc", "cómo funciona", "como funciona", "how does", "qué hace", "que hace", "walk me through"]),
+            ("topic.plan",    ["planific", "planea", "roadmap", "estrategia", "hoja de ruta", "plan de"]),
+            ("topic.feature", ["implement", "añad", "agreg", "crea ", "crear", "add ", "build", "desarroll", "nueva func", "feature", "construye"]),
+        ]
+        for entry in table where entry.stems.contains(where: { s.contains($0) }) {
+            return entry.key
+        }
+        return nil
     }
 
     /// Re-derive titles for chats that were auto-named (never set by the user),
@@ -318,7 +351,7 @@ final class AppModel {
         for i in configurations.indices where !configurations[i].titleWasManuallySet {
             guard let firstUser = configurations[i].transcript.first(where: { $0.role == .user })?.text,
                   !firstUser.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-            let title = Self.inferredTitle(from: firstUser)
+            let title = titleFromMessage(firstUser)
             if !title.isEmpty && title != configurations[i].name {
                 configurations[i].name = title
                 changed = true

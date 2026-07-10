@@ -31,6 +31,19 @@ struct ChatTitleTests {
     @Test func keepsPlainTopicUnchanged() {
         #expect(AppModel.inferredTitle(from: "Fix the crash on launch") == "Fix the crash on launch")
     }
+
+    @Test func categorizesByTopic() {
+        #expect(AppModel.topicCategoryKey(for: "Investigues lo mejor posible el motor") == "topic.research")
+        #expect(AppModel.topicCategoryKey(for: "Revisees este documento con cuidado") == "topic.review")
+        #expect(AppModel.topicCategoryKey(for: "Mejorar mucho el diseño de la pantalla") == "topic.design")
+        #expect(AppModel.topicCategoryKey(for: "Arregla el crash al abrir") == "topic.bugfix")
+        #expect(AppModel.topicCategoryKey(for: "Añade una nueva pantalla de ajustes") == "topic.feature")
+    }
+
+    @Test func categoryFallsBackToCleanedPhrase() {
+        // No category keyword → nil, so the caller uses the cleaned phrase instead.
+        #expect(AppModel.topicCategoryKey(for: "Quiero hablar sobre el proyecto") == nil)
+    }
 }
 
 struct ClaudeStreamParserTests {
