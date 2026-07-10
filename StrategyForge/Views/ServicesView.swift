@@ -66,6 +66,9 @@ struct ProviderConfigView: View {
     @Environment(AppModel.self) private var model
     let provider: AIProvider
     @State private var connecting = false
+    @State private var test: TestState = .idle
+
+    private enum TestState: Equatable { case idle, running, ok(String), fail(String) }
 
     private var connected: Bool { model.isConnected(provider) }
 
@@ -75,6 +78,7 @@ struct ProviderConfigView: View {
                 header
                 statusCard
                 binaryCard
+                if connected { testCard }
                 if !provider.isExecutable { soonNote }
             }
             .padding(Space.xl)
@@ -133,6 +137,56 @@ struct ProviderConfigView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
         .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    /// Runs one real one-shot through the provider's CLI so you can verify it
+    /// end-to-end (works today for Claude; validates Codex/Gemini once installed).
+    private var testCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack {
+                Text(model.t("provider.test")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Spacer()
+                Button {
+                    runTest()
+                } label: {
+                    if test == .running { ProgressView().controlSize(.small) }
+                    else { Text(model.t("provider.test.run")) }
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+                .disabled(test == .running)
+            }
+            switch test {
+            case .ok(let snippet):
+                Label(snippet.isEmpty ? model.t("provider.test.ok") : snippet, systemImage: "checkmark.circle.fill")
+                    .font(.sfCaption2).foregroundStyle(Theme.success)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .fail(let msg):
+                Label(msg, systemImage: "exclamationmark.triangle.fill")
+                    .font(.sfCaption2).foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            default:
+                Text(model.t("provider.test.hint")).font(.sfCaption2).foregroundStyle(.secondary)
+            }
+        }
+        .padding(Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    private func runTest() {
+        test = .running
+        let runner = CLIOneShotRunner(binaries: [provider: model.settings.binary(for: provider)])
+        let modelID = provider.models.first?.id ?? ""
+        Task {
+            do {
+                let r = try await runner.run(prompt: "Reply with a short one-line greeting.",
+                                             provider: provider, model: modelID, cwd: nil)
+                test = .ok(String(r.text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(140)))
+            } catch {
+                test = .fail((error as? OneShotError)?.errorDescription ?? error.localizedDescription)
+            }
+        }
     }
 
     private var soonNote: some View {
