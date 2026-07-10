@@ -123,7 +123,7 @@ private enum DiagramSpecBuilder {
         let orchRole = strategy.orchestrator
         let orchestrator = DiagramNode(
             title: titleCase(orchRole?.name ?? "orchestrator"),
-            model: orchRole?.model.displayName ?? "—",
+            model: orchRole?.modelDisplayName ?? "—",
             subtitle: t(orchestratorSubtitleKey(strategy)),
             isAccent: tier(orchRole?.model ?? .fable5) >= topTier,
             loopLabel: nil,
@@ -161,7 +161,7 @@ private enum DiagramSpecBuilder {
             let subtitle: String? = subKey == nil ? nil : t(subKey!)
             let node = DiagramNode(
                 title: box.title,
-                model: box.role.model.displayName,
+                model: box.role.modelDisplayName,
                 subtitle: subtitle,
                 isAccent: tier(box.role.model) >= topTier,
                 loopLabel: nil,   // no self-loops — the round-trip tells the story

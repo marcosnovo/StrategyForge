@@ -217,6 +217,8 @@ enum L10n {
         "provider.connected": ("Connected", "Conectado"),
         "provider.notFound": ("Not found", "No encontrado"),
         "provider.soon": ("Engine soon", "Motor pronto"),
+        "provider.soon.note": ("Runs on Claude for now; this provider's engine is coming.",
+                               "De momento corre en Claude; el motor de este proveedor llega pronto."),
         "provider.connect": ("Install & connect", "Instalar y conectar"),
         "provider.signin": ("Sign in", "Iniciar sesión"),
         "provider.installing": ("Setting up %@", "Configurando %@"),

@@ -121,13 +121,75 @@ struct RoleRowView: View {
             HStack(spacing: 4) {
                 FieldLabel(text: model.t("field.model"))
                 InfoPopoverButton(text: model.t("glossary.modelEffort"))
+                Spacer()
+                providerMenu
             }
-            modelGrid
-            // The redirect caveat (e.g. Fable → Opus) shown inline when relevant.
-            if let note = role.model.safeguardNote {
-                Label(note, systemImage: "info.circle")
-                    .font(.sfCaption2).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            if role.provider == .claude {
+                modelGrid
+                // The redirect caveat (e.g. Fable → Opus) shown inline when relevant.
+                if let note = role.model.safeguardNote {
+                    Label(note, systemImage: "info.circle")
+                        .font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                providerModelGrid
+                if !role.provider.isExecutable {
+                    Label(model.t("provider.soon.note"), systemImage: "clock")
+                        .font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// Per-role AI back-end — this is what enables cross-provider "mixes".
+    private var providerMenu: some View {
+        Menu {
+            ForEach(AIProvider.allCases) { p in
+                Button {
+                    role.provider = p
+                    role.providerModelID = p == .claude ? nil : p.models.first?.id
+                } label: {
+                    Label(p.displayName, systemImage: role.provider == p ? "checkmark" : p.icon)
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: role.provider.icon).font(.system(size: 8))
+                Text(role.provider.displayName).font(.sfCaption2.weight(.semibold))
+            }
+            .foregroundStyle(role.provider.tint)
+            .padding(.horizontal, 8).padding(.vertical, 2)
+            .background(Capsule().fill(role.provider.tint.opacity(0.14)))
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+    }
+
+    /// Model grid for a non-Claude provider (writes providerModelID).
+    private var providerModelGrid: some View {
+        HStack(spacing: 6) {
+            ForEach(role.provider.models) { m in
+                let selected = (role.providerModelID ?? role.provider.models.first?.id) == m.id
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { role.providerModelID = m.id }
+                } label: {
+                    VStack(spacing: 3) {
+                        Text(model.t(m.tierKey))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(selected ? .primary : .secondary).lineLimit(1)
+                        Text(m.displayName)
+                            .font(.system(size: 8)).foregroundStyle(.tertiary).lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: 9)
+                        .fill(selected ? role.provider.tint.opacity(0.16) : Theme.cardBg))
+                    .overlay(RoundedRectangle(cornerRadius: 9)
+                        .strokeBorder(selected ? role.provider.tint : Theme.hairline,
+                                      lineWidth: selected ? 1.5 : 1))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
     }
