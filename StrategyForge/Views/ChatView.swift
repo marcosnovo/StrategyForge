@@ -226,7 +226,7 @@ struct ChatView: View {
                     .onSubmit { rename(editingTitle) }
 
                 HStack(spacing: Space.s) {
-                    providerPill
+                    providerStack
                     // Strategy pill opens the visual Team section (not a modal).
                     Button { model.navSection = .team } label: {
                         Text(model.strategyDisplayName(config.strategy))
@@ -321,41 +321,30 @@ struct ChatView: View {
     }
 
     /// Which AI back-end this chat runs on — a menu to switch providers.
-    private var providerPill: some View {
-        Menu {
+    /// A compact, Refil-style row of provider avatars: connected ones are tappable
+    /// to switch this chat's back-end (active gets a ring); disconnected ones are
+    /// dimmed and lead to Connect. Replaces the old text pill (and fixes the giant
+    /// logo that a Menu label rendered from a resizable image).
+    private var providerStack: some View {
+        HStack(spacing: -6) {
             ForEach(AIProvider.allCases) { p in
-                if model.isConnected(p) {
-                    Button {
-                        model.setProvider(config.id, p)
-                    } label: {
-                        Label {
-                            Text(p.displayName + (p.isExecutable ? "" : " · \(model.t("provider.soon"))"))
-                        } icon: {
-                            Image(systemName: config.provider == p ? "checkmark" : p.icon)
-                        }
-                    }
-                } else {
-                    Button { model.selectedService = p; model.navSection = .services } label: {
-                        Label("\(p.displayName) — \(model.t("provider.locked"))", systemImage: "lock.fill")
-                    }
+                let connected = model.isConnected(p)
+                Button {
+                    if connected { model.setProvider(config.id, p) }
+                    else { model.selectedService = p; model.navSection = .services }
+                } label: {
+                    ProviderAvatar(provider: p, size: 24, active: config.provider == p && connected)
+                        .opacity(connected ? 1 : 0.45)
+                        .grayscale(connected ? 0 : 0.7)
                 }
+                .buttonStyle(.plain)
+                .zIndex(config.provider == p ? 1 : 0)
+                .help(connected ? p.displayName : "\(p.displayName) — \(model.t("provider.locked"))")
+                .accessibilityLabel(connected ? p.displayName : "\(p.displayName) — \(model.t("provider.locked"))")
             }
-            Divider()
-            Button(model.t("provider.manage")) { model.navSection = .services }
-        } label: {
-            HStack(spacing: 4) {
-                ProviderLogo(provider: config.provider, size: 11, templateTint: config.provider.tint)
-                Text(config.provider.displayName).font(.sfCaption2.weight(.semibold))
-            }
-            .foregroundStyle(config.provider.tint)
-            .padding(.horizontal, 9).padding(.vertical, 3)
-            .glassEffect(.regular.tint(config.provider.tint.opacity(0.18)), in: .capsule)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .padding(.trailing, Space.xs)
         .fixedSize()
-        .help(model.t("chat.provider"))
-        .accessibilityLabel(model.t("chat.provider"))
     }
 
     /// Code mode is offered only when the chat targets a real folder on disk.

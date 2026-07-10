@@ -107,18 +107,20 @@ struct SidebarView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .help(model.strategyDisplayName(config.strategy))
             VStack(alignment: .leading, spacing: 2) {
+                // Title on its own full-width line so it isn't crowded by the time.
+                Text(config.name.isEmpty ? model.t("chat.untitled") : config.name)
+                    .font(.sfBodyM.weight(.semibold))
+                    .lineLimit(1).truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 HStack(spacing: Space.xs) {
-                    Text(config.name.isEmpty ? model.t("chat.untitled") : config.name)
-                        .font(.sfBodyM.weight(.semibold))
-                        .lineLimit(1)
+                    Text(previewLine(config))
+                        .font(.sfCaption2)
+                        .foregroundStyle(config.repoPath == nil && lastMessage(config) == nil ? Theme.warning : .secondary)
+                        .lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: Space.xs)
                     Text(config.recency.formatted(.relative(presentation: .named)))
                         .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
                 }
-                Text(previewLine(config))
-                    .font(.sfCaption2)
-                    .foregroundStyle(config.repoPath == nil && lastMessage(config) == nil ? Theme.warning : .secondary)
-                    .lineLimit(1).truncationMode(.tail)
             }
         }
     }

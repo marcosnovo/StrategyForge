@@ -299,18 +299,81 @@ final class AppModel {
         save()
     }
 
-    /// Name an untitled chat from its first user message (first line, ≤40 chars).
-    /// No-op if the user already named it or a name exists.
+    /// Name an untitled chat by inferring a concise topic from its first user
+    /// message. No-op if the user already named it or a name exists.
     func autoTitleIfNeeded(_ id: Configuration.ID, fromFirstMessage text: String) {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
         guard !configurations[i].titleWasManuallySet, configurations[i].name.isEmpty else { return }
-        let firstLine = text
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !firstLine.isEmpty else { return }
-        let capped = firstLine.count > 40 ? String(firstLine.prefix(40)) + "…" : firstLine
-        configurations[i].name = capped   // leave titleWasManuallySet false (still auto)
+        let title = Self.inferredTitle(from: text)
+        guard !title.isEmpty else { return }
+        configurations[i].name = title   // leave titleWasManuallySet false (still auto)
         save()
+    }
+
+    /// Re-derive titles for chats that were auto-named (never set by the user),
+    /// upgrading legacy "Quiero…"-style truncations to the cleaner inferred topic.
+    /// Idempotent: a well-formed title re-derives to itself, so this causes no churn.
+    func retitleAutoNamedChats() {
+        var changed = false
+        for i in configurations.indices where !configurations[i].titleWasManuallySet {
+            guard let firstUser = configurations[i].transcript.first(where: { $0.role == .user })?.text,
+                  !firstUser.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            let title = Self.inferredTitle(from: firstUser)
+            if !title.isEmpty && title != configurations[i].name {
+                configurations[i].name = title
+                changed = true
+            }
+        }
+        if changed { save(stamp: false) }   // cosmetic re-derive → don't bump sync clocks
+    }
+
+    /// Turn a free-text first message into a short topic title: strip leading
+    /// filler ("Quiero…", "Necesito…", "Can you…"), drop trailing punctuation, and
+    /// cut on a word boundary so nothing reads as a mangled sentence fragment.
+    static func inferredTitle(from raw: String, maxChars: Int = 46) -> String {
+        var s = raw.replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        while s.contains("  ") { s = s.replacingOccurrences(of: "  ", with: " ") }
+        guard !s.isEmpty else { return "" }
+
+        // Leading filler to peel off (lowercased, longest first so multi-word wins).
+        let fillers = [
+            "me gustaría que", "me gustaria que", "me gustaría", "me gustaria",
+            "necesito que", "quiero que", "quisiera que", "podrías", "podrias",
+            "puedes", "podemos", "ayúdame a", "ayudame a", "ayúdame", "ayudame",
+            "vamos a", "hay que", "tengo que", "necesito", "quiero", "quisiera",
+            "por favor", "porfa", "oye", "hola",
+            "i want to", "i need to", "i'd like to", "i would like to",
+            "can you", "could you", "please help me", "please", "help me", "let's", "lets",
+        ].sorted { $0.count > $1.count }
+
+        var changed = true
+        let strip = CharacterSet(charactersIn: " ,:;-–—.")
+        while changed {
+            changed = false
+            let lower = s.lowercased()
+            for f in fillers where lower.hasPrefix(f + " ") || lower == f {
+                s = String(s.dropFirst(f.count)).trimmingCharacters(in: strip)
+                changed = true
+                break
+            }
+        }
+        s = s.trimmingCharacters(in: strip)
+        guard !s.isEmpty else { return String(raw.prefix(maxChars)) }
+
+        // Capitalize the first letter, keep the rest as written.
+        s = s.prefix(1).uppercased() + s.dropFirst()
+
+        // Cut on a word boundary if too long.
+        if s.count > maxChars {
+            let head = String(s.prefix(maxChars))
+            if let sp = head.lastIndex(of: " "), head.distance(from: head.startIndex, to: sp) > maxChars / 2 {
+                s = String(head[..<sp]) + "…"
+            } else {
+                s = head + "…"
+            }
+        }
+        return s
     }
 
     func deleteConfiguration(_ id: Configuration.ID) {
@@ -931,6 +994,7 @@ final class AppModel {
         }
         showActivity = settings.showActivity
         snapshotConfigurations()
+        retitleAutoNamedChats()   // upgrade legacy auto-titles in place (idempotent)
     }
 
     /// Remember the selected chat so it reopens on next launch (device-local).

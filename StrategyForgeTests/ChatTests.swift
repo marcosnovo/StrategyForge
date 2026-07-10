@@ -9,6 +9,30 @@ import Testing
 import Foundation
 @testable import StrategyForge
 
+@MainActor
+struct ChatTitleTests {
+    @Test func stripsSpanishFiller() {
+        #expect(AppModel.inferredTitle(from: "Quiero mejorar el diseño") == "Mejorar el diseño")
+        #expect(AppModel.inferredTitle(from: "Necesito que revises el login") == "Revises el login")
+        #expect(AppModel.inferredTitle(from: "me gustaría que añadas un modo oscuro") == "Añadas un modo oscuro")
+    }
+
+    @Test func stripsEnglishFiller() {
+        #expect(AppModel.inferredTitle(from: "Can you add a dark mode toggle") == "Add a dark mode toggle")
+    }
+
+    @Test func cutsOnWordBoundary() {
+        let t = AppModel.inferredTitle(from: "Refactor the entire networking layer and its retry policies today", maxChars: 30)
+        #expect(t.count <= 31)          // ≤ maxChars + the ellipsis
+        #expect(t.hasSuffix("…"))
+        #expect(!t.contains("  "))
+    }
+
+    @Test func keepsPlainTopicUnchanged() {
+        #expect(AppModel.inferredTitle(from: "Fix the crash on launch") == "Fix the crash on launch")
+    }
+}
+
 struct ClaudeStreamParserTests {
 
     @Test func parsesAssistantText() {

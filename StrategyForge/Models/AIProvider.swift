@@ -144,3 +144,24 @@ struct ProviderLogo: View {
             .accessibilityLabel(provider.displayName)
     }
 }
+
+/// A provider's brand logo inside a white circle — a small, tappable avatar for
+/// the chat header (Refil-style provider list). The circle clips any oversized
+/// artwork and keeps every mark (incl. the monochrome OpenAI knot) legible on any
+/// surface. The active provider gets a tinted ring.
+struct ProviderAvatar: View {
+    let provider: AIProvider
+    var size: CGFloat = 24
+    var active: Bool = false
+
+    var body: some View {
+        ProviderLogo(provider: provider, size: size * 0.58, templateTint: .black)
+            .frame(width: size, height: size)
+            .background(Circle().fill(.white))
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(active ? provider.tint : Color.black.opacity(0.12),
+                                           lineWidth: active ? 2 : 1))
+            .shadow(color: .black.opacity(0.10), radius: active ? 3 : 1, y: 0.5)
+            .accessibilityLabel(provider.displayName)
+    }
+}
