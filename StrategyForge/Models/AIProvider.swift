@@ -49,9 +49,9 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
 
     var icon: String {
         switch self {
-        case .claude: return "sparkle"
-        case .openai: return "circle.hexagonpath"
-        case .gemini: return "diamond"
+        case .claude: return "sparkles"
+        case .openai: return "circle.hexagonpath.fill"
+        case .gemini: return "diamond.fill"
         }
     }
 
