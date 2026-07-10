@@ -35,6 +35,7 @@ struct ChatView: View {
     @State private var isDropTargeted = false
     /// Confirmation before granting persistent full access.
     @State private var confirmAlwaysAllow = false
+    @State private var showReport = false
     /// Code mode: a developer workspace (files/diffs) instead of plain chat.
     @State private var codeMode = false
     private let rename: (String) -> Void
@@ -108,6 +109,18 @@ struct ChatView: View {
         .task(id: config.provider) { await checkEngine() }
         .sheet(isPresented: $showInstall) {
             ProviderInstallSheet(provider: .claude) { Task { await checkEngine() } }
+        }
+        .sheet(isPresented: $showReport) {
+            MissionReportView(
+                title: config.name.isEmpty ? (vm.todos.first?.content ?? "") : config.name,
+                strategyName: model.strategyDisplayName(config.strategy),
+                agents: MissionReport.agentLines(strategy: config.strategy, timeline: vm.timeline),
+                tokens: vm.totalTokens,
+                costUSD: vm.totalCostUSD,
+                elapsed: vm.turnStartedAt.map { activityElapsed(from: $0, to: vm.timeline.last?.at ?? Date()) } ?? "",
+                outcome: vm.messages.last(where: { $0.role == .assistant })?.text ?? ""
+            )
+            .environment(model)
         }
         // Preserve unsent text when leaving this chat.
         .onDisappear { saveDraft(vm.input) }
@@ -288,6 +301,15 @@ struct ChatView: View {
             .padding(.horizontal, 9).padding(.vertical, 3)
             .glassEffect(.regular, in: .capsule)
             .help(model.t("chat.tokens.help"))
+            // Mission report — the shareable summary of the finished run.
+            if vm.hasFinishedActivity {
+                Button { showReport = true } label: {
+                    Image(systemName: "flag.checkered")
+                }
+                .buttonStyle(.borderless)
+                .help(model.t("report.open"))
+                .accessibilityLabel(model.t("report.title"))
+            }
             if codeModeEligible {
                 Button { codeMode.toggle() } label: {
                     Image(systemName: "chevron.left.forwardslash.chevron.right")

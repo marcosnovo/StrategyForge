@@ -130,6 +130,27 @@ struct ClaudeMdGeneratorTests {
     }
 }
 
+struct MissionReportTests {
+    @Test func headlineReadsLikeAShareableBrag() {
+        #expect(MissionReport.headline(agentCount: 4, costUSD: 0.83, tokens: 1000) == "A 4-agent team finished for $0.83.")
+        #expect(MissionReport.headline(agentCount: 1, costUSD: 0, tokens: 12_000).contains("single agent"))
+    }
+
+    @Test func markdownIncludesTeamAgentsAndOutcome() {
+        let strategy = StrategyLibrary.orchestratorWorkers()
+        let lines = MissionReport.agentLines(strategy: strategy, timeline: [])
+        let md = MissionReport.markdown(title: "Improve the HUD", strategyName: "Orchestrator + Workers",
+                                        agents: lines, tokens: 24_500, costUSD: 0.83,
+                                        elapsed: "2m 10s", outcome: "Reworked the HUD tokens.")
+        #expect(md.contains("# Mission report — Improve the HUD"))
+        #expect(md.contains("finished for $0.83"))
+        #expect(md.contains("| Agent | Role | Model | Steps | Time |"))
+        #expect(md.contains("## Outcome"))
+        #expect(md.contains("Reworked the HUD tokens."))
+        #expect(lines.count == strategy.roles.count)   // one line per role
+    }
+}
+
 struct LaunchCommandGeneratorTests {
 
     @Test func usesOrchestratorModel() {
