@@ -35,6 +35,10 @@ struct NavRail: View {
                     else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
                 }
             }
+            item("person.3.sequence.fill", "rail.team",
+                 active: model.navSection == .team) {
+                model.navSection = .team
+            }
             item("point.3.connected.trianglepath.dotted", "rail.connected",
                  active: model.navSection == .services) {
                 model.navSection = .services

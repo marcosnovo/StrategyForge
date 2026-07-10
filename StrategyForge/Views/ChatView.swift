@@ -227,8 +227,8 @@ struct ChatView: View {
 
                 HStack(spacing: Space.s) {
                     providerPill
-                    // Strategy pill doubles as an entry point to the config sheet.
-                    Button { showInspector = true } label: {
+                    // Strategy pill opens the visual Team section (not a modal).
+                    Button { model.navSection = .team } label: {
                         Text(model.strategyDisplayName(config.strategy))
                             .font(.sfCaption2.weight(.medium))
                             .foregroundStyle(Theme.accent)

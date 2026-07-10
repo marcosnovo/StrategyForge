@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 /// The kind of role a subagent plays. Drives sensible defaults (e.g. read-only
 /// tools for reviewers/advisors/researchers) and the badge shown in the UI.
@@ -32,6 +33,32 @@ enum RoleKind: String, Codable, CaseIterable, Identifiable, Hashable {
         case .planner: return "Planner"
         case .researcher: return "Researcher"
         case .specialist: return "Specialist"
+        }
+    }
+
+    /// An SF Symbol representing the role kind, used on the visual team canvas.
+    var icon: String {
+        switch self {
+        case .orchestrator: return "point.3.connected.trianglepath.dotted"
+        case .worker: return "hammer.fill"
+        case .advisor: return "lightbulb.fill"
+        case .reviewer: return "checkmark.seal.fill"
+        case .planner: return "list.bullet.clipboard.fill"
+        case .researcher: return "magnifyingglass"
+        case .specialist: return "star.fill"
+        }
+    }
+
+    /// Accent color for the role kind (matches RoleBadge).
+    var tint: Color {
+        switch self {
+        case .orchestrator: return .purple
+        case .worker: return .blue
+        case .advisor: return .teal
+        case .reviewer: return .orange
+        case .planner: return .indigo
+        case .researcher: return .green
+        case .specialist: return .pink
         }
     }
 

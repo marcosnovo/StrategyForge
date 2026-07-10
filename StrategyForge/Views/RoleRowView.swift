@@ -2,23 +2,20 @@
 //  RoleRowView.swift
 //  StrategyForge
 //
-//  One editable row in the roles table: name, role badge, model picker (with
-//  Fable safeguard tooltip), count stepper, tools multi-select, and buttons to
-//  edit the system prompt and description in sheets.
+//  One editable row in the roles table (compact list) plus RoleEditorForm — the
+//  full role editor (model/provider grid, count, tools, prompts) shared by the
+//  legacy Configure sheet and the visual Team canvas' inline detail panel.
 //
 
 import SwiftUI
 
 struct RoleRowView: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.openSettings) private var openSettings
     @Binding var role: AgentRole
     /// Validation issues that target this specific role.
     let issues: [Strategy.ValidationIssue]
 
     @State private var configuring = false
-    @State private var hoveredModel: ClaudeModel?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var hasError: Bool { issues.contains { $0.severity == .error } }
 
@@ -45,7 +42,7 @@ struct RoleRowView: View {
                 .buttonStyle(.bordered).controlSize(.small).fixedSize()
             }
 
-            summaryChip
+            RoleSummaryChip(role: role)
 
             if role.isOrchestrator {
                 Label(model.t("role.orchestratorNote"), systemImage: "info.circle")
@@ -70,27 +67,52 @@ struct RoleRowView: View {
             RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
                 .strokeBorder(hasError ? Theme.danger.opacity(0.55) : Theme.hairline, lineWidth: 1)
         )
-        .sheet(isPresented: $configuring) { configureSheet }
+        .sheet(isPresented: $configuring) {
+            VStack(alignment: .leading, spacing: Space.m) {
+                Text("\(model.roleKindName(role.role)) — \(role.name)").font(.sfCardTitle)
+                RoleEditorForm(role: $role, issues: issues)
+                HStack { Spacer(); Button(model.t("common.done")) { configuring = false }.keyboardShortcut(.defaultAction) }
+            }
+            .padding(Space.l)
+            .frame(width: 540)
+        }
     }
+}
 
-    /// A one-line summary of this role's setup (provider · model · count · tools).
-    private var summaryChip: some View {
+/// A one-line summary of a role's setup (provider · model · count · tools).
+struct RoleSummaryChip: View {
+    @Environment(AppModel.self) private var model
+    let role: AgentRole
+    var body: some View {
         HStack(spacing: 5) {
             Image(systemName: role.provider.icon).font(.system(size: 9)).foregroundStyle(role.provider.tint)
             Text(role.modelDisplayName).font(.sfCaption2.weight(.medium))
             Text("· ×\(role.count)").font(.sfCaption2).foregroundStyle(.secondary)
             if !role.tools.isEmpty {
-                Text("· \(toolsSummary)").font(.sfCaption2).foregroundStyle(.secondary)
+                Text("· \(model.t("role.toolsCount", role.tools.count))").font(.sfCaption2).foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 3)
         .background(Capsule().fill(Theme.cardBg).overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1)))
     }
+}
 
-    /// The full role editor, opened on demand from the compact row.
-    private var configureSheet: some View {
+// MARK: - Reusable role editor
+
+/// The full editor for a single role: model/provider capability grid, instance
+/// count, tools, and the system-prompt / description editors. Used both by the
+/// legacy Configure sheet and the visual Team canvas' inline detail panel.
+struct RoleEditorForm: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Binding var role: AgentRole
+    var issues: [Strategy.ValidationIssue] = []
+
+    @State private var hoveredModel: ClaudeModel?
+
+    var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            Text("\(model.roleKindName(role.role)) — \(role.name)").font(.sfCardTitle)
             modelField
             HStack(alignment: .bottom, spacing: 16) {
                 labeled("field.instances") { countStepper }
@@ -113,10 +135,7 @@ struct RoleRowView: View {
                     .foregroundStyle(issue.severity == .error ? Theme.danger : Theme.warning)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack { Spacer(); Button(model.t("common.done")) { configuring = false }.keyboardShortcut(.defaultAction) }
         }
-        .padding(Space.l)
-        .frame(width: 540)
     }
 
     // MARK: - Controls
@@ -129,9 +148,8 @@ struct RoleRowView: View {
         }
     }
 
-    /// Model picker + a capability-tier hint (Specialist / Expert / Generalist /
-    /// Fast) and a model-vs-effort explainer, so the model choice is understood as
-    /// "how capable", separate from Claude Code's runtime effort setting.
+    /// Model picker + a capability-tier hint, separate from Claude Code's runtime
+    /// effort setting.
     private var modelField: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
@@ -142,7 +160,6 @@ struct RoleRowView: View {
             }
             if role.provider == .claude {
                 modelGrid
-                // The redirect caveat (e.g. Fable → Opus) shown inline when relevant.
                 if let note = role.model.safeguardNote {
                     Label(note, systemImage: "info.circle")
                         .font(.sfCaption2).foregroundStyle(.secondary)
@@ -171,14 +188,13 @@ struct RoleRowView: View {
                         Label(p.displayName, systemImage: role.provider == p ? "checkmark" : p.icon)
                     }
                 } else {
-                    // Not installed yet → locked; tap goes to Connected services.
-                    Button { openSettings() } label: {
+                    Button { model.navSection = .services; model.selectedService = p } label: {
                         Label("\(p.displayName) — \(model.t("provider.locked"))", systemImage: "lock.fill")
                     }
                 }
             }
             Divider()
-            Button(model.t("provider.manage")) { openSettings() }
+            Button(model.t("provider.manage")) { model.navSection = .services }
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: role.provider.icon).font(.system(size: 8))
@@ -197,7 +213,7 @@ struct RoleRowView: View {
             ForEach(role.provider.models) { m in
                 let selected = (role.providerModelID ?? role.provider.models.first?.id) == m.id
                 Button {
-                    withAnimation(.easeOut(duration: 0.15)) { role.providerModelID = m.id }
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { role.providerModelID = m.id }
                 } label: {
                     VStack(spacing: 3) {
                         Text(model.t(m.tierKey))
@@ -219,8 +235,7 @@ struct RoleRowView: View {
         }
     }
 
-    /// A capability grid: one card per model showing its tier icon, tier name and
-    /// model name, so "how capable" is legible at a glance instead of a bare menu.
+    /// A capability grid: one card per Claude model showing tier icon/name.
     private var modelGrid: some View {
         HStack(spacing: 6) {
             ForEach(ClaudeModel.allCases) { m in modelChip(m) }
@@ -230,7 +245,7 @@ struct RoleRowView: View {
     private func modelChip(_ m: ClaudeModel) -> some View {
         let selected = role.model == m
         return Button {
-            withAnimation(.easeOut(duration: 0.15)) { role.model = m }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { role.model = m }
         } label: {
             VStack(spacing: 3) {
                 HStack(spacing: 3) {
@@ -289,9 +304,7 @@ struct RoleRowView: View {
 
     private var toolsMenu: some View {
         Menu {
-            Button(model.t("role.inheritAll")) {
-                role.tools = []
-            }
+            Button(model.t("role.inheritAll")) { role.tools = [] }
             Divider()
             ForEach(Constants.availableTools, id: \.self) { tool in
                 Button {
@@ -338,22 +351,10 @@ struct RoleBadge: View {
             .font(.caption.weight(.medium))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Capsule().fill(color.opacity(0.18)))
-            .foregroundStyle(color)
+            .background(Capsule().fill(kind.tint.opacity(0.18)))
+            .foregroundStyle(kind.tint)
             .frame(width: 96, alignment: .center)
             .accessibilityLabel(name)
-    }
-
-    private var color: Color {
-        switch kind {
-        case .orchestrator: return .purple
-        case .worker: return .blue
-        case .advisor: return .teal
-        case .reviewer: return .orange
-        case .planner: return .indigo
-        case .researcher: return .green
-        case .specialist: return .pink
-        }
     }
 }
 

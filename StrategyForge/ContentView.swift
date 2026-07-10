@@ -28,9 +28,14 @@ struct ContentView: View {
             NavRail(showSidebar: $model.showSidebar)
             Divider()
 
-            // Second column: the chat list, or the services list when in Services.
+            // Second column: the chat list, the services list, or (in Team) the
+            // strategy picker so you can swap the whole team.
             if model.navSection == .services {
                 ServicesListColumn().frame(width: 240)
+                Divider()
+            } else if model.navSection == .team, let id = model.selectedConfigID {
+                StrategyPickerColumn(config: model.configurationBinding(id))
+                    .frame(width: 300)
                 Divider()
             } else if model.showSidebar || model.selectedConfiguration == nil {
                 SidebarView(showSidebar: $model.showSidebar)
@@ -39,9 +44,13 @@ struct ContentView: View {
                 Divider()
             }
 
-            // Main area: a provider's config in Services, else the chat.
+            // Main area: a provider's config in Services, the visual Team canvas in
+            // Team, else the chat.
             if model.navSection == .services {
                 ProviderConfigView(provider: model.selectedService)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.navSection == .team, let id = model.selectedConfigID {
+                TeamView(config: model.configurationBinding(id))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let id = model.selectedConfigID, let chat = model.selectedConfiguration {
                 // Center: the chat — the protagonist, full width.

@@ -43,7 +43,7 @@ final class AppModel {
     func isConnected(_ provider: AIProvider) -> Bool { connectedProviders.contains(provider) }
 
     /// Which top-level section the nav rail shows: the chats, or connected services.
-    enum NavSection { case chats, services }
+    enum NavSection { case chats, services, team }
     var navSection: NavSection = .chats
     /// The service shown in the main area while in the Services section.
     var selectedService: AIProvider = .claude
@@ -420,6 +420,37 @@ final class AppModel {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
         configurations[i].strategy = template
         save()   // persist the strategy change so it survives relaunch
+    }
+
+    /// Add a fresh worker role to a chat's team (visual Team canvas CRUD). Returns
+    /// the new role's id so the UI can select it.
+    @discardableResult
+    func addRole(to id: Configuration.ID) -> AgentRole.ID? {
+        guard let i = configurations.firstIndex(where: { $0.id == id }) else { return nil }
+        // A unique slug: agent, agent-2, agent-3, …
+        let existing = Set(configurations[i].strategy.roles.map(\.name))
+        var name = "agent"
+        var n = 2
+        while existing.contains(name) { name = "agent-\(n)"; n += 1 }
+        let role = AgentRole(
+            name: name,
+            role: .worker,
+            model: .sonnet5,
+            systemPrompt: "",
+            description: t("team.newRole.description"),
+            count: 1)
+        configurations[i].strategy.roles.append(role)
+        save()
+        return role.id
+    }
+
+    /// Remove a role from a chat's team. The orchestrator can't be deleted.
+    func deleteRole(_ roleID: AgentRole.ID, from id: Configuration.ID) {
+        guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
+        guard let r = configurations[i].strategy.roles.first(where: { $0.id == roleID }),
+              !r.isOrchestrator else { return }
+        configurations[i].strategy.roles.removeAll { $0.id == roleID }
+        save()
     }
 
     /// Set which AI back-end a chat runs on.
