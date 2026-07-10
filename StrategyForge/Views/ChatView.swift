@@ -325,9 +325,17 @@ struct ChatView: View {
     /// to switch this chat's back-end (active gets a ring); disconnected ones are
     /// dimmed and lead to Connect. Replaces the old text pill (and fixes the giant
     /// logo that a Menu label rendered from a resizable image).
+    /// The distinct providers the mounted team actually uses (union of the roles'
+    /// providers), in a stable order — so the header only lists what's in play.
+    private var teamProviders: [AIProvider] {
+        let used = Set(config.strategy.roles.map(\.provider))
+        let ordered = AIProvider.allCases.filter { used.contains($0) }
+        return ordered.isEmpty ? [config.provider] : ordered
+    }
+
     private var providerStack: some View {
         HStack(spacing: -6) {
-            ForEach(AIProvider.allCases) { p in
+            ForEach(teamProviders) { p in
                 let connected = model.isConnected(p)
                 Button {
                     if connected { model.setProvider(config.id, p) }

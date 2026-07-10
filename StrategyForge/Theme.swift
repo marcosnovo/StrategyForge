@@ -79,10 +79,10 @@ enum Theme {
     static let railBg = Color(
         light: Color(red: 0.125, green: 0.122, blue: 0.153),   // #201F27
         dark:  Color(red: 0.078, green: 0.075, blue: 0.098))   // #141319
-    /// Cool "Moon White" panel surface for the chats + activity columns, so they
-    /// read as distinct panels over the lavender haze (dark: the card surface).
-    static let panelMoon = Color(
-        light: moonWhite,                                       // #EAF4FC
+    /// Pure-white panel surface for the chats + activity columns, so they read as
+    /// distinct panels over the lavender haze (dark: the card surface).
+    static let columnBg = Color(
+        light: .white,
         dark:  Color(red: 0.086, green: 0.090, blue: 0.118))   // #16171E
 
     // MARK: Lines
