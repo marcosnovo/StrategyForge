@@ -55,7 +55,8 @@ struct NavRail: View {
         }
         .frame(width: 66)
         .frame(maxHeight: .infinity)
-        .padding(.vertical, Space.m)
+        .padding(.top, 28)          // clear the floating traffic lights (hidden titlebar)
+        .padding(.bottom, Space.m)
         .background(Theme.railBg)
     }
 

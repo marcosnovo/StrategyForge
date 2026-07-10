@@ -11,7 +11,14 @@ import SwiftUI
 
 struct StrategyPickerColumn: View {
     @Environment(AppModel.self) private var model
-    @Binding var config: Configuration
+    /// Optional chat binding — present when picking a strategy for a chat (enables
+    /// the guided wizard/task-gen sheets). nil in "create a team" mode.
+    var config: Binding<Configuration>?
+    /// The strategy name to mark as selected (for the checkmark/highlight).
+    var selectedStrategyName: String?
+    /// Invoked when a strategy card is chosen.
+    var onSelect: (Strategy) -> Void
+
     @State private var showWizard = false
     @State private var showTaskGen = false
     @State private var activeBucket: AppModel.TopicBucket?
@@ -24,21 +31,25 @@ struct StrategyPickerColumn: View {
             VStack(alignment: .leading, spacing: Space.s) {
                 Text(model.t("picker.header"))
                     .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
-                Button { showTaskGen = true } label: {
-                    Label(model.t("task2strat.open"), systemImage: "sparkles")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.moon)
-                .controlSize(.small)
-                .help(model.t("task2strat.subtitle"))
+                // The guided generators write into a chat's config, so they only
+                // appear when picking for a chat — not in "create a team" mode.
+                if config != nil {
+                    Button { showTaskGen = true } label: {
+                        Label(model.t("task2strat.open"), systemImage: "sparkles")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.moon)
+                    .controlSize(.small)
+                    .help(model.t("task2strat.subtitle"))
 
-                Button { showWizard = true } label: {
-                    Label(model.t("wizard.open"), systemImage: "wand.and.stars")
-                        .frame(maxWidth: .infinity)
+                    Button { showWizard = true } label: {
+                        Label(model.t("wizard.open"), systemImage: "wand.and.stars")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help(model.t("wizard.help"))
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help(model.t("wizard.help"))
             }
             .padding(Space.m)
 
@@ -60,17 +71,17 @@ struct StrategyPickerColumn: View {
                     }
                 }
                 .padding(Space.l)
-                .animation(.easeInOut(duration: 0.15), value: config.strategy.name)
+                .animation(.easeInOut(duration: 0.15), value: selectedStrategyName)
                 .animation(.easeInOut(duration: 0.15), value: activeBucket)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
         .sheet(isPresented: $showWizard) {
-            ChooseStrategyWizard(config: $config)
+            if let config { ChooseStrategyWizard(config: config) }
         }
         .sheet(isPresented: $showTaskGen) {
-            TaskToStrategySheet(config: $config)
+            if let config { TaskToStrategySheet(config: config) }
         }
     }
 
@@ -101,10 +112,10 @@ struct StrategyPickerColumn: View {
     /// A tall, scannable strategy card: topology on top, then name, best-for and the
     /// task/cost chips — big enough to read in the wide grid.
     private func strategyCard(_ template: Strategy) -> some View {
-        let selected = template.name == config.strategy.name
+        let selected = template.name == selectedStrategyName
         let beginner = model.isBeginnerStrategy(template)
         return Button {
-            model.applyTemplate(template, to: config.id)
+            onSelect(template)
         } label: {
             VStack(alignment: .leading, spacing: Space.s) {
                 StrategyDiagramView(strategy: template, compact: true)

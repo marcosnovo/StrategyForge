@@ -19,7 +19,7 @@ struct StrategyForgeApp: App {
                 .environment(auth)
                 .tint(Theme.accent)
         }
-        .windowStyle(.titleBar)
+        .windowStyle(.hiddenTitleBar)   // content fills under the traffic lights (seamless glass)
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1080, height: 720)
         .commands {

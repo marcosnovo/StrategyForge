@@ -2,10 +2,10 @@
 //  TeamView.swift
 //  StrategyForge
 //
-//  The dedicated, in-window "Team" section: a visual canvas of the chat's agents
-//  (orchestrator + subagents as interactive cards) with an inline detail panel to
-//  configure the selected agent, plus add/remove. Replaces the cramped modal so
-//  building a team feels visual and simple.
+//  The Team editor: a visual canvas of a SAVED TEAM's agents (orchestrator +
+//  subagents as interactive cards) with an inline detail panel to configure the
+//  selected agent, plus add/remove. Teams are independent, reusable presets — a
+//  chat can then use one; they are NOT chats.
 //
 
 import SwiftUI
@@ -13,11 +13,11 @@ import SwiftUI
 struct TeamView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Binding var config: Configuration
+    @Binding var team: SavedTeam
 
     @State private var selectedRoleID: AgentRole.ID?
-    @State private var showSaveTeam = false
-    @State private var newTeamName = ""
+
+    private var strategy: Strategy { team.strategy }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -29,19 +29,12 @@ struct TeamView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
         .onAppear {
-            if selectedRoleID == nil {
-                selectedRoleID = config.strategy.orchestrator?.id ?? config.strategy.roles.first?.id
+            if selectedRoleID == nil || !strategy.roles.contains(where: { $0.id == selectedRoleID }) {
+                selectedRoleID = strategy.orchestrator?.id ?? strategy.roles.first?.id
             }
         }
-        .alert(model.t("team.save.title"), isPresented: $showSaveTeam) {
-            TextField(model.t("team.save.placeholder"), text: $newTeamName)
-            Button(model.t("common.cancel"), role: .cancel) { newTeamName = "" }
-            Button(model.t("team.save.confirm")) {
-                model.saveTeam(named: newTeamName, from: config.id)
-                newTeamName = ""
-            }
-        } message: {
-            Text(model.t("team.save.message"))
+        .onChange(of: team.id) {
+            selectedRoleID = strategy.orchestrator?.id ?? strategy.roles.first?.id
         }
     }
 
@@ -53,16 +46,16 @@ struct TeamView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
-                    if let orch = config.strategy.orchestrator {
+                    if let orch = strategy.orchestrator {
                         sectionLabel("team.orchestrator.section", systemImage: "crown.fill")
-                        agentCard(orch, wide: true)
+                        agentCard(orch)
                     }
 
-                    if !config.strategy.subagentRoles.isEmpty {
+                    if !strategy.subagentRoles.isEmpty {
                         HStack(spacing: Space.s) {
                             Image(systemName: "arrow.turn.down.right")
                                 .font(.system(size: 11)).foregroundStyle(Theme.accent)
-                            Text(model.t("team.delegatesTo", config.strategy.subagentRoles.count))
+                            Text(model.t("team.delegatesTo", strategy.subagentRoles.count))
                                 .font(.sfCaption2).foregroundStyle(.secondary)
                         }
                         .padding(.leading, Space.s)
@@ -71,14 +64,14 @@ struct TeamView: View {
                     HStack {
                         sectionLabel("team.members.section", systemImage: "person.2.fill")
                         Spacer()
-                        Text(model.t("team.members.count", config.strategy.subagentRoles.count))
+                        Text(model.t("team.members.count", strategy.subagentRoles.count))
                             .font(.sfCaption2).foregroundStyle(.secondary)
                     }
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 168), spacing: Space.m)],
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: Space.m)],
                               alignment: .leading, spacing: Space.m) {
-                        ForEach(config.strategy.subagentRoles) { role in
-                            agentCard(role, wide: false)
+                        ForEach(strategy.subagentRoles) { role in
+                            agentCard(role)
                         }
                         addCard
                     }
@@ -95,13 +88,24 @@ struct TeamView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: Space.m) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.t("team.title")).font(.sfDisplay)
-                Text(config.name.isEmpty ? model.strategyDisplayName(config.strategy) : config.name)
+                TextField(model.t("team.name"), text: $team.name)
+                    .textFieldStyle(.plain)
+                    .font(.sfDisplay)
+                Text(model.strategyDisplayName(strategy))
                     .font(.sfCallout).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
             costPill
-            teamsMenu
+            Menu {
+                Button(role: .destructive) {
+                    model.deleteTeam(team.id)   // clears selection → back to browser
+                } label: {
+                    Label(model.t("team.deleteTeam"), systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             Button {
                 if model.save() { model.flashSuccess(model.t("banner.saved")) }
             } label: {
@@ -113,44 +117,8 @@ struct TeamView: View {
         .padding(Space.l)
     }
 
-    /// The saved-team library menu: apply an existing preset, save the current team
-    /// as a new preset, or overwrite one.
-    private var teamsMenu: some View {
-        Menu {
-            if !model.savedTeams.isEmpty {
-                Section(model.t("team.library.apply")) {
-                    ForEach(model.savedTeams) { team in
-                        Button {
-                            model.applyTeam(team, to: config.id)
-                            selectedRoleID = config.strategy.orchestrator?.id
-                        } label: {
-                            Label("\(team.name)  ·  \(team.strategy.roles.count) 👥", systemImage: "person.3.fill")
-                        }
-                    }
-                }
-                Section(model.t("team.library.update")) {
-                    ForEach(model.savedTeams) { team in
-                        Button(team.name) { model.updateTeam(team.id, from: config.id) }
-                    }
-                }
-                Divider()
-            }
-            Button {
-                newTeamName = ""
-                showSaveTeam = true
-            } label: {
-                Label(model.t("team.save.new"), systemImage: "square.and.arrow.down.on.square")
-            }
-        } label: {
-            Label(model.t("team.library"), systemImage: "bookmark")
-        }
-        .menuStyle(.button)
-        .controlSize(.large)
-        .fixedSize()
-    }
-
     private var costPill: some View {
-        let cost = CostEstimator.estimate(config.strategy)
+        let cost = CostEstimator.estimate(strategy)
         let color: Color
         switch cost.tier {
         case .low: color = Theme.success
@@ -180,7 +148,7 @@ struct TeamView: View {
 
     // MARK: - Agent card
 
-    private func agentCard(_ role: AgentRole, wide: Bool) -> some View {
+    private func agentCard(_ role: AgentRole) -> some View {
         let selected = selectedRoleID == role.id
         return Button {
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { selectedRoleID = role.id }
@@ -233,7 +201,7 @@ struct TeamView: View {
 
     private var addCard: some View {
         Button {
-            if let id = model.addRole(to: config.id) {
+            if let id = model.addRole(toTeam: team.id) {
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { selectedRoleID = id }
             }
         } label: {
@@ -257,10 +225,9 @@ struct TeamView: View {
     @ViewBuilder
     private var detailPanel: some View {
         if let roleID = selectedRoleID,
-           let role = config.strategy.roles.first(where: { $0.id == roleID }) {
-            let issues = config.strategy.validate().filter { $0.roleID == roleID }
+           let role = strategy.roles.first(where: { $0.id == roleID }) {
+            let issues = strategy.validate().filter { $0.roleID == roleID }
             VStack(spacing: 0) {
-                // Panel header.
                 HStack(spacing: Space.s) {
                     RoleBadge(kind: role.role, name: model.roleKindName(role.role))
                     if role.isOrchestrator {
@@ -273,8 +240,8 @@ struct TeamView: View {
                     }
                     if !role.isOrchestrator {
                         Button(role: .destructive) {
-                            model.deleteRole(roleID, from: config.id)
-                            selectedRoleID = config.strategy.orchestrator?.id
+                            model.deleteRole(roleID, fromTeam: team.id)
+                            selectedRoleID = strategy.orchestrator?.id
                         } label: {
                             Image(systemName: "trash")
                         }
@@ -282,7 +249,7 @@ struct TeamView: View {
                         .help(model.t("team.delete"))
                     }
                 }
-                .padding(Space.m)
+                .padding(Space.l)
                 Divider()
 
                 ScrollView {
@@ -310,16 +277,16 @@ struct TeamView: View {
         }
     }
 
-    /// A stable two-way binding to one role in the strategy, keyed by id.
+    /// A stable two-way binding to one role in the team's strategy, keyed by id.
     private func roleBinding(_ roleID: AgentRole.ID) -> Binding<AgentRole> {
         Binding(
             get: {
-                config.strategy.roles.first(where: { $0.id == roleID })
-                    ?? config.strategy.roles[0]
+                team.strategy.roles.first(where: { $0.id == roleID })
+                    ?? team.strategy.roles[0]
             },
             set: { newValue in
-                if let i = config.strategy.roles.firstIndex(where: { $0.id == roleID }) {
-                    config.strategy.roles[i] = newValue
+                if let i = team.strategy.roles.firstIndex(where: { $0.id == roleID }) {
+                    team.strategy.roles[i] = newValue
                 }
             }
         )
@@ -329,13 +296,13 @@ struct TeamView: View {
 private struct TeamViewPreviewHost: View {
     @State private var model: AppModel = {
         let m = AppModel()
-        m.configurations = [Configuration(name: "Backend refactor team",
-                                          strategy: StrategyLibrary.orchestratorWorkers())]
-        m.selectedConfigID = m.configurations.first!.id
+        m.savedTeams = [SavedTeam(name: "Backend refactor team",
+                                  strategy: StrategyLibrary.orchestratorWorkers())]
+        m.selectedTeamID = m.savedTeams.first!.id
         return m
     }()
     var body: some View {
-        TeamView(config: model.configurationBinding(model.selectedConfigID!))
+        TeamView(team: model.teamBinding(model.selectedTeamID!))
             .environment(model)
             .tint(Theme.accent)
             .frame(width: 1000, height: 680)

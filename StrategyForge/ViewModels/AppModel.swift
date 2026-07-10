@@ -24,6 +24,8 @@ final class AppModel {
 
     /// Global library of named team presets, reusable across chats.
     var savedTeams: [SavedTeam] = []
+    /// The team currently open in the Team section (independent of the selected chat).
+    var selectedTeamID: SavedTeam.ID?
 
     // MARK: - Providers
     /// Providers whose CLI is currently installed/detected. Drives locked vs
@@ -608,6 +610,63 @@ final class AppModel {
 
     func deleteTeam(_ id: SavedTeam.ID) {
         savedTeams.removeAll { $0.id == id }
+        if selectedTeamID == id { selectedTeamID = nil }
+        save()
+    }
+
+    // MARK: Team-library editing (the Team section works on SavedTeams, not chats)
+
+    /// Create a brand-new team from a strategy template (fresh ids), select it, and
+    /// return its id. This is the "create a team" entry point.
+    @discardableResult
+    func createTeam(from strategy: Strategy, named: String? = nil) -> SavedTeam.ID {
+        var s = strategy
+        s.id = UUID()
+        s.roles = s.roles.map { var r = $0; r.id = UUID(); return r }
+        let label = (named?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+            ?? strategyDisplayName(strategy)
+        let team = SavedTeam(name: label, strategy: s)
+        savedTeams.insert(team, at: 0)
+        selectedTeamID = team.id
+        save()
+        return team.id
+    }
+
+    /// A stable two-way binding to a saved team, for the Team editor.
+    func teamBinding(_ id: SavedTeam.ID) -> Binding<SavedTeam> {
+        Binding(
+            get: { self.savedTeams.first(where: { $0.id == id })
+                ?? SavedTeam(name: "", strategy: StrategyLibrary.solo()) },
+            set: { newValue in
+                if let i = self.savedTeams.firstIndex(where: { $0.id == id }) {
+                    self.savedTeams[i] = newValue
+                }
+            }
+        )
+    }
+
+    /// Add a fresh worker role to a saved team. Returns the new role's id.
+    @discardableResult
+    func addRole(toTeam id: SavedTeam.ID) -> AgentRole.ID? {
+        guard let i = savedTeams.firstIndex(where: { $0.id == id }) else { return nil }
+        let existing = Set(savedTeams[i].strategy.roles.map(\.name))
+        var name = "agent"; var n = 2
+        while existing.contains(name) { name = "agent-\(n)"; n += 1 }
+        let role = AgentRole(name: name, role: .worker, model: .sonnet5,
+                             systemPrompt: "", description: t("team.newRole.description"), count: 1)
+        savedTeams[i].strategy.roles.append(role)
+        savedTeams[i].updatedAt = Date()
+        save()
+        return role.id
+    }
+
+    /// Remove a role from a saved team (the orchestrator can't be deleted).
+    func deleteRole(_ roleID: AgentRole.ID, fromTeam id: SavedTeam.ID) {
+        guard let i = savedTeams.firstIndex(where: { $0.id == id }),
+              let r = savedTeams[i].strategy.roles.first(where: { $0.id == roleID }),
+              !r.isOrchestrator else { return }
+        savedTeams[i].strategy.roles.removeAll { $0.id == roleID }
+        savedTeams[i].updatedAt = Date()
         save()
     }
 

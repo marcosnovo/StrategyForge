@@ -30,7 +30,9 @@ struct ChatInspector: View {
 
             switch tab {
             case .strategy:
-                StrategyPickerColumn(config: $config)
+                StrategyPickerColumn(config: $config,
+                                     selectedStrategyName: config.strategy.name,
+                                     onSelect: { model.applyTemplate($0, to: config.id) })
             case .config:
                 StrategyEditorView(config: $config)
             }

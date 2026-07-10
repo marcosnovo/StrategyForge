@@ -227,8 +227,19 @@ struct ChatView: View {
 
                 HStack(spacing: Space.s) {
                     providerStack
-                    // Strategy pill opens the visual Team section (not a modal).
-                    Button { model.navSection = .team } label: {
+                    // The chat USES a team: pick a saved one, tweak this chat's copy,
+                    // or jump to the Team library to manage them.
+                    Menu {
+                        if !model.savedTeams.isEmpty {
+                            Section(model.t("team.library.apply")) {
+                                ForEach(model.savedTeams) { team in
+                                    Button(team.name) { model.applyTeam(team, to: config.id) }
+                                }
+                            }
+                        }
+                        Button(model.t("chat.customizeTeam")) { showInspector = true }
+                        Button(model.t("team.manage")) { model.navSection = .team }
+                    } label: {
                         Text(model.strategyDisplayName(config.strategy))
                             .font(.sfCaption2.weight(.medium))
                             .foregroundStyle(Theme.accent)
@@ -236,7 +247,7 @@ struct ChatView: View {
                             .glassEffect(.regular.tint(Theme.accent.opacity(0.18)).interactive(),
                                          in: .capsule)
                     }
-                    .buttonStyle(.plain)
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
 
                     if let path = config.repoPath, !path.isEmpty {
                         Text(model.t("chat.subtitle", (path as NSString).lastPathComponent))

@@ -35,7 +35,7 @@ struct ContentView: View {
                 Divider()
             } else if model.navSection == .team {
                 // Team section always leads with the team selector (list + empty state).
-                TeamSelectorColumn(selectedID: $model.selectedConfigID)
+                TeamSelectorColumn(selectedID: $model.selectedTeamID)
                 Divider()
             } else if model.navSection == .usage {
                 // Usage is a single full-width dashboard — no second column.
@@ -53,15 +53,14 @@ struct ContentView: View {
                 ProviderConfigView(provider: model.selectedService)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .team {
-                if let id = model.selectedConfigID {
-                    // Wide strategy browser (protagonist) + team-config surface at right.
-                    StrategyPickerColumn(config: model.configurationBinding(id))
+                if let tid = model.selectedTeamID, model.savedTeams.contains(where: { $0.id == tid }) {
+                    // A team is open → edit it (canvas + detail).
+                    TeamView(team: model.teamBinding(tid))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    Divider()
-                    TeamView(config: model.configurationBinding(id))
-                        .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    TeamEmptyState()
+                    // No team open → the strategy browser is the "create a team" surface.
+                    StrategyPickerColumn(config: nil, selectedStrategyName: nil,
+                                         onSelect: { model.createTeam(from: $0) })
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else if model.navSection == .usage {
@@ -126,39 +125,6 @@ struct ContentView: View {
         }
         .frame(minWidth: 820, idealWidth: 1040, maxWidth: .infinity,
                minHeight: 640, idealHeight: 820, maxHeight: .infinity)
-    }
-}
-
-/// The wide empty state for the Team section when no team is selected/created.
-private struct TeamEmptyState: View {
-    @Environment(AppModel.self) private var model
-    var body: some View {
-        ContentUnavailableView {
-            Label(model.t("team.chooseTitle"), systemImage: "person.3")
-        } description: {
-            Text(model.t("team.chooseDesc"))
-        } actions: {
-            VStack(spacing: Space.m) {
-                Button {
-                    model.addConfiguration()   // TODO: create-team CTA flow (adapt preset / blank)
-                } label: {
-                    Label(model.t("team.create"), systemImage: "plus").frame(maxWidth: 320)
-                }
-                .buttonStyle(.moon).controlSize(.large)
-                if !model.savedTeams.isEmpty {
-                    Menu(model.t("team.loadSaved")) {
-                        ForEach(model.savedTeams) { team in
-                            Button(team.name) {
-                                model.addConfiguration()
-                                if let id = model.selectedConfigID { model.applyTeam(team, to: id) }
-                            }
-                        }
-                    }
-                    .menuStyle(.button).buttonStyle(.link)
-                }
-            }
-        }
-        .background(Theme.appBg)
     }
 }
 
