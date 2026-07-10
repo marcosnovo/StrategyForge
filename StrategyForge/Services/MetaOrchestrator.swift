@@ -130,6 +130,7 @@ struct MetaOrchestrator {
         func account(_ r: OneShotResult) { totalTokens += r.tokens; totalCost += r.costUSD }
 
         do {
+            if Task.isCancelled { return nil }
             // Solo team: no workers → the orchestrator just answers directly.
             if workers.isEmpty {
                 onEvent(.phase("plan"))
@@ -156,6 +157,7 @@ struct MetaOrchestrator {
             onEvent(.phase("delegate"))
             var results: [(role: String, text: String)] = []
             for sub in subtasks {
+                if Task.isCancelled { return nil }
                 guard let role = workers.first(where: { $0.name == sub.roleName }) else { continue }
                 let m = modelID(for: role)
                 onEvent(.roleStarted(role: role.name, provider: role.provider, model: m))
@@ -165,6 +167,7 @@ struct MetaOrchestrator {
                 results.append((role: role.name, text: r.text))
             }
 
+            if Task.isCancelled { return nil }
             // 3) SYNTHESIZE — the orchestrator combines everything.
             onEvent(.phase("synthesize"))
             onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
@@ -178,6 +181,8 @@ struct MetaOrchestrator {
             onEvent(.finished)
             return synth.text
         } catch {
+            // A cancelled turn shouldn't surface as an error.
+            if Task.isCancelled || error is CancellationError { return nil }
             let msg = (error as? OneShotError)?.errorDescription ?? error.localizedDescription
             onEvent(.failed(msg))
             return nil

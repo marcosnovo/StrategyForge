@@ -117,31 +117,49 @@ struct CLIOneShotRunner: OneShotRunner {
 
     // MARK: Process
 
+    /// Holds the spawned process so a task cancellation can terminate it (the caller
+    /// stops the turn → we must not leave the CLI running, burning tokens/money).
+    private final class ProcessBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var process: Process?
+        private var cancelled = false
+        func adopt(_ p: Process) { lock.lock(); defer { lock.unlock() }
+            if cancelled { p.terminate() } else { process = p } }
+        func terminate() { lock.lock(); defer { lock.unlock() }
+            cancelled = true; if let p = process, p.isRunning { p.terminate() } }
+    }
+
     private static func launch(bin: String, args: [String], cwd: String?) async throws -> (String, String, Int32) {
-        try await withCheckedThrowingContinuation { cont in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let p = Process()
-                p.executableURL = URL(fileURLWithPath: bin)
-                p.arguments = args
-                if let cwd { p.currentDirectoryURL = URL(fileURLWithPath: cwd) }
-                var env = ProcessInfo.processInfo.environment
-                let home = FileManager.default.homeDirectoryForCurrentUser.path
-                let binDir = (bin as NSString).deletingLastPathComponent
-                env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
-                p.environment = env
-                let outPipe = Pipe(), errPipe = Pipe()
-                p.standardOutput = outPipe
-                p.standardError = errPipe
-                do { try p.run() } catch {
-                    cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return
+        let box = ProcessBox()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { cont in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let p = Process()
+                    p.executableURL = URL(fileURLWithPath: bin)
+                    p.arguments = args
+                    if let cwd { p.currentDirectoryURL = URL(fileURLWithPath: cwd) }
+                    var env = ProcessInfo.processInfo.environment
+                    let home = FileManager.default.homeDirectoryForCurrentUser.path
+                    let binDir = (bin as NSString).deletingLastPathComponent
+                    env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+                    p.environment = env
+                    let outPipe = Pipe(), errPipe = Pipe()
+                    p.standardOutput = outPipe
+                    p.standardError = errPipe
+                    box.adopt(p)
+                    do { try p.run() } catch {
+                        cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return
+                    }
+                    let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+                    let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+                    p.waitUntilExit()
+                    cont.resume(returning: (String(data: outData, encoding: .utf8) ?? "",
+                                            String(data: errData, encoding: .utf8) ?? "",
+                                            p.terminationStatus))
                 }
-                let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-                let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-                p.waitUntilExit()
-                cont.resume(returning: (String(data: outData, encoding: .utf8) ?? "",
-                                        String(data: errData, encoding: .utf8) ?? "",
-                                        p.terminationStatus))
             }
+        } onCancel: {
+            box.terminate()
         }
     }
 

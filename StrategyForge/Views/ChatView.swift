@@ -33,6 +33,8 @@ struct ChatView: View {
     @State private var engineMissing = false
     @State private var showInstall = false
     @State private var isDropTargeted = false
+    /// Confirmation before granting persistent full access.
+    @State private var confirmAlwaysAllow = false
     /// Code mode: a developer workspace (files/diffs) instead of plain chat.
     @State private var codeMode = false
     private let rename: (String) -> Void
@@ -259,6 +261,19 @@ struct ChatView: View {
                 }
             }
             Spacer()
+            // Persistent full-access indicator — visible and one-tap revocable, so
+            // "allow always" is never a silent, irreversible state.
+            if vm.elevatedPermissions {
+                Button { vm.disableElevation() } label: {
+                    Label(model.t("chat.fullAccessOn"), systemImage: "checkmark.shield.fill")
+                        .font(.sfCaption2.weight(.semibold))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Capsule().fill(Theme.warning.opacity(0.18)))
+                        .foregroundStyle(Theme.warning)
+                }
+                .buttonStyle(.plain)
+                .help(model.t("chat.fullAccessOff"))
+            }
             HStack(spacing: 4) {
                 Image(systemName: "circle.hexagongrid").font(.system(size: 9))
                 Text(model.t("chat.tokens", formatTokens(vm.totalTokens)))
@@ -649,12 +664,23 @@ struct ChatView: View {
             }
             HStack(spacing: Space.s) {
                 Spacer()
-                Button { vm.retryAllowingAll(persistElevation: false) } label: {
-                    Text(model.t("chat.allowOnce"))
+                // "Allow always" is powerful (persistent full access) → make it the
+                // secondary, confirmed action; the safe one-shot retry is primary.
+                Button { confirmAlwaysAllow = true } label: {
+                    Label(model.t("chat.allowAlways"), systemImage: "checkmark.shield")
                 }
                 .controlSize(.small).buttonStyle(.bordered)
-                Button { vm.retryAllowingAll(persistElevation: true) } label: {
-                    Label(model.t("chat.allowAlways"), systemImage: "checkmark.shield")
+                .confirmationDialog(model.t("chat.allowAlways.confirmTitle"),
+                                    isPresented: $confirmAlwaysAllow, titleVisibility: .visible) {
+                    Button(model.t("chat.allowAlways"), role: .destructive) {
+                        vm.retryAllowingAll(persistElevation: true)
+                    }
+                    Button(model.t("common.cancel"), role: .cancel) {}
+                } message: {
+                    Text(model.t("chat.allowAlways.confirmMsg"))
+                }
+                Button { vm.retryAllowingAll(persistElevation: false) } label: {
+                    Text(model.t("chat.allowOnce"))
                 }
                 .controlSize(.small).buttonStyle(.moon)
             }

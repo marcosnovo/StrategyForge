@@ -331,12 +331,15 @@ final class ChatViewModel {
         let runner = CLIOneShotRunner(binaries: [.claude: binary], permissionMode: permissionMode)
         let strategy = config.strategy
         let stream = AsyncStream<MetaEvent> { cont in
-            Task.detached {
+            let task = Task.detached {
                 await MetaOrchestrator.run(strategy: strategy, task: task, cwd: repo, runner: runner) {
                     cont.yield($0)
                 }
                 cont.finish()
             }
+            // Cancelling the turn (stop / teardown) must cancel the orchestrator so
+            // its running CLIs are terminated instead of burning tokens in the dark.
+            cont.onTermination = { _ in task.cancel() }
         }
         for await event in stream {
             apply(event, assistantIndex: assistantIndex)
@@ -394,6 +397,9 @@ final class ChatViewModel {
     /// Re-run the last user message granting full permissions — the "allow & retry"
     /// path when a run was blocked by permission denials. Works with or without a
     /// project folder (scratch sessions use their per-chat folder).
+    /// Turn OFF the persistent "full access" elevation for this chat.
+    func disableElevation() { elevatedPermissions = false }
+
     func retryAllowingAll(persistElevation: Bool = false) {
         if persistElevation { elevatedPermissions = true }
         guard !isRunning,
