@@ -9,21 +9,21 @@
 
 import SwiftUI
 
-/// Which agent's detailed activity is being drilled into on the far-right panel.
+/// What the far-right detail column shows: one agent's activity, or all steps.
 enum AgentFocus: Hashable {
     case orchestrator
     case sub(String)
+    case allSteps
 
-    /// Does this timeline step belong to the focused agent?
+    /// Does this timeline step belong to the focused view?
     func matches(_ step: ActivityStep) -> Bool {
         switch self {
         case .orchestrator: return step.agent == nil
-        case .sub(let name): return step.agent == name
+        case .sub(let name): return StrategyDiagramView.titlesMatch(step.agent ?? "", name)
+        case .allSteps: return true
         }
     }
 }
-
-enum ActivityPanelMode: String, CaseIterable { case timeline, diagram }
 
 struct AgentActivityPanel: View {
     @Environment(AppModel.self) private var model
@@ -31,8 +31,8 @@ struct AgentActivityPanel: View {
     /// The agent whose detail column is open (nil = closed). Bound to the parent
     /// so the drill-down column lives at the far right of the window.
     @Binding var focus: AgentFocus?
-    @State private var mode: ActivityPanelMode = .timeline
     @State private var hoveredAgent: AgentFocus?
+    @State private var showDiagram = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -69,13 +69,9 @@ struct AgentActivityPanel: View {
                 VStack(alignment: .leading, spacing: Space.m) {
                     statusCard
                     teamSection.panelCard()
-                    modePicker
-                    if mode == .timeline {
-                        if !vm.todos.isEmpty { tasksSection.panelCard() }
-                        timelineSection.panelCard()
-                    } else {
-                        diagramSection
-                    }
+                    if !vm.todos.isEmpty { tasksSection.panelCard() }
+                    stepsSection.panelCard()
+                    diagramCard.panelCard()
                 }
                 .padding(Space.m)
             }
@@ -125,47 +121,88 @@ struct AgentActivityPanel: View {
         .foregroundStyle(Theme.secondaryOnMaterial)
     }
 
-    // MARK: Mode switch + diagram
+    // MARK: Diagram (bottom, collapsible)
 
-    private var modePicker: some View {
-        Picker("", selection: $mode) {
-            Text(model.t("activity.tab.steps")).tag(ActivityPanelMode.timeline)
-            Text(model.t("activity.tab.diagram")).tag(ActivityPanelMode.diagram)
+    /// The live topology at the bottom of the panel — visible unless collapsed.
+    private var diagramCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Button { withAnimation(.easeInOut(duration: 0.15)) { showDiagram.toggle() } } label: {
+                HStack {
+                    Text(model.t("activity.tab.diagram")).font(.sfFieldLabel)
+                        .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
+                    Spacer()
+                    Image(systemName: showDiagram ? "chevron.down" : "chevron.up")
+                        .font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if showDiagram {
+                StrategyDiagramView(strategy: vm.config.strategy,
+                                    activeAgent: vm.activeSubagent,
+                                    isLive: vm.isRunning,
+                                    compact: true)
+                    .frame(height: 240)
+            }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
     }
 
-    /// The live topology: the strategy diagram with the working agent's node lit.
-    private var diagramSection: some View {
-        StrategyDiagramView(strategy: vm.config.strategy,
-                            activeAgent: vm.activeSubagent,
-                            isLive: vm.isRunning,
-                            compact: true)
-            .frame(height: 280)
+    // MARK: Team (all agents, listed from the start)
+
+    private func titleCase(_ slug: String) -> String {
+        slug.replacingOccurrences(of: "-", with: " ")
+            .split(separator: " ").map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+    private var orchestratorName: String {
+        (vm.config.strategy.orchestrator?.name).map(titleCase) ?? model.t("activity.orchestrator")
+    }
+    private var subagentNames: [String] {
+        vm.config.strategy.subagentRoles.map { titleCase($0.name) }
     }
 
-    // MARK: Team
-
-    /// The roster for this turn: the orchestrator plus every subagent it delegated
-    /// to, each showing whether it's active now or already done.
+    /// The whole team, listed from the start: the orchestrator plus every subagent
+    /// role. Each shows if it's active, done, or idle, and opens its detail on the
+    /// far right.
     private var teamSection: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
             Text(model.t("activity.team")).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
-            agentRow(name: model.t("activity.orchestrator"),
-                     icon: "brain.head.profile",
+            agentRow(name: orchestratorName, icon: "brain.head.profile",
                      target: .orchestrator,
                      active: vm.activeSubagent == nil && vm.isRunning)
-            ForEach(vm.agentsInvolved, id: \.self) { agent in
-                agentRow(name: agent, icon: "person.fill",
-                         target: .sub(agent),
-                         active: agent == vm.activeSubagent && vm.isRunning)
+            ForEach(subagentNames, id: \.self) { name in
+                agentRow(name: name, icon: "person.fill",
+                         target: .sub(name),
+                         active: vm.isRunning && StrategyDiagramView.titlesMatch(vm.activeSubagent ?? "", name))
             }
-            if vm.agentsInvolved.isEmpty {
-                Text(model.t("activity.soloNote"))
-                    .font(.system(size: 10)).foregroundStyle(Theme.tertiaryOnMaterial)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
+        }
+    }
+
+    // MARK: Steps (recent + "see all" on the right)
+
+    private var stepsSection: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack {
+                Text(model.t("activity.steps")).font(.sfFieldLabel)
+                    .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
+                Spacer()
+                if !vm.timeline.isEmpty {
+                    Button { focus = .allSteps } label: {
+                        HStack(spacing: 2) {
+                            Text(model.t("activity.seeAll")); Image(systemName: "chevron.right").font(.system(size: 8))
+                        }
+                        .font(.sfCaption2.weight(.medium))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                }
+            }
+            if vm.timeline.isEmpty {
+                Text(model.t("activity.empty")).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+            } else {
+                ForEach(Array(vm.timeline.suffix(6).enumerated()), id: \.element.id) { idx, step in
+                    ActivityStepRow(step: step, startedAt: vm.turnStartedAt,
+                                    isActive: vm.isRunning && step.id == vm.timeline.last?.id)
+                }
             }
         }
     }
@@ -243,22 +280,6 @@ struct AgentActivityPanel: View {
         case "completed": Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
         case "in_progress": Image(systemName: "circle.dotted.circle").foregroundStyle(Theme.accent)
         default: Image(systemName: "circle").foregroundStyle(Theme.tertiaryOnMaterial)
-        }
-    }
-
-    // MARK: Timeline
-
-    private var timelineSection: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            Text(model.t("activity.steps")).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
-            if vm.timeline.isEmpty {
-                Text(model.t("activity.empty")).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
-            } else {
-                ForEach(Array(vm.timeline.enumerated()), id: \.element.id) { idx, step in
-                    ActivityStepRow(step: step, startedAt: vm.turnStartedAt,
-                                    isActive: vm.isRunning && idx == vm.timeline.count - 1)
-                }
-            }
         }
     }
 
@@ -384,20 +405,29 @@ struct SubagentDetailPanel: View {
         switch focus {
         case .orchestrator: return model.t("activity.orchestrator")
         case .sub(let name): return name
+        case .allSteps: return model.t("activity.allSteps")
+        }
+    }
+    private var icon: String {
+        switch focus {
+        case .orchestrator: return "brain.head.profile"
+        case .sub: return "person.fill"
+        case .allSteps: return "list.bullet.rectangle"
         }
     }
     private var isActiveAgent: Bool {
         guard vm.isRunning else { return false }
         switch focus {
         case .orchestrator: return vm.activeSubagent == nil
-        case .sub(let name): return vm.activeSubagent == name
+        case .sub(let name): return StrategyDiagramView.titlesMatch(vm.activeSubagent ?? "", name)
+        case .allSteps: return true
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: Space.s) {
-                Image(systemName: focus == .orchestrator ? "brain.head.profile" : "person.fill")
+                Image(systemName: icon)
                     .foregroundStyle(Theme.accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.sfCallout.weight(.semibold)).lineLimit(1)
