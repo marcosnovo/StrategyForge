@@ -39,6 +39,7 @@ enum L10n {
         "sidebar.empty": ("No chats yet. Click + to start one.", "Aún no hay chats. Pulsa + para empezar uno."),
         "sidebar.new": ("New chat", "Nuevo chat"),
         "sidebar.search": ("Search", "Buscar"),
+        "rail.connected": ("Connect", "Conectar"),
         "sidebar.chats": ("Chats", "Chats"),
         "inspector.config": ("Setup", "Configuración"),
         "sidebar.toggle": ("Show/hide sidebar", "Mostrar/ocultar barra lateral"),

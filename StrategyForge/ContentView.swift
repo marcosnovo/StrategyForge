@@ -23,14 +23,15 @@ struct ContentView: View {
         HStack(spacing: 0) {
             // Left column: chat history. Collapsible into a thin rail; always shown
             // in full when there's no active chat (so New chat stays reachable).
+            // Always-present dark navigation rail (brand + actions + settings).
+            NavRail(showSidebar: $model.showSidebar)
+            Divider()
+
+            // Collapsible chat list (always shown when there's no active chat).
             if model.showSidebar || model.selectedConfiguration == nil {
                 SidebarView(showSidebar: $model.showSidebar)
                     .frame(width: 240)
                     .transition(.move(edge: .leading).combined(with: .opacity))
-                Divider()
-            } else {
-                CollapsedSidebarRail(showSidebar: $model.showSidebar)
-                    .transition(.move(edge: .leading))
                 Divider()
             }
 

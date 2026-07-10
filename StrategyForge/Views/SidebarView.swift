@@ -136,52 +136,22 @@ struct SidebarView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            HStack(spacing: Space.s) {
-                Image(systemName: "bolt.horizontal.circle.fill")
-                    .foregroundStyle(Theme.accent)
-                    .font(.title3)
-                (Text("Strategy").foregroundStyle(.primary)
-                 + Text("Forge").foregroundStyle(Theme.accent))
-                    .font(.sfDisplay)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Spacer(minLength: Space.xs)
-                // Secondary: import flows tucked into an overflow menu.
-                Menu {
-                    Button(model.t("import.repo")) { model.importFromRepo() }
-                    Button(model.t("doc.import")) { model.importStrategyDocument() }
-                } label: {
-                    Image(systemName: "ellipsis")
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                // Collapse the sidebar into the minimized rail.
-                Button {
-                    if reduceMotion { showSidebar = false }
-                    else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = false } }
-                } label: {
-                    Image(systemName: "sidebar.left")
-                }
-                .buttonStyle(.borderless)
-                .help(model.t("sidebar.toggle"))
-                .accessibilityLabel(model.t("sidebar.toggle"))
-            }
-            // Primary: new chat.
-            Button {
-                model.addConfiguration()
+        // Brand + collapse + new chat now live in the NavRail, so the list header
+        // is just its title and the import overflow menu.
+        HStack(spacing: Space.s) {
+            Text(model.t("sidebar.chats")).font(.sfCardTitle)
+            Spacer(minLength: Space.xs)
+            Menu {
+                Button(model.t("import.repo")) { model.importFromRepo() }
+                Button(model.t("doc.import")) { model.importStrategyDocument() }
             } label: {
-                Label(model.t("sidebar.new"), systemImage: "square.and.pencil")
-                    .frame(maxWidth: .infinity)
+                Image(systemName: "ellipsis")
             }
-            .buttonStyle(.glassProminent)
-            .controlSize(.large)
-            .help(model.t("sidebar.new"))
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .help(model.t("import.repo"))
         }
         .padding(.horizontal, Space.m)
-        .padding(.top, Space.m)
-        .padding(.bottom, Space.m)
+        .padding(.top, Space.m).padding(.bottom, Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.appBg)
     }
