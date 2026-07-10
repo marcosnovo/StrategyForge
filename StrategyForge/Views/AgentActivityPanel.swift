@@ -78,7 +78,7 @@ struct AgentActivityPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.columnBg)
+        .background(.regularMaterial)
     }
 
     // MARK: Status
@@ -592,6 +592,6 @@ struct SubagentDetailPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.columnBg)
+        .background(.regularMaterial)
     }
 }
