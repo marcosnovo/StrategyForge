@@ -60,13 +60,13 @@ struct SidebarView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.appBg)
+            .background(Theme.panelMoon)
 
             Divider()
             footer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.appBg)
+        .background(Theme.panelMoon)
         .confirmationDialog(
             model.t("sidebar.deleteTitle"),
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
@@ -155,7 +155,7 @@ struct SidebarView: View {
         .padding(.horizontal, Space.m)
         .padding(.top, Space.m).padding(.bottom, Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.appBg)
+        .background(Theme.panelMoon)
     }
 
     private var footer: some View {
@@ -209,6 +209,6 @@ struct CollapsedSidebarRail: View {
         .padding(.vertical, Space.l)
         .frame(width: 48)
         .frame(maxHeight: .infinity)
-        .background(Theme.appBg)
+        .background(Theme.panelMoon)
     }
 }
