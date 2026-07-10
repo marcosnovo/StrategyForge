@@ -36,7 +36,7 @@ struct StrategyPickerColumn: View {
                     Label(model.t("wizard.open"), systemImage: "wand.and.stars")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.bordered)
                 .controlSize(.small)
                 .help(model.t("wizard.help"))
             }
@@ -46,81 +46,31 @@ struct StrategyPickerColumn: View {
 
             Divider()
 
+            // Spacious, scannable grid of strategies — the protagonist of this pane.
             ScrollView {
-                VStack(spacing: Space.xs) {
-                    savedTeamsSection
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 360), spacing: Space.m)],
+                          alignment: .leading, spacing: Space.m) {
                     if let bucket = activeBucket {
                         let inBucket = templates.filter { model.strategyBuckets($0).contains(bucket) }
                         let others = templates.filter { !model.strategyBuckets($0).contains(bucket) }
-                        ForEach(inBucket) { strategyRow($0) }
-                        if !others.isEmpty {
-                            Text(model.t("picker.otherStrategies"))
-                                .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.top, Space.s)
-                            ForEach(others) { strategyRow($0).opacity(0.5) }
-                        }
+                        ForEach(inBucket) { strategyCard($0) }
+                        ForEach(others) { strategyCard($0).opacity(0.5) }
                     } else {
-                        ForEach(templates) { strategyRow($0) }
+                        ForEach(templates) { strategyCard($0) }
                     }
                 }
-                .padding(Space.m)
+                .padding(Space.l)
                 .animation(.easeInOut(duration: 0.15), value: config.strategy.name)
                 .animation(.easeInOut(duration: 0.15), value: activeBucket)
             }
         }
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
         .sheet(isPresented: $showWizard) {
             ChooseStrategyWizard(config: $config)
         }
         .sheet(isPresented: $showTaskGen) {
             TaskToStrategySheet(config: $config)
-        }
-    }
-
-    /// Your saved team presets, shown above the built-in templates so choosing a
-    /// reusable team is the first thing you see. Tapping applies it to this chat.
-    @ViewBuilder
-    private var savedTeamsSection: some View {
-        if !model.savedTeams.isEmpty {
-            HStack {
-                Label(model.t("team.library.yours"), systemImage: "bookmark.fill")
-                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
-                Spacer()
-            }
-            .padding(.top, Space.xs)
-            ForEach(model.savedTeams) { team in
-                Button {
-                    model.applyTeam(team, to: config.id)
-                } label: {
-                    HStack(spacing: Space.s) {
-                        Image(systemName: "person.3.fill")
-                            .font(.system(size: 12)).foregroundStyle(Theme.accent)
-                            .frame(width: 22)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(team.name).font(.sfCallout.weight(.medium)).lineLimit(1)
-                            Text(model.t("team.members.count", team.strategy.roles.count))
-                                .font(.sfCaption2).foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, Space.s).padding(.horizontal, Space.s)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
-                    .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                        .strokeBorder(Theme.hairline, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .contextMenu {
-                    Button(role: .destructive) { model.deleteTeam(team.id) } label: {
-                        Label(model.t("team.library.delete"), systemImage: "trash")
-                    }
-                }
-                .help(model.t("team.library.applyHelp"))
-            }
-            Divider().padding(.vertical, Space.xs)
         }
     }
 
@@ -148,74 +98,60 @@ struct StrategyPickerColumn: View {
         .padding(.bottom, Space.s)
     }
 
-    /// A selectable strategy row: mini-diagram thumbnail + name + cost-tier pill.
-    private func strategyRow(_ template: Strategy) -> some View {
+    /// A tall, scannable strategy card: topology on top, then name, best-for and the
+    /// task/cost chips — big enough to read in the wide grid.
+    private func strategyCard(_ template: Strategy) -> some View {
         let selected = template.name == config.strategy.name
         let beginner = model.isBeginnerStrategy(template)
         return Button {
             model.applyTemplate(template, to: config.id)
         } label: {
             VStack(alignment: .leading, spacing: Space.s) {
-              HStack(spacing: Space.m) {
-                if !selected {
-                    StrategyThumbnail(strategy: template)
-                        .frame(width: 84, height: 54)
+                StrategyDiagramView(strategy: template, compact: true)
+                    .frame(height: 140)
+                HStack(spacing: 5) {
+                    Text(model.strategyDisplayName(template))
+                        .font(.sfCallout.weight(.semibold))
+                        .foregroundStyle(selected ? Theme.accent : .primary)
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                    if beginner {
+                        Image(systemName: "leaf.fill").font(.system(size: 9)).foregroundStyle(Theme.success)
+                    }
+                    Spacer(minLength: 0)
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 13)).foregroundStyle(Theme.accent)
+                    }
                 }
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 5) {
-                        Text(model.strategyDisplayName(template))
-                            .font(.sfCallout.weight(.medium))
-                            .foregroundStyle(selected ? Theme.accent : .primary)
-                            .lineLimit(1)
-                        if beginner {
-                            Image(systemName: "leaf.fill")
-                                .font(.system(size: 8)).foregroundStyle(Theme.success)
+                let goodFor = model.strategyGoodFor(template)
+                if !goodFor.isEmpty {
+                    Text("\(model.t("picker.bestfor")): \(goodFor)")
+                        .font(.sfCaption2).foregroundStyle(.secondary)
+                        .lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                }
+                HStack(spacing: 5) {
+                    if let bucket = activeBucket, model.isRecommended(template, for: bucket) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "star.fill").font(.system(size: 8))
+                            Text(model.t("picker.recommended")).font(.sfCaption2.weight(.semibold))
                         }
+                        .foregroundStyle(Theme.accent)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.accentSoft))
                     }
-                    // Best-for: which task this team fits, at a glance.
-                    let goodFor = model.strategyGoodFor(template)
-                    if !goodFor.isEmpty {
-                        Text("\(model.t("picker.bestfor")): \(goodFor)")
-                            .font(.sfCaption2).foregroundStyle(.secondary)
-                            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                    }
-                    HStack(spacing: 5) {
-                        if let bucket = activeBucket, model.isRecommended(template, for: bucket) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "star.fill").font(.system(size: 8))
-                                Text(model.t("picker.recommended")).font(.sfCaption2.weight(.semibold))
-                            }
-                            .foregroundStyle(Theme.accent)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Capsule().fill(Theme.accentSoft))
-                        }
-                        taskTagChip(template)   // WHAT task (neutral)
-                        costTierPill(template)  // HOW MUCH it costs (green/amber/red)
-                    }
+                    taskTagChip(template)
+                    costTierPill(template)
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
-                if selected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 12)).foregroundStyle(Theme.accent)
-                }
-              }
-              // The selected strategy expands to a compact topology — labels and the
-              // legend are dropped so it stays legible in this narrow column (the
-              // full, labelled diagram lives in the wider Team canvas / config view).
-              if selected {
-                  StrategyDiagramView(strategy: template, compact: true)
-                      .frame(height: min(StrategyDiagramView.preferredHeight(for: template), 190))
-              }
             }
-            .padding(.vertical, Space.s)
-            .padding(.horizontal, Space.s)
+            .padding(Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
                 .fill(selected ? Theme.accentSoft : Theme.cardBg))
             .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
                 .strokeBorder(selected ? Theme.accent : Theme.hairline,
-                              lineWidth: selected ? 1.5 : 1))
+                              lineWidth: selected ? 2 : 1))
         }
         .buttonStyle(.plain)
         .help(model.strategyDisplayName(template))

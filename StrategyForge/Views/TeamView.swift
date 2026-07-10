@@ -58,6 +58,16 @@ struct TeamView: View {
                         agentCard(orch, wide: true)
                     }
 
+                    if !config.strategy.subagentRoles.isEmpty {
+                        HStack(spacing: Space.s) {
+                            Image(systemName: "arrow.turn.down.right")
+                                .font(.system(size: 11)).foregroundStyle(Theme.accent)
+                            Text(model.t("team.delegatesTo", config.strategy.subagentRoles.count))
+                                .font(.sfCaption2).foregroundStyle(.secondary)
+                        }
+                        .padding(.leading, Space.s)
+                    }
+
                     HStack {
                         sectionLabel("team.members.section", systemImage: "person.2.fill")
                         Spacer()
@@ -183,11 +193,13 @@ struct TeamView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(role.role.tint)
                     }
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(role.name).font(.sfCallout.weight(.semibold)).lineLimit(1)
-                        Text(model.roleKindName(role.role))
-                            .font(.system(size: 9, weight: .medium))
+                        Text(model.roleKindName(role.role).uppercased())
+                            .font(.system(size: 8, weight: .bold)).tracking(0.4)
                             .foregroundStyle(role.role.tint)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().fill(role.role.tint.opacity(0.16)))
                     }
                     Spacer(minLength: 0)
                     if role.count > 1 {
@@ -200,6 +212,9 @@ struct TeamView: View {
                 }
                 HStack(spacing: 4) {
                     ProviderLogo(provider: role.provider, size: 12, templateTint: role.provider.tint)
+                    if role.provider == .claude {
+                        Image(systemName: role.model.tierIcon).font(.system(size: 9)).foregroundStyle(.secondary)
+                    }
                     Text(role.modelDisplayName).font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
@@ -279,7 +294,7 @@ struct TeamView: View {
                         }
                         RoleEditorForm(role: roleBinding(roleID), issues: issues)
                     }
-                    .padding(Space.m)
+                    .padding(Space.l)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
