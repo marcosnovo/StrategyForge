@@ -153,14 +153,12 @@ struct StrategyPickerColumn: View {
                         .font(.system(size: 12)).foregroundStyle(Theme.accent)
                 }
               }
-              // The selected strategy expands to the full, labelled diagram — the
-              // same one shown in the config view — so it's fully understood.
+              // The selected strategy expands to a compact topology — labels and the
+              // legend are dropped so it stays legible in this narrow column (the
+              // full, labelled diagram lives in the wider Team canvas / config view).
               if selected {
-                  StrategyDiagramView(strategy: template)
+                  StrategyDiagramView(strategy: template, compact: true)
                       .frame(height: StrategyDiagramView.preferredHeight(for: template))
-                  Text(model.t("editor.diagram.note"))
-                      .font(.caption).foregroundStyle(.secondary)
-                      .fixedSize(horizontal: false, vertical: true)
               }
             }
             .padding(.vertical, Space.s)
