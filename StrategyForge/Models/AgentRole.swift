@@ -138,9 +138,16 @@ struct AgentRole: Codable, Identifiable, Hashable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
-        role = try c.decode(RoleKind.self, forKey: .role)
-        model = try c.decode(ClaudeModel.self, forKey: .model)
-        provider = try c.decodeIfPresent(AIProvider.self, forKey: .provider) ?? .claude
+        // Enum rawValues a newer app version may have written (an unknown model
+        // id, role kind or provider) must not throw: one unknown value would fail
+        // the decode of the WHOLE persisted store and wipe the user's data on the
+        // next save. Fall back to sensible defaults instead.
+        let roleRaw = (try? c.decode(String.self, forKey: .role)) ?? ""
+        role = RoleKind(rawValue: roleRaw) ?? .worker
+        let modelRaw = (try? c.decode(String.self, forKey: .model)) ?? ""
+        model = ClaudeModel(rawValue: modelRaw) ?? .sonnet5
+        let providerRaw = ((try? c.decodeIfPresent(String.self, forKey: .provider)) ?? nil) ?? ""
+        provider = AIProvider(rawValue: providerRaw) ?? .claude
         providerModelID = try c.decodeIfPresent(String.self, forKey: .providerModelID)
         systemPrompt = try c.decode(String.self, forKey: .systemPrompt)
         description = try c.decode(String.self, forKey: .description)

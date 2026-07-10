@@ -293,6 +293,8 @@ enum L10n {
         "banner.writeFailed": ("Couldn’t write files: %@", "No se pudieron escribir los archivos: %@"),
         "banner.saved": ("Configuration saved.", "Configuración guardada."),
         "banner.saveFailed": ("Couldn’t save: %@", "No se pudo guardar: %@"),
+        "banner.storeCorrupt": ("Your saved data couldn’t be read. A backup was kept as “%@” in Application Support/StrategyForge.",
+                                "No se pudieron leer tus datos guardados. Se conservó una copia como «%@» en Application Support/StrategyForge."),
         "banner.copied": ("Launch command copied.", "Comando de lanzamiento copiado."),
         "banner.terminalOK": ("Files written. Launch command copied — paste it in Terminal.",
                               "Archivos escritos. Comando copiado: pégalo en Terminal."),

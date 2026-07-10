@@ -150,8 +150,18 @@ struct CLIOneShotRunner: OneShotRunner {
                     do { try p.run() } catch {
                         cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return
                     }
+                    // Read both pipes concurrently: sequential reads deadlock when
+                    // the CLI fills one pipe's ~64KB buffer while we block on the
+                    // other (codex and gemini stream progress/spinners to stderr).
+                    var errData = Data()
+                    let errRead = DispatchGroup()
+                    errRead.enter()
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+                        errRead.leave()
+                    }
                     let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-                    let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+                    errRead.wait()
                     p.waitUntilExit()
                     cont.resume(returning: (String(data: outData, encoding: .utf8) ?? "",
                                             String(data: errData, encoding: .utf8) ?? "",

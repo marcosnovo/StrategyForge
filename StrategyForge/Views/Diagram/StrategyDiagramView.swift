@@ -247,7 +247,9 @@ struct StrategyDiagramView: View {
         // height) and no positioned subviews. Everything is drawn from `size`.
         // TimelineView drives the "live circuit" animation (flowing signal +
         // breathing root glow).
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        // 30 fps only while an agent is actually working; at rest the breathing
+        // glow (~0.27 Hz) reads fine at 10 fps and costs a third of the redraws.
+        TimelineView(.animation(minimumInterval: isLive ? 1.0 / 30.0 : 1.0 / 10.0)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             let pulse = CGFloat(0.5 + 0.5 * sin(t * 1.7))
             Canvas { ctx, size in
@@ -325,19 +327,13 @@ struct StrategyDiagramView: View {
 
     // MARK: Background (dot grid + powered-root glow)
 
+    /// The dot grid depends only on the canvas size, so cache its Path instead of
+    /// re-adding hundreds of ellipses on every animation frame.
+    private static let gridCache = GridPathCache()
+
     private func drawBackground(spec: DiagramSpec, frames: [UUID: CGRect], size: CGSize, pulse: CGFloat, ctx: inout GraphicsContext, palette: DiagramPalette) {
         // Faint engineering dot grid.
-        let spacing: CGFloat = 22
-        var dots = Path()
-        var y = spacing
-        while y < size.height {
-            var x = spacing
-            while x < size.width {
-                dots.addEllipse(in: CGRect(x: x - 0.75, y: y - 0.75, width: 1.5, height: 1.5))
-                x += spacing
-            }
-            y += spacing
-        }
+        let dots = Self.gridCache.path(for: size)
         ctx.fill(dots, with: .color(.primary.opacity(0.06)))
 
         // Radial Voltage glow behind the orchestrator so the topology feels powered.
@@ -707,6 +703,34 @@ private struct DiagramPreviewCard: View {
         .padding()
         .frame(width: 680)
         .environment(model)
+    }
+}
+
+/// Caches the dot-grid Path per canvas size. Thread-safe so it can be shared as
+/// a static across every diagram instance (editor, picker, activity panel).
+private final class GridPathCache: @unchecked Sendable {
+    private struct Key: Hashable { let w: CGFloat, h: CGFloat }
+    private var cache: [Key: Path] = [:]
+    private let lock = NSLock()
+
+    func path(for size: CGSize, spacing: CGFloat = 22) -> Path {
+        let key = Key(w: size.width, h: size.height)
+        lock.lock(); defer { lock.unlock() }
+        if let hit = cache[key] { return hit }
+        var dots = Path()
+        var y = spacing
+        while y < size.height {
+            var x = spacing
+            while x < size.width {
+                dots.addEllipse(in: CGRect(x: x - 0.75, y: y - 0.75, width: 1.5, height: 1.5))
+                x += spacing
+            }
+            y += spacing
+        }
+        // Sizes change continuously during window resizes; keep the cache tiny.
+        if cache.count > 16 { cache.removeAll() }
+        cache[key] = dots
+        return dots
     }
 }
 

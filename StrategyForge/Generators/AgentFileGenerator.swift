@@ -29,6 +29,11 @@ enum AgentFileGenerator {
     static func generate(for strategy: Strategy) -> [GeneratedFile] {
         var files: [GeneratedFile] = []
         for role in strategy.subagentRoles {
+            // Defense in depth: the editor blocks invalid names via validate(),
+            // but strategies also arrive from imports and sync. A name with "/",
+            // ".." or newlines would escape .claude/agents/ or inject frontmatter
+            // — never build a path from it.
+            guard Strategy.isValidRoleName(role.name) else { continue }
             let count = max(role.count, 1)
             for index in 1...count {
                 let instanceName = count == 1 ? role.name : "\(role.name)-\(index)"
@@ -48,8 +53,13 @@ enum AgentFileGenerator {
         frontmatter += "name: \(instanceName)\n"
         frontmatter += "description: \(escapedScalar(role.description))\n"
         // Omit `tools` entirely when empty so the subagent inherits all tools.
-        if !role.tools.isEmpty {
-            frontmatter += "tools: \(role.tools.joined(separator: ", "))\n"
+        // Strip newlines from each entry: a tool name with "\n" would break out
+        // of the scalar and inject its own frontmatter lines.
+        let tools = role.tools
+            .map { $0.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        if !tools.isEmpty {
+            frontmatter += "tools: \(tools.joined(separator: ", "))\n"
         }
         // Workers pin their model in frontmatter (unlike the orchestrator).
         frontmatter += "model: \(role.model.rawValue)\n"
