@@ -82,6 +82,9 @@ final class ChatViewModel {
     var attachments: [Attachment] = []
     /// Dirs granted for the last run (reused on allow-and-retry).
     @ObservationIgnored private var lastExtraDirs: [String] = []
+    /// The real prompt of the last turn (with file paths), reused on allow-and-retry
+    /// — NOT the display text, which only carries 📎 file names.
+    @ObservationIgnored private var lastPromptText = ""
     var input = ""
     var isRunning = false
     var errorText: String?
@@ -186,6 +189,7 @@ final class ChatViewModel {
         lastExtraDirs = extraDirs
         let promptText: String = atts.isEmpty ? text
             : text + "\n\nAttached files to review:\n" + atts.map { "- \($0.name): \($0.url.path)" }.joined(separator: "\n")
+        lastPromptText = promptText   // real prompt for allow-and-retry
         let displayText: String = atts.isEmpty ? text
             : text + "\n\n📎 " + atts.map { $0.name }.joined(separator: ", ")
 
@@ -402,8 +406,11 @@ final class ChatViewModel {
 
     func retryAllowingAll(persistElevation: Bool = false) {
         if persistElevation { elevatedPermissions = true }
-        guard !isRunning,
-              let lastUser = messages.last(where: { $0.role == .user })?.text else { return }
+        // Reuse the REAL last prompt (with file paths), not the display text.
+        let prompt = lastPromptText.isEmpty
+            ? (messages.last(where: { $0.role == .user })?.text ?? "")
+            : lastPromptText
+        guard !isRunning, !prompt.isEmpty else { return }
         let repo = workingDirectory()
         deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
@@ -415,18 +422,24 @@ final class ChatViewModel {
         isRunning = true
         persist(messages)
         let sessionID = config.id.uuidString.lowercased()
-        runTask = Task { [binary, model] in
-            // Resume with full permissions; fall back to a fresh session if the CLI
-            // has no record of this one (mirrors send()).
-            var missing = await runTurn(text: lastUser, repo: repo, sessionID: sessionID, resume: true,
-                                        assistantIndex: assistantIndex, binary: binary, model: model,
-                                        permissionMode: "bypassPermissions", extraDirs: lastExtraDirs)
-            if missing {
-                if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = "" }
-                activity = []; activeSubagent = nil
-                missing = await runTurn(text: lastUser, repo: repo, sessionID: sessionID, resume: false,
-                                        assistantIndex: assistantIndex, binary: binary, model: model,
-                                        permissionMode: "bypassPermissions", extraDirs: lastExtraDirs)
+        let useMeta = usesMetaOrchestrator
+        runTask = Task { [binary, model, useMeta] in
+            if useMeta {
+                // Cross-provider runs are one-shot; permissions don't apply — just re-run.
+                await runMetaTurn(task: prompt, repo: repo, assistantIndex: assistantIndex)
+            } else {
+                // Resume with full permissions; fall back to a fresh session if the CLI
+                // has no record of this one (mirrors send()).
+                var missing = await runTurn(text: prompt, repo: repo, sessionID: sessionID, resume: true,
+                                            assistantIndex: assistantIndex, binary: binary, model: model,
+                                            permissionMode: "bypassPermissions", extraDirs: lastExtraDirs)
+                if missing {
+                    if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = "" }
+                    activity = []; activeSubagent = nil
+                    missing = await runTurn(text: prompt, repo: repo, sessionID: sessionID, resume: false,
+                                            assistantIndex: assistantIndex, binary: binary, model: model,
+                                            permissionMode: "bypassPermissions", extraDirs: lastExtraDirs)
+                }
             }
             isRunning = false
             hasSession = true

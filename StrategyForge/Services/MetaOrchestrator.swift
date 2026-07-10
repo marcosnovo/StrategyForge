@@ -62,6 +62,23 @@ struct MetaOrchestrator {
         """
     }
 
+    /// The prompt handed to a worker: its own system prompt (the role's persona /
+    /// instructions), parallel-instance context, then the delegated subtask.
+    static func workerPrompt(role: AgentRole, task: String, instance: Int, of total: Int) -> String {
+        var p = ""
+        let sp = role.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if sp.isEmpty {
+            p += "You are \(role.name), a \(role.role.displayName.lowercased()) on a team.\n\n"
+        } else {
+            p += sp + "\n\n"
+        }
+        if total > 1 {
+            p += "You are instance \(instance + 1) of \(total) working on this in parallel — focus on your share and be concise.\n\n"
+        }
+        p += "Task:\n\(task)"
+        return p
+    }
+
     static func synthesisPrompt(task: String, results: [(role: String, text: String)]) -> String {
         let blocks = results.map { "### \($0.role)\n\($0.text)" }.joined(separator: "\n\n")
         return """
@@ -153,19 +170,35 @@ struct MetaOrchestrator {
             onEvent(.roleFinished(role: orchestrator.name, tokens: planRes.tokens))
             let subtasks = parsePlan(planRes.text, workers: workers, task: task)
 
-            // 2) DELEGATE — run each subtask on its worker's provider+model.
+            // 2) DELEGATE — run subtasks CONCURRENTLY (cheap parallel labor), honoring
+            // each role's system prompt and instance count. Results are collected and
+            // accounted on the parent context to avoid data races.
             onEvent(.phase("delegate"))
-            var results: [(role: String, text: String)] = []
-            for sub in subtasks {
-                if Task.isCancelled { return nil }
-                guard let role = workers.first(where: { $0.name == sub.roleName }) else { continue }
-                let m = modelID(for: role)
-                onEvent(.roleStarted(role: role.name, provider: role.provider, model: m))
-                let r = try await runner.run(prompt: sub.task, provider: role.provider, model: m, cwd: cwd)
-                account(r)
-                onEvent(.roleFinished(role: role.name, tokens: r.tokens))
-                results.append((role: role.name, text: r.text))
+            if Task.isCancelled { return nil }
+            struct WorkerResult: Sendable { let order: Int; let role: String; let text: String; let tokens: Int; let cost: Double }
+            let collected = try await withThrowingTaskGroup(of: WorkerResult.self) { group -> [WorkerResult] in
+                var order = 0
+                for sub in subtasks {
+                    guard let role = workers.first(where: { $0.name == sub.roleName }) else { continue }
+                    let m = modelID(for: role)
+                    let instances = max(1, min(role.count, 8))
+                    for inst in 0..<instances {
+                        let thisOrder = order; order += 1
+                        let prompt = workerPrompt(role: role, task: sub.task, instance: inst, of: instances)
+                        group.addTask {
+                            onEvent(.roleStarted(role: role.name, provider: role.provider, model: m))
+                            let r = try await runner.run(prompt: prompt, provider: role.provider, model: m, cwd: cwd)
+                            onEvent(.roleFinished(role: role.name, tokens: r.tokens))
+                            return WorkerResult(order: thisOrder, role: role.name, text: r.text, tokens: r.tokens, cost: r.costUSD)
+                        }
+                    }
+                }
+                var out: [WorkerResult] = []
+                for try await r in group { out.append(r) }
+                return out.sorted { $0.order < $1.order }
             }
+            for r in collected { totalTokens += r.tokens; totalCost += r.cost }
+            let results: [(role: String, text: String)] = collected.map { ($0.role, $0.text) }
 
             if Task.isCancelled { return nil }
             // 3) SYNTHESIZE — the orchestrator combines everything.

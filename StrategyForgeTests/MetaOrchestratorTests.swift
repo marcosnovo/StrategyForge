@@ -11,14 +11,17 @@ import Testing
 import Foundation
 @testable import StrategyForge
 
-/// Records every call and returns canned text based on the prompt kind.
+/// Records every call and returns canned text based on the prompt kind. Thread-safe
+/// because delegated workers now run concurrently.
 private final class MockRunner: OneShotRunner, @unchecked Sendable {
     struct Call: Equatable { let provider: AIProvider; let model: String }
-    private(set) var calls: [Call] = []
+    private let lock = NSLock()
+    private var _calls: [Call] = []
+    var calls: [Call] { lock.lock(); defer { lock.unlock() }; return _calls }
     var planJSON = "[]"
 
     func run(prompt: String, provider: AIProvider, model: String, cwd: String?) async throws -> OneShotResult {
-        calls.append(Call(provider: provider, model: model))
+        lock.lock(); _calls.append(Call(provider: provider, model: model)); lock.unlock()
         let text: String
         if prompt.contains("JSON array") { text = planJSON }
         else if prompt.contains("Combine your agents") { text = "FINAL ANSWER" }
@@ -84,13 +87,14 @@ struct MetaOrchestratorRunTests {
         #expect(box.events.contains(.assistantText("FINAL ANSWER")))
         #expect(box.events.contains(.finished))
 
-        // Four calls: plan(orch) → researcher → writer → synth(orch).
-        #expect(runner.calls == [
-            .init(provider: .claude, model: "claude-opus-4-8"),   // plan
-            .init(provider: .claude, model: "claude-sonnet-5"),   // researcher
-            .init(provider: .gemini, model: "gemini-flash"),      // writer (different provider!)
-            .init(provider: .claude, model: "claude-opus-4-8"),   // synthesize
-        ])
+        // Four calls total; workers run concurrently so their order isn't fixed.
+        let calls = runner.calls
+        #expect(calls.count == 4)
+        // Orchestrator (plan + synthesize) ran twice on Opus.
+        #expect(calls.filter { $0 == .init(provider: .claude, model: "claude-opus-4-8") }.count == 2)
+        // The researcher ran on Claude Sonnet, the writer on a DIFFERENT provider (Gemini).
+        #expect(calls.contains(.init(provider: .claude, model: "claude-sonnet-5")))
+        #expect(calls.contains(.init(provider: .gemini, model: "gemini-flash")))
 
         // Usage is summed across all four calls.
         #expect(box.events.contains(.usage(tokens: 40, costUSD: 0.04)))
