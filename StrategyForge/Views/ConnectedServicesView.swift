@@ -92,8 +92,8 @@ struct ConnectedServicesSection: View {
             Button(model.t("provider.connect")) { startConnect(provider) }
                 .controlSize(.small).buttonStyle(.moon)
         case .found:
-            Button(model.t("provider.signin")) { ProviderInstaller.launchSignIn(provider) }
-                .controlSize(.small)
+            Button(model.t("provider.reconnect")) { ProviderInstaller.launchSignIn(provider) }
+                .controlSize(.small).buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)
         case .checking:
             EmptyView()
         }

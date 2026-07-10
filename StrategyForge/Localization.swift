@@ -225,6 +225,7 @@ enum L10n {
                                "De momento corre en Claude; el motor de este proveedor llega pronto."),
         "provider.connect": ("Install & connect", "Instalar y conectar"),
         "provider.signin": ("Sign in", "Iniciar sesión"),
+        "provider.reconnect": ("Reconnect account", "Cambiar cuenta"),
         "provider.installing": ("Setting up %@", "Configurando %@"),
         "provider.installNote": ("Installing the command-line helper for you… this can take a minute.",
                                  "Instalando el ayudante de línea de comandos por ti… puede tardar un minuto."),

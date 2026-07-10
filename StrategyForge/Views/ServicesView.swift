@@ -105,7 +105,9 @@ struct ProviderConfigView: View {
                 Label(model.t("provider.connected"), systemImage: "checkmark.circle.fill")
                     .font(.sfCardTitle).foregroundStyle(Theme.success)
                 Spacer()
-                Button(model.t("provider.signin")) { ProviderInstaller.launchSignIn(provider) }
+                // Already connected — offer a discreet re-auth, not a prompt.
+                Button(model.t("provider.reconnect")) { ProviderInstaller.launchSignIn(provider) }
+                    .buttonStyle(.plain).font(.sfCaption2).foregroundStyle(.secondary)
             } else {
                 Label(model.t("provider.notFound"), systemImage: "xmark.circle")
                     .font(.sfCardTitle).foregroundStyle(.secondary)

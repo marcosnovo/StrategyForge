@@ -23,7 +23,7 @@ struct NavRail: View {
                 .foregroundStyle(Theme.accent)
                 .padding(.top, Space.s)
 
-            item("square.and.pencil", "sidebar.new", tint: Theme.accent) {
+            item("square.and.pencil", "sidebar.new") {
                 model.navSection = .chats
                 model.addConfiguration()
             }
@@ -49,19 +49,23 @@ struct NavRail: View {
         .background(Theme.railBg)
     }
 
-    private func item(_ icon: String, _ labelKey: String, tint: Color = .white,
+    private func item(_ icon: String, _ labelKey: String,
                       active: Bool = false, action: @escaping () -> Void) -> some View {
+        // The rail is always dark, so everything is light; the selected item gets a
+        // brighter icon/label and a light fill (never the dark graphite accent).
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 16))
-                    .foregroundStyle(active ? Theme.accent : tint.opacity(tint == .white ? 0.85 : 1))
+                    .foregroundStyle(active ? Color.white : Color.white.opacity(0.72))
                     .frame(width: 40, height: 34)
                     .background(RoundedRectangle(cornerRadius: 12)
-                        .fill(active ? Color.white.opacity(0.12) : .clear))
+                        .fill(active ? Color.white.opacity(0.18) : .clear))
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.white.opacity(active ? 0.25 : 0), lineWidth: 1))
                 Text(model.t(labelKey))
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(active ? Theme.accent : Color.white.opacity(0.6))
+                    .font(.system(size: 9, weight: active ? .semibold : .medium))
+                    .foregroundStyle(active ? Color.white : Color.white.opacity(0.55))
                     .lineLimit(1)
             }
         }
