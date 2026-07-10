@@ -19,7 +19,7 @@ struct ChatView: View {
     let config: Configuration
     @State private var vm: ChatViewModel
     @State private var editingTitle: String
-    @State private var showActivity = false
+    @Binding var showActivity: Bool
     @State private var showPreview = false
     @State private var agentFocus: AgentFocus?
     @FocusState private var inputFocused: Bool
@@ -35,6 +35,7 @@ struct ChatView: View {
          permissionMode: String = "acceptEdits",
          showInspector: Binding<Bool> = .constant(false),
          showSidebar: Binding<Bool> = .constant(true),
+         showActivity: Binding<Bool> = .constant(false),
          persist: @escaping ([ChatMessage]) -> Void = { _ in },
          rename: @escaping (String) -> Void = { _ in },
          autoTitle: @escaping (String) -> Void = { _ in },
@@ -46,6 +47,7 @@ struct ChatView: View {
         self.saveDraft = saveDraft
         _showInspector = showInspector
         _showSidebar = showSidebar
+        _showActivity = showActivity
         _editingTitle = State(initialValue: config.name)
         _vm = State(initialValue: ChatViewModel(config: config, binary: binary,
                                                 permissionMode: permissionMode,
@@ -60,6 +62,7 @@ struct ChatView: View {
         self.saveDraft = { _ in }
         _showInspector = showInspector
         _showSidebar = .constant(true)
+        _showActivity = .constant(false)
         _editingTitle = State(initialValue: viewModel.config.name)
         _vm = State(initialValue: viewModel)
     }
@@ -163,12 +166,14 @@ struct ChatView: View {
             }
             .buttonStyle(.glass)
             .help(model.t("chat.activity.help"))
+            .accessibilityLabel(model.t("chat.activity"))
 
             Button { showInspector = true } label: {
                 Image(systemName: "slider.horizontal.3")
             }
             .buttonStyle(.glass)
             .help(model.t("inspector.toggle"))
+            .accessibilityLabel(model.t("chat.settings"))
         }
         .padding(Space.m)
         .background {
@@ -394,6 +399,7 @@ struct ChatView: View {
             }
             .buttonStyle(.plain).foregroundStyle(Theme.accent)
             .help(model.t("filepreview.title"))
+            .accessibilityLabel(model.t("filepreview.title"))
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -413,6 +419,7 @@ struct ChatView: View {
             }
             .buttonStyle(.plain).foregroundStyle(Theme.accent)
             .help(model.t("chat.download"))
+            .accessibilityLabel("\(model.t("chat.download")): \((path as NSString).lastPathComponent)")
         }
         .foregroundStyle(.primary)
         .padding(.horizontal, 9).padding(.vertical, 3)
@@ -497,6 +504,7 @@ struct ChatView: View {
             }
             .buttonStyle(.glass)
             .help(model.t("chat.attach"))
+            .accessibilityLabel(model.t("chat.attach"))
 
             TextField(model.t("chat.placeholder"),
                       text: Bindable(vm).input, axis: .vertical)

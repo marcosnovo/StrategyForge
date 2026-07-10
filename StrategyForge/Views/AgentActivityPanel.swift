@@ -390,6 +390,7 @@ struct SubagentDetailPanel: View {
                 }
                 .buttonStyle(.plain).foregroundStyle(Theme.secondaryOnMaterial)
                 .help(model.t("common.done"))
+                .accessibilityLabel(model.t("common.done"))
             }
             .padding(Space.m)
             .background {

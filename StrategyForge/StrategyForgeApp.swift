@@ -22,6 +22,24 @@ struct StrategyForgeApp: App {
         .windowStyle(.titleBar)
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1080, height: 720)
+        .commands {
+            // New chat replaces the default New Item.
+            CommandGroup(replacing: .newItem) {
+                Button(model.t("sidebar.new")) { model.addConfiguration() }
+                    .keyboardShortcut("n", modifiers: .command)
+            }
+            // View menu: toggle the panes from the keyboard.
+            CommandGroup(after: .sidebar) {
+                Button(model.t("sidebar.toggle")) { model.showSidebar.toggle() }
+                    .keyboardShortcut("s", modifiers: [.command, .control])
+                Button(model.t("chat.activity")) { model.showActivity.toggle() }
+                    .keyboardShortcut("a", modifiers: [.command, .option])
+                    .disabled(model.selectedConfiguration == nil)
+                Button(model.t("chat.settings")) { model.showInspector.toggle() }
+                    .keyboardShortcut("i", modifiers: [.command, .option])
+                    .disabled(model.selectedConfiguration == nil)
+            }
+        }
 
         Settings {
             SettingsView()

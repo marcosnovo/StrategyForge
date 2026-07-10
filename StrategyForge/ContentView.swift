@@ -12,10 +12,9 @@ struct ContentView: View {
     @Environment(AppModel.self) private var model
     @AppStorage("didOnboard") private var didOnboard = false
     @State private var showOnboarding = false
-    @State private var showInspector = false
-    @State private var showSidebar = true
 
     var body: some View {
+        @Bindable var model = model
         // Manual two-pane layout instead of NavigationSplitView: an HStack fills
         // the window, so each pane is height-bounded and its ScrollView scrolls
         // correctly. (NavigationSplitView here sized itself to its tall content
@@ -24,13 +23,13 @@ struct ContentView: View {
         HStack(spacing: 0) {
             // Left column: chat history. Collapsible into a thin rail; always shown
             // in full when there's no active chat (so New chat stays reachable).
-            if showSidebar || model.selectedConfiguration == nil {
-                SidebarView(showSidebar: $showSidebar)
+            if model.showSidebar || model.selectedConfiguration == nil {
+                SidebarView(showSidebar: $model.showSidebar)
                     .frame(width: 240)
                     .transition(.move(edge: .leading).combined(with: .opacity))
                 Divider()
             } else {
-                CollapsedSidebarRail(showSidebar: $showSidebar)
+                CollapsedSidebarRail(showSidebar: $model.showSidebar)
                     .transition(.move(edge: .leading))
                 Divider()
             }
@@ -40,8 +39,9 @@ struct ContentView: View {
                 ChatView(config: chat,
                          binary: model.settings.claudeBinary,
                          permissionMode: model.settings.chatAutonomy.permissionMode,
-                         showInspector: $showInspector,
-                         showSidebar: $showSidebar,
+                         showInspector: $model.showInspector,
+                         showSidebar: $model.showSidebar,
+                         showActivity: $model.showActivity,
                          persist: { [id] messages in model.updateTranscript(id, messages) },
                          rename: { [id] title in model.renameConfiguration(id, title) },
                          autoTitle: { [id] text in model.autoTitleIfNeeded(id, fromFirstMessage: text) },
@@ -57,9 +57,10 @@ struct ContentView: View {
         }
         .frame(minWidth: 720, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
         // Per-chat configuration as a modal sheet (strategy + file generation).
-        .sheet(isPresented: $showInspector) {
+        .sheet(isPresented: $model.showInspector) {
             if let id = model.selectedConfigID { configSheet(id) }
         }
+        .onChange(of: model.selectedConfigID) { model.rememberSelection() }
         .onAppear { if !didOnboard { showOnboarding = true } }
         .sheet(isPresented: $showOnboarding, onDismiss: { didOnboard = true }) {
             OnboardingView(onCreate: { model.addConfiguration() })
@@ -72,7 +73,7 @@ struct ContentView: View {
             HStack {
                 Text(model.t("chat.settings")).font(.sfCardTitle)
                 Spacer()
-                Button(model.t("common.done")) { showInspector = false }
+                Button(model.t("common.done")) { model.showInspector = false }
                     .keyboardShortcut(.defaultAction)
             }
             .padding(Space.m)

@@ -38,24 +38,32 @@ struct AppSettings: Codable, Hashable {
     var language: AppLanguage
     /// How autonomously the chat may act on the repo.
     var chatAutonomy: ChatAutonomy
+    /// Restored UI state: the last-selected chat and whether the activity panel was open.
+    var lastSelectedConfigID: String?
+    var showActivity: Bool
 
     init(
         defaultReposPath: String? = nil,
         defaultReposBookmark: Data? = nil,
         claudeBinary: String = "claude",
         language: AppLanguage = .system,
-        chatAutonomy: ChatAutonomy = .acceptEdits
+        chatAutonomy: ChatAutonomy = .acceptEdits,
+        lastSelectedConfigID: String? = nil,
+        showActivity: Bool = false
     ) {
         self.defaultReposPath = defaultReposPath
         self.defaultReposBookmark = defaultReposBookmark
         self.claudeBinary = claudeBinary
         self.language = language
         self.chatAutonomy = chatAutonomy
+        self.lastSelectedConfigID = lastSelectedConfigID
+        self.showActivity = showActivity
     }
 
-    // Tolerant decoding so older saved data (without `language`) still loads.
+    // Tolerant decoding so older saved data (without newer keys) still loads.
     private enum CodingKeys: String, CodingKey {
         case defaultReposPath, defaultReposBookmark, claudeBinary, language, chatAutonomy
+        case lastSelectedConfigID, showActivity
     }
 
     init(from decoder: Decoder) throws {
@@ -65,5 +73,7 @@ struct AppSettings: Codable, Hashable {
         claudeBinary = try c.decodeIfPresent(String.self, forKey: .claudeBinary) ?? "claude"
         language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
         chatAutonomy = try c.decodeIfPresent(ChatAutonomy.self, forKey: .chatAutonomy) ?? .acceptEdits
+        lastSelectedConfigID = try c.decodeIfPresent(String.self, forKey: .lastSelectedConfigID)
+        showActivity = try c.decodeIfPresent(Bool.self, forKey: .showActivity) ?? false
     }
 }

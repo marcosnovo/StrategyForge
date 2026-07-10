@@ -22,6 +22,14 @@ final class AppModel {
     var selectedConfigID: Configuration.ID?
     var settings = AppSettings()
 
+    // MARK: - UI layout state (restored across launches; see settings)
+    var showSidebar = true
+    var showInspector = false
+    /// Right-side agent-activity panel visibility (persisted so it's restored).
+    var showActivity = false {
+        didSet { if showActivity != oldValue { settings.showActivity = showActivity; save(stamp: false) } }
+    }
+
     /// Transient banner shown after actions.
     enum Banner: Equatable {
         case success(String)
@@ -781,8 +789,23 @@ final class AppModel {
         let state = decoded.migrated()
         configurations = state.configurations
         settings = state.settings
-        selectedConfigID = configurations.first?.id
+        // Restore the last session's UI: selected chat + activity-panel visibility.
+        if let last = settings.lastSelectedConfigID,
+           let restored = configurations.first(where: { $0.id.uuidString == last }) {
+            selectedConfigID = restored.id
+        } else {
+            selectedConfigID = configurations.first?.id
+        }
+        showActivity = settings.showActivity
         snapshotConfigurations()
+    }
+
+    /// Remember the selected chat so it reopens on next launch (device-local).
+    func rememberSelection() {
+        let id = selectedConfigID?.uuidString
+        guard settings.lastSelectedConfigID != id else { return }
+        settings.lastSelectedConfigID = id
+        save(stamp: false)
     }
 
     // MARK: - Sync merge
