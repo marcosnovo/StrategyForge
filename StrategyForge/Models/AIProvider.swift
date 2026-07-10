@@ -103,14 +103,19 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
                 ProviderModel(id: $0.rawValue, displayName: $0.displayName, tierKey: $0.tierNameKey)
             }
         case .openai:
+            // Real Codex CLI model slugs (passed as `codex exec --model <id>`).
+            // If a CLI version renames these, adjust here — "Test connection"
+            // surfaces an unknown-model error so it's caught fast.
             return [
-                ProviderModel(id: "gpt-flagship", displayName: "GPT (flagship)", tierKey: "model.tier.expert"),
-                ProviderModel(id: "gpt-mini", displayName: "GPT mini", tierKey: "model.tier.fast"),
+                ProviderModel(id: "gpt-5-codex", displayName: "GPT-5 Codex", tierKey: "model.tier.expert"),
+                ProviderModel(id: "gpt-5", displayName: "GPT-5", tierKey: "model.tier.generalist"),
+                ProviderModel(id: "gpt-5-mini", displayName: "GPT-5 mini", tierKey: "model.tier.fast"),
             ]
         case .gemini:
+            // Real Gemini CLI model ids (passed as `gemini -m <id>`).
             return [
-                ProviderModel(id: "gemini-pro", displayName: "Gemini Pro", tierKey: "model.tier.generalist"),
-                ProviderModel(id: "gemini-flash", displayName: "Gemini Flash", tierKey: "model.tier.fast"),
+                ProviderModel(id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", tierKey: "model.tier.expert"),
+                ProviderModel(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", tierKey: "model.tier.fast"),
             ]
         }
     }

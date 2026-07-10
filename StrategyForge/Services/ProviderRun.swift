@@ -89,15 +89,17 @@ struct CLIOneShotRunner: OneShotRunner {
             a.append(contentsOf: ["-p", prompt])
             return (a, .claudeJSON)
         case .openai:
-            // Codex CLI, non-interactive (`codex exec`). NOTE: we do NOT pass --model
-            // yet — our per-role provider model ids are capability placeholders, not
-            // real Codex model names, so passing them would error. Use the CLI's
-            // logged-in default until real ids are wired.
-            return (["exec", prompt], .plainText)
+            // Codex CLI, non-interactive: `codex exec --model <id> "<prompt>"`.
+            var a = ["exec"]
+            if !model.isEmpty { a.append(contentsOf: ["--model", model]) }
+            a.append(prompt)
+            return (a, .plainText)
         case .gemini:
-            // Gemini CLI, non-interactive (`gemini -p`). Same placeholder-id caveat
-            // as Codex → let the CLI pick its default model.
-            return (["-p", prompt], .plainText)
+            // Gemini CLI, non-interactive: `gemini -m <id> -p "<prompt>"`.
+            var a: [String] = []
+            if !model.isEmpty { a.append(contentsOf: ["-m", model]) }
+            a.append(contentsOf: ["-p", prompt])
+            return (a, .plainText)
         }
     }
 
