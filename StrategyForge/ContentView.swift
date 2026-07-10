@@ -93,20 +93,13 @@ struct ContentView: View {
         }
     }
 
-    /// Soft "Wisteria haze" wash behind everything (light mode only); solid dark base
-    /// in dark mode. Content panels paint their own surfaces on top, so text stays
-    /// readable while the haze shows through translucent chrome and the chat canvas.
+    /// True behind-window glass: the desktop shows through, blurred. Frosted panels
+    /// (columns, chat) layer on top. The window is made non-opaque by WindowConfigurator.
     @ViewBuilder
     private var hazeBackground: some View {
-        if colorScheme == .dark {
-            Theme.appBg.ignoresSafeArea()
-        } else {
-            ZStack {
-                Color(red: 0.972, green: 0.969, blue: 0.988)   // soft lavender-white base
-                Theme.haze.opacity(0.16)                        // subtler wash behind frosted panels
-            }
+        VisualEffectBackground()
+            .overlay(WindowConfigurator().frame(width: 0, height: 0))
             .ignoresSafeArea()
-        }
     }
 
     /// The per-chat configuration sheet: strategy + file-generation options.

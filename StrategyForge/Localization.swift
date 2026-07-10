@@ -82,6 +82,7 @@ enum L10n {
                                  "Elige una tarjeta de agente para ajustar su modelo, instancias y herramientas."),
         "team.newRole.description": ("Describe what this agent does so the orchestrator knows when to delegate to it.",
                                      "Describe qué hace este agente para que el orquestador sepa cuándo delegarle."),
+        "role.instructions": ("Advanced instructions", "Instrucciones avanzadas"),
         "team.library": ("Teams", "Equipos"),
         "team.library.yours": ("Your teams", "Tus equipos"),
         "team.library.apply": ("Use a saved team", "Usar un equipo guardado"),

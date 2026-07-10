@@ -110,6 +110,8 @@ struct RoleEditorForm: View {
     var issues: [Strategy.ValidationIssue] = []
 
     @State private var hoveredModel: ClaudeModel?
+    /// Prompts are advanced — collapsed by default so the panel stays clean.
+    @State private var showInstructions = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
@@ -119,15 +121,23 @@ struct RoleEditorForm: View {
                 labeled("field.tools") { toolsMenu }
                 Spacer(minLength: 0)
             }
-            labeled("role.systemPrompt") {
-                TextEditor(text: $role.systemPrompt)
-                    .font(.body.monospaced()).frame(height: 120)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
-            }
-            labeled("role.description") {
-                TextEditor(text: $role.description)
-                    .font(.body.monospaced()).frame(height: 80)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
+            DisclosureGroup(isExpanded: $showInstructions) {
+                VStack(alignment: .leading, spacing: Space.m) {
+                    labeled("role.systemPrompt") {
+                        TextEditor(text: $role.systemPrompt)
+                            .font(.body.monospaced()).frame(height: 120)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
+                    }
+                    labeled("role.description") {
+                        TextEditor(text: $role.description)
+                            .font(.body.monospaced()).frame(height: 80)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
+                    }
+                }
+                .padding(.top, Space.s)
+            } label: {
+                Label(model.t("role.instructions"), systemImage: "text.alignleft")
+                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(.secondary)
             }
             ForEach(issues) { issue in
                 Label(issue.message, systemImage: issue.severity == .error ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
@@ -197,7 +207,9 @@ struct RoleEditorForm: View {
             Button(model.t("provider.manage")) { model.navSection = .services }
         } label: {
             HStack(spacing: 3) {
-                ProviderLogo(provider: role.provider, size: 11, templateTint: role.provider.tint)
+                // SF Symbol (not ProviderLogo): a Menu label doesn't honor a
+                // resizable image's frame, which rendered the logo huge.
+                Image(systemName: role.provider.icon).font(.system(size: 9))
                 Text(role.provider.displayName).font(.sfCaption2.weight(.semibold))
             }
             .foregroundStyle(role.provider.tint)
