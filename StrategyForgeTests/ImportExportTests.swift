@@ -84,6 +84,22 @@ struct StrategyPackageTests {
         // Ids are regenerated so imports never collide.
         #expect(restored.id != original.id)
     }
+
+    @Test func shareTextRoundTrips() throws {
+        let original = StrategyLibrary.domainSpecialists()
+        let text = try StrategyPackage.exportText(original)
+        #expect(text.hasPrefix(StrategyPackage.textPrefix))
+        let restored = try StrategyPackage.importText(text)
+        #expect(restored.name == original.name)
+        #expect(restored.roles.map(\.name) == original.roles.map(\.name))
+        // Tolerates a raw base64 string without the prefix too.
+        let raw = String(text.dropFirst(StrategyPackage.textPrefix.count))
+        #expect((try? StrategyPackage.importText(raw))?.roles.count == original.roles.count)
+    }
+
+    @Test func importTextRejectsGarbage() {
+        #expect((try? StrategyPackage.importText("not a share string!!")) == nil)
+    }
 }
 
 struct AutoFixTests {

@@ -666,6 +666,71 @@ final class AppModel {
         return role.id
     }
 
+    // MARK: Team sharing / importing (marketplace seed — file or copyable text)
+
+    /// Copy a team to the clipboard as a paste-anywhere share string.
+    func copyTeamShareText(_ team: SavedTeam) {
+        guard let text = try? StrategyPackage.exportText(team.strategy) else {
+            show(.failure(t("team.share.failed"))); return
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        Analytics.log(.strategyShared(kind: "text"))
+        flashSuccess(t("team.share.copied"))
+    }
+
+    /// Export a team to a shareable `.sfstrategy` file.
+    func exportTeamDocument(_ team: SavedTeam) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = StrategyPackage.fileName(for: team.strategy)
+        panel.allowedContentTypes = [.sfStrategy]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try StrategyPackage.export(team.strategy).write(to: url, options: .atomic)
+            Analytics.log(.strategyShared(kind: "file"))
+            flashSuccess(t("doc.exported"))
+        } catch {
+            show(.failure(t("banner.writeFailed", error.localizedDescription)))
+        }
+    }
+
+    /// Create a team from a paste-in share string (clipboard).
+    func importTeamFromClipboard() {
+        guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else {
+            show(.failure(t("team.import.noText"))); return
+        }
+        do {
+            let strategy = try StrategyPackage.importText(text).autoFixed()
+            guard strategy.isValid, !strategy.roles.isEmpty else { show(.failure(t("doc.importInvalid"))); return }
+            let id = createTeam(from: strategy, named: strategy.name)
+            Analytics.log(.strategyImported(kind: "text"))
+            flashSuccess(t("team.import.done"))
+            _ = id
+        } catch {
+            show(.failure(t("doc.importFailed", error.localizedDescription)))
+        }
+    }
+
+    /// Create a team from a `.sfstrategy` file.
+    func importTeamFromFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.sfStrategy]
+        panel.prompt = t("common.choose")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let strategy = try StrategyPackage.import(Data(contentsOf: url)).autoFixed()
+            guard strategy.isValid, !strategy.roles.isEmpty else { show(.failure(t("doc.importInvalid"))); return }
+            _ = createTeam(from: strategy, named: strategy.name)
+            Analytics.log(.strategyImported(kind: "file"))
+            flashSuccess(t("team.import.done"))
+        } catch {
+            show(.failure(t("doc.importFailed", error.localizedDescription)))
+        }
+    }
+
     /// Remove a role from a saved team (the orchestrator can't be deleted).
     func deleteRole(_ roleID: AgentRole.ID, fromTeam id: SavedTeam.ID) {
         guard let i = savedTeams.firstIndex(where: { $0.id == id }),

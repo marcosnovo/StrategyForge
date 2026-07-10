@@ -50,6 +50,27 @@ enum StrategyPackage {
         return strategy
     }
 
+    // MARK: - Copyable text form (paste-to-share, no file / no backend)
+
+    /// Prefix identifying a StrategyForge share string.
+    static let textPrefix = "sfstrategy;1;"
+
+    /// A single-line, copy-pasteable share string: the prefix + base64 of the export.
+    static func exportText(_ strategy: Strategy) throws -> String {
+        textPrefix + (try export(strategy)).base64EncodedString()
+    }
+
+    /// Decode a share string (with or without the prefix). Ids are regenerated.
+    static func importText(_ text: String) throws -> Strategy {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let b64 = trimmed.hasPrefix(textPrefix) ? String(trimmed.dropFirst(textPrefix.count)) : trimmed
+        guard let data = Data(base64Encoded: b64) else {
+            throw NSError(domain: "StrategyPackage", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Not a valid StrategyForge share string."])
+        }
+        return try `import`(data)
+    }
+
     /// A filesystem-safe file name for a strategy export.
     static func fileName(for strategy: Strategy) -> String {
         let slug = strategy.name

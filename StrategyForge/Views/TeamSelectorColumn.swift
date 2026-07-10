@@ -38,6 +38,18 @@ struct TeamSelectorColumn: View {
         HStack {
             Text(model.t("team.title")).font(.sfCardTitle)
             Spacer()
+            Menu {
+                Button { model.importTeamFromClipboard() } label: {
+                    Label(model.t("team.import.paste"), systemImage: "doc.on.clipboard")
+                }
+                Button { model.importTeamFromFile() } label: {
+                    Label(model.t("team.import.file"), systemImage: "arrow.down.doc")
+                }
+            } label: {
+                Image(systemName: "square.and.arrow.down")
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .help(model.t("team.import"))
             Button {
                 selectedID = nil   // show the create browser
             } label: {

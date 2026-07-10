@@ -116,6 +116,13 @@ struct TeamView: View {
             Spacer()
             costPill
             Menu {
+                Button { model.copyTeamShareText(team) } label: {
+                    Label(model.t("team.share.copy"), systemImage: "square.on.square")
+                }
+                Button { model.exportTeamDocument(team) } label: {
+                    Label(model.t("team.share.export"), systemImage: "arrow.up.doc")
+                }
+                Divider()
                 Button(role: .destructive) {
                     confirmDeleteTeam = true
                 } label: {
