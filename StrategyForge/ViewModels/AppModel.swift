@@ -46,8 +46,22 @@ final class AppModel {
     func isConnected(_ provider: AIProvider) -> Bool { connectedProviders.contains(provider) }
 
     /// Which top-level section the nav rail shows: the chats, or connected services.
-    enum NavSection { case chats, services, team }
+    enum NavSection { case chats, services, team, usage }
     var navSection: NavSection = .chats
+
+    // MARK: - Usage (real Claude token usage from local logs)
+    /// Aggregated Claude usage read from ~/.claude logs (nil until first refresh).
+    var claudeUsage: UsageSummary?
+    /// True while a usage refresh is in flight.
+    var isRefreshingUsage = false
+
+    /// Re-read and aggregate Claude's local session logs (off the main thread).
+    func refreshUsage() async {
+        isRefreshingUsage = true
+        let summary = await Task.detached(priority: .utility) { ClaudeUsageStore.load() }.value
+        claudeUsage = summary
+        isRefreshingUsage = false
+    }
     /// The service shown in the main area while in the Services section.
     var selectedService: AIProvider = .claude
 

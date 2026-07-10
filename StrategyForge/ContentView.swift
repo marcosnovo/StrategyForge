@@ -37,6 +37,9 @@ struct ContentView: View {
                 StrategyPickerColumn(config: model.configurationBinding(id))
                     .frame(width: 300)
                 Divider()
+            } else if model.navSection == .usage {
+                // Usage is a single full-width dashboard — no second column.
+                EmptyView()
             } else if model.showSidebar || model.selectedConfiguration == nil {
                 SidebarView(showSidebar: $model.showSidebar)
                     .frame(width: 240)
@@ -51,6 +54,9 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .team, let id = model.selectedConfigID {
                 TeamView(config: model.configurationBinding(id))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.navSection == .usage {
+                UsageView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let id = model.selectedConfigID, let chat = model.selectedConfiguration {
                 // Center: the chat — the protagonist, full width.

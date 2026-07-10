@@ -43,6 +43,11 @@ struct NavRail: View {
                  active: model.navSection == .services) {
                 model.navSection = .services
             }
+            item("gauge.with.dots.needle.bottom.50percent", "rail.usage",
+                 active: model.navSection == .usage) {
+                model.navSection = .usage
+                Task { await model.refreshUsage() }
+            }
 
             Spacer()
 
