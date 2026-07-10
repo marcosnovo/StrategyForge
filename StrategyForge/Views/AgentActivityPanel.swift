@@ -86,6 +86,13 @@ struct AgentActivityPanel: View {
         let subagent = vm.activeSubagent
         let modelName = vm.config.strategy.orchestrator?.model.displayName ?? "—"
         return VStack(alignment: .leading, spacing: Space.s) {
+            if let goal = goalText {
+                HStack(spacing: 6) {
+                    Image(systemName: "target").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                    Text(goal).font(.sfCallout.weight(.semibold)).lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             HStack(spacing: Space.s) {
                 if vm.isRunning { WorkingLogo(size: 22) }
                 else { Image(systemName: "sparkle").foregroundStyle(Theme.accent).frame(width: 22, height: 22) }
@@ -111,6 +118,13 @@ struct AgentActivityPanel: View {
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
+    }
+
+    /// The current objective/goal name: the in-progress task, else the chat title.
+    private var goalText: String? {
+        if let t = vm.todos.first(where: { $0.status == "in_progress" }), !t.content.isEmpty { return t.content }
+        let name = vm.config.name.trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? nil : name
     }
 
     private func stat(_ icon: String, _ text: String) -> some View {
@@ -161,21 +175,36 @@ struct AgentActivityPanel: View {
         vm.config.strategy.subagentRoles.map { titleCase($0.name) }
     }
 
-    /// The whole team, listed from the start: the orchestrator plus every subagent
-    /// role. Each shows if it's active, done, or idle, and opens its detail on the
-    /// far right.
+    enum AgentStatus { case active, done, idle }
+
+    /// The whole team, listed from the start, each with its objective, live status
+    /// and a filling progress bar (Claude-style).
     private var teamSection: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
+        VStack(alignment: .leading, spacing: Space.s) {
             Text(model.t("activity.team")).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
-            agentRow(name: orchestratorName, icon: "brain.head.profile",
-                     target: .orchestrator,
-                     active: vm.activeSubagent == nil && vm.isRunning)
-            ForEach(subagentNames, id: \.self) { name in
-                agentRow(name: name, icon: "person.fill",
-                         target: .sub(name),
-                         active: vm.isRunning && StrategyDiagramView.titlesMatch(vm.activeSubagent ?? "", name))
+            agentRow(name: orchestratorName, icon: "brain.head.profile", target: .orchestrator,
+                     objective: orchestratorObjective, status: orchestratorStatus)
+            ForEach(vm.config.strategy.subagentRoles) { role in
+                let name = titleCase(role.name)
+                agentRow(name: name, icon: "person.fill", target: .sub(name),
+                         objective: role.description, status: status(forSubagent: name))
             }
         }
+    }
+
+    private var orchestratorObjective: String {
+        let d = vm.config.strategy.orchestrator?.description ?? ""
+        return d.isEmpty ? model.t("activity.orchestrator.role") : d
+    }
+    private var orchestratorStatus: AgentStatus {
+        if vm.isRunning { return .active }
+        return vm.hasFinishedActivity ? .done : .idle
+    }
+    private func status(forSubagent name: String) -> AgentStatus {
+        let active = vm.isRunning && StrategyDiagramView.titlesMatch(vm.activeSubagent ?? "", name)
+        if active { return .active }
+        let hasWork = vm.timeline.contains { StrategyDiagramView.titlesMatch($0.agent ?? "", name) }
+        return hasWork ? .done : .idle
     }
 
     // MARK: Steps (recent + "see all" on the right)
@@ -207,51 +236,78 @@ struct AgentActivityPanel: View {
         }
     }
 
-    private func agentRow(name: String, icon: String, target: AgentFocus, active: Bool) -> some View {
+    private func agentRow(name: String, icon: String, target: AgentFocus,
+                          objective: String, status: AgentStatus) -> some View {
         let isOpen = focus == target
-        let count = vm.timeline.filter { target.matches($0) }.count
         return Button {
             focus = isOpen ? nil : target
         } label: {
-            HStack(spacing: Space.s) {
-                Image(systemName: icon)
-                    .font(.system(size: 11))
-                    .foregroundStyle(active ? Theme.accent : .secondary)
-                    .frame(width: 16)
-                Text(name)
-                    .font(.sfCaption2.weight(active || isOpen ? .semibold : .regular))
-                    .foregroundStyle(active || isOpen ? .primary : .secondary)
-                    .lineLimit(1)
-                Spacer(minLength: Space.xs)
-                if active {
-                    Image(systemName: "circle.fill").font(.system(size: 5))
-                        .foregroundStyle(Theme.success)
-                        .symbolEffect(.pulse, options: .repeating)
-                } else if count > 0 {
-                    // This agent did work and isn't the active one → its task is done.
-                    Image(systemName: "checkmark.circle.fill").font(.system(size: 10))
-                        .foregroundStyle(Theme.success)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: Space.s) {
+                    Image(systemName: icon).font(.system(size: 11))
+                        .foregroundStyle(status == .active ? Theme.success : .secondary)
+                        .frame(width: 16)
+                    Text(name)
+                        .font(.sfCaption2.weight(status == .active || isOpen ? .semibold : .medium))
+                        .foregroundStyle(status == .idle ? .secondary : .primary)
+                        .lineLimit(1)
+                    Spacer(minLength: Space.xs)
+                    statusBadge(status)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(isOpen ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
+                        .rotationEffect(.degrees(isOpen ? 90 : 0))
                 }
-                if count > 0 {
-                    Text("\(count)").font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(Theme.tertiaryOnMaterial)
+                if !objective.isEmpty {
+                    Text(objective)
+                        .font(.system(size: 10)).foregroundStyle(Theme.secondaryOnMaterial)
+                        .lineLimit(1).truncationMode(.tail)
+                        .padding(.leading, 16 + Space.s)
                 }
-                // Disclosure arrow → opens the far-right detail column.
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(isOpen ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
-                    .rotationEffect(.degrees(isOpen ? 90 : 0))
+                progressBar(status).padding(.leading, 16 + Space.s)
             }
-            .padding(.horizontal, Space.s).padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 7)
+            .padding(.horizontal, Space.s).padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 8)
                 .fill(isOpen ? Theme.accentSoft
-                      : (hoveredAgent == target ? Theme.hairline.opacity(0.7) : .clear)))
+                      : (hoveredAgent == target ? Theme.hairline.opacity(0.6) : .clear)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
             if hovering { hoveredAgent = target }
             else if hoveredAgent == target { hoveredAgent = nil }
+        }
+    }
+
+    @ViewBuilder
+    private func statusBadge(_ status: AgentStatus) -> some View {
+        switch status {
+        case .active:
+            HStack(spacing: 3) {
+                Image(systemName: "circle.fill").font(.system(size: 5))
+                    .symbolEffect(.pulse, options: .repeating)
+                Text(model.t("activity.running")).font(.system(size: 9, weight: .semibold))
+            }
+            .foregroundStyle(Theme.success)
+        case .done:
+            Label(model.t("activity.done"), systemImage: "checkmark.circle.fill")
+                .font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.success)
+        case .idle:
+            Text(model.t("activity.idle")).font(.system(size: 9)).foregroundStyle(Theme.tertiaryOnMaterial)
+        }
+    }
+
+    /// A filling bar per agent: animating while active, full when done, empty idle.
+    @ViewBuilder
+    private func progressBar(_ status: AgentStatus) -> some View {
+        switch status {
+        case .active:
+            ProgressView().progressViewStyle(.linear).tint(Theme.success)
+                .controlSize(.small).frame(height: 4)
+        case .done:
+            Capsule().fill(Theme.success).frame(height: 4)
+        case .idle:
+            Capsule().fill(Theme.hairline.opacity(0.8)).frame(height: 4)
         }
     }
 
