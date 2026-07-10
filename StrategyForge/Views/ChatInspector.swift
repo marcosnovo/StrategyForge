@@ -13,6 +13,7 @@ struct ChatInspector: View {
     @Environment(AppModel.self) private var model
     @Binding var config: Configuration
     @State private var tab: Tab = .strategy
+    @State private var pendingTemplate: Strategy?
 
     private enum Tab: Hashable { case strategy, config }
 
@@ -32,13 +33,27 @@ struct ChatInspector: View {
             case .strategy:
                 StrategyPickerColumn(config: $config,
                                      selectedStrategyName: config.strategy.name,
-                                     onSelect: { model.applyTemplate($0, to: config.id) })
+                                     onSelect: { template in
+                    // Confirm before replacing this chat's team (destructive, no undo).
+                    if template.name == config.strategy.name { return }
+                    pendingTemplate = template
+                })
             case .config:
                 StrategyEditorView(config: $config)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.regularMaterial)
+        .confirmationDialog(model.t("inspector.replaceStrategy.confirm"),
+                            isPresented: Binding(get: { pendingTemplate != nil },
+                                                 set: { if !$0 { pendingTemplate = nil } }),
+                            titleVisibility: .visible) {
+            Button(model.t("common.apply"), role: .destructive) {
+                if let t = pendingTemplate { model.applyTemplate(t, to: config.id) }
+                pendingTemplate = nil
+            }
+            Button(model.t("common.cancel"), role: .cancel) { pendingTemplate = nil }
+        }
     }
 }
 

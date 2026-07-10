@@ -16,6 +16,8 @@ struct TeamView: View {
     @Binding var team: SavedTeam
 
     @State private var selectedRoleID: AgentRole.ID?
+    @State private var confirmDeleteTeam = false
+    @State private var pendingDeleteRole: AgentRole.ID?
 
     private var strategy: Strategy { team.strategy }
 
@@ -35,6 +37,23 @@ struct TeamView: View {
         }
         .onChange(of: team.id) {
             selectedRoleID = strategy.orchestrator?.id ?? strategy.roles.first?.id
+        }
+        .confirmationDialog(model.t("team.deleteTeam.confirm"), isPresented: $confirmDeleteTeam, titleVisibility: .visible) {
+            Button(model.t("team.deleteTeam"), role: .destructive) { model.deleteTeam(team.id) }
+            Button(model.t("common.cancel"), role: .cancel) {}
+        }
+        .confirmationDialog(model.t("team.deleteAgent.confirm"),
+                            isPresented: Binding(get: { pendingDeleteRole != nil },
+                                                 set: { if !$0 { pendingDeleteRole = nil } }),
+                            titleVisibility: .visible) {
+            Button(model.t("team.delete"), role: .destructive) {
+                if let rid = pendingDeleteRole {
+                    model.deleteRole(rid, fromTeam: team.id)
+                    selectedRoleID = strategy.orchestrator?.id
+                }
+                pendingDeleteRole = nil
+            }
+            Button(model.t("common.cancel"), role: .cancel) { pendingDeleteRole = nil }
         }
     }
 
@@ -98,7 +117,7 @@ struct TeamView: View {
             costPill
             Menu {
                 Button(role: .destructive) {
-                    model.deleteTeam(team.id)   // clears selection → back to browser
+                    confirmDeleteTeam = true
                 } label: {
                     Label(model.t("team.deleteTeam"), systemImage: "trash")
                 }
@@ -240,8 +259,7 @@ struct TeamView: View {
                     }
                     if !role.isOrchestrator {
                         Button(role: .destructive) {
-                            model.deleteRole(roleID, fromTeam: team.id)
-                            selectedRoleID = strategy.orchestrator?.id
+                            pendingDeleteRole = roleID
                         } label: {
                             Image(systemName: "trash")
                         }

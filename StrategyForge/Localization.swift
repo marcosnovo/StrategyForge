@@ -30,6 +30,7 @@ enum L10n {
         "common.done": ("Done", "Hecho"),
         "common.required": ("Required", "Obligatorio"),
         "common.choose": ("Choose…", "Elegir…"),
+        "common.apply": ("Apply", "Aplicar"),
 
         // MARK: App / sidebar
         "app.purpose": (
@@ -86,6 +87,10 @@ enum L10n {
         "team.delegatesTo": ("Delegates to %lld agents", "Delega en %lld agentes"),
         "team.name": ("Team name", "Nombre del equipo"),
         "team.deleteTeam": ("Delete this team", "Eliminar este equipo"),
+        "team.deleteTeam.confirm": ("Delete this team? This can't be undone.", "¿Eliminar este equipo? No se puede deshacer."),
+        "team.deleteAgent.confirm": ("Remove this agent from the team?", "¿Eliminar este agente del equipo?"),
+        "inspector.replaceStrategy.confirm": ("Replace this chat's team with this strategy?",
+                                              "¿Reemplazar el equipo de este chat por esta estrategia?"),
         "team.manage": ("Manage teams…", "Gestionar equipos…"),
         "chat.customizeTeam": ("Customize this chat's team…", "Personalizar el equipo de este chat…"),
         "team.create": ("Create a new team", "Crear un equipo nuevo"),

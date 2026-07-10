@@ -89,6 +89,8 @@ struct ContentView: View {
         }
         .frame(minWidth: 720, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
         .background(hazeBackground)
+        // App-wide banner so success/errors surface anywhere, not just the editor.
+        .overlay(alignment: .top) { GlobalBanner() }
         // Per-chat configuration as a modal sheet (strategy + file generation).
         .sheet(isPresented: $model.showInspector) {
             if let id = model.selectedConfigID { configSheet(id) }
@@ -125,6 +127,31 @@ struct ContentView: View {
         }
         .frame(minWidth: 820, idealWidth: 1040, maxWidth: .infinity,
                minHeight: 640, idealHeight: 820, maxHeight: .infinity)
+    }
+}
+
+/// App-wide success/error banner, driven by `model.banner`. Auto-dismiss is
+/// handled in AppModel; this just renders it wherever the user is.
+private struct GlobalBanner: View {
+    @Environment(AppModel.self) private var model
+    var body: some View {
+        if let banner = model.banner {
+            let isSuccess: Bool = { if case .success = banner { return true } else { return false } }()
+            let text: String = { if case .success(let m) = banner { return m }
+                                 if case .failure(let m) = banner { return m }; return "" }()
+            HStack(spacing: Space.s) {
+                Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                Text(text).font(.sfCallout.weight(.medium)).fixedSize(horizontal: false, vertical: true)
+                Button { model.banner = nil } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+                    .buttonStyle(.plain)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+            .background(Capsule().fill(isSuccess ? Theme.success : Theme.danger)
+                .shadow(color: .black.opacity(0.25), radius: 10, y: 4))
+            .padding(.top, Space.m)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
     }
 }
 
