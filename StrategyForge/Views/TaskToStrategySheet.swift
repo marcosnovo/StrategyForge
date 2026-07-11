@@ -97,6 +97,8 @@ struct TaskToStrategySheet: View {
         .padding(Space.xl)
         .frame(width: 560, height: 620)
         .background(Theme.appBg)
+        // Sheets cover the window's banner host — give this one its own.
+        .bannerOverlay()
     }
 
     private func generate() {

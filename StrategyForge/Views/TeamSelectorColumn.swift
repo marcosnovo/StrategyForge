@@ -14,6 +14,8 @@ struct TeamSelectorColumn: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selectedID: SavedTeam.ID?
+    @State private var hoveredID: SavedTeam.ID?
+    @State private var pendingDelete: SavedTeam.ID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,6 +38,17 @@ struct TeamSelectorColumn: View {
         .dropDestination(for: URL.self) { urls, _ in
             guard let url = urls.first(where: { $0.hasDirectoryPath }) else { return false }
             return model.importTeamFromRepo(at: url)
+        }
+        .confirmationDialog(
+            model.t("team.deleteTeam.confirm"),
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(model.t("team.deleteTeam"), role: .destructive) {
+                if let id = pendingDelete { model.deleteTeam(id) }
+                pendingDelete = nil
+            }
+            Button(model.t("common.cancel"), role: .cancel) { pendingDelete = nil }
         }
     }
 
@@ -116,6 +129,17 @@ struct TeamSelectorColumn: View {
                         .font(.sfCaption2).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
+                if hoveredID == team.id {
+                    Button {
+                        pendingDelete = team.id
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help(model.t("team.deleteTeam"))
+                }
             }
             .padding(.vertical, Space.xs).padding(.horizontal, Space.s)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -127,8 +151,17 @@ struct TeamSelectorColumn: View {
         }
         .buttonStyle(.plain)
         .hoverTint()
+        .onHover { hovering in
+            if hovering { hoveredID = team.id }
+            else if hoveredID == team.id { hoveredID = nil }
+        }
         .contextMenu {
-            Button(role: .destructive) { model.deleteTeam(team.id) } label: {
+            Button {
+                model.useTeamInNewChat(team)
+            } label: {
+                Label(model.t("team.useInChat"), systemImage: "bubble.left.and.bubble.right")
+            }
+            Button(role: .destructive) { pendingDelete = team.id } label: {
                 Label(model.t("team.library.delete"), systemImage: "trash")
             }
         }

@@ -49,7 +49,8 @@ struct Attachment: Identifiable, Hashable {
 @Observable
 @MainActor
 final class ChatViewModel {
-    let config: Configuration
+    /// AppModel refreshes it on lookup; views must not write.
+    var config: Configuration
     private let binary: String
 
     var messages: [ChatMessage] = []
@@ -86,7 +87,12 @@ final class ChatViewModel {
     /// — NOT the display text, which only carries 📎 file names.
     @ObservationIgnored private var lastPromptText = ""
     var input = ""
-    var isRunning = false
+    var isRunning = false {
+        didSet { if isRunning != oldValue { onRunningChanged?(isRunning) } }
+    }
+    /// Notifies the owner (AppModel) when a turn starts/ends, so global running
+    /// indicators and finish banners work even when this chat isn't on screen.
+    @ObservationIgnored var onRunningChanged: ((Bool) -> Void)?
     var errorText: String?
     /// Running token total + cost for this chat, grows per turn.
     var totalTokens = 0

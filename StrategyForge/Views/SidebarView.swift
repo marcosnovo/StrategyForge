@@ -54,10 +54,18 @@ struct SidebarView: View {
                 }
 
                 if model.configurations.isEmpty {
-                    Text(model.t("sidebar.empty"))
-                        .font(.sfCaption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, Space.xs)
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        Text(model.t("sidebar.empty"))
+                            .font(.sfCaption2)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            model.addConfiguration()
+                        } label: {
+                            Label(model.t("sidebar.empty.cta"), systemImage: "square.and.pencil")
+                        }
+                        .buttonStyle(.link)
+                    }
+                    .padding(.vertical, Space.xs)
                 }
             }
             .scrollContentBackground(.hidden)
@@ -119,8 +127,12 @@ struct SidebarView: View {
                         .foregroundStyle(config.repoPath == nil && lastMessage(config) == nil ? Theme.warning : .secondary)
                         .lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: Space.xs)
-                    Text(config.recency.formatted(.relative(presentation: .named)))
-                        .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+                    if model.runningChatIDs.contains(config.id) {
+                        DotSpinner(size: 12)
+                    } else {
+                        Text(config.recency.formatted(.relative(presentation: .named)))
+                            .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+                    }
                 }
             }
         }

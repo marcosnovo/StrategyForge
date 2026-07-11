@@ -17,7 +17,9 @@ struct ChatView: View {
     /// Live configuration for header display (title/strategy/repo), re-passed by the
     /// parent so edits made in the config sheet reflect immediately.
     let config: Configuration
-    @State private var vm: ChatViewModel
+    /// The chat's engine, owned and cached by AppModel (`chatViewModel(for:)`) —
+    /// the view only observes it. Plain `let` is fine: @Observable tracks reads.
+    let vm: ChatViewModel
     @State private var editingTitle: String
     @Binding var showActivity: Bool
     @State private var showPreview = false
@@ -52,40 +54,31 @@ struct ChatView: View {
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
-    init(config: Configuration, binary: String,
-         permissionMode: String = "acceptEdits",
+    init(config: Configuration, vm: ChatViewModel,
          showInspector: Binding<Bool> = .constant(false),
          showSidebar: Binding<Bool> = .constant(true),
          showActivity: Binding<Bool> = .constant(false),
-         persist: @escaping ([ChatMessage]) -> Void = { _ in },
          rename: @escaping (String) -> Void = { _ in },
-         autoTitle: @escaping (String) -> Void = { _ in },
-         saveDraft: @escaping (String) -> Void = { _ in },
-         ensureStrategyFiles: @escaping () -> Void = {},
-         persistUsage: @escaping (Int, Double) -> Void = { _, _ in }) {
+         saveDraft: @escaping (String) -> Void = { _ in }) {
         self.config = config
+        self.vm = vm
         self.rename = rename
         self.saveDraft = saveDraft
         _showInspector = showInspector
         _showSidebar = showSidebar
         _showActivity = showActivity
         _editingTitle = State(initialValue: config.name)
-        _vm = State(initialValue: ChatViewModel(config: config, binary: binary,
-                                                permissionMode: permissionMode,
-                                                persist: persist, onFirstUserMessage: autoTitle,
-                                                ensureStrategyFiles: ensureStrategyFiles,
-                                                persistUsage: persistUsage))
     }
 
     init(viewModel: ChatViewModel, showInspector: Binding<Bool> = .constant(false)) {
         self.config = viewModel.config
+        self.vm = viewModel
         self.rename = { _ in }
         self.saveDraft = { _ in }
         _showInspector = showInspector
         _showSidebar = .constant(true)
         _showActivity = .constant(false)
         _editingTitle = State(initialValue: viewModel.config.name)
-        _vm = State(initialValue: viewModel)
     }
 
     var body: some View {
@@ -281,7 +274,7 @@ struct ChatView: View {
 
     /// Hand this chat over to the Loop Builder, prefilled from an advice.
     private func createLoop(from advice: AdvisorEngine.Advice) {
-        let plan = LoopPlan(name: config.name,
+        let plan = LoopPlan(name: config.name.isEmpty ? loopNameFromSource() : config.name,
                             kind: advice.loopKind,
                             goal: advice.goalSuggestion,
                             workerModel: advice.model,
@@ -289,6 +282,16 @@ struct ChatView: View {
                             repoBookmark: config.repoBookmark)
         LoopStore.shared.addLoop(prefill: plan)
         model.navSection = .loops
+        model.flashSuccess(model.t("loop.createdFromAdvice"))
+    }
+
+    /// A loop name for an untitled chat, inferred from the first user message or
+    /// the unsent draft (same helper AppModel uses to auto-title chats).
+    private func loopNameFromSource() -> String {
+        let source = vm.messages.first(where: { $0.role == .user })?.text
+            ?? vm.input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !source.isEmpty else { return "" }
+        return model.titleFromMessage(source)
     }
 
     /// Header-menu path: draft the loop goal from the first user message (or
@@ -304,6 +307,7 @@ struct ChatView: View {
                                 repoBookmark: config.repoBookmark)
             LoopStore.shared.addLoop(prefill: plan)
             model.navSection = .loops
+            model.flashSuccess(model.t("loop.createdFromAdvice"))
         }
     }
 
@@ -406,14 +410,21 @@ struct ChatView: View {
                         Divider()
                         Button(model.t("chat.createLoop")) { createLoopFromChat() }
                     } label: {
-                        Text(model.strategyDisplayName(config.strategy))
-                            .font(.sfCaption2.weight(.medium))
-                            .foregroundStyle(Theme.accent)
-                            .padding(.horizontal, 9).padding(.vertical, 3)
-                            .glassEffect(.regular.tint(Theme.accent.opacity(0.18)).interactive(),
-                                         in: .capsule)
+                        HStack(spacing: 4) {
+                            Text(model.strategyDisplayName(config.strategy))
+                                .font(.sfCaption2.weight(.medium))
+                                .foregroundStyle(Theme.accent)
+                            // Explicit disclosure cue: the capsule is a menu, not a label.
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 9).padding(.vertical, 3)
+                        .glassEffect(.regular.tint(Theme.accent.opacity(0.18)).interactive(),
+                                     in: .capsule)
                     }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                    .help(model.t("chat.teamMenu.help"))
 
                     if let path = config.repoPath, !path.isEmpty {
                         Text(model.t("chat.subtitle", (path as NSString).lastPathComponent))
@@ -436,7 +447,7 @@ struct ChatView: View {
                         .foregroundStyle(Theme.warning)
                 }
                 .buttonStyle(.plain)
-                .help(model.t("chat.fullAccessOff"))
+                .help(model.t("chat.fullAccessOn.help"))
             }
             // Context weight: the token count colored by how heavy every further
             // re-read of this conversation has become (Token Saver).
@@ -754,6 +765,7 @@ struct ChatView: View {
                 Text(model.strategyDisplayName(config.strategy)).font(.sfCardTitle)
                 Text(teammates == 0 ? model.t("chat.team.solo") : model.t("chat.team.count", teammates))
                     .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
+                    .help(model.t("glossary.worker"))
                 Text(model.strategyGoodFor(config.strategy))
                     .font(.sfCaption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -837,8 +849,13 @@ struct ChatView: View {
         panel.nameFieldStringValue = url.lastPathComponent
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let dest = panel.url else { return }
-        try? FileManager.default.removeItem(at: dest)
-        try? FileManager.default.copyItem(at: url, to: dest)
+        do {
+            try? FileManager.default.removeItem(at: dest)   // replacing is fine; absence isn't an error
+            try FileManager.default.copyItem(at: url, to: dest)
+            model.flashSuccess(model.t("chat.fileSaved", url.lastPathComponent))
+        } catch {
+            model.flashFailure(model.t("banner.writeFailed", error.localizedDescription))
+        }
     }
 
     /// Shown after a run that was blocked by permission denials: what was blocked
@@ -870,6 +887,7 @@ struct ChatView: View {
                     Label(model.t("chat.allowAlways"), systemImage: "checkmark.shield")
                 }
                 .controlSize(.small).buttonStyle(.bordered)
+                .help(model.t("chat.allowAlways.help"))
                 .confirmationDialog(model.t("chat.allowAlways.confirmTitle"),
                                     isPresented: $confirmAlwaysAllow, titleVisibility: .visible) {
                     Button(model.t("chat.allowAlways"), role: .destructive) {

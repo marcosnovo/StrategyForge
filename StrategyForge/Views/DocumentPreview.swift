@@ -75,6 +75,9 @@ struct DocumentPreviewSheet: View {
             actionBar
         }
         .frame(minWidth: 720, idealWidth: 900, minHeight: 520, idealHeight: 640)
+        // Save feedback flashes a banner; as a sheet this view covers the
+        // window's banner host, so it carries its own.
+        .bannerOverlay()
     }
 
     private var fileList: some View {
@@ -116,8 +119,13 @@ struct DocumentPreviewSheet: View {
         panel.nameFieldStringValue = url.lastPathComponent
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let dest = panel.url else { return }
-        try? FileManager.default.removeItem(at: dest)
-        try? FileManager.default.copyItem(at: url, to: dest)
+        do {
+            try? FileManager.default.removeItem(at: dest)   // replacing is fine; absence isn't an error
+            try FileManager.default.copyItem(at: url, to: dest)
+            model.flashSuccess(model.t("chat.fileSaved", url.lastPathComponent))
+        } catch {
+            model.flashFailure(model.t("banner.writeFailed", error.localizedDescription))
+        }
     }
 
     private func icon(for path: String) -> String {

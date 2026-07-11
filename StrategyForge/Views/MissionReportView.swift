@@ -55,6 +55,7 @@ struct MissionReportView: View {
                 Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(markdown, forType: .string)
+                    model.flashSuccess(model.t("report.copied"))
                 } label: { Label(model.t("report.copy"), systemImage: "doc.on.doc") }
                 Button {
                     exportMarkdown()
@@ -68,6 +69,8 @@ struct MissionReportView: View {
         }
         .frame(width: 640, height: 640)
         .background(.regularMaterial)
+        // Sheets cover the window's banner host — give this one its own.
+        .bannerOverlay()
     }
 
     /// The punchy summary card — this is what renders to a shareable PNG.
@@ -80,7 +83,7 @@ struct MissionReportView: View {
             HStack(spacing: Space.l) {
                 stat("person.2.fill", "\(agents.count)", model.t("report.agents"))
                 stat("circle.hexagongrid", formatTokens(tokens), model.t("report.tokens"))
-                if costUSD > 0 { stat("dollarsign.circle", String(format: "%.2f", costUSD), model.t("report.cost")) }
+                if costUSD > 0 { stat("dollarsign.circle", String(format: "$%.2f", costUSD), model.t("report.cost")) }
                 if !elapsed.isEmpty { stat("clock", elapsed, model.t("report.time")) }
             }
             HStack(spacing: 6) {
@@ -115,8 +118,13 @@ struct MissionReportView: View {
         panel.nameFieldStringValue = "mission-report.md"
         panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText]
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? markdown.data(using: .utf8)?.write(to: url, options: .atomic)
-        Analytics.log(.missionReportExported(kind: "markdown"))
+        do {
+            try markdown.data(using: .utf8)?.write(to: url, options: .atomic)
+            model.flashSuccess(model.t("chat.fileSaved", "mission-report.md"))
+            Analytics.log(.missionReportExported(kind: "markdown"))
+        } catch {
+            model.flashFailure(model.t("banner.writeFailed", error.localizedDescription))
+        }
     }
 
     @MainActor private func exportImage() {
@@ -130,12 +138,20 @@ struct MissionReportView: View {
         guard let nsImage = renderer.nsImage,
               let tiff = nsImage.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: tiff),
-              let png = bitmap.representation(using: .png, properties: [:]) else { return }
+              let png = bitmap.representation(using: .png, properties: [:]) else {
+            model.flashFailure(model.t("report.imageFailed"))
+            return
+        }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "mission-report.png"
         panel.allowedContentTypes = [.png]
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? png.write(to: url, options: .atomic)
-        Analytics.log(.missionReportExported(kind: "image"))
+        do {
+            try png.write(to: url, options: .atomic)
+            model.flashSuccess(model.t("chat.fileSaved", "mission-report.png"))
+            Analytics.log(.missionReportExported(kind: "image"))
+        } catch {
+            model.flashFailure(model.t("banner.writeFailed", error.localizedDescription))
+        }
     }
 }

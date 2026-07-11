@@ -18,16 +18,7 @@ struct LoopEditorView: View {
     @State private var showPreview = false
     @State private var showGuardrails = false
     @State private var confirmDelete = false
-    @State private var didCopyLaunch = false
-    @State private var banner: LocalBanner?
-    @State private var bannerDismissTask: Task<Void, Never>?
     @State private var saveTask: Task<Void, Never>?
-
-    /// Inline confirmation local to this editor (never touches AppModel.banner).
-    private enum LocalBanner: Equatable {
-        case success(String)
-        case failure(String)
-    }
 
     private var repoURL: URL? { store.repoURL(for: plan) }
     private var intervalChoices: [Int] { [15, 30, 60, 120] }
@@ -316,7 +307,7 @@ struct LoopEditorView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!enabled)
-                .help(m.safeguardNote ?? model.t(m.tierBlurbKey))
+                .help(m.safeguardNoteKey.map { model.t($0) } ?? model.t(m.tierBlurbKey))
                 .accessibilityLabel("\(model.t(m.tierNameKey)) — \(m.displayName)")
                 .accessibilityAddTraits(selected ? [.isSelected] : [])
             }
@@ -346,7 +337,7 @@ struct LoopEditorView: View {
     // MARK: - Card 5 · Run panel (built by another module)
 
     private var runCard: some View {
-        LoopRunPanel(plan: plan, repoURL: repoURL, binary: model.settings.claudeBinary)
+        LoopRunPanel(plan: plan, repoURL: repoURL, binary: model.settings.claudeBinary, store: store)
     }
 
     // MARK: - Validation summary
@@ -374,9 +365,12 @@ struct LoopEditorView: View {
     // MARK: - Bottom action bar
 
     private var generateBar: some View {
-        VStack(spacing: Space.m) {
-            bannerView
+        VStack(alignment: .leading, spacing: Space.m) {
+            FieldLabel(text: model.t("preview.launch"))
             launchRow
+            Text(model.t("loop.editor.launch.caption"))
+                .font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if repoURL == nil {
                 Text(model.t("loop.editor.needRepo"))
@@ -395,6 +389,16 @@ struct LoopEditorView: View {
                 .controlSize(.large)
                 .lineLimit(1)
                 .help(model.t("loop.editor.chooseRepo.help"))
+
+                if repoURL != nil {
+                    Button {
+                        revealRepo()
+                    } label: {
+                        Image(systemName: "arrow.up.forward.app")
+                    }
+                    .controlSize(.large)
+                    .help(model.t("loop.editor.reveal.help"))
+                }
 
                 Button {
                     showPreview = true
@@ -436,22 +440,7 @@ struct LoopEditorView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer()
-            Button {
-                let pb = NSPasteboard.general
-                pb.clearContents()
-                pb.setString(command, forType: .string)
-                didCopyLaunch = true
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(1.5))
-                    didCopyLaunch = false
-                }
-            } label: {
-                Image(systemName: didCopyLaunch ? "checkmark.circle.fill" : "doc.on.doc")
-                    .foregroundStyle(didCopyLaunch ? Theme.success : Theme.accent)
-            }
-            .buttonStyle(.borderless)
-            .help(model.t("loop.editor.copyLaunch"))
-            .accessibilityLabel(model.t("loop.editor.copyLaunch"))
+            CopyButton(text: command, help: model.t("loop.editor.copyLaunch"), flashKey: "banner.copied")
         }
         .padding(Space.m)
         .background(
@@ -460,31 +449,6 @@ struct LoopEditorView: View {
                 .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
                     .strokeBorder(Theme.hairline))
         )
-    }
-
-    @ViewBuilder
-    private var bannerView: some View {
-        if let banner {
-            let isSuccess: Bool = { if case .success = banner { return true }; return false }()
-            let text: String = {
-                switch banner {
-                case .success(let m): return m
-                case .failure(let m): return m
-                }
-            }()
-            HStack(spacing: 8) {
-                Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                Text(text).font(.callout).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button { self.banner = nil } label: { Image(systemName: "xmark") }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel(model.t("common.done"))
-            }
-            .padding(Space.m)
-            .foregroundStyle(.white)
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                .fill(isSuccess ? Theme.success : Theme.danger))
-        }
     }
 
     // MARK: - Actions
@@ -496,22 +460,19 @@ struct LoopEditorView: View {
         do {
             let written = try LoopWriter(repoURL: url, binary: model.settings.claudeBinary)
                 .write(plan: plan)
-            show(.success(model.t("loop.editor.generated", written.count, url.lastPathComponent)))
+            model.flashSuccess(model.t("loop.editor.generated", written.count, url.lastPathComponent))
             store.save()
         } catch {
-            show(.failure(model.t("loop.editor.generateFailed", error.localizedDescription)))
+            model.flashFailure(model.t("loop.editor.generateFailed", error.localizedDescription))
         }
     }
 
-    private func show(_ newBanner: LocalBanner) {
-        banner = newBanner
-        bannerDismissTask?.cancel()
-        if case .success = newBanner {
-            bannerDismissTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(4))
-                if banner == newBanner { banner = nil }
-            }
-        }
+    /// Reveal the loop's repo in Finder (security-scoped, mirroring generate()).
+    private func revealRepo() {
+        guard let url = repoURL else { return }
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }
 

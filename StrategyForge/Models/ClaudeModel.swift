@@ -29,9 +29,10 @@ enum ClaudeModel: String, Codable, CaseIterable, Identifiable, Hashable {
         info?.displayName ?? rawValue
     }
 
-    /// Optional safeguard note surfaced as a tooltip (e.g. Fable → Opus redirect).
-    var safeguardNote: String? {
-        info?.safeguardNote
+    /// Optional localization key for the safeguard note surfaced as a tooltip
+    /// (e.g. Fable → Opus redirect). Resolve via `AppModel.t(_:)` at render time.
+    var safeguardNoteKey: String? {
+        info?.safeguardNoteKey
     }
 
     // MARK: - Capability tier (educational framing)

@@ -14,6 +14,7 @@ struct LoopSelectorColumn: View {
     let store: LoopStore
 
     @State private var hoveredID: LoopPlan.ID?
+    @State private var pendingDelete: LoopPlan.ID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,6 +34,17 @@ struct LoopSelectorColumn: View {
         .frame(width: 260)
         .frame(maxHeight: .infinity)
         .background(.regularMaterial)
+        .confirmationDialog(
+            model.t("loop.delete.confirm"),
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(model.t("loop.delete"), role: .destructive) {
+                if let id = pendingDelete { store.delete(id) }
+                pendingDelete = nil
+            }
+            Button(model.t("common.cancel"), role: .cancel) { pendingDelete = nil }
+        }
     }
 
     private var header: some View {
@@ -76,6 +88,7 @@ struct LoopSelectorColumn: View {
         let selected = store.selectedLoopID == loop.id
         return Button {
             store.selectedLoopID = loop.id
+            store.save()   // selection is persisted (restored on relaunch)
         } label: {
             HStack(spacing: Space.s) {
                 ZStack {
@@ -93,7 +106,7 @@ struct LoopSelectorColumn: View {
                 Spacer(minLength: 0)
                 if hoveredID == loop.id {
                     Button {
-                        store.delete(loop.id)
+                        pendingDelete = loop.id
                     } label: {
                         Image(systemName: "trash")
                             .font(.system(size: 11))
@@ -101,6 +114,8 @@ struct LoopSelectorColumn: View {
                     }
                     .buttonStyle(.borderless)
                     .help(model.t("loop.delete"))
+                } else if store.runningLoopIDs.contains(loop.id) {
+                    DotSpinner(size: 12)
                 } else {
                     Text(model.t("loop.list.turns", loop.maxTurns))
                         .font(.sfCaption2).monospacedDigit()
@@ -123,7 +138,7 @@ struct LoopSelectorColumn: View {
         }
         .contextMenu {
             Button(role: .destructive) {
-                store.delete(loop.id)
+                pendingDelete = loop.id
             } label: {
                 Label(model.t("loop.delete"), systemImage: "trash")
             }

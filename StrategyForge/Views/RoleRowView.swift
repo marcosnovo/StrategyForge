@@ -170,8 +170,8 @@ struct RoleEditorForm: View {
             }
             if role.provider == .claude {
                 modelGrid
-                if let note = role.model.safeguardNote {
-                    Label(note, systemImage: "info.circle")
+                if let noteKey = role.model.safeguardNoteKey {
+                    Label(model.t(noteKey), systemImage: "info.circle")
                         .font(.sfCaption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -263,7 +263,7 @@ struct RoleEditorForm: View {
                 HStack(spacing: 3) {
                     Image(systemName: m.tierIcon).font(.system(size: 12))
                         .foregroundStyle(selected ? Theme.accent : .secondary)
-                    if m.safeguardNote != nil {
+                    if m.safeguardNoteKey != nil {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 7)).foregroundStyle(Theme.warning)
                     }
@@ -293,7 +293,7 @@ struct RoleEditorForm: View {
                 else if hoveredModel == m { hoveredModel = nil }
             }
         }
-        .help(m.safeguardNote ?? model.t(m.tierBlurbKey))
+        .help(m.safeguardNoteKey.map { model.t($0) } ?? model.t(m.tierBlurbKey))
         .accessibilityLabel("\(model.t(m.tierNameKey)) — \(m.displayName)")
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }

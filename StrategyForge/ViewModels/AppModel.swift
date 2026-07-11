@@ -95,6 +95,25 @@ final class AppModel {
     /// Token used to cancel a pending auto-dismiss when a new banner appears.
     @ObservationIgnored private var bannerDismissTask: Task<Void, Never>?
 
+    // MARK: - Chat run lifetime (AppModel-owned VM cache)
+
+    /// One ChatViewModel per chat, owned here (not by the view) so a running turn
+    /// survives navigation away from the chat. Not observed: views get their VM
+    /// through `chatViewModel(for:)`, and lazily filling this cache from a view
+    /// body must not mutate observed state mid-render.
+    @ObservationIgnored private var chatVMs: [Configuration.ID: ChatViewModel] = [:]
+    /// Chats with a turn in flight (observed — drives global running indicators).
+    /// Mutated only from `onRunningChanged` callbacks (action context), never
+    /// from view-body paths.
+    var runningChatIDs: Set<Configuration.ID> = []
+
+    // MARK: - Advisor state (B3 — survives leaving the section)
+
+    /// The task text typed into the Advisor (not persisted).
+    var advisorTask = ""
+    /// The Advisor's current recommendation (not persisted).
+    var advisorAdvice: AdvisorEngine.Advice?
+
     /// Snapshot of the last persisted configurations, used to detect real content
     /// changes so `save()` bumps `updatedAt` only when something actually changed
     /// (drives last-writer-wins sync). Not observed.
@@ -246,14 +265,31 @@ final class AppModel {
     /// Public helper for views to show an auto-dismissing success banner.
     func flashSuccess(_ message: String) { show(.success(message)) }
 
+    /// Public helper for views/services to show a sticky failure banner.
+    func flashFailure(_ message: String) { show(.failure(message)) }
+
+    /// Dismiss the current banner (the capsule's close button).
+    func dismissBanner() {
+        withAnimation {
+            banner = nil
+            bannerDismissTask?.cancel()
+        }
+    }
+
     /// Show a banner; success banners auto-dismiss after a few seconds, errors stay.
     private func show(_ banner: Banner) {
-        self.banner = banner
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            self.banner = banner
+        }
         bannerDismissTask?.cancel()
         if case .success = banner {
             bannerDismissTask = Task { @MainActor in
                 try? await Task.sleep(for: .seconds(4))
-                if self.banner == banner { self.banner = nil }
+                if self.banner == banner {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        self.banner = nil
+                    }
+                }
             }
         }
     }
@@ -443,6 +479,7 @@ final class AppModel {
     }
 
     func deleteConfiguration(_ id: Configuration.ID) {
+        invalidateChatVM(id)
         configurations.removeAll { $0.id == id }
         liveRepoURLs[id] = nil
         if selectedConfigID == id { selectedConfigID = configurations.first?.id }
@@ -601,6 +638,7 @@ final class AppModel {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
         configurations[i].strategy = template
         save()   // persist the strategy change so it survives relaunch
+        flashSuccess(t("team.applied", strategyDisplayName(template)))
     }
 
     /// Add a fresh worker role to a chat's team (visual Team canvas CRUD). Returns
@@ -654,6 +692,15 @@ final class AppModel {
         guard let i = configurations.firstIndex(where: { $0.id == configID }) else { return }
         configurations[i].strategy = team.strategyCopy()
         save()
+        flashSuccess(t("team.applied", team.name))
+    }
+
+    /// B7: start a fresh chat that uses a saved team (the library's fast path).
+    /// applyTeam's own flash is the only banner for this action.
+    func useTeamInNewChat(_ team: SavedTeam) {
+        addConfiguration()
+        if let id = selectedConfigID { applyTeam(team, to: id) }
+        navSection = .chats
     }
 
     func renameTeam(_ id: SavedTeam.ID, to name: String) {
@@ -686,6 +733,7 @@ final class AppModel {
         savedTeams.insert(team, at: 0)
         selectedTeamID = team.id
         save()
+        flashSuccess(t("team.created", label))
         return team.id
     }
 
@@ -826,7 +874,14 @@ final class AppModel {
               let url = repoURL(for: config) else { return }
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-        _ = try? StrategyWriter(repoURL: url, binary: settings.claudeBinary).write(strategy: config.strategy)
+        do {
+            _ = try StrategyWriter(repoURL: url, binary: settings.claudeBinary).write(strategy: config.strategy)
+        } catch {
+            // Surface the failure (a run against stale/missing team files is a
+            // silent misconfiguration) and don't stamp lastGeneratedAt.
+            flashFailure(t("chat.teamFilesFailed", error.localizedDescription))
+            return
+        }
         if let i = configurations.firstIndex(where: { $0.id == id }) {
             configurations[i].lastGeneratedAt = Date()
             save(stamp: false)
@@ -849,20 +904,82 @@ final class AppModel {
         save(stamp: false)
     }
 
+    // MARK: - Chat view-model lookup
+
+    /// The (cached) view model for a chat. Creates it on first use and keeps it
+    /// alive across navigation, so a running turn keeps streaming off-screen.
+    /// Safe to call from a view body: it only touches @ObservationIgnored storage
+    /// and refreshes the VM's (unobserved-by-callers) config snapshot.
+    func chatViewModel(for id: Configuration.ID) -> ChatViewModel? {
+        guard let config = configurations.first(where: { $0.id == id }) else { return nil }
+        if let vm = chatVMs[id] {
+            // Refresh on lookup, but ONLY when it actually changed: vm.config is
+            // observed (AgentActivityPanel/CodeModeView read it in their bodies),
+            // so an unconditional write here would mutate observed state on every
+            // ContentView body evaluation — the mutate-during-render hazard.
+            if vm.config != config { vm.config = config }
+            return vm
+        }
+        let vm = ChatViewModel(
+            config: config,
+            binary: settings.claudeBinary,
+            permissionMode: settings.chatAutonomy.permissionMode,
+            persist: { [weak self] messages in self?.updateTranscript(id, messages) },
+            onFirstUserMessage: { [weak self] text in self?.autoTitleIfNeeded(id, fromFirstMessage: text) },
+            ensureStrategyFiles: { [weak self] in self?.writeStrategyFilesQuietly(id) },
+            persistUsage: { [weak self] tokens, cost in self?.updateUsage(id, tokens: tokens, costUSD: cost) })
+        vm.onRunningChanged = { [weak self, weak vm] running in
+            guard let self else { return }
+            if running {
+                self.runningChatIDs.insert(id)
+            } else {
+                self.runningChatIDs.remove(id)
+                // Finish banner only when the user is somewhere else.
+                if self.navSection != .chats || self.selectedConfigID != id {
+                    let name = self.configurations.first(where: { $0.id == id })?.name ?? ""
+                    let display = name.isEmpty ? self.t("chat.untitled") : name
+                    if vm?.errorText != nil {
+                        self.flashFailure(self.t("chat.turnFailed", display))
+                    } else {
+                        self.flashSuccess(self.t("chat.turnDone", display))
+                    }
+                }
+            }
+        }
+        chatVMs[id] = vm
+        return vm
+    }
+
+    /// Drop a chat's cached VM (stops any in-flight run). Call after the chat's
+    /// repo binding changes or before deleting the chat — NEVER from a view body.
+    func invalidateChatVM(_ id: Configuration.ID) {
+        if let vm = chatVMs[id] {
+            // Detach the running-state callback first: stop() flips isRunning,
+            // and the callback would otherwise flash a spurious "turn done"
+            // banner for a chat that is being deleted or re-bound.
+            vm.onRunningChanged = nil
+            vm.stop()
+        }
+        chatVMs[id] = nil
+        runningChatIDs.remove(id)
+    }
+
     // MARK: - Repo selection
 
     /// Present an open panel to choose the target repo folder for a configuration.
-    func pickRepo(for id: Configuration.ID) {
+    /// Returns true iff the user actually picked a folder.
+    @discardableResult
+    func pickRepo(for id: Configuration.ID) -> Bool {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose repository"
-        panel.message = "Select the local repository where Coral will write the Claude Code config."
+        panel.prompt = t("repo.picker.prompt")
+        panel.message = t("repo.picker.message")
         if let base = resolvedDefaultReposURL() { panel.directoryURL = base }
 
         guard panel.runModal() == .OK, let url = panel.url,
-              let i = configurations.firstIndex(where: { $0.id == id }) else { return }
+              let i = configurations.firstIndex(where: { $0.id == id }) else { return false }
 
         configurations[i].repoPath = url.path
         configurations[i].repoBookmark = try? url.bookmarkData(
@@ -872,6 +989,14 @@ final class AppModel {
         )
         liveRepoURLs[id] = url
         save()
+        // The chat VM caches the repo path at construction — rebuild it.
+        invalidateChatVM(id)
+        if configurations[i].repoBookmark == nil {
+            flashFailure(t("banner.repoBookmarkFailed"))
+        } else {
+            flashSuccess(t("banner.repoBound", url.lastPathComponent))
+        }
+        return true
     }
 
     /// Present an open panel to choose the default repos folder (Settings).
@@ -880,7 +1005,7 @@ final class AppModel {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose folder"
+        panel.prompt = t("repo.picker.prompt")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         settings.defaultReposPath = url.path
         settings.defaultReposBookmark = try? url.bookmarkData(
@@ -1081,7 +1206,10 @@ final class AppModel {
         configurations.append(config)
         selectedConfigID = config.id
         save()
-        pickRepo(for: config.id)
+        if !pickRepo(for: config.id) {
+            // No folder yet is fine — the chat still works in a scratch folder.
+            flashSuccess(t("setup.noFolderYet"))
+        }
     }
 
     /// Create a throwaway practice folder (user picks where) with a starter file,
@@ -1229,6 +1357,7 @@ final class AppModel {
         let state = decoded.migrated()
         configurations = state.configurations
         settings = state.settings
+        savedTeams = state.savedTeams
         // Restore the last session's UI: selected chat + activity-panel visibility.
         if let last = settings.lastSelectedConfigID,
            let restored = configurations.first(where: { $0.id.uuidString == last }) {
@@ -1236,16 +1365,24 @@ final class AppModel {
         } else {
             selectedConfigID = configurations.first?.id
         }
+        // Restore the last-open team, if it still exists.
+        if let lastTeam = settings.lastSelectedTeamID,
+           let team = savedTeams.first(where: { $0.id.uuidString == lastTeam }) {
+            selectedTeamID = team.id
+        }
         showActivity = settings.showActivity
         snapshotConfigurations()
         retitleAutoNamedChats()   // upgrade legacy auto-titles in place (idempotent)
     }
 
-    /// Remember the selected chat so it reopens on next launch (device-local).
+    /// Remember the selected chat + team so they reopen on next launch (device-local).
     func rememberSelection() {
         let id = selectedConfigID?.uuidString
-        guard settings.lastSelectedConfigID != id else { return }
+        let teamID = selectedTeamID?.uuidString
+        guard settings.lastSelectedConfigID != id
+                || settings.lastSelectedTeamID != teamID else { return }
         settings.lastSelectedConfigID = id
+        settings.lastSelectedTeamID = teamID
         save(stamp: false)
     }
 

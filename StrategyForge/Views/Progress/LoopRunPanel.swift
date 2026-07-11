@@ -4,11 +4,8 @@
 //
 //  The "run this loop" card embedded by the Loop editor: a Run button when idle,
 //  the shared loop-progress visual + live status while running, and the verdict
-//  with usage once finished. Executes the loop locally via LoopRunController.
-//
-//  NOTE for the embedding view: apply `.id(plan.id)` at the call site so switching
-//  to another loop re-creates this panel (and its controller) — a run always
-//  belongs to exactly one plan.
+//  with usage once finished. Executes the loop locally via the store-owned
+//  LoopRunController, so a run keeps going when the panel goes off-screen.
 //
 
 import SwiftUI
@@ -17,8 +14,12 @@ struct LoopRunPanel: View {
     let plan: LoopPlan
     let repoURL: URL?
     let binary: String
+    let store: LoopStore
     @Environment(AppModel.self) private var model
-    @State private var controller = LoopRunController()
+
+    /// The store-owned controller for this plan. Lazy creation mutates only an
+    /// @ObservationIgnored dict on the store — safe in body.
+    private var controller: LoopRunController { store.runController(for: plan.id) }
 
     private var goalEmpty: Bool {
         plan.goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -75,6 +76,51 @@ struct LoopRunPanel: View {
                 hint("exclamationmark.triangle", model.t("progress.run.singlePass"),
                      color: Theme.warning)
             }
+            if let last = plan.lastRun {
+                lastRunBlock(last)
+            }
+        }
+    }
+
+    /// Persisted outcome of the most recent run, shown while idle.
+    private func lastRunBlock(_ last: LoopRunSummary) -> some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            FieldLabel(text: model.t("loop.lastRun"))
+            HStack(spacing: Space.s) {
+                lastRunVerdict(last)
+                Text(last.date, format: .relative(presentation: .named))
+                    .font(.sfCaption2).foregroundStyle(.tertiary)
+            }
+            if let reason = last.reason, !reason.isEmpty {
+                Text(reason)
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            HStack(spacing: Space.m) {
+                if last.tokens > 0 {
+                    statCaption("circle.hexagongrid",
+                                model.t("progress.run.tokens", formatTokens(last.tokens)))
+                }
+                if last.costUSD > 0 {
+                    statCaption("dollarsign.circle", String(format: "$%.2f", last.costUSD))
+                }
+            }
+        }
+        .padding(.top, Space.xs)
+    }
+
+    @ViewBuilder
+    private func lastRunVerdict(_ last: LoopRunSummary) -> some View {
+        switch last.pass {
+        case .some(true):
+            Text(model.t("progress.verdict.pass"))
+                .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.success)
+        case .some(false):
+            Text(model.t("progress.verdict.fail"))
+                .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.danger)
+        case .none:
+            Text(model.t("progress.status.doneUnverified"))
+                .font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
         }
     }
 
@@ -179,7 +225,13 @@ struct LoopRunPanel: View {
         // quietly, mirroring how chats write their strategy files before a run.
         let didAccess = repoURL.startAccessingSecurityScopedResource()
         defer { if didAccess { repoURL.stopAccessingSecurityScopedResource() } }
-        _ = try? LoopWriter(repoURL: repoURL, binary: binary).write(plan: plan)
+        do {
+            _ = try LoopWriter(repoURL: repoURL, binary: binary).write(plan: plan)
+        } catch {
+            // Don't start a run whose charter files couldn't be written.
+            model.flashFailure(model.t("loop.editor.generateFailed", error.localizedDescription))
+            return
+        }
         controller.start(plan: plan, repoURL: repoURL, binary: binary)
     }
 }

@@ -22,6 +22,8 @@ struct StrategyPickerColumn: View {
     @State private var showWizard = false
     @State private var showTaskGen = false
     @State private var activeBucket: AppModel.TopicBucket?
+    /// Strategy whose generated files are being previewed (context menu).
+    @State private var previewStrategy: Strategy?
     /// True once the one-shot entrance cascade has finished (see the grid).
     @State private var introPlayed = false
 
@@ -111,6 +113,9 @@ struct StrategyPickerColumn: View {
         .sheet(isPresented: $showTaskGen) {
             if let config { TaskToStrategySheet(config: config) }
         }
+        .sheet(item: $previewStrategy) { s in
+            FilePreviewSheet(config: Configuration(name: s.name, strategy: s))
+        }
     }
 
     /// Topic pills that orient the list by everyday goal. Tapping filters (reorders
@@ -190,6 +195,9 @@ struct StrategyPickerColumn: View {
         .buttonStyle(.plain)
         .hoverLift()
         .help(model.strategyDisplayName(template))
+        .contextMenu {
+            Button(model.t("picker.previewFiles")) { previewStrategy = template }
+        }
     }
 
     /// Neutral "what task" chip — deliberately NOT colored so it reads as a

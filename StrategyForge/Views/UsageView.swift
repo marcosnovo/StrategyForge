@@ -18,6 +18,9 @@ struct UsageView: View {
                 header
                 claudeSection
                 otherProvidersSection
+                if model.configurations.contains(where: { $0.totalTokens > 0 }) {
+                    topChatsCard
+                }
                 // Token Saver: the curated habits that keep the numbers above low.
                 TokenSaverGuideView()
             }
@@ -80,10 +83,14 @@ struct UsageView: View {
 
     private func fiveHourCard(_ usage: UsageSummary) -> some View {
         VStack(spacing: Space.s) {
-            UsageRing(fraction: blockFraction(usage), label: formatTokens(usage.blockTokens))
+            UsageRing(fraction: blockFraction(usage), label: formatTokens(usage.blockTokens),
+                      caption: model.t("usage.ring.tokens"))
                 .frame(width: 130, height: 130)
-            Text(model.t("usage.fiveHour")).font(.sfFieldLabel)
-                .foregroundStyle(.secondary).tracking(0.6)
+            HStack(spacing: Space.xs) {
+                Text(model.t("usage.fiveHour")).font(.sfFieldLabel)
+                    .foregroundStyle(.secondary).tracking(0.6)
+                InfoPopoverButton(text: model.t("usage.fiveHour.help"))
+            }
             if let reset = usage.blockResetAt {
                 TimelineView(.periodic(from: .now, by: 30)) { ctx in
                     Text(model.t("usage.resetsIn", countdown(to: reset, now: ctx.date)))
@@ -106,6 +113,7 @@ struct UsageView: View {
                 Spacer()
                 Text(formatTokens(usage.weekTokens)).font(.sfMono).foregroundStyle(Theme.accent)
             }
+            Text(model.t("usage.week.gloss")).font(.sfCaption2).foregroundStyle(.tertiary)
             if usage.weekByModel.isEmpty {
                 Text(model.t("usage.noWeek")).font(.sfCaption2).foregroundStyle(.secondary)
             } else {
@@ -181,6 +189,39 @@ struct UsageView: View {
         }
     }
 
+    // MARK: - Top chats
+
+    /// The chats that spent the most tokens, linking back into the chat list.
+    private var topChatsCard: some View {
+        let top = model.configurations
+            .filter { $0.totalTokens > 0 }
+            .sorted { $0.totalTokens > $1.totalTokens }
+            .prefix(5)
+        return VStack(alignment: .leading, spacing: Space.s) {
+            Text(model.t("usage.topChats.title")).font(.sfCardTitle)
+            Text(model.t("usage.topChats.hint")).font(.sfCaption2).foregroundStyle(.secondary)
+            ForEach(Array(top)) { config in
+                Button {
+                    model.selectedConfigID = config.id
+                    model.navSection = .chats
+                } label: {
+                    HStack {
+                        Text(config.name.isEmpty ? model.t("chat.untitled") : config.name)
+                            .font(.sfCallout).lineLimit(1)
+                        Spacer()
+                        Text(formatTokens(config.totalTokens))
+                            .font(.sfMono).foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, Space.s).padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .hoverTint()
+            }
+        }
+        .card()
+    }
+
     // MARK: - Helpers
 
     /// The ring reflects how far the current 5-hour window has elapsed (time to
@@ -216,6 +257,8 @@ struct UsageView: View {
 struct UsageRing: View {
     let fraction: Double
     let label: String
+    /// The small unit caption under the number (localized by the caller).
+    let caption: String
 
     var body: some View {
         ZStack {
@@ -232,7 +275,7 @@ struct UsageRing: View {
                 Text(label).font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.accent)
                     .contentTransition(.numericText())
-                Text("tokens").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                Text(caption).font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: fraction)

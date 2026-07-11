@@ -18,6 +18,7 @@ struct TeamView: View {
     @State private var selectedRoleID: AgentRole.ID?
     @State private var confirmDeleteTeam = false
     @State private var pendingDeleteRole: AgentRole.ID?
+    @State private var saveTask: Task<Void, Never>?
 
     private var strategy: Strategy { team.strategy }
 
@@ -55,6 +56,16 @@ struct TeamView: View {
             }
             Button(model.t("common.cancel"), role: .cancel) { pendingDeleteRole = nil }
         }
+        // Persist edits, coalesced so typing doesn't write the store per keystroke.
+        .onChange(of: team) {
+            saveTask?.cancel()
+            saveTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled else { return }
+                model.save()
+            }
+        }
+        .onDisappear { model.save() }
     }
 
     // MARK: - Canvas (left)
@@ -66,7 +77,10 @@ struct TeamView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                     if let orch = strategy.orchestrator {
-                        sectionLabel("team.orchestrator.section", systemImage: "crown.fill")
+                        HStack(spacing: Space.xs) {
+                            sectionLabel("team.orchestrator.section", systemImage: "crown.fill")
+                            InfoPopoverButton(text: model.t("glossary.orchestrator"))
+                        }
                         agentCard(orch)
                             .staggeredAppear(index: 0)
                     }
@@ -83,6 +97,7 @@ struct TeamView: View {
 
                     HStack {
                         sectionLabel("team.members.section", systemImage: "person.2.fill")
+                        InfoPopoverButton(text: model.t("glossary.worker"))
                         Spacer()
                         Text(model.t("team.members.count", strategy.subagentRoles.count))
                             .font(.sfCaption2).foregroundStyle(.secondary)
@@ -137,12 +152,21 @@ struct TeamView: View {
                 Image(systemName: "ellipsis.circle")
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .help(model.t("common.more"))
             Button {
-                if model.save() { model.flashSuccess(model.t("banner.saved")) }
+                model.useTeamInNewChat(team)
+            } label: {
+                Label(model.t("team.useInChat"), systemImage: "bubble.left.and.bubble.right.fill")
+            }
+            .buttonStyle(.moon)
+            .controlSize(.large)
+            Button {
+                model.save()
+                model.flashSuccess(model.t("banner.saved"))
             } label: {
                 Label(model.t("editor.save"), systemImage: "tray.and.arrow.down")
             }
-            .buttonStyle(.moon)
+            .buttonStyle(.bordered)
             .controlSize(.large)
         }
         .padding(Space.l)
@@ -261,6 +285,7 @@ struct TeamView: View {
             VStack(spacing: 0) {
                 HStack(spacing: Space.s) {
                     RoleBadge(kind: role.role, name: model.roleKindName(role.role))
+                        .help(model.t(role.isOrchestrator ? "glossary.orchestrator" : "glossary.worker"))
                     if role.isOrchestrator {
                         Text(role.name).font(.body.monospaced())
                             .frame(maxWidth: .infinity, alignment: .leading)
