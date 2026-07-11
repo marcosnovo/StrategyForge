@@ -22,6 +22,7 @@ struct ServicesListColumn: View {
             }
             .padding(.horizontal, Space.m).padding(.top, Space.m).padding(.bottom, Space.s)
             .background(Theme.appBg)
+            .zoomWindowOnDoubleClick()
             Divider()
 
             List(selection: $model.selectedService) {

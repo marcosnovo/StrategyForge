@@ -38,6 +38,8 @@ struct ChatView: View {
     @State private var showReport = false
     /// Code mode: a developer workspace (files/diffs) instead of plain chat.
     @State private var codeMode = false
+    /// Persisted, user-resizable width of the agent-activity panel.
+    @AppStorage("col.activity") private var activityW = 320.0
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -81,8 +83,11 @@ struct ChatView: View {
         HStack(spacing: 0) {
             chatColumn
             if showActivity {
+                ResizableDivider(
+                    width: Binding(get: { CGFloat(activityW) }, set: { activityW = Double($0) }),
+                    range: 260...560, sign: -1)
                 AgentActivityPanel(vm: vm, focus: $agentFocus)
-                    .frame(width: 320)
+                    .frame(width: CGFloat(activityW))
             }
             if showActivity, let focus = agentFocus {
                 SubagentDetailPanel(vm: vm, focus: focus) { agentFocus = nil }
@@ -229,7 +234,6 @@ struct ChatView: View {
 
     private var header: some View {
         HStack(spacing: Space.m) {
-            IconBadge(systemName: "bubble.left.and.text.bubble.right.fill")
             VStack(alignment: .leading, spacing: 3) {
                 // The chat title — the H1, editable inline.
                 TextField(model.t("chat.untitled"), text: $editingTitle)
@@ -340,6 +344,7 @@ struct ChatView: View {
             Rectangle().fill(.bar)
                 .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
         }
+        .zoomWindowOnDoubleClick()
         .zIndex(1)
     }
 
@@ -560,9 +565,9 @@ struct ChatView: View {
         // most-seen blank canvas. Stilled under Reduce Motion.
         .background(alignment: .topTrailing) {
             if !reduceMotion {
-                ParticleField(density: 60, reactive: false)
-                    .frame(width: 220, height: 220)
-                    .opacity(0.4)
+                ParticleField(density: 80, reactive: true)
+                    .frame(width: 280, height: 280)
+                    .opacity(0.5)
                     .allowsHitTesting(false)
             }
         }

@@ -67,6 +67,7 @@ struct AgentActivityPanel: View {
                 Rectangle().fill(.bar)
                     .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
             }
+            .zoomWindowOnDoubleClick()
             .zIndex(1)
 
             ScrollView {

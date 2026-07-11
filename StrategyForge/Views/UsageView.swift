@@ -43,6 +43,7 @@ struct UsageView: View {
             .controlSize(.large)
             .disabled(model.isRefreshingUsage)
         }
+        .zoomWindowOnDoubleClick()
     }
 
     // MARK: - Claude

@@ -15,6 +15,15 @@ struct ContentView: View {
     @State private var showOnboarding = false
     /// The Task→Strategy generator, used as the onboarding gate + empty-state CTA.
     @State private var showTaskGen = false
+    // Persisted, user-resizable widths for the second column (list / services / team).
+    @AppStorage("col.sidebar") private var sidebarW = 240.0
+    @AppStorage("col.services") private var servicesW = 240.0
+    @AppStorage("col.team") private var teamW = 260.0
+
+    /// A CGFloat binding backed by a Double @AppStorage, for ResizableDivider.
+    private func widthBinding(_ value: Binding<Double>) -> Binding<CGFloat> {
+        Binding(get: { CGFloat(value.wrappedValue) }, set: { value.wrappedValue = Double($0) })
+    }
 
     /// Create a fresh chat and open the "describe your task" generator on it.
     private func startFromTask() {
@@ -39,20 +48,20 @@ struct ContentView: View {
             // Second column: the chat list, the services list, or (in Team) the
             // strategy picker so you can swap the whole team.
             if model.navSection == .services {
-                ServicesListColumn().frame(width: 240)
-                Divider()
+                ServicesListColumn().frame(width: CGFloat(servicesW))
+                ResizableDivider(width: widthBinding($servicesW), range: 200...460)
             } else if model.navSection == .team {
                 // Team section always leads with the team selector (list + empty state).
-                TeamSelectorColumn(selectedID: $model.selectedTeamID)
-                Divider()
+                TeamSelectorColumn(selectedID: $model.selectedTeamID).frame(width: CGFloat(teamW))
+                ResizableDivider(width: widthBinding($teamW), range: 220...480)
             } else if model.navSection == .usage || model.navSection == .particleLab {
                 // Single full-width surfaces — no second column.
                 EmptyView()
             } else if model.showSidebar || model.selectedConfiguration == nil {
                 SidebarView(showSidebar: $model.showSidebar)
-                    .frame(width: 240)
+                    .frame(width: CGFloat(sidebarW))
                     .transition(.move(edge: .leading).combined(with: .opacity))
-                Divider()
+                ResizableDivider(width: widthBinding($sidebarW), range: 200...460)
             }
 
             // Main area: a provider's config in Services, the visual Team canvas in

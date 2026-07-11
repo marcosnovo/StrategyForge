@@ -275,10 +275,6 @@ struct StrategyDiagramView: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Theme.hairline, lineWidth: 1)
-        )
         // Force a fresh Canvas when the strategy changes so the drawing can never
         // lag behind the picker selection.
         .id(strategy.name)
@@ -289,16 +285,13 @@ struct StrategyDiagramView: View {
                         time t: Double, pulse: CGFloat) -> some View {
         Canvas { ctx, size in
             let frames = layout(spec: spec, in: size)
-            ctx.fill(
-                Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 14),
-                with: .color(palette.canvas)
-            )
+            // No opaque canvas fill, no engineering dot-grid — the diagram sits
+            // directly on its card surface for a clean, modern, minimal look.
             drawBackground(spec: spec, frames: frames, size: size, pulse: pulse, ctx: &ctx, palette: palette)
             drawEdges(spec: spec, frames: frames, time: t, ctx: &ctx, palette: palette)
             drawNodes(spec: spec, frames: frames, pulse: pulse, activeID: activeID, ctx: &ctx, palette: palette)
             if !compact {
                 drawLabels(spec: spec, frames: frames, size: size, ctx: &ctx, palette: palette)
-                drawLegend(spec: spec, size: size, ctx: &ctx, palette: palette)
             }
         }
     }
@@ -355,166 +348,78 @@ struct StrategyDiagramView: View {
         return frames
     }
 
-    // MARK: Background (dot grid + powered-root glow)
-
-    /// The dot grid depends only on the canvas size, so cache its Path instead of
-    /// re-adding hundreds of ellipses on every animation frame.
-    private static let gridCache = GridPathCache()
+    // MARK: Background (powered-root glow)
 
     private func drawBackground(spec: DiagramSpec, frames: [UUID: CGRect], size: CGSize, pulse: CGFloat, ctx: inout GraphicsContext, palette: DiagramPalette) {
-        // Faint engineering dot grid.
-        let dots = Self.gridCache.path(for: size)
-        ctx.fill(dots, with: .color(.primary.opacity(0.06)))
-
-        // Radial Voltage glow behind the orchestrator so the topology feels powered.
+        // A single soft coral glow behind the orchestrator — just enough warmth to
+        // anchor the topology on the card. No dot grid (that read as "lab software").
         if let rect = frames[spec.orchestrator.id] {
             let c = CGPoint(x: rect.midX, y: rect.midY)
-            let r: CGFloat = 130
+            let r: CGFloat = compact ? 90 : 140
             ctx.fill(
                 Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)),
                 with: .radialGradient(
-                    Gradient(colors: [palette.accent.opacity(0.10 + 0.10 * pulse), .clear]),
+                    Gradient(colors: [palette.accent.opacity(0.07 + 0.05 * pulse), .clear]),
                     center: c, startRadius: 0, endRadius: r))
         }
-    }
-
-    // MARK: Legend (teaches the arrow meaning)
-
-    private func drawLegend(spec: DiagramSpec, size: CGSize, ctx: inout GraphicsContext, palette: DiagramPalette) {
-        guard !spec.subagents.isEmpty else { return }
-        let font = Font.system(size: 10, weight: .medium)
-        let y = size.height - 16
-        var x: CGFloat = 16
-
-        // delegate swatch
-        var l1 = Path(); l1.move(to: CGPoint(x: x, y: y)); l1.addLine(to: CGPoint(x: x + 16, y: y))
-        ctx.stroke(l1, with: .color(palette.accent), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-        ctx.fill(arrowHead(at: CGPoint(x: x + 16, y: y), angle: 0, size: 5), with: .color(palette.accent))
-        x += 22
-        let d = ctx.resolve(Text(model.t("diag.legend.delegate")).font(font))
-        var dShaded = d; dShaded.shading = .color(palette.secondary)
-        ctx.draw(dShaded, at: CGPoint(x: x, y: y), anchor: .leading)
-        x += d.measure(in: CGSize(width: 200, height: 20)).width + 20
-
-        // report swatch (dashed)
-        var l2 = Path(); l2.move(to: CGPoint(x: x, y: y)); l2.addLine(to: CGPoint(x: x + 16, y: y))
-        ctx.stroke(l2, with: .color(palette.returnArrow), style: StrokeStyle(lineWidth: 1.2, lineCap: .round, dash: [3, 3]))
-        ctx.fill(arrowHead(at: CGPoint(x: x + 16, y: y), angle: 0, size: 4.5), with: .color(palette.returnArrow))
-        x += 22
-        let r = ctx.resolve(Text(model.t("diag.legend.report")).font(font))
-        var rShaded = r; rShaded.shading = .color(palette.secondary)
-        ctx.draw(rShaded, at: CGPoint(x: x, y: y), anchor: .leading)
     }
 
     // MARK: Edges
 
     private func drawEdges(spec: DiagramSpec, frames: [UUID: CGRect], time: Double, ctx: inout GraphicsContext, palette: DiagramPalette) {
-        // RETURNS first (quiet, underneath): every subagent reports its result back
-        // to the orchestrator — a curve bowing into its own lane below the fan.
-        for edge in spec.edges where edge.kind == .returns {
-            guard let a = frames[edge.from], let b = frames[edge.to] else { continue }
-            let start = CGPoint(x: a.minX, y: a.midY + 10)
-            let end = CGPoint(x: b.maxX + 8, y: b.midY + 16)
-            let control = bowControl(start: start, end: end, bow: 34)
-            var path = Path()
-            path.move(to: start)
-            path.addQuadCurve(to: end, control: control)
-            ctx.stroke(path, with: .color(palette.returnArrow),
-                       style: StrokeStyle(lineWidth: 1.2, lineCap: .round, dash: [5, 5]))
-            let angle = atan2(end.y - control.y, end.x - control.x)
-            ctx.fill(arrowHead(at: end, angle: angle, size: 7), with: .color(palette.returnArrow))
-        }
-
-        // DELEGATE (prominent): the orchestrator invokes each subagent. A base wire
-        // plus a drifting train of coral signal dots (the field), staggered per edge.
+        // One clean connection per subagent: a softly-curved coral wire from the
+        // orchestrator, carrying a drifting train of coral signal dots (the app's
+        // particle identity) toward an arrowhead at the subagent. The old gray dashed
+        // "return" arrows and legend are gone — they made the diagram read like lab
+        // software; the flowing dots already imply the working relationship.
         var index = 0
         for edge in spec.edges where edge.kind == .delegate {
             guard let a = frames[edge.from], let b = frames[edge.to] else { continue }
-            let start = CGPoint(x: a.maxX, y: a.midY - 4)
-            let end = CGPoint(x: b.minX - 8, y: b.midY - 4)
+            let start = CGPoint(x: a.maxX, y: a.midY)
+            let end = CGPoint(x: b.minX - 7, y: b.midY)
+            // A gentle S-curve so parallel fan-out wires read as separate strands
+            // instead of a crossing bundle.
+            let dx = end.x - start.x
+            let c1 = CGPoint(x: start.x + dx * 0.5, y: start.y)
+            let c2 = CGPoint(x: start.x + dx * 0.5, y: end.y)
             var path = Path()
             path.move(to: start)
-            path.addLine(to: end)
+            path.addCurve(to: end, control1: c1, control2: c2)
             ctx.stroke(path, with: .linearGradient(
-                Gradient(colors: [palette.accent.opacity(0.7), palette.accent.opacity(0.22)]),
+                Gradient(colors: [palette.accent.opacity(0.55), palette.accent.opacity(0.18)]),
                 startPoint: start, endPoint: end),
-                style: StrokeStyle(lineWidth: 2, lineCap: .round))
-            let angle = atan2(end.y - start.y, end.x - start.x)
-            ctx.fill(arrowHead(at: end, angle: angle, size: 9), with: .color(palette.accent))
+                style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+            let angle = atan2(end.y - c2.y, end.x - c2.x)
+            ctx.fill(arrowHead(at: end, angle: angle, size: 8), with: .color(palette.accent.opacity(0.9)))
 
-            // Signal field: a small train of coral dots drifting source → target, the
-            // app's single motion identity. Each dot softly glows and fades in/out at
-            // the ends; the train is phase-staggered per edge so signals ripple out in
-            // sequence rather than marching in lock-step. `time == 0` (reduce-motion or
-            // opted-out) collapses to a single mid-flight dot so the wire still reads.
-            let dotCount = 3
+            // Signal dots riding the curve, phase-staggered per edge so the fan-out
+            // ripples in sequence. `time == 0` (reduce-motion / opted-out) collapses to
+            // one mid-flight dot so the wire still reads without motion.
+            let dotCount = compact ? 2 : 3
             for d in 0..<dotCount {
                 let phase = Double(d) / Double(dotCount) + Double(index) * 0.18
-                let u = time == 0
-                    ? 0.5
-                    : ((time * 0.32 + phase).truncatingRemainder(dividingBy: 1.0))
+                let u = time == 0 ? 0.5 : ((time * 0.30 + phase).truncatingRemainder(dividingBy: 1.0))
                 let fade = sin(u * .pi)            // 0 at ends, 1 mid-flight
                 guard fade > 0.03 else { continue }
-                let p = CGPoint(x: start.x + (end.x - start.x) * u,
-                                y: start.y + (end.y - start.y) * u)
-                let r: CGFloat = compact ? 2.2 : 2.8
-                // Soft outer glow.
-                ctx.fill(Path(ellipseIn: CGRect(x: p.x - r * 2.4, y: p.y - r * 2.4,
-                                                width: r * 4.8, height: r * 4.8)),
-                         with: .color(palette.accent.opacity(0.16 * fade)))
-                // Bright core.
+                let p = pointOnCubic(start, c1, c2, end, CGFloat(u))
+                let r: CGFloat = compact ? 2.0 : 2.6
+                ctx.fill(Path(ellipseIn: CGRect(x: p.x - r * 2.2, y: p.y - r * 2.2,
+                                                width: r * 4.4, height: r * 4.4)),
+                         with: .color(palette.accent.opacity(0.14 * fade)))
                 ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
                          with: .color(palette.accent.opacity(0.30 + 0.60 * fade)))
-                if time == 0 { break }             // one static dot is enough at rest
+                if time == 0 { break }
             }
             index += 1
         }
     }
 
-    /// Control point for a curve that bows perpendicular to start→end (downward).
-    private func bowControl(start: CGPoint, end: CGPoint, bow: CGFloat) -> CGPoint {
-        let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
-        let dx = end.x - start.x, dy = end.y - start.y
-        let len = max(hypot(dx, dy), 1)
-        var nx = -dy / len, ny = dx / len
-        if ny < 0 { nx = -nx; ny = -ny }   // always bow downward
-        return CGPoint(x: mid.x + nx * bow, y: mid.y + ny * bow)
-    }
-
-    // MARK: Self-loops
-
-    private func drawLoops(spec: DiagramSpec, frames: [UUID: CGRect], ctx: inout GraphicsContext, palette: DiagramPalette) {
-        for node in spec.allNodes {
-            // A non-nil loopLabel means "draw a loop" (empty string = loop, no label).
-            guard node.loopLabel != nil, let rect = frames[node.id] else { continue }
-
-            var path = Path()
-            let head: CGPoint
-            let headAngle: CGFloat
-            if node.isOrchestrator {
-                // Loop on the LEFT side, curving out and down.
-                let top = CGPoint(x: rect.minX + 4, y: rect.midY - 4)
-                let bottom = CGPoint(x: rect.minX + 4, y: rect.midY + 22)
-                path.move(to: top)
-                path.addCurve(to: bottom,
-                              control1: CGPoint(x: rect.minX - 38, y: rect.midY - 18),
-                              control2: CGPoint(x: rect.minX - 38, y: rect.midY + 34))
-                head = bottom
-                headAngle = .pi / 2.4
-            } else {
-                // Loop on the RIGHT side.
-                let top = CGPoint(x: rect.maxX - 4, y: rect.midY - 4)
-                let bottom = CGPoint(x: rect.maxX - 4, y: rect.midY + 20)
-                path.move(to: top)
-                path.addCurve(to: bottom,
-                              control1: CGPoint(x: rect.maxX + 36, y: rect.midY - 16),
-                              control2: CGPoint(x: rect.maxX + 36, y: rect.midY + 32))
-                head = bottom
-                headAngle = .pi - .pi / 2.4
-            }
-            ctx.stroke(path, with: .color(palette.loop), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-            ctx.fill(arrowHead(at: head, angle: headAngle, size: 8), with: .color(palette.loop))
-        }
+    /// Point at parameter `u` (0…1) along a cubic Bézier — for placing signal dots.
+    private func pointOnCubic(_ p0: CGPoint, _ p1: CGPoint, _ p2: CGPoint, _ p3: CGPoint, _ u: CGFloat) -> CGPoint {
+        let v = 1 - u
+        let a = v * v * v, b = 3 * v * v * u, c = 3 * v * u * u, d = u * u * u
+        return CGPoint(x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+                       y: a * p0.y + b * p1.y + c * p2.y + d * p3.y)
     }
 
     private func arrowHead(at tip: CGPoint, angle: CGFloat, size: CGFloat) -> Path {
@@ -579,23 +484,20 @@ struct StrategyDiagramView: View {
     /// All node boxes share the surface fill; the accent (top-tier / root) node is
     /// "lit" with a Voltage glow ring instead of a fill, like a powered component.
     private func drawBox(_ rect: CGRect, node: DiagramNode, pulse: CGFloat, live: Bool, ctx: inout GraphicsContext, palette: DiagramPalette) {
-        let shape = Path(roundedRect: rect, cornerRadius: 12)
+        let shape = Path(roundedRect: rect, cornerRadius: 11)
         if live {
-            // The agent currently at work: a strong breathing green halo + fill tint,
-            // on top of whatever the node normally looks like.
+            // The agent currently at work: a soft breathing green halo + fill tint.
             let green = Theme.success
-            let spread = 4.0 + 5.0 * pulse
-            let halo = Path(roundedRect: rect.insetBy(dx: -spread, dy: -spread), cornerRadius: 12 + spread)
-            ctx.fill(shape, with: .color(green.opacity(0.16)))
-            ctx.stroke(halo, with: .color(green.opacity(0.28 + 0.30 * pulse)), lineWidth: 6)
-            ctx.stroke(shape, with: .color(green), lineWidth: 2)
+            let spread = 3.0 + 4.0 * pulse
+            let halo = Path(roundedRect: rect.insetBy(dx: -spread, dy: -spread), cornerRadius: 11 + spread)
+            ctx.fill(shape, with: .color(green.opacity(0.14)))
+            ctx.stroke(halo, with: .color(green.opacity(0.22 + 0.26 * pulse)), lineWidth: 5)
+            ctx.stroke(shape, with: .color(green), lineWidth: 1.6)
         } else if node.isAccent {
-            ctx.fill(shape, with: .color(palette.surface))
-            // Breathing glow ring around the powered node.
-            let spread = 2.0 + 3.0 * pulse
-            let halo = Path(roundedRect: rect.insetBy(dx: -spread, dy: -spread), cornerRadius: 12 + spread)
-            ctx.stroke(halo, with: .color(palette.accent.opacity(0.20 + 0.25 * pulse)), lineWidth: 5)
-            ctx.stroke(shape, with: .color(palette.accent), lineWidth: 1.6)
+            // The top-tier node: a quiet coral-tinted card with a coral edge — no
+            // pulsing "powered" ring (that read as sci-fi lab UI).
+            ctx.fill(shape, with: .color(Theme.accentSoft))
+            ctx.stroke(shape, with: .color(palette.accent.opacity(0.85)), lineWidth: 1.4)
         } else {
             ctx.fill(shape, with: .color(palette.surface))
             ctx.stroke(shape, with: .color(palette.border), lineWidth: 1)
@@ -767,34 +669,6 @@ private struct DiagramPreviewCard: View {
         .padding()
         .frame(width: 680)
         .environment(model)
-    }
-}
-
-/// Caches the dot-grid Path per canvas size. Thread-safe so it can be shared as
-/// a static across every diagram instance (editor, picker, activity panel).
-private final class GridPathCache: @unchecked Sendable {
-    private struct Key: Hashable { let w: CGFloat, h: CGFloat }
-    private var cache: [Key: Path] = [:]
-    private let lock = NSLock()
-
-    func path(for size: CGSize, spacing: CGFloat = 22) -> Path {
-        let key = Key(w: size.width, h: size.height)
-        lock.lock(); defer { lock.unlock() }
-        if let hit = cache[key] { return hit }
-        var dots = Path()
-        var y = spacing
-        while y < size.height {
-            var x = spacing
-            while x < size.width {
-                dots.addEllipse(in: CGRect(x: x - 0.75, y: y - 0.75, width: 1.5, height: 1.5))
-                x += spacing
-            }
-            y += spacing
-        }
-        // Sizes change continuously during window resizes; keep the cache tiny.
-        if cache.count > 16 { cache.removeAll() }
-        cache[key] = dots
-        return dots
     }
 }
 
