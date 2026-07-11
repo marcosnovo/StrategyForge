@@ -344,16 +344,17 @@ struct ChatView: View {
     }
 
     /// Progress for the running turn. Determinate from the agent's task list
-    /// (real completed/total), else a slim indeterminate bar so it never feels stuck.
+    /// (real completed/total) in the shared loop visual language (ProgressDotsRow),
+    /// else a slim indeterminate bar so it never feels stuck.
     private var runningProgressBar: some View {
         VStack(spacing: 0) {
             if let p = vm.taskProgress, p.total > 0 {
                 HStack(spacing: Space.s) {
-                    ProgressView(value: Double(p.done), total: Double(p.total))
-                        .progressViewStyle(.linear).tint(Theme.accent)
+                    ProgressDotsRow(done: p.done, total: p.total)
                     Text(model.t("chat.tasksProgress", p.done, p.total))
                         .font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
                         .monospacedDigit().fixedSize()
+                    Spacer(minLength: 0)
                 }
                 .padding(.horizontal, Space.m).padding(.vertical, 5)
             } else {

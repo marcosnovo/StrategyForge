@@ -1,0 +1,144 @@
+//
+//  Localization+Advisor.swift
+//  StrategyForge
+//
+//  Strings for the Advisor feature (decision tree + recommendation UI).
+//  Kept in its own dictionary so Localization.swift stays untouched; the
+//  resolver merges this table in alongside `L10n.strings`.
+//
+
+import Foundation
+
+extension L10n {
+
+    /// key → (English, Spanish) for every Advisor-owned string.
+    static let advisorStrings: [String: (en: String, es: String)] = [
+
+        // MARK: Rail / header
+        "rail.advisor": ("Advisor", "Asesor"),
+        "advisor.title": ("Advisor", "Asesor"),
+        "advisor.subtitle": (
+            "Paste the prompt you'd give the agent; get the right model, team and loop — no setup.",
+            "Pega el prompt que le darías al agente; obtén el modelo, el equipo y el bucle adecuados — sin configurar nada."),
+
+        // MARK: Prompt card
+        "advisor.prompt.label": ("Your task", "Tu tarea"),
+        "advisor.placeholder": (
+            "e.g. “Migrate every bcrypt call to argon2 across the repo and run the tests until they pass.”",
+            "p. ej. «Migra todas las llamadas de bcrypt a argon2 en el repo y corre los tests hasta que pasen.»"),
+        "advisor.charCount": ("%lld characters", "%lld caracteres"),
+        "advisor.analyze": ("Analyze", "Analizar"),
+
+        // MARK: Decision path
+        "advisor.path.title": ("How we decided", "Cómo lo decidimos"),
+        "advisor.path.result": ("Recommendation", "Recomendación"),
+        "advisor.chip.yes": ("Yes", "Sí"),
+        "advisor.chip.no": ("No", "No"),
+
+        // Questions
+        "advisor.q.depth": ("Does it need more than a quick answer?",
+                            "¿Necesita más que una respuesta rápida?"),
+        "advisor.q.speed": ("Is maximum speed at minimal cost the priority?",
+                            "¿La prioridad es la máxima velocidad al mínimo coste?"),
+        "advisor.q.hardest": ("Is this your hardest, most ambitious work?",
+                              "¿Es tu trabajo más difícil y ambicioso?"),
+        "advisor.q.team": ("Is a full team worth it here?",
+                           "¿Merece la pena un equipo completo aquí?"),
+        "advisor.q.loop": ("Does it repeat, or does it have a finish line?",
+                           "¿Se repite o tiene una meta clara?"),
+
+        // Answers
+        "advisor.a.depth.yes": ("Yes — this is real, multi-step work",
+                                "Sí — es trabajo real de varios pasos"),
+        "advisor.a.depth.no": ("No — a single good reply covers it",
+                               "No — una sola buena respuesta basta"),
+        "advisor.a.speed.yes": ("Yes — Haiku 4.5: the fastest, cheapest tier",
+                                "Sí — Haiku 4.5: el nivel más rápido y barato"),
+        "advisor.a.speed.no": ("No — Sonnet 5: the balanced default",
+                               "No — Sonnet 5: el equilibrio por defecto"),
+        "advisor.a.hardest.yes": ("Yes — Fable 5: frontier reasoning for frontier work",
+                                  "Sí — Fable 5: razonamiento de frontera para trabajo de frontera"),
+        "advisor.a.hardest.no": ("No — Opus 4.8: expert depth without the flagship price",
+                                 "No — Opus 4.8: profundidad experta sin el precio del buque insignia"),
+        "advisor.a.team.yes": ("Yes — the task splits into parallel work",
+                               "Sí — la tarea se divide en trabajo paralelo"),
+        "advisor.a.team.no": ("No — a lean setup fits a fast model better",
+                              "No — a un modelo rápido le encaja mejor un equipo ligero"),
+        "advisor.a.loop.turnBased": ("No — a simple turn-by-turn chat is enough",
+                                     "No — basta un chat por turnos"),
+        "advisor.a.loop.goalBased": ("Yes — it has a verifiable finish line: loop until it's met",
+                                     "Sí — tiene una meta verificable: itera hasta cumplirla"),
+        "advisor.a.loop.timeBased": ("Yes — it recurs on a schedule: run it on a timer",
+                                     "Sí — se repite con horario: prográmalo con temporizador"),
+        "advisor.a.loop.proactive": ("Yes — it reacts to events: trigger it when they happen",
+                                     "Sí — reacciona a eventos: actívalo cuando ocurran"),
+
+        // Evidence (matched-signal explanations)
+        "advisor.ev.multistep": ("multi-step verbs detected (migrate, refactor, build…)",
+                                 "verbos de varios pasos detectados (migrar, refactorizar, construir…)"),
+        "advisor.ev.long": ("long, detailed prompt", "prompt largo y detallado"),
+        "advisor.ev.scope": ("mentions the repo, tests, many files or days of work",
+                             "menciona el repo, tests, muchos archivos o días de trabajo"),
+        "advisor.ev.speedWords": ("quick-task words (summarize, translate, list…)",
+                                  "palabras de tarea rápida (resumir, traducir, listar…)"),
+        "advisor.ev.ambition": ("architecture / multi-day / deep-research scope",
+                                "alcance de arquitectura / varios días / investigación profunda"),
+        "advisor.ev.migration": ("a cross-cutting migration", "una migración transversal"),
+        "advisor.ev.orchestration": ("orchestration of many agents", "orquestación de muchos agentes"),
+        "advisor.ev.complexScope": ("complex work over a large scope",
+                                    "trabajo complejo sobre un alcance grande"),
+        "advisor.ev.cheapModel": ("a fast, cheap model doesn't need a fleet",
+                                  "un modelo rápido y barato no necesita una flota"),
+        "advisor.ev.goalWords": ("a verifiable finish line (tests, lint, “until…”)",
+                                 "una meta verificable (tests, lint, «hasta que…»)"),
+        "advisor.ev.timeWords": ("a recurring schedule (daily, every…)",
+                                 "un horario recurrente (diario, cada…)"),
+        "advisor.ev.eventWords": ("an external trigger (failures, PRs, webhooks)",
+                                  "un disparador externo (fallos, PRs, webhooks)"),
+
+        // MARK: Model card
+        "advisor.model.title": ("Recommended model", "Modelo recomendado"),
+        "advisor.model.pricing": ("$%.0f in / $%.0f out · 1M tokens",
+                                  "$%.0f entrada / $%.0f salida · 1M tokens"),
+
+        // MARK: Strategy card
+        "advisor.strategy.title": ("Team strategy", "Estrategia de equipo"),
+        "advisor.rationale.solo": (
+            "One agent is enough — no coordination overhead.",
+            "Con un solo agente basta — sin sobrecoste de coordinación."),
+        "advisor.rationale.execadv": (
+            "One executor does the work; an advisor double-checks each step.",
+            "Un ejecutor hace el trabajo; un asesor revisa cada paso."),
+        "advisor.rationale.planner": (
+            "Plan first, implement, then review — for work that must land safely.",
+            "Primero planificar, luego implementar y revisar — para trabajo que debe salir bien."),
+        "advisor.rationale.fanout": (
+            "The task splits into parallel chunks an orchestrator can hand out.",
+            "La tarea se divide en partes paralelas que un orquestador reparte."),
+        "advisor.rationale.research": (
+            "Several researchers explore in parallel and report back.",
+            "Varios investigadores exploran en paralelo e informan de vuelta."),
+        "advisor.rationale.debate": (
+            "Opposing views argue it out before a decision is made.",
+            "Posturas opuestas debaten antes de tomar la decisión."),
+        "advisor.rationale.domain": (
+            "Each specialist owns its domain; the orchestrator routes the work.",
+            "Cada especialista domina su área; el orquestador enruta el trabajo."),
+        "advisor.rationale.sparring": (
+            "One agent builds while another tries to break it.",
+            "Un agente construye mientras otro intenta romperlo."),
+        "advisor.rationale.downgraded": (
+            "Scaled the team down: a quick task on a fast model doesn't need a fleet.",
+            "Equipo reducido: una tarea rápida en un modelo veloz no necesita una flota."),
+
+        // MARK: Loop card
+        "advisor.loop.title": ("Loop", "Bucle"),
+        "advisor.loop.goalLabel": ("Suggested goal", "Meta sugerida"),
+
+        // MARK: Actions
+        "advisor.action.chat": ("Use in a new chat", "Usar en un chat nuevo"),
+        "advisor.action.loop": ("Create loop from this", "Crear un bucle con esto"),
+        "advisor.action.copy": ("Copy launch command", "Copiar comando de arranque"),
+        "advisor.action.copied": ("Copied", "Copiado"),
+    ]
+}
