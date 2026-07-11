@@ -37,6 +37,14 @@ struct NavRail: View {
                  active: model.navSection == .team) {
                 model.navSection = .team
             }
+            item("arrow.triangle.2.circlepath", "rail.loops",
+                 active: model.navSection == .loops) {
+                model.navSection = .loops
+            }
+            item("wand.and.stars", "rail.advisor",
+                 active: model.navSection == .advisor) {
+                model.navSection = .advisor
+            }
             item("point.3.connected.trianglepath.dotted", "rail.connected",
                  active: model.navSection == .services) {
                 model.navSection = .services

@@ -48,7 +48,7 @@ final class AppModel {
     func isConnected(_ provider: AIProvider) -> Bool { connectedProviders.contains(provider) }
 
     /// Which top-level section the nav rail shows: the chats, or connected services.
-    enum NavSection { case chats, services, team, usage }
+    enum NavSection { case chats, services, team, usage, loops, advisor }
     var navSection: NavSection = .chats
 
     // MARK: - Usage (real Claude token usage from local logs)
@@ -289,6 +289,26 @@ final class AppModel {
         )
         configurations.append(config)
         selectedConfigID = config.id
+        save()
+    }
+
+    /// Token Saver: start a fresh chat that keeps a chat's team, provider and
+    /// repo binding but drops the transcript (the token furnace). An optional
+    /// summary is seeded as the draft so context carries forward for a few
+    /// hundred tokens instead of a full history re-read.
+    func startFreshChat(from id: Configuration.ID, summary: String? = nil) {
+        guard let source = configurations.first(where: { $0.id == id }) else { return }
+        let fresh = Configuration(
+            name: "",
+            strategy: source.strategy,
+            provider: source.provider,
+            repoPath: source.repoPath,
+            repoBookmark: source.repoBookmark,
+            lastActiveAt: Date(),
+            draft: summary ?? ""
+        )
+        configurations.append(fresh)
+        selectedConfigID = fresh.id
         save()
     }
 

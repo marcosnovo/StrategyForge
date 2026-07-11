@@ -69,6 +69,30 @@ the generated `CLAUDE.md`.
 > **This does NOT consume the Managed Agents API.** It uses your normal Claude Code plan —
 > the app only writes local config files.
 
+## Loops, Advisor, progress and Token Saver
+
+Beyond team configs, Coral ships four self-improving-agent features:
+
+- **Loops** (rail → Loops): visually build a work loop — turn-based, goal-based,
+  time-based or proactive — with a verifiable "done when" goal, guardrails, a hard
+  turn limit, an independent verifier subagent (the maker never grades its own
+  work) and optional STATE.md memory. Coral writes `LOOP.md`, `STATE.md` (never
+  overwritten once it exists), `.claude/agents/loop-verifier.md` and an executable
+  `loop.sh` into the repo, and can **run goal loops locally**: work turn → verifier
+  verdict (`VERDICT: PASS/FAIL`) → iterate until PASS or the brake.
+- **Advisor** (rail → Advisor): paste the prompt you'd give an agent and a local,
+  deterministic decision tree recommends the Claude model, team strategy, loop kind
+  and effort — showing the decision path visually. One click creates a chat or a
+  pre-filled loop; nothing is saved until you act.
+- **Simple progress**: one visual language everywhere — iteration dots (green/red
+  by verdict, pulsing current), an Act → Verify → Done stage strip and a PASS/
+  STOPPED badge — used by the loop runner and the chat's task progress.
+- **Token Saver**: a context-weight pill in the chat header (green/amber/red),
+  at most one contextual tip at a time (summarize & restart, convert the PDF you
+  just attached, point at the exact section, batch small asks, model overkill,
+  new topic = new chat) with real one-click actions, and a curated habits guide
+  in Usage.
+
 ## The eleven strategies
 
 1. **Orchestrator + Workers (Fan-out)** — orchestrator (Fable 5) + N identical workers

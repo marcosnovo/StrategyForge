@@ -174,6 +174,12 @@ struct LoopRunPanel: View {
 
     private func start() {
         guard let repoURL else { return }
+        // The work/verifier prompts tell the model to read LOOP.md (and STATE.md),
+        // so make sure the loop files exist and are current before launching —
+        // quietly, mirroring how chats write their strategy files before a run.
+        let didAccess = repoURL.startAccessingSecurityScopedResource()
+        defer { if didAccess { repoURL.stopAccessingSecurityScopedResource() } }
+        _ = try? LoopWriter(repoURL: repoURL, binary: binary).write(plan: plan)
         controller.start(plan: plan, repoURL: repoURL, binary: binary)
     }
 }

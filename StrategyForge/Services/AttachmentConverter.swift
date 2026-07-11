@@ -9,8 +9,22 @@
 //
 
 import Foundation
+import PDFKit
 
 enum AttachmentConverter {
+
+    /// Token Saver opt-in: extract a PDF's plain text (a page costs 1.5–3k tokens
+    /// as PDF; its text is ~10–20× cheaper). Not part of the automatic `convert`
+    /// path — PDFs pass through by default so figures/layout stay reviewable —
+    /// this runs only when the user taps the "convert to text" saver tip.
+    /// Returns nil for non-PDFs, image-only PDFs, or extraction failures.
+    static func extractPDFText(_ url: URL) async -> URL? {
+        guard url.pathExtension.lowercased() == "pdf",
+              let doc = PDFDocument(url: url),
+              let text = doc.string,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return write(text, basename: url.deletingPathExtension().lastPathComponent)
+    }
 
     /// Extensions the model reads fine as-is (no conversion).
     private static let passthrough: Set<String> = [
