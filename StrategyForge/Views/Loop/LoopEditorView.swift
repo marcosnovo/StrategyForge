@@ -101,7 +101,9 @@ struct LoopEditorView: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: Space.m),
                                 GridItem(.flexible(), spacing: Space.m)],
                       spacing: Space.m) {
-                ForEach(LoopKind.allCases) { kind in kindCell(kind) }
+                ForEach(Array(LoopKind.allCases.enumerated()), id: \.element.id) { index, kind in
+                    kindCell(kind).staggeredAppear(index: index)
+                }
             }
         }
         .card()
@@ -331,6 +333,12 @@ struct LoopEditorView: View {
                           subtitle: model.t("loop.editor.diagram.subtitle"))
             LoopDiagramView(plan: plan, isLive: false)
                 .frame(height: 150)
+                // Faint, always-mounted wash behind the cycle diagram (static
+                // mount — never animated in/out; see the note in ChatView).
+                .background(
+                    AuroraBackground(intensity: 0.35)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner))
+                )
         }
         .card()
     }

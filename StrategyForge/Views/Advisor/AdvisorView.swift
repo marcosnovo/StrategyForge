@@ -26,14 +26,19 @@ struct AdvisorView: View {
                 hero
                 promptCard
                 if let advice {
+                    // staggeredAppear cascades the cards on appear; the plain
+                    // opacity transition just handles insertion into the layout.
                     resultsSection(advice)
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        .transition(.opacity)
                 }
             }
             .frame(maxWidth: 720)
             .padding(Space.xl)
             .frame(maxWidth: .infinity) // centers the column
         }
+        // Static ambient wash — always mounted (never inserted/removed with an
+        // animation; see the TimelineView-over-material note in ChatView).
+        .background(AuroraBackground(intensity: 0.6))
         .background(Theme.appBg)
     }
 
@@ -101,11 +106,11 @@ struct AdvisorView: View {
 
     @ViewBuilder
     private func resultsSection(_ advice: AdvisorEngine.Advice) -> some View {
-        decisionCard(advice)
-        modelCard(advice)
-        strategyCard(advice)
-        loopCard(advice)
-        actionsRow(advice)
+        decisionCard(advice).staggeredAppear(index: 0)
+        modelCard(advice).staggeredAppear(index: 1)
+        strategyCard(advice).staggeredAppear(index: 2)
+        loopCard(advice).staggeredAppear(index: 3)
+        actionsRow(advice).staggeredAppear(index: 4)
     }
 
     private func decisionCard(_ advice: AdvisorEngine.Advice) -> some View {

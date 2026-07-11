@@ -66,6 +66,7 @@ struct UsageView: View {
             if let usage = model.claudeUsage, usage.hasData {
                 HStack(alignment: .top, spacing: Space.l) {
                     fiveHourCard(usage).frame(width: 230)
+                        .staggeredAppear(index: 0)
                     weeklyCard(usage).frame(maxWidth: .infinity)
                 }
             } else if model.isRefreshingUsage {
@@ -108,8 +109,9 @@ struct UsageView: View {
             if usage.weekByModel.isEmpty {
                 Text(model.t("usage.noWeek")).font(.sfCaption2).foregroundStyle(.secondary)
             } else {
-                ForEach(usage.weekByModel) { m in
+                ForEach(Array(usage.weekByModel.enumerated()), id: \.element.id) { index, m in
                     modelBar(m, total: usage.weekTokens)
+                        .staggeredAppear(index: index + 1)
                 }
             }
         }

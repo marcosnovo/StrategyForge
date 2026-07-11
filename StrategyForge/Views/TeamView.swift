@@ -68,6 +68,7 @@ struct TeamView: View {
                     if let orch = strategy.orchestrator {
                         sectionLabel("team.orchestrator.section", systemImage: "crown.fill")
                         agentCard(orch)
+                            .staggeredAppear(index: 0)
                     }
 
                     if !strategy.subagentRoles.isEmpty {
@@ -89,10 +90,14 @@ struct TeamView: View {
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: Space.m)],
                               alignment: .leading, spacing: Space.m) {
-                        ForEach(strategy.subagentRoles) { role in
+                        ForEach(Array(strategy.subagentRoles.enumerated()), id: \.element.id) { index, role in
                             agentCard(role)
+                                .staggeredAppear(index: index + 1)
                         }
+                        // The add tile joins the cascade last instead of popping
+                        // in ahead of its rising neighbors.
                         addCard
+                            .staggeredAppear(index: strategy.subagentRoles.count + 1)
                     }
 
                     connectionNote

@@ -22,8 +22,17 @@ struct StrategyPickerColumn: View {
     @State private var showWizard = false
     @State private var showTaskGen = false
     @State private var activeBucket: AppModel.TopicBucket?
+    /// True once the one-shot entrance cascade has finished (see the grid).
+    @State private var introPlayed = false
 
     private var templates: [Strategy] { StrategyLibrary.all }
+
+    /// Entrance stagger, first showing only — afterwards the raw view, so
+    /// filter-driven ForEach rebuilds don't blank and re-cascade the grid.
+    @ViewBuilder
+    private func introStaggered(_ view: some View, index: Int) -> some View {
+        if introPlayed { view } else { view.staggeredAppear(index: index) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -64,18 +73,37 @@ struct StrategyPickerColumn: View {
                     if let bucket = activeBucket {
                         let inBucket = templates.filter { model.strategyBuckets($0).contains(bucket) }
                         let others = templates.filter { !model.strategyBuckets($0).contains(bucket) }
-                        ForEach(inBucket) { strategyCard($0) }
-                        ForEach(others) { strategyCard($0).opacity(0.5) }
+                        ForEach(Array(inBucket.enumerated()), id: \.element.id) { index, template in
+                            introStaggered(strategyCard(template), index: index)
+                        }
+                        ForEach(Array(others.enumerated()), id: \.element.id) { index, template in
+                            introStaggered(strategyCard(template).opacity(0.5),
+                                           index: inBucket.count + index)
+                        }
                     } else {
-                        ForEach(templates) { strategyCard($0) }
+                        ForEach(Array(templates.enumerated()), id: \.element.id) { index, template in
+                            introStaggered(strategyCard(template), index: index)
+                        }
                     }
                 }
                 .padding(Space.l)
                 .animation(.easeInOut(duration: 0.15), value: selectedStrategyName)
                 .animation(.easeInOut(duration: 0.15), value: activeBucket)
+                // The entrance cascade plays once, on the column's first showing.
+                // Afterwards the flag strips the modifier entirely, so topic-pill
+                // taps (which rebuild the ForEach branches and would reset the
+                // stagger state) just reorder/dim smoothly instead of blanking
+                // and re-cascading the whole grid.
+                .task {
+                    try? await Task.sleep(for: .seconds(1.1))   // > max delay + spring
+                    introPlayed = true
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Static ambient wash — always mounted (never inserted/removed with an
+        // animation; see the TimelineView-over-material note in ChatView).
+        .background(AuroraBackground(intensity: 0.5))
         .background(Theme.appBg)
         .sheet(isPresented: $showWizard) {
             if let config { ChooseStrategyWizard(config: config) }

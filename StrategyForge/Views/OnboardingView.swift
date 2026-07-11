@@ -22,13 +22,16 @@ struct OnboardingView: View {
                 Image(systemName: "square.stack.3d.up.fill")
                     .font(.largeTitle)
                     .foregroundStyle(Theme.accent)
+                    .breathingGlow(color: Theme.coral)
                 Text(model.t("onboard.title")).font(.sfDisplay)
             }
+            .staggeredAppear(index: 0)
 
             Text(model.t("onboard.intro"))
                 .font(.sfBodyM)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+                .staggeredAppear(index: 1)
 
             // Show — not just tell — what "a team of agents" means: a live,
             // animated topology of a real sample strategy.
@@ -38,12 +41,14 @@ struct OnboardingView: View {
                 Text(model.t("onboard.diagramCaption"))
                     .font(.sfCaption2).foregroundStyle(.secondary)
             }
+            .staggeredAppear(index: 2)
 
             VStack(alignment: .leading, spacing: Space.l) {
                 step(1, "onboard.step1.title", "onboard.step1.desc")
                 step(2, "onboard.step2.title", "onboard.step2.desc")
                 step(3, "onboard.step3.title", "onboard.step3.desc")
             }
+            .staggeredAppear(index: 3)
 
             Label(model.t("onboard.note"), systemImage: "info.circle.fill")
                 .font(.sfCallout)
@@ -52,6 +57,7 @@ struct OnboardingView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.accentSoft))
                 .fixedSize(horizontal: false, vertical: true)
+                .staggeredAppear(index: 4)
 
             HStack {
                 Button(model.t("onboard.skip")) { dismiss() }
@@ -70,9 +76,13 @@ struct OnboardingView: View {
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
             }
+            .staggeredAppear(index: 5)
         }
         .padding(Space.xl + Space.s)
         .frame(width: 560)
+        // Static ambient wash — always mounted (never inserted/removed with an
+        // animation; see the TimelineView-over-material note in ChatView).
+        .background(AuroraBackground(intensity: 0.9))
     }
 
     private func step(_ number: Int, _ titleKey: String, _ descKey: String) -> some View {

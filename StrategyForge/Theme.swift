@@ -183,7 +183,9 @@ struct MoonButtonStyle: ButtonStyle {
 private struct MoonButtonBody: View {
     let configuration: ButtonStyleConfiguration
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hovering = false
+    @State private var sheenSweeps = 0   // bumped on pointer-enter → one sheen pass
     var body: some View {
         configuration.label
             .font(.callout.weight(.semibold))
@@ -191,6 +193,8 @@ private struct MoonButtonBody: View {
             .padding(.horizontal, Space.m)
             .padding(.vertical, Space.s)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.primaryFill))
+            // One-shot specular sheen when the pointer enters — not a loop.
+            .overlay(sheen)
             // Hover: the coral brightens a touch and its glow deepens — alive
             // without moving (safe under Reduce Motion; it's a tint, not motion).
             .brightness(hovering ? 0.05 : 0)
@@ -200,9 +204,38 @@ private struct MoonButtonBody: View {
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .animation(.spring(response: 0.35, dampingFraction: 0.75), value: configuration.isPressed)
             .animation(.easeOut(duration: 0.18), value: hovering)
-            .onHover { hovering = isEnabled && $0 }
+            .onHover { over in
+                let nowHovering = isEnabled && over
+                if nowHovering && !hovering && !reduceMotion { sheenSweeps += 1 }
+                hovering = nowHovering
+            }
             .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed)
             .contentShape(Rectangle())
+    }
+
+    /// A diagonal white band that sweeps the coral fill once per pointer-enter,
+    /// parked off-bounds (clipped away) whenever it isn't animating.
+    private var sheen: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            LinearGradient(colors: [.clear, .white.opacity(0.4), .clear],
+                           startPoint: .leading, endPoint: .trailing)
+                .frame(width: w * 0.55, height: geo.size.height * 2.2)
+                .rotationEffect(.degrees(24))
+                .keyframeAnimator(initialValue: -0.8, trigger: sheenSweeps) { view, x in
+                    view.offset(x: w * x, y: -geo.size.height * 0.6)
+                } keyframes: { _ in
+                    KeyframeTrack {
+                        // Instant reset off-bounds so EVERY pointer-enter sweeps
+                        // (a lone end-keyframe would leave the band parked at 1.3
+                        // and make every sweep after the first invisible).
+                        MoveKeyframe(-0.8)
+                        CubicKeyframe(1.3, duration: 0.55)
+                    }
+                }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .allowsHitTesting(false)
     }
 }
 extension ButtonStyle where Self == MoonButtonStyle {
@@ -330,6 +363,68 @@ struct BreathingGlow: ViewModifier {
     }
 }
 
+/// A sweeping specular highlight for streaming/loading states: a diagonal
+/// white band crosses the content every ~1.8 s while `active`. The band lives
+/// in a clipped overlay, so layout never changes. No band at all when idle or
+/// under Reduce Motion.
+struct ShimmerModifier: ViewModifier {
+    var active: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
+    @State private var sweep = false
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if active && !reduceMotion {
+                GeometryReader { geo in
+                    let w = geo.size.width
+                    LinearGradient(colors: [.clear,
+                                            .white.opacity(scheme == .dark ? 0.35 : 0.5),
+                                            .clear],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: max(w * 0.35, 48), height: geo.size.height * 2.4)
+                        .rotationEffect(.degrees(35))
+                        .offset(x: sweep ? w * 1.25 : -w * 0.6, y: -geo.size.height * 0.7)
+                        .onAppear {
+                            withAnimation(.linear(duration: 1.8).repeatForever(autoreverses: false)) {
+                                sweep = true
+                            }
+                        }
+                        .onDisappear { sweep = false }   // rearm for the next run
+                }
+                .blendMode(.overlay)
+                .clipped()
+                .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+/// One-shot entrance: fade + 8 pt rise, delayed by `index` × 50 ms (capped at
+/// ~0.4 s so deep lists don't crawl). Instant under Reduce Motion.
+struct StaggeredAppear: ViewModifier {
+    var index: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 8)
+            .onAppear {
+                guard !shown else { return }
+                if reduceMotion {
+                    shown = true
+                } else {
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)
+                        .delay(Double(min(index, 8)) * 0.05)) {
+                        shown = true
+                    }
+                }
+            }
+    }
+}
+
 extension View {
     /// Hover lift for tappable cards (scale + shadow; tint-only under Reduce Motion).
     func hoverLift(_ enabled: Bool = true) -> some View {
@@ -342,6 +437,15 @@ extension View {
     /// Slow breathing shadow for brand marks / live elements.
     func breathingGlow(color: Color, enabled: Bool = true) -> some View {
         modifier(BreathingGlow(color: color, enabled: enabled))
+    }
+    /// A sweeping specular highlight for streaming/loading states.
+    func shimmer(_ active: Bool) -> some View {
+        modifier(ShimmerModifier(active: active))
+    }
+    /// One-shot entrance: fade + 8pt rise, delayed by index*50ms.
+    /// Instant under Reduce Motion.
+    func staggeredAppear(index: Int) -> some View {
+        modifier(StaggeredAppear(index: index))
     }
 }
 
@@ -390,7 +494,17 @@ struct IconBadge: View {
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(Theme.accent)
             .frame(width: 28, height: 28)
-            .background(Circle().fill(Theme.accentSoft))
+            .background(
+                Circle()
+                    .fill(Theme.accentSoft)
+                    // A whisper of inner light from the top lifts the badge off
+                    // the card without adding an edge — flat fills read cheap.
+                    .overlay(
+                        Circle().fill(LinearGradient(
+                            colors: [.white.opacity(0.22), .clear],
+                            startPoint: .top, endPoint: .center))
+                    )
+            )
     }
 }
 
