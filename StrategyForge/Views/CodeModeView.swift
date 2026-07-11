@@ -176,7 +176,7 @@ struct CodeModeView: View {
                     HStack(spacing: Space.s) {
                         Image(systemName: icon(for: path)).foregroundStyle(Theme.accent)
                         Text((path as NSString).lastPathComponent).font(.sfCallout.weight(.semibold))
-                        if loadingDiff { ProgressView().controlSize(.small) }
+                        if loadingDiff { DotSpinner(size: 16) }
                         Spacer()
                         // Diff / File switch (Diff only offered when we have one).
                         if diffLines != nil {
@@ -290,7 +290,7 @@ struct CodeModeView: View {
                 TextField(model.t("code.commitPlaceholder"), text: $commitMessage)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { if !commitMessage.trimmingCharacters(in: .whitespaces).isEmpty { confirmCommit = true } }
-                if gitBusy { ProgressView().controlSize(.small) }
+                if gitBusy { DotSpinner(size: 16) }
                 Button(model.t("code.commit")) { confirmCommit = true }
                     .buttonStyle(.moon)
                     .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty || gitBusy)

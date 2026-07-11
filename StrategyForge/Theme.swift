@@ -50,57 +50,61 @@ enum Theme {
     /// Readable text/foreground to place ON a solid accent (coral) fill.
     static let onAccent = Color.white
 
-    /// Primary button fill — a living-coral gradient (deeper at the bottom so white
-    /// text keeps contrast on the lower half).
-    static let primaryFill = LinearGradient(
-        colors: [Color(red: 1.000, green: 0.420, blue: 0.330),   // #FF6B54
-                 Color(red: 0.886, green: 0.251, blue: 0.165)],  // #E24029
-        startPoint: .top, endPoint: .bottom)
+    /// Primary/body text — warm "ink" (identity), instead of cool system black/gray.
+    static let ink = Color(
+        light: Color(red: 0.102, green: 0.141, blue: 0.149),   // #1A2426
+        dark:  Color(red: 0.918, green: 0.953, blue: 0.945))   // #EAF3F1
+    static let inkDim = Color(
+        light: Color(red: 0.431, green: 0.482, blue: 0.471),   // #6E7B78
+        dark:  Color(red: 0.525, green: 0.627, blue: 0.627))   // #86A0A0
 
-    // MARK: Surfaces — warm paper in light, warm "reef ink" in dark
+    /// Primary button fill — the identity CTA gradient (158°, coral-lo → coral-hi).
+    static let primaryFill = LinearGradient(
+        colors: [Color(red: 1.000, green: 0.541, blue: 0.431),   // #FF8A6E coral-lo
+                 Color(red: 0.941, green: 0.243, blue: 0.153)],  // #F03E27 coral-hi
+        startPoint: .topLeading, endPoint: .bottomTrailing)
+
+    // MARK: Surfaces — warm paper in light, "reef ink" (teal-tinted) in dark
     static let appBg = Color(
         light: Color(red: 0.968, green: 0.953, blue: 0.933),   // #F7F3EE warm paper
-        dark:  Color(red: 0.047, green: 0.055, blue: 0.059))   // #0C0E0F reef ink
+        dark:  Color(red: 0.047, green: 0.075, blue: 0.082))   // #0C1315 reef ink
     static let cardBg = Color(
-        light: .white,
-        dark:  Color(red: 0.086, green: 0.094, blue: 0.098))   // #161819
+        light: .white,                                          // #FFFFFF
+        dark:  Color(red: 0.071, green: 0.118, blue: 0.129))   // #121E21 reef surface
     static let insetBg = Color(
-        light: Color(red: 0.925, green: 0.906, blue: 0.878),   // #ECE7E0 warm inset
-        dark:  Color(red: 0.075, green: 0.086, blue: 0.090))   // #131617
-    /// Warm-charcoal surface for the left navigation rail (no violet cast).
+        light: Color(red: 0.984, green: 0.969, blue: 0.945),   // #FBF7F1 surface-2
+        dark:  Color(red: 0.086, green: 0.149, blue: 0.165))   // #16262A
+    /// Warm near-black surface for the left navigation rail.
     static let railBg = Color(
-        light: Color(red: 0.106, green: 0.114, blue: 0.118),   // #1B1D1E warm charcoal
-        dark:  Color(red: 0.071, green: 0.078, blue: 0.082))   // #121415
-    /// Panel surface for the chats + activity columns, so they read as distinct
-    /// panels over the app background (dark: the card surface).
+        light: Color(red: 0.047, green: 0.075, blue: 0.082),   // #0C1315
+        dark:  Color(red: 0.031, green: 0.055, blue: 0.063))   // #081014
+    /// Panel surface for the chats + activity columns (warm white / reef surface).
     static let columnBg = Color(
         light: .white,
-        dark:  Color(red: 0.086, green: 0.094, blue: 0.098))   // #161819
+        dark:  Color(red: 0.071, green: 0.118, blue: 0.129))   // #121E21
 
-    // MARK: Lines
+    // MARK: Lines — warm hairline (identity --line)
     static let hairline = Color(
-        light: Color.black.opacity(0.10),
-        dark:  Color.white.opacity(0.09))
+        light: Color(red: 0.906, green: 0.871, blue: 0.824),   // #E7DED2
+        dark:  Color(red: 0.133, green: 0.204, blue: 0.227))   // #22343A
 
-    // MARK: Text on translucent materials
-    // System .secondary/.tertiary lose contrast over thin/ultraThin materials in
-    // dark mode; these hold a readable level there while staying native in light.
+    // MARK: Text on materials — warm ink-dim / mono-dim (identity)
     static let secondaryOnMaterial = Color(
-        light: Color.secondary,
-        dark:  Color.white.opacity(0.72))
+        light: Color(red: 0.431, green: 0.482, blue: 0.471),   // #6E7B78 ink-dim
+        dark:  Color(red: 0.525, green: 0.627, blue: 0.627))   // #86A0A0
     static let tertiaryOnMaterial = Color(
-        light: Color.secondary.opacity(0.75),
-        dark:  Color.white.opacity(0.55))
+        light: Color(red: 0.576, green: 0.525, blue: 0.478),   // #93867A mono-dim
+        dark:  Color(red: 0.431, green: 0.541, blue: 0.541))   // #6E8A8A
 
-    // MARK: Status (cool, saturated — matched to the tech palette)
+    // MARK: Status (aligned to the Coral identity)
     static let success = Color(
-        light: Color(red: 0.180, green: 0.620, blue: 0.420),   // #2E9E6B green
+        light: Color(red: 0.208, green: 0.690, blue: 0.416),   // #35B06A green
         dark:  Color(red: 0.306, green: 0.796, blue: 0.557))   // #4ECB8E
     static let warning = Color(
-        light: Color(red: 0.722, green: 0.525, blue: 0.043),   // #B8860B
+        light: Color(red: 0.898, green: 0.631, blue: 0.227),   // #E5A13A amber
         dark:  Color(red: 1.000, green: 0.773, blue: 0.239))   // #FFC53D
     static let danger = Color(
-        light: Color(red: 0.831, green: 0.173, blue: 0.227),   // #D42C3A
+        light: Color(red: 0.941, green: 0.243, blue: 0.153),   // #F03E27 coral-hi
         dark:  Color(red: 1.000, green: 0.361, blue: 0.424))   // #FF5C6C
 
     // MARK: Metrics — softer, more rounded (reference-style)

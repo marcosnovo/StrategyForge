@@ -26,7 +26,7 @@ struct ProviderInstallSheet: View {
                 ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
                 Text(model.t("provider.installing", provider.displayName)).font(.sfCardTitle)
                 Spacer()
-                if state == .running { ProgressView().controlSize(.small) }
+                if state == .running { DotSpinner(size: 16) }
             }
 
             switch state {
