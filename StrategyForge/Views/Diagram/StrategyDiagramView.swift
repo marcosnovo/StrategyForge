@@ -243,28 +243,19 @@ struct StrategyDiagramView: View {
             return spec.orchestrator.id
         }()
 
-        // Pure Canvas — no GeometryReader (which destabilizes ScrollView content
-        // height) and no positioned subviews. Everything is drawn from `size`.
-        // TimelineView drives the "live circuit" animation (flowing signal +
-        // breathing root glow).
-        // 30 fps only while an agent is actually working; at rest the breathing
-        // glow (~0.27 Hz) reads fine at 10 fps and costs a third of the redraws.
-        TimelineView(.animation(minimumInterval: isLive ? 1.0 / 30.0 : 1.0 / 10.0)) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-            let pulse = CGFloat(0.5 + 0.5 * sin(t * 1.7))
-            Canvas { ctx, size in
-                let frames = layout(spec: spec, in: size)
-                ctx.fill(
-                    Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 14),
-                    with: .color(palette.canvas)
-                )
-                drawBackground(spec: spec, frames: frames, size: size, pulse: pulse, ctx: &ctx, palette: palette)
-                drawEdges(spec: spec, frames: frames, time: t, ctx: &ctx, palette: palette)
-                drawNodes(spec: spec, frames: frames, pulse: pulse, activeID: activeID, ctx: &ctx, palette: palette)
-                if !compact {
-                    drawLabels(spec: spec, frames: frames, size: size, ctx: &ctx, palette: palette)
-                    drawLegend(spec: spec, size: size, ctx: &ctx, palette: palette)
+        // Animate ONLY while an agent is working. At rest — grid cards, the picker,
+        // onboarding, the idle activity panel — we draw a single static Canvas.
+        // Otherwise a screen with ~11 diagrams runs 11 TimelineViews at once and
+        // scrolling stutters. Static-at-rest keeps everything smooth.
+        Group {
+            if isLive {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+                    let t = timeline.date.timeIntervalSinceReferenceDate
+                    canvas(spec: spec, palette: palette, activeID: activeID,
+                           time: t, pulse: CGFloat(0.5 + 0.5 * sin(t * 1.7)))
                 }
+            } else {
+                canvas(spec: spec, palette: palette, activeID: activeID, time: 0, pulse: 0.6)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -275,6 +266,25 @@ struct StrategyDiagramView: View {
         // Force a fresh Canvas when the strategy changes so the drawing can never
         // lag behind the picker selection.
         .id(strategy.name)
+    }
+
+    /// One frame of the diagram. Pure drawing from `size`; no GeometryReader.
+    private func canvas(spec: DiagramSpec, palette: DiagramPalette, activeID: UUID?,
+                        time t: Double, pulse: CGFloat) -> some View {
+        Canvas { ctx, size in
+            let frames = layout(spec: spec, in: size)
+            ctx.fill(
+                Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 14),
+                with: .color(palette.canvas)
+            )
+            drawBackground(spec: spec, frames: frames, size: size, pulse: pulse, ctx: &ctx, palette: palette)
+            drawEdges(spec: spec, frames: frames, time: t, ctx: &ctx, palette: palette)
+            drawNodes(spec: spec, frames: frames, pulse: pulse, activeID: activeID, ctx: &ctx, palette: palette)
+            if !compact {
+                drawLabels(spec: spec, frames: frames, size: size, ctx: &ctx, palette: palette)
+                drawLegend(spec: spec, size: size, ctx: &ctx, palette: palette)
+            }
+        }
     }
 
     // MARK: Layout
