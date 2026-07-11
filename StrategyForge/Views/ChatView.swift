@@ -605,6 +605,17 @@ struct ChatView: View {
             }
             .onChange(of: vm.messages.last?.text) { scrollToBottom(proxy) }
             .onChange(of: vm.messages.count) { scrollToBottom(proxy) }
+            // Ambient aurora behind the empty canvas. ALWAYS mounted (never
+            // structurally inserted/removed — the documented hang pattern);
+            // once the conversation starts, intensity drops to 0 (the component
+            // then renders no TimelineView at all — free) while the outer
+            // opacity fades the last frame out. Static under Reduce Motion.
+            .background {
+                AuroraBackground(intensity: vm.messages.isEmpty ? 0.8 : 0)
+                    .opacity(vm.messages.isEmpty ? 1 : 0)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.45),
+                               value: vm.messages.isEmpty)
+            }
         }
     }
 
@@ -645,6 +656,9 @@ struct ChatView: View {
                         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                         .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
                             .fill(Theme.insetBg))
+                        // While tokens stream in, a soft highlight sweeps the bubble
+                        // so the reply visibly feels alive. Off under Reduce Motion.
+                        .shimmer(isStreaming && !reduceMotion)
                         .contextMenu { copyButton(message.text) }
                     if !message.text.isEmpty {
                         let copied = copiedMessageID == message.id
@@ -677,11 +691,13 @@ struct ChatView: View {
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: Space.l) {
             strategyHook
+                .staggeredAppear(index: 0)
             Text(model.t("chat.empty"))
                 .font(.sfCallout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: Space.s) {
-                ForEach(["chat.suggest1", "chat.suggest2", "chat.suggest3"], id: \.self) { key in
+                ForEach(Array(["chat.suggest1", "chat.suggest2", "chat.suggest3"].enumerated()),
+                        id: \.element) { index, key in
                     Button { vm.input = model.t(key) } label: {
                         HStack(spacing: Space.s) {
                             Image(systemName: "arrow.up.forward.square").foregroundStyle(Theme.accent)
@@ -696,20 +712,26 @@ struct ChatView: View {
                                 .strokeBorder(Theme.hairline, lineWidth: 1)))
                     }
                     .buttonStyle(.plain)
+                    .hoverLift()
+                    .staggeredAppear(index: index)
                 }
             }
             .frame(maxWidth: 520)
         }
         .padding(.top, Space.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Ambient dot-field identity, drifting quietly at the trailing edge of the
-        // most-seen blank canvas. Stilled under Reduce Motion.
+        // The quiet dot-field identity drifting at the trailing edge (the aurora
+        // wash lives on the always-mounted messagesList background, per the hang
+        // note in `body`). The transaction guard makes this TimelineView's
+        // removal SNAP when the first message lands — its structural removal
+        // must never animate (see the postmortem comment in `body`).
         .background(alignment: .topTrailing) {
             if !reduceMotion {
-                ParticleField(density: 80, reactive: true)
+                ParticleField(density: 50, reactive: true)
                     .frame(width: 280, height: 280)
-                    .opacity(0.5)
+                    .opacity(0.35)
                     .allowsHitTesting(false)
+                    .transaction { $0.animation = nil }
             }
         }
     }
@@ -723,6 +745,9 @@ struct ChatView: View {
                 .frame(width: 104, height: 64)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.hairline, lineWidth: 1))
+                // A subtle coral breath on the team diagram — the hero of the empty
+                // state — quiet enough to invite, stilled under Reduce Motion.
+                .breathingGlow(color: Theme.coral, enabled: !reduceMotion)
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.t("chat.team.ready"))
                     .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
@@ -902,11 +927,14 @@ struct ChatView: View {
                 .lineLimit(1...5)
                 .padding(Space.s)
                 .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
+                // Focus reads as light, not weight: a fine coral ring plus a faint
+                // outer glow on the glass while composing; quiet when unfocused.
                 .overlay(
                     RoundedRectangle(cornerRadius: Theme.innerCorner)
-                        .strokeBorder(Theme.accentHover, lineWidth: 2)
+                        .strokeBorder(Theme.accent.opacity(0.55), lineWidth: 1.5)
                         .opacity(inputFocused ? 1 : 0)
                 )
+                .shadow(color: Theme.accent.opacity(inputFocused ? 0.18 : 0), radius: 8)
                 .focused($inputFocused)
                 .animation(.easeOut(duration: 0.18), value: inputFocused)
                 .onSubmit { send() }
