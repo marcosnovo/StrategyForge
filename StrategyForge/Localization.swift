@@ -769,10 +769,20 @@ enum L10n {
         "diag.legend.nolateral": ("subagents never talk to each other", "los subagentes no hablan entre sí"),
     ]
 
+    /// Feature dictionaries contributed from `Localization+*.swift` files, merged
+    /// once. Keeping each feature's strings in its own file keeps this one small.
+    static let featureStrings: [String: (en: String, es: String)] = {
+        var merged = loopStrings
+        merged.merge(advisorStrings) { current, _ in current }
+        merged.merge(progressStrings) { current, _ in current }
+        merged.merge(saverStrings) { current, _ in current }
+        return merged
+    }()
+
     /// Resolve a key for a language code ("en" or "es"), falling back to English
     /// then to the key itself (so missing keys are visible during development).
     static func string(_ key: String, langCode: String) -> String {
-        guard let entry = strings[key] else { return key }
+        guard let entry = strings[key] ?? featureStrings[key] else { return key }
         return langCode == "es" ? entry.es : entry.en
     }
 }

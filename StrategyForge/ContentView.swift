@@ -31,6 +31,25 @@ struct ContentView: View {
         showTaskGen = true
     }
 
+    /// Advisor → chat: new chat with the recommended team applied, no team saved.
+    private func useAdviceInChat(_ advice: AdvisorEngine.Advice) {
+        model.addConfiguration()
+        if let id = model.selectedConfigID {
+            model.applyTemplate(advice.strategy, to: id)
+        }
+        model.navSection = .chats
+    }
+
+    /// Advisor → loop: a new loop pre-filled with the recommended kind, goal and
+    /// worker model, opened in the Loop Builder.
+    private func createLoop(from advice: AdvisorEngine.Advice) {
+        let prefill = LoopPlan(kind: advice.loopKind,
+                               goal: advice.goalSuggestion,
+                               workerModel: advice.model)
+        LoopStore.shared.addLoop(prefill: prefill)
+        model.navSection = .loops
+    }
+
     var body: some View {
         @Bindable var model = model
         // Manual two-pane layout instead of NavigationSplitView: an HStack fills
@@ -54,7 +73,12 @@ struct ContentView: View {
                 // Team section always leads with the team selector (list + empty state).
                 TeamSelectorColumn(selectedID: $model.selectedTeamID).frame(width: CGFloat(teamW))
                 ResizableDivider(width: widthBinding($teamW), range: 220...480)
-            } else if model.navSection == .usage || model.navSection == .particleLab {
+            } else if model.navSection == .loops {
+                // Loops section leads with the loop list (mirrors Team).
+                LoopSelectorColumn(store: LoopStore.shared)
+                Divider()
+            } else if model.navSection == .usage || model.navSection == .advisor
+                        || model.navSection == .particleLab {
                 // Single full-width surfaces — no second column.
                 EmptyView()
             } else if model.showSidebar || model.selectedConfiguration == nil {
@@ -82,6 +106,35 @@ struct ContentView: View {
                 }
             } else if model.navSection == .usage {
                 UsageView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.navSection == .loops {
+                if let lid = LoopStore.shared.selectedLoopID,
+                   let plan = LoopStore.shared.binding(lid) {
+                    // A loop is open → edit it. Re-key by id so the embedded run
+                    // panel (and its controller) resets when switching loops.
+                    LoopEditorView(plan: plan, store: LoopStore.shared)
+                        .id(lid)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ContentUnavailableView {
+                        Label(model.t("loop.empty.title"), systemImage: "arrow.triangle.2.circlepath")
+                    } description: {
+                        Text(model.t("loop.empty.desc"))
+                    } actions: {
+                        Button {
+                            LoopStore.shared.addLoop()
+                        } label: {
+                            Label(model.t("loop.empty.create"), systemImage: "plus")
+                                .frame(maxWidth: 320)
+                        }
+                        .buttonStyle(.moon)
+                        .controlSize(.large)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else if model.navSection == .advisor {
+                AdvisorView(onUseInChat: { advice in useAdviceInChat(advice) },
+                            onCreateLoop: { advice in createLoop(from: advice) })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .particleLab {
                 ParticleLabView()

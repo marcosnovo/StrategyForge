@@ -38,6 +38,10 @@ struct ChatView: View {
     @State private var showReport = false
     /// Code mode: a developer workspace (files/diffs) instead of plain chat.
     @State private var codeMode = false
+    /// Token Saver: tips dismissed in this chat session, plus the transient
+    /// "an attachment was just staged" flag that gates the convert tip.
+    @State private var dismissedTips: Set<TokenSaverEngine.TipKind> = []
+    @State private var justAttached = false
     /// Persisted, user-resizable width of the agent-activity panel.
     @AppStorage("col.activity") private var activityW = 320.0
     private let rename: (String) -> Void
@@ -195,11 +199,23 @@ struct ChatView: View {
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
             if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
+            if let tip = saverTip {
+                TokenSaverBanner(tip: tip,
+                                 onAction: { saverAction(tip) },
+                                 onDismiss: { dismissedTips.insert(tip.kind) })
+                    .padding(.horizontal, Space.m)
+                    .padding(.top, Space.s)
+            }
             inputBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82), value: vm.deniedTools)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.editedFiles.count)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: saverTip)
+        // Arm the convert tip on the render right after an attachment is staged.
+        .onChange(of: vm.attachments.count) { old, new in
+            justAttached = new > old
+        }
         // Drop files anywhere on the chat to attach them for review.
         .dropDestination(for: URL.self) { urls, _ in handleDrop(urls); return true } isTargeted: { isDropTargeted = $0 }
         .overlay {
@@ -216,6 +232,66 @@ struct ChatView: View {
                     )
                     .padding(Space.s).allowsHitTesting(false)
             }
+        }
+    }
+
+    // MARK: - Token Saver
+
+    /// The single most valuable saver tip for the current state (nil while running).
+    private var saverTip: TokenSaverEngine.Tip? {
+        guard !vm.isRunning else { return nil }
+        let lastExt = vm.attachments.last?.url.pathExtension.lowercased() ?? ""
+        let signals = TokenSaverEngine.Signals(
+            messageCount: vm.messages.count,
+            cumulativeTokens: vm.totalTokens,
+            lastUserMessages: vm.messages.filter { $0.role == .user }.suffix(3).map(\.text),
+            justAttachedFile: justAttached,
+            attachmentIsImageOrPDF: ["pdf", "png", "jpg", "jpeg", "gif", "webp", "heic", "tiff"].contains(lastExt),
+            orchestratorModel: config.strategy.orchestrator?.model,
+            draft: vm.input)
+        return TokenSaverEngine.tip(for: signals, dismissed: dismissedTips)
+    }
+
+    private func saverAction(_ tip: TokenSaverEngine.Tip) {
+        switch tip.kind {
+        case .summarizeRestart:
+            model.startFreshChat(from: config.id, summary: carryForwardSummary())
+        case .newTopicNewChat:
+            model.startFreshChat(from: config.id)
+        case .convertAttachment:
+            convertStagedPDFs()
+        default:
+            break
+        }
+        dismissedTips.insert(tip.kind)
+    }
+
+    /// A tiny extractive summary (first ask + last answer) seeded into the fresh
+    /// chat's draft: context carries forward for a few hundred tokens instead of
+    /// a full history re-read.
+    private func carryForwardSummary() -> String {
+        let firstAsk = vm.messages.first(where: { $0.role == .user })?.text ?? ""
+        let lastAnswer = vm.messages.last(where: { $0.role == .assistant })?.text ?? ""
+        var lines = [model.t("saver.summary.header")]
+        if !firstAsk.isEmpty { lines.append("• \(firstAsk.prefix(300))") }
+        if !lastAnswer.isEmpty { lines.append("• \(lastAnswer.prefix(300))") }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Replace staged PDF attachments with their extracted plain text (10–20×
+    /// cheaper for Claude to read). Images stay as-is — the tip's advice there
+    /// is to crop before attaching.
+    private func convertStagedPDFs() {
+        Task {
+            for i in vm.attachments.indices {
+                guard vm.attachments.indices.contains(i) else { break }
+                let att = vm.attachments[i]
+                guard att.url.pathExtension.lowercased() == "pdf" else { continue }
+                if let txt = await AttachmentConverter.extractPDFText(att.url) {
+                    vm.attachments[i] = Attachment(name: att.name, url: txt)
+                }
+            }
+            justAttached = false
         }
     }
 
@@ -288,20 +364,16 @@ struct ChatView: View {
                 .buttonStyle(.plain)
                 .help(model.t("chat.fullAccessOff"))
             }
-            HStack(spacing: 4) {
-                Image(systemName: "circle.hexagongrid").font(.system(size: 9))
-                Text(model.t("chat.tokens", formatTokens(vm.totalTokens)))
-                    .font(.sfCaption2.weight(.semibold))
-                    .contentTransition(.numericText())
+            // Context weight: the token count colored by how heavy every further
+            // re-read of this conversation has become (Token Saver).
+            HStack(spacing: 6) {
+                ContextWeightPill(tokens: vm.totalTokens)
                 if vm.totalCostUSD > 0 {
-                    Text(String(format: "· $%.2f", vm.totalCostUSD))
+                    Text(String(format: "$%.2f", vm.totalCostUSD))
                         .font(.sfCaption2)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .foregroundStyle(vm.totalTokens > 0 ? .secondary : .tertiary)
-            .padding(.horizontal, 9).padding(.vertical, 3)
-            .glassEffect(.regular, in: .capsule)
-            .help(model.t("chat.tokens.help"))
             // Mission report — the shareable summary of the finished run.
             if vm.hasFinishedActivity {
                 Button { showReport = true } label: {
@@ -349,16 +421,17 @@ struct ChatView: View {
     }
 
     /// Progress for the running turn. Determinate from the agent's task list
-    /// (real completed/total), else a slim indeterminate bar so it never feels stuck.
+    /// (real completed/total) in the shared loop visual language (ProgressDotsRow),
+    /// else a slim indeterminate bar so it never feels stuck.
     private var runningProgressBar: some View {
         VStack(spacing: 0) {
             if let p = vm.taskProgress, p.total > 0 {
                 HStack(spacing: Space.s) {
-                    ProgressView(value: Double(p.done), total: Double(p.total))
-                        .progressViewStyle(.linear).tint(Theme.accent)
+                    ProgressDotsRow(done: p.done, total: p.total)
                     Text(model.t("chat.tasksProgress", p.done, p.total))
                         .font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
                         .monospacedDigit().fixedSize()
+                    Spacer(minLength: 0)
                 }
                 .padding(.horizontal, Space.m).padding(.vertical, 5)
             } else {
@@ -407,10 +480,6 @@ struct ChatView: View {
 
     /// Code mode is offered only when the chat targets a real folder on disk.
     private var codeModeEligible: Bool { !(config.repoPath ?? "").isEmpty }
-
-    private func formatTokens(_ n: Int) -> String {
-        n >= 1000 ? String(format: "%.1fk", Double(n) / 1000) : "\(n)"
-    }
 
     private func copyToClipboard(_ text: String) {
         NSPasteboard.general.clearContents()

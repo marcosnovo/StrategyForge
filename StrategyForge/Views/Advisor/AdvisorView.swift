@@ -1,0 +1,251 @@
+//
+//  AdvisorView.swift
+//  StrategyForge
+//
+//  The Advisor section: paste the prompt you'd give an agent and get a local,
+//  deterministic recommendation — model, team strategy, loop kind and effort —
+//  with the decision path shown visually. Nothing is created until the user
+//  clicks an action; the coordinator wires the two closures in ContentView.
+//
+
+import SwiftUI
+import AppKit
+
+struct AdvisorView: View {
+    let onUseInChat: (AdvisorEngine.Advice) -> Void
+    let onCreateLoop: (AdvisorEngine.Advice) -> Void
+
+    @Environment(AppModel.self) private var model
+    @State private var task = ""
+    @State private var advice: AdvisorEngine.Advice?
+    @State private var copiedCommand = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.l) {
+                hero
+                promptCard
+                if let advice {
+                    resultsSection(advice)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            .frame(maxWidth: 720)
+            .padding(Space.xl)
+            .frame(maxWidth: .infinity) // centers the column
+        }
+        .background(Theme.appBg)
+    }
+
+    // MARK: - Header
+
+    private var hero: some View {
+        HStack(alignment: .top, spacing: Space.m) {
+            IconBadge(systemName: "wand.and.stars")
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text(model.t("advisor.title")).font(.sfDisplay)
+                Text(model.t("advisor.subtitle"))
+                    .font(.sfCallout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    // MARK: - Prompt
+
+    private var promptCard: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            FieldLabel(text: model.t("advisor.prompt.label"))
+            TextEditor(text: $task)
+                .font(.sfBodyM)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 120)
+                .padding(Space.s)
+                .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+                .overlay(alignment: .topLeading) {
+                    if task.isEmpty {
+                        Text(model.t("advisor.placeholder"))
+                            .font(.sfBodyM)
+                            .foregroundStyle(.tertiary)
+                            .padding(Space.s + 4)
+                            .allowsHitTesting(false)
+                    }
+                }
+            HStack {
+                Text(model.t("advisor.charCount", task.count))
+                    .font(.sfCaption2)
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                Button {
+                    analyze()
+                } label: {
+                    Label(model.t("advisor.analyze"), systemImage: "wand.and.stars")
+                }
+                .buttonStyle(.moon)
+                .disabled(task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .card()
+    }
+
+    /// Analysis is synchronous and local — a tiny animation is all it needs.
+    private func analyze() {
+        copiedCommand = false
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            advice = AdvisorEngine.advise(task: task)
+        }
+    }
+
+    // MARK: - Results
+
+    @ViewBuilder
+    private func resultsSection(_ advice: AdvisorEngine.Advice) -> some View {
+        decisionCard(advice)
+        modelCard(advice)
+        strategyCard(advice)
+        loopCard(advice)
+        actionsRow(advice)
+    }
+
+    private func decisionCard(_ advice: AdvisorEngine.Advice) -> some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            SectionHeader("arrow.triangle.branch", model.t("advisor.path.title"))
+            DecisionPathView(steps: advice.decisionPath, terminal: advice.model.displayName)
+        }
+        .card()
+    }
+
+    @ViewBuilder
+    private func modelCard(_ advice: AdvisorEngine.Advice) -> some View {
+        let price = Constants.pricing[advice.model.rawValue]
+        VStack(alignment: .leading, spacing: Space.m) {
+            SectionHeader("cpu", model.t("advisor.model.title"))
+            HStack(spacing: Space.m) {
+                Image(systemName: advice.model.tierIcon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(Theme.accentSoft))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(advice.model.displayName).font(.sfDisplay)
+                    Text(model.t(advice.model.tierNameKey))
+                        .font(.sfCallout)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if let price {
+                    Text(model.t("advisor.model.pricing", price.inputPerM, price.outputPerM))
+                        .font(.sfCaption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            if let note = advice.model.safeguardNote {
+                Label(note, systemImage: "info.circle")
+                    .font(.sfCaption2)
+                    .foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .card()
+    }
+
+    private func strategyCard(_ advice: AdvisorEngine.Advice) -> some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            SectionHeader("person.3.fill", model.t("advisor.strategy.title")) {
+                costPill(advice.estimatedCost)
+            }
+            StrategyDiagramView(strategy: advice.strategy, compact: true, ambient: false)
+                .frame(height: 140)
+            Text(model.strategyDisplayName(advice.strategy)).font(.sfCardTitle)
+            Text(model.t(advice.shapeRationaleKey))
+                .font(.sfCallout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .card()
+    }
+
+    /// Same visual language as TeamView's cost pill, fed by the advice estimate.
+    private func costPill(_ cost: StrategyCost) -> some View {
+        let color: Color
+        switch cost.tier {
+        case .low: color = Theme.success
+        case .medium: color = Theme.warning
+        case .high: color = Theme.danger
+        }
+        return HStack(spacing: 5) {
+            Image(systemName: "bolt.fill").font(.system(size: 9))
+            Text(String(format: "$%.2f", cost.perRun))
+                .font(.sfCaption2.weight(.semibold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(color.opacity(0.16)))
+    }
+
+    private func loopCard(_ advice: AdvisorEngine.Advice) -> some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            SectionHeader(advice.loopKind.icon, model.t("advisor.loop.title"))
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text(model.t(advice.loopKind.labelKey)).font(.sfCardTitle)
+                Text(model.t(advice.loopKind.blurbKey))
+                    .font(.sfCallout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                // `flow` may be a literal or a key; t() passes unknown keys through.
+                Text(model.t(advice.loopKind.flow))
+                    .font(.sfFieldLabel)
+                    .foregroundStyle(.tertiary)
+            }
+            FieldLabel(text: model.t("advisor.loop.goalLabel"))
+            Text(advice.goalSuggestion)
+                .font(.sfCode)
+                .textSelection(.enabled)
+                .padding(Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+        }
+        .card()
+    }
+
+    // MARK: - Actions
+
+    private func actionsRow(_ advice: AdvisorEngine.Advice) -> some View {
+        HStack(spacing: Space.m) {
+            Button {
+                onUseInChat(advice)
+            } label: {
+                Label(model.t("advisor.action.chat"), systemImage: "bubble.left.and.bubble.right.fill")
+            }
+            .buttonStyle(.moon)
+            .controlSize(.large)
+
+            Button {
+                onCreateLoop(advice)
+            } label: {
+                Label(model.t("advisor.action.loop"), systemImage: "arrow.triangle.2.circlepath")
+            }
+
+            Spacer()
+
+            Button {
+                copyLaunchCommand(advice)
+            } label: {
+                Label(model.t(copiedCommand ? "advisor.action.copied" : "advisor.action.copy"),
+                      systemImage: copiedCommand ? "checkmark" : "terminal")
+            }
+            .buttonStyle(.plain)
+            .font(.sfCaption2)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func copyLaunchCommand(_ advice: AdvisorEngine.Advice) {
+        let command = LaunchCommandGenerator.command(for: advice.strategy)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(command, forType: .string)
+        withAnimation { copiedCommand = true }
+    }
+}

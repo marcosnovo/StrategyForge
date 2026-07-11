@@ -18,6 +18,8 @@ struct UsageView: View {
                 header
                 claudeSection
                 otherProvidersSection
+                // Token Saver: the curated habits that keep the numbers above low.
+                TokenSaverGuideView()
             }
             .padding(Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
