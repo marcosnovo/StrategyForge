@@ -14,11 +14,14 @@ struct NavRail: View {
     @Environment(\.openSettings) private var openSettings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var showSidebar: Bool
+    /// Shared namespace so the coral section dot glides between rail items.
+    @Namespace private var navDotNS
 
     var body: some View {
         VStack(spacing: Space.l) {
-            // Brand — the coral mark (matches the app icon).
+            // Brand — the coral mark (matches the app icon), breathing slowly.
             CoralMark(size: 26, color: Theme.coral)
+                .breathingGlow(color: Theme.coral)
                 .padding(.top, Space.s)
 
             item("square.and.pencil", "sidebar.new") {
@@ -73,6 +76,26 @@ struct NavRail: View {
         .padding(.top, 34)          // clear the floating traffic lights (hidden titlebar)
         .padding(.bottom, Space.m)
         .background(Theme.railBg)
+        // One spring drives the selection change: the pill fill and the coral
+        // dot glide to the new section. Snaps (no glide) under Reduce Motion.
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8),
+                   value: model.navSection)
+    }
+
+    /// A fixed 3pt slot under every icon; only the active item fills it with the
+    /// 2.5pt coral dot. Single `matchedGeometryEffect` source (one active item),
+    /// so the dot glides between sections along the rail.
+    @ViewBuilder
+    private func navDot(_ active: Bool) -> some View {
+        ZStack {
+            if active {
+                Circle()
+                    .fill(Theme.coral)
+                    .matchedGeometryEffect(id: "navdot", in: navDotNS)
+                    .frame(width: 2.5, height: 2.5)
+            }
+        }
+        .frame(height: 3)
     }
 
     private func item(_ icon: String, _ labelKey: String,
@@ -89,6 +112,7 @@ struct NavRail: View {
                         .fill(active ? Color.white.opacity(0.18) : .clear))
                     .overlay(RoundedRectangle(cornerRadius: 12)
                         .strokeBorder(Color.white.opacity(active ? 0.25 : 0), lineWidth: 1))
+                navDot(active)
                 Text(model.t(labelKey))
                     .font(.system(size: 9, weight: active ? .semibold : .medium))
                     .foregroundStyle(active ? Color.white : Color.white.opacity(0.55))
@@ -117,6 +141,7 @@ struct NavRail: View {
                         .fill(active ? Color.white.opacity(0.18) : .clear))
                     .overlay(RoundedRectangle(cornerRadius: 12)
                         .strokeBorder(Color.white.opacity(active ? 0.25 : 0), lineWidth: 1))
+                navDot(active)
                 Text(label)
                     .font(.system(size: 9, weight: active ? .semibold : .medium))
                     .foregroundStyle(active ? Color.white : Color.white.opacity(0.55))

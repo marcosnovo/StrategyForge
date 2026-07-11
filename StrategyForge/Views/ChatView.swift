@@ -42,6 +42,11 @@ struct ChatView: View {
     /// "an attachment was just staged" flag that gates the convert tip.
     @State private var dismissedTips: Set<TokenSaverEngine.TipKind> = []
     @State private var justAttached = false
+    /// Advisor-in-chat: the debounced recommendation computed from the draft of
+    /// a brand-new chat, and whether the user waved the card away this session.
+    @State private var advisorDismissed = false
+    @State private var inlineAdvice: AdvisorEngine.Advice?
+    @State private var adviceTask: Task<Void, Never>?
     /// Persisted, user-resizable width of the agent-activity panel.
     @AppStorage("col.activity") private var activityW = 320.0
     private let rename: (String) -> Void
@@ -199,7 +204,21 @@ struct ChatView: View {
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
             if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
-            if let tip = saverTip {
+            if advisorCardVisible, let advice = inlineAdvice {
+                AdvisorInlineCard(
+                    advice: advice,
+                    strategyName: model.strategyDisplayName(advice.strategy),
+                    onApplyTeam: {
+                        model.applyTemplate(advice.strategy, to: config.id)
+                        withAnimation { advisorDismissed = true }
+                    },
+                    onCreateLoop: { createLoop(from: advice) },
+                    onDismiss: { withAnimation { advisorDismissed = true } })
+                    .padding(.horizontal, Space.m)
+                    .padding(.top, Space.s)
+            }
+            // At most one coach banner at a time: the Advisor card wins.
+            if let tip = saverTip, !advisorCardVisible {
                 TokenSaverBanner(tip: tip,
                                  onAction: { saverAction(tip) },
                                  onDismiss: { dismissedTips.insert(tip.kind) })
@@ -212,9 +231,26 @@ struct ChatView: View {
         .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82), value: vm.deniedTools)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.editedFiles.count)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: saverTip)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: inlineAdvice)
         // Arm the convert tip on the render right after an attachment is staged.
         .onChange(of: vm.attachments.count) { old, new in
             justAttached = new > old
+        }
+        // Refresh the Advisor's suggestion from the draft, debounced so it never
+        // recomputes on every keystroke. Only while composing the FIRST message.
+        .onChange(of: vm.input) { _, draft in
+            adviceTask?.cancel()
+            let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard vm.messages.isEmpty, !advisorDismissed, trimmed.count >= 25 else {
+                withAnimation { inlineAdvice = nil }
+                return
+            }
+            adviceTask = Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+                // advise(task:) is pure and fast — fine on the main actor.
+                withAnimation { inlineAdvice = AdvisorEngine.advise(task: draft) }
+            }
         }
         // Drop files anywhere on the chat to attach them for review.
         .dropDestination(for: URL.self) { urls, _ in handleDrop(urls); return true } isTargeted: { isDropTargeted = $0 }
@@ -232,6 +268,42 @@ struct ChatView: View {
                     )
                     .padding(Space.s).allowsHitTesting(false)
             }
+        }
+    }
+
+    // MARK: - Advisor in chat
+
+    /// The inline Advisor card shows only while composing the first message of
+    /// a fresh chat — and it displaces the Token Saver banner (never stack two).
+    private var advisorCardVisible: Bool {
+        vm.messages.isEmpty && !advisorDismissed && inlineAdvice != nil
+    }
+
+    /// Hand this chat over to the Loop Builder, prefilled from an advice.
+    private func createLoop(from advice: AdvisorEngine.Advice) {
+        let plan = LoopPlan(name: config.name,
+                            kind: advice.loopKind,
+                            goal: advice.goalSuggestion,
+                            workerModel: advice.model,
+                            repoPath: config.repoPath,
+                            repoBookmark: config.repoBookmark)
+        LoopStore.shared.addLoop(prefill: plan)
+        model.navSection = .loops
+    }
+
+    /// Header-menu path: draft the loop goal from the first user message (or
+    /// the unsent draft) via the Advisor, then jump to the Loop Builder.
+    private func createLoopFromChat() {
+        let source = vm.messages.first(where: { $0.role == .user })?.text
+            ?? (vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : vm.input)
+        if let source {
+            createLoop(from: AdvisorEngine.advise(task: source))
+        } else {
+            let plan = LoopPlan(name: config.name,
+                                repoPath: config.repoPath,
+                                repoBookmark: config.repoBookmark)
+            LoopStore.shared.addLoop(prefill: plan)
+            model.navSection = .loops
         }
     }
 
@@ -331,6 +403,8 @@ struct ChatView: View {
                         }
                         Button(model.t("chat.customizeTeam")) { showInspector = true }
                         Button(model.t("team.manage")) { model.navSection = .team }
+                        Divider()
+                        Button(model.t("chat.createLoop")) { createLoopFromChat() }
                     } label: {
                         Text(model.strategyDisplayName(config.strategy))
                             .font(.sfCaption2.weight(.medium))

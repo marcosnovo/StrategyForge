@@ -220,6 +220,7 @@ struct TeamView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .hoverLift()
         .help(role.description)
     }
 
@@ -241,6 +242,7 @@ struct TeamView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .hoverLift()
         .help(model.t("team.add.help"))
     }
 

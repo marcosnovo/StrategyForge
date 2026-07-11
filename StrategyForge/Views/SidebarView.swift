@@ -37,6 +37,7 @@ struct SidebarView: View {
             List(selection: $model.selectedConfigID) {
                 ForEach(visibleConfigs) { config in
                     chatRow(config)
+                        .hoverTint(cornerRadius: 8)
                         .padding(.vertical, 3)
                         .tag(config.id)
                         .contextMenu {

@@ -121,11 +121,12 @@ struct TeamSelectorColumn: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                .fill(selected ? Theme.accentSoft : .clear))
+                .fill(selected ? Theme.accentSoft.opacity(0.65) : .clear))
             .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
                 .strokeBorder(selected ? Theme.accent.opacity(0.5) : .clear, lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .hoverTint()
         .contextMenu {
             Button(role: .destructive) { model.deleteTeam(team.id) } label: {
                 Label(model.t("team.library.delete"), systemImage: "trash")
