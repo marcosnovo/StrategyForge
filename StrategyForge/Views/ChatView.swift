@@ -81,12 +81,10 @@ struct ChatView: View {
         HStack(spacing: 0) {
             chatColumn
             if showActivity {
-                Divider()
                 AgentActivityPanel(vm: vm, focus: $agentFocus)
                     .frame(width: 320)
             }
             if showActivity, let focus = agentFocus {
-                Divider()
                 SubagentDetailPanel(vm: vm, focus: focus) { agentFocus = nil }
                     .frame(width: 300)
             }
@@ -192,7 +190,6 @@ struct ChatView: View {
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
             if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
-            Divider()
             inputBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -559,6 +556,16 @@ struct ChatView: View {
         }
         .padding(.top, Space.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Ambient dot-field identity, drifting quietly at the trailing edge of the
+        // most-seen blank canvas. Stilled under Reduce Motion.
+        .background(alignment: .topTrailing) {
+            if !reduceMotion {
+                ParticleField(density: 60, reactive: false)
+                    .frame(width: 220, height: 220)
+                    .opacity(0.4)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     /// The differentiator, front and center on an empty chat: this chat is driven

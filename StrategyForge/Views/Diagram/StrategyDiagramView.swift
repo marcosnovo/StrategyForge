@@ -228,7 +228,12 @@ struct StrategyDiagramView: View {
     /// labels, the legend and node subtitles, and tightens spacing so the topology
     /// stays legible at ~300pt instead of overlapping.
     var compact: Bool = false
+    /// Drives ambient motion even when not live (picker, onboarding, editor). The
+    /// activity panel passes `false` for the compact idle diagram to stay calm and
+    /// cheap when many other things move; anything live always animates.
+    var ambient: Bool = true
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppModel.self) private var model
 
     var body: some View {
@@ -243,16 +248,20 @@ struct StrategyDiagramView: View {
             return spec.orchestrator.id
         }()
 
-        // Animate ONLY while an agent is working. At rest — grid cards, the picker,
-        // onboarding, the idle activity panel — we draw a single static Canvas.
-        // Otherwise a screen with ~11 diagrams runs 11 TimelineViews at once and
-        // scrolling stutters. Static-at-rest keeps everything smooth.
+        // Motion is the diagram's identity: the coral signal dots always drift along
+        // the delegation edges (unless the user asked to reduce motion). A live agent
+        // additionally gets a breathing green halo. We still fall back to a single
+        // static Canvas when reduceMotion is on, or when a caller opts out of ambient
+        // motion (e.g. a wall of idle picker cards) so scrolling never stutters.
+        let animate = !reduceMotion && (isLive || ambient)
         Group {
-            if isLive {
+            if animate {
                 TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
                     let t = timeline.date.timeIntervalSinceReferenceDate
+                    // At rest the halo shouldn't breathe — only the live node pulses.
+                    let pulse: CGFloat = isLive ? CGFloat(0.5 + 0.5 * sin(t * 1.7)) : 0.6
                     canvas(spec: spec, palette: palette, activeID: activeID,
-                           time: t, pulse: CGFloat(0.5 + 0.5 * sin(t * 1.7)))
+                           time: t, pulse: pulse)
                 }
             } else {
                 canvas(spec: spec, palette: palette, activeID: activeID, time: 0, pulse: 0.6)
@@ -305,12 +314,15 @@ struct StrategyDiagramView: View {
         let w = nodeWidth(in: size)
         let k = max(spec.subagents.count, 1)
 
-        // Fit node height to the available space so boxes never overlap.
-        let topPad: CGFloat = 24
-        let availH = size.height - topPad * 2
-        let gap: CGFloat = 12
-        let fitH = (availH - gap * CGFloat(k - 1)) / CGFloat(k)
-        let nodeH = max(min(fitH, 80), 46)
+        // Fit node height to the available space so boxes never overlap. Derive the
+        // per-node height from the slot span (available height / node count) minus a
+        // gap, so with many subagents the boxes shrink to fit instead of stacking on
+        // top of one another. A small floor keeps a two-line label legible.
+        let topPad: CGFloat = compact ? 16 : 24
+        let availH = max(size.height - topPad * 2, 1)
+        let slotSpan = availH / CGFloat(k)
+        let gap: CGFloat = min(12, slotSpan * 0.22)
+        let nodeH = max(min(slotSpan - gap, 80), 34)
 
         // Reserve room on the left for the Main loop and on the right for the
         // per-node loops and labels (scaled so the diagram fits narrow widths).
@@ -324,8 +336,7 @@ struct StrategyDiagramView: View {
             x: orchX, y: (size.height - nodeH) / 2, width: w, height: nodeH
         )
 
-        // Subagents evenly stacked on the right.
-        let slotSpan = availH / CGFloat(k)
+        // Subagents evenly stacked on the right (slotSpan computed above).
         for node in spec.subagents {
             let slotCenter = topPad + (CGFloat(node.slot) + 0.5) * slotSpan
             frames[node.id] = CGRect(
@@ -406,7 +417,7 @@ struct StrategyDiagramView: View {
         }
 
         // DELEGATE (prominent): the orchestrator invokes each subagent. A base wire
-        // plus a travelling "signal packet" of light, staggered per edge.
+        // plus a drifting train of coral signal dots (the field), staggered per edge.
         var index = 0
         for edge in spec.edges where edge.kind == .delegate {
             guard let a = frames[edge.from], let b = frames[edge.to] else { continue }
@@ -422,17 +433,30 @@ struct StrategyDiagramView: View {
             let angle = atan2(end.y - start.y, end.x - start.x)
             ctx.fill(arrowHead(at: end, angle: angle, size: 9), with: .color(palette.accent))
 
-            // Travelling packet: a bright glowing dot that runs source → target,
-            // fading in/out at the ends. Staggered so signals dispatch in sequence.
-            let u = ((time * 0.55 + Double(index) * 0.34).truncatingRemainder(dividingBy: 1.0))
-            let fade = sin(u * .pi)                // 0 at ends, 1 mid-flight
-            if fade > 0.02 {
+            // Signal field: a small train of coral dots drifting source → target, the
+            // app's single motion identity. Each dot softly glows and fades in/out at
+            // the ends; the train is phase-staggered per edge so signals ripple out in
+            // sequence rather than marching in lock-step. `time == 0` (reduce-motion or
+            // opted-out) collapses to a single mid-flight dot so the wire still reads.
+            let dotCount = 3
+            for d in 0..<dotCount {
+                let phase = Double(d) / Double(dotCount) + Double(index) * 0.18
+                let u = time == 0
+                    ? 0.5
+                    : ((time * 0.32 + phase).truncatingRemainder(dividingBy: 1.0))
+                let fade = sin(u * .pi)            // 0 at ends, 1 mid-flight
+                guard fade > 0.03 else { continue }
                 let p = CGPoint(x: start.x + (end.x - start.x) * u,
                                 y: start.y + (end.y - start.y) * u)
-                ctx.fill(Path(ellipseIn: CGRect(x: p.x - 8, y: p.y - 8, width: 16, height: 16)),
-                         with: .color(palette.accent.opacity(0.22 * fade)))
-                ctx.fill(Path(ellipseIn: CGRect(x: p.x - 3, y: p.y - 3, width: 6, height: 6)),
-                         with: .color(palette.accent.opacity(0.35 + 0.65 * fade)))
+                let r: CGFloat = compact ? 2.2 : 2.8
+                // Soft outer glow.
+                ctx.fill(Path(ellipseIn: CGRect(x: p.x - r * 2.4, y: p.y - r * 2.4,
+                                                width: r * 4.8, height: r * 4.8)),
+                         with: .color(palette.accent.opacity(0.16 * fade)))
+                // Bright core.
+                ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
+                         with: .color(palette.accent.opacity(0.30 + 0.60 * fade)))
+                if time == 0 { break }             // one static dot is enough at rest
             }
             index += 1
         }
@@ -574,12 +598,27 @@ struct StrategyDiagramView: View {
     private func drawLabels(spec: DiagramSpec, frames: [UUID: CGRect], size: CGSize, ctx: inout GraphicsContext, palette: DiagramPalette) {
         let font = Font.system(size: 11.5, weight: .medium).italic()
 
+        // Horizontal centre of the empty gap between the two columns — the only place
+        // wide enough for a label. We centre the wire-fan labels here and lift the
+        // delegate label above the fan / drop the return label below it, so they never
+        // land on top of the wires or on each other (the previous midpoint placement
+        // put both in the densest part of the fan and they collided).
+        guard let orch = frames[spec.orchestrator.id],
+              let firstSub = spec.subagents.first.flatMap({ frames[$0.id] }) else { return }
+        let gapMidX = (orch.maxX + firstSub.minX) / 2
+        let topY = max(orch.minY - 4, 12)
+        let bottomY = min(orch.maxY + 4, size.height - 12)
+        // Keep the label inside the canvas even when the estimated text is wide.
+        func clampX(_ label: String) -> CGFloat {
+            let half = estimatedWidth(label, fontSize: 11.5) / 2
+            return min(max(gapMidX, half + 6), size.width - half - 6)
+        }
+
         for edge in spec.edges {
-            guard let label = edge.label, let a = frames[edge.from], let b = frames[edge.to] else { continue }
-            let mid = CGPoint(x: (a.midX + b.midX) / 2, y: (a.midY + b.midY) / 2)
-            let dy: CGFloat = edge.kind == .delegate ? -16 : 16
+            guard let label = edge.label else { continue }
             let color = edge.kind == .delegate ? palette.accent : palette.secondary
-            drawText(&ctx, Text(label).font(font), at: CGPoint(x: mid.x, y: mid.y + dy), color: color)
+            let y = edge.kind == .delegate ? topY : bottomY
+            drawText(&ctx, Text(label).font(font), at: CGPoint(x: clampX(label), y: y), color: color)
         }
 
         // Main loop label — bottom-left, kept inside the canvas.
@@ -603,6 +642,12 @@ struct StrategyDiagramView: View {
         let na = norm(a), nb = norm(b)
         guard !na.isEmpty, !nb.isEmpty else { return false }
         return na.contains(nb) || nb.contains(na)
+    }
+
+    /// Rough width of a string at a font size (same heuristic as `truncated`), used
+    /// to keep centred edge labels inside the canvas without a full text measure.
+    private func estimatedWidth(_ s: String, fontSize: CGFloat) -> CGFloat {
+        CGFloat(s.count) * fontSize * 0.55
     }
 
     /// Estimate-and-truncate a label so it fits within `width` at `fontSize`.

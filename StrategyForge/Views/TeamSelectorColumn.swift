@@ -12,6 +12,7 @@ import SwiftUI
 
 struct TeamSelectorColumn: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selectedID: SavedTeam.ID?
 
     var body: some View {
@@ -71,23 +72,33 @@ struct TeamSelectorColumn: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: Space.m) {
-            Spacer()
-            Image(systemName: "person.3").font(.system(size: 30)).foregroundStyle(.secondary)
-            Text(model.t("team.none.title")).font(.sfCardTitle)
-            Text(model.t("team.none.desc"))
-                .font(.sfCallout).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-            Button { selectedID = nil } label: {
-                Label(model.t("team.create"), systemImage: "plus")
+        ZStack {
+            // Ambient dot-field identity behind the sparse empty column (subtle,
+            // stilled under Reduce Motion).
+            if !reduceMotion {
+                ParticleField(density: 70, reactive: true)
+                    .frame(width: 200, height: 200)
+                    .opacity(0.5)
+                    .allowsHitTesting(false)
             }
-            .buttonStyle(.moon)
-            Label(model.t("team.dropRepoHint"), systemImage: "arrow.down.doc.fill")
-                .font(.sfCaption2).foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-            Spacer()
+            VStack(spacing: Space.m) {
+                Spacer()
+                Image(systemName: "person.3").font(.system(size: 30)).foregroundStyle(.secondary)
+                Text(model.t("team.none.title")).font(.sfCardTitle)
+                Text(model.t("team.none.desc"))
+                    .font(.sfCallout).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                Button { selectedID = nil } label: {
+                    Label(model.t("team.create"), systemImage: "plus")
+                }
+                .buttonStyle(.moon)
+                Label(model.t("team.dropRepoHint"), systemImage: "arrow.down.doc.fill")
+                    .font(.sfCaption2).foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                Spacer()
+            }
+            .padding(Space.l)
         }
-        .padding(Space.l)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 

@@ -187,13 +187,10 @@ struct TeamView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(role.role.tint)
                     }
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: Space.xs) {
                         Text(role.name).font(.sfCallout.weight(.semibold)).lineLimit(1)
-                        Text(model.roleKindName(role.role).uppercased())
-                            .font(.system(size: 8, weight: .bold)).tracking(0.4)
-                            .foregroundStyle(role.role.tint)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Capsule().fill(role.role.tint.opacity(0.16)))
+                        Text(model.roleKindName(role.role))
+                            .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
                     }
                     Spacer(minLength: 0)
                     if role.count > 1 {

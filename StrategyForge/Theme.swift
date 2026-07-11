@@ -191,7 +191,7 @@ private struct MoonButtonBody: View {
             .shadow(color: Theme.accent.opacity(0.32), radius: 6, x: 0, y: 2)
             .opacity(isEnabled ? 1 : 0.45)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: configuration.isPressed)
             .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed)
             .contentShape(Rectangle())
     }
@@ -242,15 +242,12 @@ private struct CardModifier: ViewModifier {
                     .fill(Theme.cardBg)
                     .shadow(color: .black.opacity(0.22), radius: 14, x: 0, y: 6)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .strokeBorder(Theme.hairline, lineWidth: 1)
-            )
     }
 }
 
 extension View {
-    /// Wrap content in a solid, hairline-bordered card with subtle depth.
+    /// Wrap content in a solid card with subtle depth — material contrast carries
+    /// separation (no hairline edge), for a calmer, more minimal surface.
     func card(padding: CGFloat = 20) -> some View {
         modifier(CardModifier(padding: padding))
     }

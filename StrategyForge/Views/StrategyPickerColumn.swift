@@ -99,7 +99,7 @@ struct StrategyPickerColumn: View {
                             .font(.sfCaption2.weight(.medium))
                             .padding(.horizontal, 10).padding(.vertical, 4)
                             .foregroundStyle(on ? Theme.onAccent : .secondary)
-                            .background(Capsule().fill(on ? Theme.accent : Theme.hairline))
+                            .background(Capsule().fill(on ? Theme.accent : Color.clear))
                     }
                     .buttonStyle(.plain)
                 }
@@ -113,26 +113,21 @@ struct StrategyPickerColumn: View {
     /// task/cost chips — big enough to read in the wide grid.
     private func strategyCard(_ template: Strategy) -> some View {
         let selected = template.name == selectedStrategyName
-        let beginner = model.isBeginnerStrategy(template)
         return Button {
             onSelect(template)
         } label: {
             VStack(alignment: .leading, spacing: Space.s) {
-                StrategyDiagramView(strategy: template, compact: true)
+                // Ambient motion off here: the grid renders every strategy at once,
+                // so many concurrent TimelineViews would stutter while scrolling. The
+                // selected card animates so the pick still feels alive.
+                StrategyDiagramView(strategy: template, compact: true, ambient: selected)
                     .frame(height: 140)
                 HStack(spacing: 5) {
                     Text(model.strategyDisplayName(template))
                         .font(.sfCallout.weight(.semibold))
                         .foregroundStyle(selected ? Theme.accent : .primary)
                         .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                    if beginner {
-                        Image(systemName: "leaf.fill").font(.system(size: 9)).foregroundStyle(Theme.success)
-                    }
                     Spacer(minLength: 0)
-                    if selected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 13)).foregroundStyle(Theme.accent)
-                    }
                 }
                 let goodFor = model.strategyGoodFor(template)
                 if !goodFor.isEmpty {
@@ -161,8 +156,7 @@ struct StrategyPickerColumn: View {
             .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
                 .fill(selected ? Theme.accentSoft : Theme.cardBg))
             .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                .strokeBorder(selected ? Theme.accent : Theme.hairline,
-                              lineWidth: selected ? 2 : 1))
+                .strokeBorder(Theme.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .help(model.strategyDisplayName(template))
