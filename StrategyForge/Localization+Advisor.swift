@@ -140,5 +140,13 @@ extension L10n {
         "advisor.action.loop": ("Create loop from this", "Crear un bucle con esto"),
         "advisor.action.copy": ("Copy launch command", "Copiar comando de arranque"),
         "advisor.action.copied": ("Copied", "Copiado"),
+
+        // MARK: Inline card (Advisor inside the chat)
+        "advisor.inline.caption": ("Advisor", "Asesor"),
+        "advisor.inline.applyTeam": ("Apply team", "Aplicar equipo"),
+        "advisor.inline.createLoop": ("Create loop", "Crear loop"),
+        "advisor.inline.why": ("Why this?", "¿Por qué?"),
+        "advisor.inline.dismiss": ("Dismiss", "Descartar"),
+        "chat.createLoop": ("Create a loop from this chat…", "Crear un loop desde este chat…"),
     ]
 }

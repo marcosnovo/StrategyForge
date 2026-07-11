@@ -84,9 +84,11 @@ enum Theme {
         dark:  Color(red: 0.071, green: 0.118, blue: 0.129))   // #121E21
 
     // MARK: Lines — warm hairline (identity --line)
+    // A hair quieter than the identity value so edges recede and material
+    // contrast carries separation (minimalist pass).
     static let hairline = Color(
-        light: Color(red: 0.906, green: 0.871, blue: 0.824),   // #E7DED2
-        dark:  Color(red: 0.133, green: 0.204, blue: 0.227))   // #22343A
+        light: Color(red: 0.918, green: 0.890, blue: 0.851),   // #EAE3D9 (was #E7DED2)
+        dark:  Color(red: 0.114, green: 0.176, blue: 0.196))   // #1D2D32 (was #22343A)
 
     // MARK: Text on materials — warm ink-dim / mono-dim (identity)
     static let secondaryOnMaterial = Color(
@@ -181,6 +183,7 @@ struct MoonButtonStyle: ButtonStyle {
 private struct MoonButtonBody: View {
     let configuration: ButtonStyleConfiguration
     @Environment(\.isEnabled) private var isEnabled
+    @State private var hovering = false
     var body: some View {
         configuration.label
             .font(.callout.weight(.semibold))
@@ -188,10 +191,16 @@ private struct MoonButtonBody: View {
             .padding(.horizontal, Space.m)
             .padding(.vertical, Space.s)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.primaryFill))
-            .shadow(color: Theme.accent.opacity(0.32), radius: 6, x: 0, y: 2)
+            // Hover: the coral brightens a touch and its glow deepens — alive
+            // without moving (safe under Reduce Motion; it's a tint, not motion).
+            .brightness(hovering ? 0.05 : 0)
+            .shadow(color: Theme.accent.opacity(hovering ? 0.42 : 0.32),
+                    radius: hovering ? 8 : 6, x: 0, y: 2)
             .opacity(isEnabled ? 1 : 0.45)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .animation(.spring(response: 0.35, dampingFraction: 0.75), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.18), value: hovering)
+            .onHover { hovering = isEnabled && $0 }
             .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed)
             .contentShape(Rectangle())
     }
@@ -240,7 +249,9 @@ private struct CardModifier: ViewModifier {
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(Theme.cardBg)
-                    .shadow(color: .black.opacity(0.22), radius: 14, x: 0, y: 6)
+                    // Modern "float": a larger, softer, lower-alpha shadow instead
+                    // of a hard drop — cards hover over the paper rather than sit on it.
+                    .shadow(color: .black.opacity(0.12), radius: 22, x: 0, y: 9)
             )
     }
 }
@@ -250,6 +261,87 @@ extension View {
     /// separation (no hairline edge), for a calmer, more minimal surface.
     func card(padding: CGFloat = 20) -> some View {
         modifier(CardModifier(padding: padding))
+    }
+}
+
+// MARK: - Motion primitives (the "alive" layer)
+
+/// macOS hover feedback for tappable cards: a whisper of scale (1.01) and a
+/// slightly deeper shadow, ~0.18s ease. Under Reduce Motion there is no scale —
+/// a subtle warm tint overlay marks the hover instead.
+struct HoverLift: ViewModifier {
+    var enabled: Bool = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        let lift = enabled && hovering && !reduceMotion
+        let tint = enabled && hovering && reduceMotion
+        content
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+                    .fill(Theme.accentSoft.opacity(tint ? 0.6 : 0))
+                    .allowsHitTesting(false)
+            )
+            .scaleEffect(lift ? 1.01 : 1)
+            .shadow(color: .black.opacity(lift ? 0.10 : 0), radius: 12, x: 0, y: 5)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: hovering)
+            .onHover { hovering = enabled && $0 }
+    }
+}
+
+/// The list-row variant of `hoverLift`: no scale or shadow (rows have clear
+/// backgrounds, so a shadow would halo the text) — just a quiet neutral fill
+/// behind the row while the pointer is over it.
+struct HoverTint: ViewModifier {
+    var cornerRadius: CGFloat = Theme.innerCorner
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.primary.opacity(hovering ? 0.045 : 0))
+            )
+            .animation(.easeOut(duration: 0.15), value: hovering)
+            .onHover { hovering = $0 }
+    }
+}
+
+/// A slow (~3s) breathing glow for brand marks and live elements: the shadow's
+/// opacity and radius swell and settle forever. Rests as a static soft glow
+/// under Reduce Motion.
+struct BreathingGlow: ViewModifier {
+    var color: Color
+    var enabled: Bool = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathing = false
+
+    func body(content: Content) -> some View {
+        content
+            .shadow(color: color.opacity(breathing ? 0.45 : 0.18),
+                    radius: breathing ? 10 : 5)
+            .onAppear {
+                guard enabled && !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
+                    breathing = true
+                }
+            }
+    }
+}
+
+extension View {
+    /// Hover lift for tappable cards (scale + shadow; tint-only under Reduce Motion).
+    func hoverLift(_ enabled: Bool = true) -> some View {
+        modifier(HoverLift(enabled: enabled))
+    }
+    /// Hover background tint for list rows (no scale/shadow).
+    func hoverTint(cornerRadius: CGFloat = Theme.innerCorner) -> some View {
+        modifier(HoverTint(cornerRadius: cornerRadius))
+    }
+    /// Slow breathing shadow for brand marks / live elements.
+    func breathingGlow(color: Color, enabled: Bool = true) -> some View {
+        modifier(BreathingGlow(color: color, enabled: enabled))
     }
 }
 

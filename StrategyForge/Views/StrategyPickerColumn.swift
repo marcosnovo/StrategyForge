@@ -160,6 +160,7 @@ struct StrategyPickerColumn: View {
                 .strokeBorder(Theme.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .hoverLift()
         .help(model.strategyDisplayName(template))
     }
 

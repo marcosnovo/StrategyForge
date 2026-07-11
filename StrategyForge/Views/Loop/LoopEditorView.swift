@@ -143,6 +143,7 @@ struct LoopEditorView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .hoverLift()
         .help(model.t(kind.suitsKey))
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
