@@ -141,6 +141,7 @@ struct TeamView: View {
             .controlSize(.large)
         }
         .padding(Space.l)
+        .zoomWindowOnDoubleClick()
     }
 
     private var costPill: some View {

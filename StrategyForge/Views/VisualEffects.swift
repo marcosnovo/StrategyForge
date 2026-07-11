@@ -44,8 +44,70 @@ struct WindowConfigurator: NSViewRepresentable {
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.styleMask.insert(.fullSizeContentView)
+            // NOTE: intentionally NOT movable-by-background — it stole mouse-down from
+            // the resize dividers (dragging moved the whole window) and swallowed the
+            // header double-click-to-zoom. The transparent titlebar strip still drags.
+            window.isMovableByWindowBackground = false
         }
         return v
     }
     func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+// MARK: - Titlebar double-click to zoom
+
+/// Toggles the key window between its zoomed ("maximized") frame and its previous
+/// size — the standard macOS green-button / titlebar-double-click behaviour, which a
+/// hidden titlebar otherwise loses. Respects the user's "double-click to" preference.
+@MainActor func zoomKeyWindow() {
+    (NSApp.keyWindow ?? NSApp.mainWindow)?.performZoom(nil)
+}
+
+extension View {
+    /// Add standard "double-click the header to zoom the window" behaviour to a
+    /// custom header bar. Uses a simultaneous gesture so child controls still work.
+    func zoomWindowOnDoubleClick() -> some View {
+        simultaneousGesture(TapGesture(count: 2).onEnded { zoomKeyWindow() })
+    }
+}
+
+// MARK: - Resizable divider
+
+/// A draggable vertical divider that resizes an adjacent column, borrowing width
+/// from the flexible neighbour. Bind it to the column's width; `sign` is +1 when the
+/// divider sits on the column's trailing edge (drag right → wider), -1 on the leading
+/// edge (e.g. a right-hand panel that grows as you drag left).
+struct ResizableDivider: View {
+    @Binding var width: CGFloat
+    var range: ClosedRange<CGFloat>
+    var sign: CGFloat = 1
+    @State private var startWidth: CGFloat?
+    @State private var hovering = false
+
+    var body: some View {
+        // A fixed 9pt-wide interactive strip with a 1pt line centred in it, so the
+        // hit area is comfortable but the divider still reads as a hairline. Occupies
+        // real layout width (replacing the old Divider) so nothing shifts while dragging.
+        ZStack {
+            Color.clear.frame(width: 9)
+            Rectangle()
+                .fill(hovering ? Theme.accent.opacity(0.7) : Theme.hairline)
+                .frame(width: hovering ? 2 : 1)
+        }
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onHover { h in
+            hovering = h
+            if h { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { v in
+                    if startWidth == nil { startWidth = width }
+                    let proposed = (startWidth ?? width) + sign * v.translation.width
+                    width = min(max(proposed, range.lowerBound), range.upperBound)
+                }
+                .onEnded { _ in startWidth = nil }
+        )
+    }
 }

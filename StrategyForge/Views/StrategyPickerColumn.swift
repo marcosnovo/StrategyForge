@@ -117,11 +117,12 @@ struct StrategyPickerColumn: View {
             onSelect(template)
         } label: {
             VStack(alignment: .leading, spacing: Space.s) {
-                // Ambient motion off here: the grid renders every strategy at once,
-                // so many concurrent TimelineViews would stutter while scrolling. The
-                // selected card animates so the pick still feels alive.
-                StrategyDiagramView(strategy: template, compact: true, ambient: selected)
-                    .frame(height: 140)
+                // Ambient signal-dot motion on every card — the diagram's identity,
+                // matching the live chat diagram. Compact mode collapses multi-count
+                // roles into one stacked card and the layout caps node height to the
+                // slot, so the topology stays legible and the grid drifts at 20fps.
+                StrategyDiagramView(strategy: template, compact: true)
+                    .frame(height: StrategyDiagramView.compactHeight(for: template))
                 HStack(spacing: 5) {
                     Text(model.strategyDisplayName(template))
                         .font(.sfCallout.weight(.semibold))

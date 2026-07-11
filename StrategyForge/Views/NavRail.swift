@@ -55,6 +55,13 @@ struct NavRail: View {
                 Task { await model.refreshUsage() }
             }
 
+            #if DEBUG
+            // DEBUG-only: preview the dot/particle motion system (spinners + waits).
+            devItem("sparkles", "Lab", active: model.navSection == .particleLab) {
+                model.navSection = .particleLab
+            }
+            #endif
+
             Spacer()
 
             item("gearshape.fill", "sidebar.settings") { openSettings() }
@@ -95,4 +102,32 @@ struct NavRail: View {
         .help(model.t(labelKey))
         .accessibilityLabel(model.t(labelKey))
     }
+
+    #if DEBUG
+    /// Like `item`, but with a literal (un-localized) label — for DEBUG-only tools.
+    private func devItem(_ icon: String, _ label: String,
+                         active: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundStyle(active ? Color.white : Color.white.opacity(0.72))
+                    .frame(width: 40, height: 34)
+                    .background(RoundedRectangle(cornerRadius: 12)
+                        .fill(active ? Color.white.opacity(0.18) : .clear))
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.white.opacity(active ? 0.25 : 0), lineWidth: 1))
+                Text(label)
+                    .font(.system(size: 9, weight: active ? .semibold : .medium))
+                    .foregroundStyle(active ? Color.white : Color.white.opacity(0.55))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Particle Lab (DEBUG)")
+    }
+    #endif
 }

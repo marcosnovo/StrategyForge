@@ -156,6 +156,7 @@ struct SidebarView: View {
         .padding(.top, Space.m).padding(.bottom, Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial)
+        .zoomWindowOnDoubleClick()
     }
 
     private var footer: some View {

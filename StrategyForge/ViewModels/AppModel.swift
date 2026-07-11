@@ -48,7 +48,9 @@ final class AppModel {
     func isConnected(_ provider: AIProvider) -> Bool { connectedProviders.contains(provider) }
 
     /// Which top-level section the nav rail shows: the chats, or connected services.
-    enum NavSection { case chats, services, team, usage, loops, advisor }
+    /// `particleLab` is a DEBUG-only gallery for previewing the dot/particle motion
+    /// system (spinners + waiting states) — its nav entry only appears in Debug builds.
+    enum NavSection { case chats, services, team, usage, loops, advisor, particleLab }
     var navSection: NavSection = .chats
 
     // MARK: - Usage (real Claude token usage from local logs)

@@ -30,8 +30,7 @@ struct TeamSelectorColumn: View {
                 }
             }
         }
-        .frame(width: 260)
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.regularMaterial)
         // "Drag your repo and visualize your setup" — drop a folder with .claude/.
         .dropDestination(for: URL.self) { urls, _ in

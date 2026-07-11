@@ -42,6 +42,8 @@ struct ChatView: View {
     /// "an attachment was just staged" flag that gates the convert tip.
     @State private var dismissedTips: Set<TokenSaverEngine.TipKind> = []
     @State private var justAttached = false
+    /// Persisted, user-resizable width of the agent-activity panel.
+    @AppStorage("col.activity") private var activityW = 320.0
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -85,8 +87,11 @@ struct ChatView: View {
         HStack(spacing: 0) {
             chatColumn
             if showActivity {
+                ResizableDivider(
+                    width: Binding(get: { CGFloat(activityW) }, set: { activityW = Double($0) }),
+                    range: 260...560, sign: -1)
                 AgentActivityPanel(vm: vm, focus: $agentFocus)
-                    .frame(width: 320)
+                    .frame(width: CGFloat(activityW))
             }
             if showActivity, let focus = agentFocus {
                 SubagentDetailPanel(vm: vm, focus: focus) { agentFocus = nil }
@@ -97,9 +102,9 @@ struct ChatView: View {
         // continuously-redrawing TimelineViews (WorkingLogo, live diagram) over
         // materials; animating their insertion made the UI hang. Snap them in.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The chat is the brightest surface: a near-opaque frosted panel over the
-        // behind-window glass, like the reference — bubbles/chrome layer on top.
-        .background(.thickMaterial)
+        // The chat is the protagonist: a clean, bright, near-white surface (not the
+        // dull frosted gray) so the conversation feels open and modern.
+        .background(Theme.columnBg)
         // Reflect an auto-generated title (set in AppModel after the first message).
         .onChange(of: config.name) { _, new in editingTitle = new }
         // Auto-open the panel the first time an agent starts working.
@@ -305,7 +310,6 @@ struct ChatView: View {
 
     private var header: some View {
         HStack(spacing: Space.m) {
-            IconBadge(systemName: "bubble.left.and.text.bubble.right.fill")
             VStack(alignment: .leading, spacing: 3) {
                 // The chat title — the H1, editable inline.
                 TextField(model.t("chat.untitled"), text: $editingTitle)
@@ -412,6 +416,7 @@ struct ChatView: View {
             Rectangle().fill(.bar)
                 .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
         }
+        .zoomWindowOnDoubleClick()
         .zIndex(1)
     }
 
@@ -565,9 +570,7 @@ struct ChatView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                         .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
-                            .fill(Theme.cardBg))
-                        .overlay(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
-                            .strokeBorder(Theme.hairline.opacity(0.6), lineWidth: 1))
+                            .fill(Theme.insetBg))
                         .contextMenu { copyButton(message.text) }
                     if !message.text.isEmpty {
                         let copied = copiedMessageID == message.id
@@ -614,7 +617,7 @@ struct ChatView: View {
                         .padding(Space.m)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                            .fill(Theme.cardBg)
+                            .fill(Theme.insetBg)
                             .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
                                 .strokeBorder(Theme.hairline, lineWidth: 1)))
                     }
@@ -629,9 +632,9 @@ struct ChatView: View {
         // most-seen blank canvas. Stilled under Reduce Motion.
         .background(alignment: .topTrailing) {
             if !reduceMotion {
-                ParticleField(density: 60, reactive: false)
-                    .frame(width: 220, height: 220)
-                    .opacity(0.4)
+                ParticleField(density: 80, reactive: true)
+                    .frame(width: 280, height: 280)
+                    .opacity(0.5)
                     .allowsHitTesting(false)
             }
         }

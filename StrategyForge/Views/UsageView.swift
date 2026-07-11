@@ -45,6 +45,7 @@ struct UsageView: View {
             .controlSize(.large)
             .disabled(model.isRefreshingUsage)
         }
+        .zoomWindowOnDoubleClick()
     }
 
     // MARK: - Claude
@@ -129,11 +130,11 @@ struct UsageView: View {
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.hairline).frame(height: 6)
-                    Capsule().fill(Theme.accent).frame(width: max(4, geo.size.width * frac), height: 6)
+                    Capsule().fill(Theme.hairline).frame(height: 7)
+                    Capsule().fill(Theme.primaryFill).frame(width: max(5, geo.size.width * frac), height: 7)
                 }
             }
-            .frame(height: 6)
+            .frame(height: 7)
         }
     }
 
@@ -158,14 +159,21 @@ struct UsageView: View {
 
     private var otherProvidersSection: some View {
         ForEach([AIProvider.openai, AIProvider.gemini]) { p in
-            HStack(spacing: Space.s) {
-                ProviderLogo(provider: p, size: 20, templateTint: p.tint)
-                VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: Space.m) {
+                ProviderLogo(provider: p, size: 26, templateTint: p.tint)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(p.tint.opacity(0.12)))
+                VStack(alignment: .leading, spacing: 2) {
                     Text(p.displayName).font(.sfCallout.weight(.semibold))
                     Text(model.t("usage.noProviderData"))
                         .font(.sfCaption2).foregroundStyle(.secondary)
                 }
                 Spacer()
+                Text(model.t(model.isConnected(p) ? "provider.connected" : "provider.notFound"))
+                    .font(.sfCaption2.weight(.medium))
+                    .foregroundStyle(model.isConnected(p) ? Theme.success : Theme.secondaryOnMaterial)
+                    .padding(.horizontal, Space.s).padding(.vertical, 3)
+                    .background(Capsule().fill((model.isConnected(p) ? Theme.success : Theme.inkDim).opacity(0.12)))
             }
             .card(padding: Space.m)
         }
@@ -212,11 +220,15 @@ struct UsageRing: View {
             Circle().stroke(Theme.hairline, lineWidth: 12)
             Circle()
                 .trim(from: 0, to: max(0.001, min(fraction, 1)))
-                .stroke(Theme.success, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                .stroke(
+                    AngularGradient(colors: [Theme.coral, Theme.coralDeep, Theme.coral],
+                                    center: .center, startAngle: .degrees(-90), endAngle: .degrees(270)),
+                    style: StrokeStyle(lineWidth: 12, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .shadow(color: Theme.success.opacity(0.4), radius: 5)
+                .shadow(color: Theme.accent.opacity(0.35), radius: 6)
             VStack(spacing: 0) {
-                Text(label).font(.system(size: 22, weight: .bold, design: .rounded))
+                Text(label).font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.accent)
                     .contentTransition(.numericText())
                 Text("tokens").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
             }
