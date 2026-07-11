@@ -304,6 +304,14 @@ struct StrategyDiagramView: View {
         return min(max(CGFloat(n) * 66 + 96, 190), 380)
     }
 
+    /// Preferred height for a COMPACT diagram (grid thumbnails): scales with the
+    /// number of drawn boxes so cards with many distinct roles get the vertical room
+    /// to stay legible, instead of squashing every node into a fixed 148pt.
+    static func compactHeight(for strategy: Strategy) -> CGFloat {
+        let n = DiagramSpecBuilder.build(from: strategy, compact: true, t: { $0 }).subagents.count
+        return min(max(CGFloat(n) * 40 + 76, 132), 260)
+    }
+
     private func nodeWidth(in size: CGSize) -> CGFloat {
         compact ? min(max(size.width * 0.30, 84), 120)
                 : min(max(size.width * 0.22, 104), 180)
@@ -338,12 +346,15 @@ struct StrategyDiagramView: View {
             x: orchX, y: (size.height - nodeH) / 2, width: w, height: nodeH
         )
 
-        // Subagents evenly stacked on the right (slotSpan computed above).
+        // Subagents evenly stacked on the right (slotSpan computed above). Clamp the
+        // vertical position so a node never bleeds past the top/bottom edge (which was
+        // clipping the first/last box in tight cards).
+        let minY: CGFloat = 3
+        let maxY = size.height - nodeH - 3
         for node in spec.subagents {
             let slotCenter = topPad + (CGFloat(node.slot) + 0.5) * slotSpan
-            frames[node.id] = CGRect(
-                x: rightX, y: slotCenter - nodeH / 2, width: w, height: nodeH
-            )
+            let y = min(max(slotCenter - nodeH / 2, minY), max(minY, maxY))
+            frames[node.id] = CGRect(x: rightX, y: y, width: w, height: nodeH)
         }
         return frames
     }

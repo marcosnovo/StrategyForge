@@ -44,8 +44,10 @@ struct WindowConfigurator: NSViewRepresentable {
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.styleMask.insert(.fullSizeContentView)
-            // Let the whole window be dragged from empty chrome (like the reference).
-            window.isMovableByWindowBackground = true
+            // NOTE: intentionally NOT movable-by-background — it stole mouse-down from
+            // the resize dividers (dragging moved the whole window) and swallowed the
+            // header double-click-to-zoom. The transparent titlebar strip still drags.
+            window.isMovableByWindowBackground = false
         }
         return v
     }
@@ -83,25 +85,29 @@ struct ResizableDivider: View {
     @State private var hovering = false
 
     var body: some View {
-        Divider()
-            .overlay(
-                // A wider invisible hit area so the 1pt line is easy to grab.
-                Rectangle().fill(Color.clear).frame(width: 10).contentShape(Rectangle())
-                    .onHover { h in
-                        hovering = h
-                        if h { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-                    }
-                    .gesture(
-                        DragGesture(minimumDistance: 1)
-                            .onChanged { v in
-                                let base = startWidth ?? width
-                                if startWidth == nil { startWidth = width }
-                                let proposed = base + sign * v.translation.width
-                                width = min(max(proposed, range.lowerBound), range.upperBound)
-                            }
-                            .onEnded { _ in startWidth = nil }
-                    )
-            )
-            .background(hovering ? Theme.accent.opacity(0.5) : .clear)
+        // A fixed 9pt-wide interactive strip with a 1pt line centred in it, so the
+        // hit area is comfortable but the divider still reads as a hairline. Occupies
+        // real layout width (replacing the old Divider) so nothing shifts while dragging.
+        ZStack {
+            Color.clear.frame(width: 9)
+            Rectangle()
+                .fill(hovering ? Theme.accent.opacity(0.7) : Theme.hairline)
+                .frame(width: hovering ? 2 : 1)
+        }
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onHover { h in
+            hovering = h
+            if h { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { v in
+                    if startWidth == nil { startWidth = width }
+                    let proposed = (startWidth ?? width) + sign * v.translation.width
+                    width = min(max(proposed, range.lowerBound), range.upperBound)
+                }
+                .onEnded { _ in startWidth = nil }
+        )
     }
 }

@@ -98,9 +98,9 @@ struct ChatView: View {
         // continuously-redrawing TimelineViews (WorkingLogo, live diagram) over
         // materials; animating their insertion made the UI hang. Snap them in.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The chat is the brightest surface: a near-opaque frosted panel over the
-        // behind-window glass, like the reference — bubbles/chrome layer on top.
-        .background(.thickMaterial)
+        // The chat is the protagonist: a clean, bright, near-white surface (not the
+        // dull frosted gray) so the conversation feels open and modern.
+        .background(Theme.columnBg)
         // Reflect an auto-generated title (set in AppModel after the first message).
         .onChange(of: config.name) { _, new in editingTitle = new }
         // Auto-open the panel the first time an agent starts working.
@@ -501,9 +501,7 @@ struct ChatView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                         .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
-                            .fill(Theme.cardBg))
-                        .overlay(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
-                            .strokeBorder(Theme.hairline.opacity(0.6), lineWidth: 1))
+                            .fill(Theme.insetBg))
                         .contextMenu { copyButton(message.text) }
                     if !message.text.isEmpty {
                         let copied = copiedMessageID == message.id
@@ -550,7 +548,7 @@ struct ChatView: View {
                         .padding(Space.m)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                            .fill(Theme.cardBg)
+                            .fill(Theme.insetBg)
                             .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
                                 .strokeBorder(Theme.hairline, lineWidth: 1)))
                     }
