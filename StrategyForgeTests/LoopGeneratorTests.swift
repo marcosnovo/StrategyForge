@@ -140,7 +140,7 @@ struct LoopPlanCodableTests {
         #expect(plan.lastRunAt == nil)
     }
 
-    @Test func decodeClampsTurnsAndTolersUnknownEnums() throws {
+    @Test func decodeClampsTurnsAndToleratesUnknownEnums() throws {
         let data = Data(#"{"name":"x","maxTurns":9999,"kind":"future-kind","workerModel":"claude-99"}"#.utf8)
         let plan = try JSONDecoder().decode(LoopPlan.self, from: data)
         #expect(plan.maxTurns == 100)
