@@ -38,11 +38,14 @@ struct AgentActivityPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: Space.s) {
+                // Same title treatment as the Chats list and the chat header (a
+                // sfCardTitle line + a quiet subrow), so the three column headers
+                // read at one harmonious size instead of big/tiny/big.
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(model.t("activity.title"))
-                        .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
                     Text(model.strategyDisplayName(vm.config.strategy))
-                        .font(.sfCallout.weight(.semibold)).lineLimit(1)
+                        .font(.sfCardTitle).lineLimit(1)
+                    Text(model.t("activity.title"))
+                        .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
                 }
                 Spacer()
                 if vm.isRunning {

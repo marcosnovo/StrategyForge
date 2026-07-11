@@ -45,8 +45,8 @@ struct ContentView: View {
                 // Team section always leads with the team selector (list + empty state).
                 TeamSelectorColumn(selectedID: $model.selectedTeamID)
                 Divider()
-            } else if model.navSection == .usage {
-                // Usage is a single full-width dashboard — no second column.
+            } else if model.navSection == .usage || model.navSection == .particleLab {
+                // Single full-width surfaces — no second column.
                 EmptyView()
             } else if model.showSidebar || model.selectedConfiguration == nil {
                 SidebarView(showSidebar: $model.showSidebar)
@@ -73,6 +73,9 @@ struct ContentView: View {
                 }
             } else if model.navSection == .usage {
                 UsageView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.navSection == .particleLab {
+                ParticleLabView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let id = model.selectedConfigID, let chat = model.selectedConfiguration {
                 // Center: the chat — the protagonist, full width.

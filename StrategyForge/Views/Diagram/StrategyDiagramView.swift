@@ -116,7 +116,7 @@ private enum DiagramSpecBuilder {
         }
     }
 
-    static func build(from strategy: Strategy, t: (String) -> String) -> DiagramSpec {
+    static func build(from strategy: Strategy, compact: Bool = false, t: (String) -> String) -> DiagramSpec {
         let topTier = strategy.roles.map { tier($0.model) }.max() ?? 3
 
         // Orchestrator (or the single solo agent).
@@ -132,10 +132,14 @@ private enum DiagramSpecBuilder {
         )
 
         // Expand subagent roles into drawn boxes; collapse if it would get crowded.
+        // In compact mode (grid thumbnails, activity panel) we NEVER expand a
+        // multi-count role into separate boxes — it always renders as one stacked
+        // "×N" card — so the small canvases stay to a handful of legible boxes
+        // instead of a tall stack that overlaps.
         let roles = strategy.subagentRoles
-        let maxIndividual = 5
+        let maxIndividual = compact ? 1 : 5
         var expanded = roles.reduce(0) { $0 + (min($1.count, maxIndividual + 1) <= maxIndividual ? $1.count : 1) }
-        let collapse = expanded > 7 || roles.contains { $0.count > maxIndividual }
+        let collapse = expanded > (compact ? 4 : 7) || roles.contains { $0.count > maxIndividual }
         _ = expanded
 
         var boxes: [(role: AgentRole, title: String, stack: Int)] = []
@@ -238,7 +242,7 @@ struct StrategyDiagramView: View {
 
     var body: some View {
         let palette = DiagramPalette.make(scheme)
-        let spec = DiagramSpecBuilder.build(from: strategy, t: { model.t($0) })
+        let spec = DiagramSpecBuilder.build(from: strategy, compact: compact, t: { model.t($0) })
         // Which node (if any) is the one currently working.
         let activeID: UUID? = {
             guard isLive else { return nil }
@@ -254,9 +258,12 @@ struct StrategyDiagramView: View {
         // static Canvas when reduceMotion is on, or when a caller opts out of ambient
         // motion (e.g. a wall of idle picker cards) so scrolling never stutters.
         let animate = !reduceMotion && (isLive || ambient)
+        // Live diagrams animate at 30fps; idle/ambient ones (e.g. the wall of picker
+        // cards) drift at a calmer 20fps so many at once don't stutter the scroll.
+        let interval = isLive ? 1.0 / 30.0 : 1.0 / 20.0
         Group {
             if animate {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+                TimelineView(.animation(minimumInterval: interval)) { timeline in
                     let t = timeline.date.timeIntervalSinceReferenceDate
                     // At rest the halo shouldn't breathe — only the live node pulses.
                     let pulse: CGFloat = isLive ? CGFloat(0.5 + 0.5 * sin(t * 1.7)) : 0.6
@@ -314,15 +321,17 @@ struct StrategyDiagramView: View {
         let w = nodeWidth(in: size)
         let k = max(spec.subagents.count, 1)
 
-        // Fit node height to the available space so boxes never overlap. Derive the
-        // per-node height from the slot span (available height / node count) minus a
-        // gap, so with many subagents the boxes shrink to fit instead of stacking on
-        // top of one another. A small floor keeps a two-line label legible.
-        let topPad: CGFloat = compact ? 16 : 24
+        // Fit node height to the available space so boxes NEVER overlap. Each node
+        // gets a vertical "slot" (available height / node count); its height is the
+        // slot minus a gap, capped by a max so a lone box isn't huge. Crucially there
+        // is NO lower floor: a floor taller than the slot is exactly what made boxes
+        // stack on top of each other. With many nodes the boxes simply shrink (text
+        // is clipped to the box), which reads far better than an overlapping pile.
+        let topPad: CGFloat = compact ? 14 : 24
         let availH = max(size.height - topPad * 2, 1)
         let slotSpan = availH / CGFloat(k)
-        let gap: CGFloat = min(12, slotSpan * 0.22)
-        let nodeH = max(min(slotSpan - gap, 80), 34)
+        let gap: CGFloat = min(compact ? 10 : 12, slotSpan * 0.22)
+        let nodeH = min(slotSpan - gap, compact ? 54 : 80)
 
         // Reserve room on the left for the Main loop and on the right for the
         // per-node loops and labels (scaled so the diagram fits narrow widths).
