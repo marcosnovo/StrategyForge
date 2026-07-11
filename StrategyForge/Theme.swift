@@ -25,13 +25,6 @@ extension Color {
 
 enum Theme {
 
-    // MARK: Brand — messenger-screenshot violet, with Wisteria-haze nuances
-    /// Nuance colors (from the Wisteria palette) for the soft background wash.
-    static let moonWhite = Color(red: 0.918, green: 0.957, blue: 0.988)   // #EAF4FC
-    static let wisteria   = Color(red: 0.698, green: 0.561, blue: 0.808)  // #B28FCE
-    static let ibisPink   = Color(red: 0.957, green: 0.702, blue: 0.761)  // #F4B3C2
-    static let sky        = Color(red: 0.627, green: 0.847, blue: 0.937)  // #A0D8EF
-
     // MARK: Coral brand accent + teal secondary
     /// The brand coral. Bright on dark; a touch deeper on light so small text/icons
     /// keep contrast. This is the app's action color and the orchestrator's hue.
@@ -64,35 +57,25 @@ enum Theme {
                  Color(red: 0.886, green: 0.251, blue: 0.165)],  // #E24029
         startPoint: .top, endPoint: .bottom)
 
-    /// A soft lavender ambient wash (subtle Wisteria nuances) behind the app.
-    static let haze = LinearGradient(
-        stops: [
-            .init(color: moonWhite, location: 0.05),
-            .init(color: wisteria,  location: 0.45),
-            .init(color: ibisPink,  location: 0.70),
-            .init(color: sky,       location: 0.95),
-        ],
-        startPoint: .topLeading, endPoint: .bottomTrailing)
-
-    // MARK: Surfaces — soft lavender in light, cool graphite in dark
+    // MARK: Surfaces — warm paper in light, warm "reef ink" in dark
     static let appBg = Color(
-        light: Color(red: 0.929, green: 0.922, blue: 0.965),   // #EDEBF7 soft lavender
-        dark:  Color(red: 0.051, green: 0.055, blue: 0.078))   // #0D0E14
+        light: Color(red: 0.968, green: 0.953, blue: 0.933),   // #F7F3EE warm paper
+        dark:  Color(red: 0.047, green: 0.055, blue: 0.059))   // #0C0E0F reef ink
     static let cardBg = Color(
         light: .white,
-        dark:  Color(red: 0.086, green: 0.090, blue: 0.118))   // #16171E
+        dark:  Color(red: 0.086, green: 0.094, blue: 0.098))   // #161819
     static let insetBg = Color(
-        light: Color(red: 0.902, green: 0.890, blue: 0.953),   // #E6E3F3 lavender inset
-        dark:  Color(red: 0.039, green: 0.043, blue: 0.063))   // #0A0B10
-    /// Near-black surface for the left navigation rail (like the screenshot).
+        light: Color(red: 0.925, green: 0.906, blue: 0.878),   // #ECE7E0 warm inset
+        dark:  Color(red: 0.075, green: 0.086, blue: 0.090))   // #131617
+    /// Warm-charcoal surface for the left navigation rail (no violet cast).
     static let railBg = Color(
-        light: Color(red: 0.125, green: 0.122, blue: 0.153),   // #201F27
-        dark:  Color(red: 0.078, green: 0.075, blue: 0.098))   // #141319
-    /// Pure-white panel surface for the chats + activity columns, so they read as
-    /// distinct panels over the lavender haze (dark: the card surface).
+        light: Color(red: 0.106, green: 0.114, blue: 0.118),   // #1B1D1E warm charcoal
+        dark:  Color(red: 0.071, green: 0.078, blue: 0.082))   // #121415
+    /// Panel surface for the chats + activity columns, so they read as distinct
+    /// panels over the app background (dark: the card surface).
     static let columnBg = Color(
         light: .white,
-        dark:  Color(red: 0.086, green: 0.090, blue: 0.118))   // #16171E
+        dark:  Color(red: 0.086, green: 0.094, blue: 0.098))   // #161819
 
     // MARK: Lines
     static let hairline = Color(
@@ -132,6 +115,53 @@ enum Theme {
     static let turnGap: CGFloat = 10
     /// Extra line spacing for body copy so long replies read comfortably.
     static let bodyLineSpacing: CGFloat = 3
+}
+
+// MARK: - Coral brand mark
+
+/// The Coral brand mark: a branching-coral glyph that doubles as the agent
+/// topology — one root fanning out to four tips. Matches the app icon. Drawn in
+/// the coral accent by default; pass a color for monochrome contexts.
+struct CoralMark: View {
+    var size: CGFloat = 22
+    var color: Color = Theme.coral
+
+    // (startX, startY, controlX, controlY, endX, endY) on a 0…100 canvas.
+    private static let branches: [(CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat)] = [
+        (50, 84, 50, 70, 50, 60),
+        (50, 60, 40, 52, 29, 40),
+        (29, 40, 24, 31, 21, 24),
+        (29, 40, 34, 31, 39, 25),
+        (50, 60, 60, 52, 71, 40),
+        (71, 40, 76, 31, 79, 24),
+        (71, 40, 66, 31, 61, 25),
+    ]
+    private static let nodes: [(CGFloat, CGFloat, CGFloat)] = [
+        (50, 84, 7.6), (21, 24, 5.6), (39, 25, 5.6), (61, 25, 5.6), (79, 24, 5.6),
+    ]
+
+    var body: some View {
+        Canvas { ctx, sz in
+            func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+                CGPoint(x: x / 100 * sz.width, y: y / 100 * sz.height)
+            }
+            var path = Path()
+            for b in Self.branches {
+                path.move(to: pt(b.0, b.1))
+                path.addQuadCurve(to: pt(b.4, b.5), control: pt(b.2, b.3))
+            }
+            ctx.stroke(path, with: .color(color),
+                       style: StrokeStyle(lineWidth: sz.width * 0.062, lineCap: .round, lineJoin: .round))
+            for n in Self.nodes {
+                let r = n.2 / 100 * sz.width
+                let c = pt(n.0, n.1)
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                         with: .color(color))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
 }
 
 // MARK: - Primary "Deep sea" button style

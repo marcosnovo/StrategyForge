@@ -17,10 +17,8 @@ struct NavRail: View {
 
     var body: some View {
         VStack(spacing: Space.l) {
-            // Brand
-            Image(systemName: "bolt.horizontal.circle.fill")
-                .font(.system(size: 22))
-                .foregroundStyle(Theme.accent)
+            // Brand — the coral mark (matches the app icon).
+            CoralMark(size: 26, color: Theme.coral)
                 .padding(.top, Space.s)
 
             item("square.and.pencil", "sidebar.new") {
@@ -53,9 +51,11 @@ struct NavRail: View {
 
             item("gearshape.fill", "sidebar.settings") { openSettings() }
         }
-        .frame(width: 66)
+        // 78pt so the window's traffic lights (which span ~70pt) sit fully over the
+        // dark rail instead of straddling the seam with the next panel.
+        .frame(width: 78)
         .frame(maxHeight: .infinity)
-        .padding(.top, 28)          // clear the floating traffic lights (hidden titlebar)
+        .padding(.top, 34)          // clear the floating traffic lights (hidden titlebar)
         .padding(.bottom, Space.m)
         .background(Theme.railBg)
     }
