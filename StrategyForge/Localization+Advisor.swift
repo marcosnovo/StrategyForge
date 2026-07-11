@@ -18,14 +18,14 @@ extension L10n {
         "rail.advisor": ("Advisor", "Asesor"),
         "advisor.title": ("Advisor", "Asesor"),
         "advisor.subtitle": (
-            "Paste the prompt you'd give the agent; get the right model, team and loop — no setup.",
-            "Pega el prompt que le darías al agente; obtén el modelo, el equipo y el bucle adecuados — sin configurar nada."),
+            "Describe the task you want done; get the right model, team and loop — no setup.",
+            "Describe la tarea que quieres hacer; obtén el modelo, el equipo y el bucle adecuados — sin configurar nada."),
 
         // MARK: Prompt card
         "advisor.prompt.label": ("Your task", "Tu tarea"),
         "advisor.placeholder": (
-            "e.g. “Migrate every bcrypt call to argon2 across the repo and run the tests until they pass.”",
-            "p. ej. «Migra todas las llamadas de bcrypt a argon2 en el repo y corre los tests hasta que pasen.»"),
+            "e.g. “Migrate every bcrypt call to argon2 and run the tests until they pass” — or “Summarize these 40 customer interviews into five themes”.",
+            "p. ej. «Migra todas las llamadas de bcrypt a argon2 y corre los tests hasta que pasen» — o «Resume estas 40 entrevistas de clientes en cinco temas»."),
         "advisor.charCount": ("%lld characters", "%lld caracteres"),
         "advisor.analyze": ("Analyze", "Analizar"),
 
@@ -63,7 +63,7 @@ extension L10n {
         "advisor.a.team.yes": ("Yes — the task splits into parallel work",
                                "Sí — la tarea se divide en trabajo paralelo"),
         "advisor.a.team.no": ("No — a lean setup fits a fast model better",
-                              "No — a un modelo rápido le encaja mejor un equipo ligero"),
+                              "No — con un modelo rápido basta un equipo ligero"),
         "advisor.a.loop.turnBased": ("No — a simple turn-by-turn chat is enough",
                                      "No — basta un chat por turnos"),
         "advisor.a.loop.goalBased": ("Yes — it has a verifiable finish line: loop until it's met",
@@ -93,13 +93,13 @@ extension L10n {
                                  "una meta verificable (tests, lint, «hasta que…»)"),
         "advisor.ev.timeWords": ("a recurring schedule (daily, every…)",
                                  "un horario recurrente (diario, cada…)"),
-        "advisor.ev.eventWords": ("an external trigger (failures, PRs, webhooks)",
-                                  "un disparador externo (fallos, PRs, webhooks)"),
+        "advisor.ev.eventWords": ("reacts to something happening (a failure, new work arriving)",
+                                  "reacciona a algo que ocurre (un fallo, trabajo nuevo que llega)"),
 
         // MARK: Model card
         "advisor.model.title": ("Recommended model", "Modelo recomendado"),
-        "advisor.model.pricing": ("$%.0f in / $%.0f out · 1M tokens",
-                                  "$%.0f entrada / $%.0f salida · 1M tokens"),
+        "advisor.model.pricing": ("$%.0f in / $%.0f out per million tokens",
+                                  "$%.0f entrada / $%.0f salida por millón de tokens"),
 
         // MARK: Strategy card
         "advisor.strategy.title": ("Team strategy", "Estrategia de equipo"),
@@ -137,6 +137,8 @@ extension L10n {
 
         // MARK: Actions
         "advisor.action.chat": ("Use in a new chat", "Usar en un chat nuevo"),
+        "advisor.usedInChat": ("Your task is ready in a new chat — press Send when you're ready.",
+                               "Tu tarea está lista en un chat nuevo — pulsa Enviar cuando quieras."),
         "advisor.action.loop": ("Create loop from this", "Crear un bucle con esto"),
         "advisor.action.copy": ("Copy launch command", "Copiar comando de arranque"),
         "advisor.action.copied": ("Copied", "Copiado"),
@@ -144,9 +146,9 @@ extension L10n {
         // MARK: Inline card (Advisor inside the chat)
         "advisor.inline.caption": ("Advisor", "Asesor"),
         "advisor.inline.applyTeam": ("Apply team", "Aplicar equipo"),
-        "advisor.inline.createLoop": ("Create loop", "Crear loop"),
+        "advisor.inline.createLoop": ("Create loop", "Crear bucle"),
         "advisor.inline.why": ("Why this?", "¿Por qué?"),
         "advisor.inline.dismiss": ("Dismiss", "Descartar"),
-        "chat.createLoop": ("Create a loop from this chat…", "Crear un loop desde este chat…"),
+        "chat.createLoop": ("Create a loop from this chat…", "Crear un bucle desde este chat…"),
     ]
 }

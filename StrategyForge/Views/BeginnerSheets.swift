@@ -186,13 +186,9 @@ struct WhatNowSheet: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
                                 .textSelection(.enabled)
-                            Button {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(launchCommand, forType: .string)
-                            } label: {
-                                Image(systemName: "doc.on.doc")
-                            }
-                            .help(model.t("action.copyPrompt"))
+                            CopyButton(text: launchCommand,
+                                       help: model.t("preview.copy.help"),
+                                       flashKey: "banner.copied")
                         }
                     }
                 }
@@ -228,5 +224,7 @@ struct WhatNowSheet: View {
         .padding(Space.xl)
         .frame(width: 560, height: 560)
         .background(Theme.appBg)
+        // Sheets cover the window's banner host — give this one its own.
+        .bannerOverlay()
     }
 }

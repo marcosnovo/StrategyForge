@@ -31,23 +31,30 @@ struct ContentView: View {
         showTaskGen = true
     }
 
-    /// Advisor → chat: new chat with the recommended team applied, no team saved.
-    private func useAdviceInChat(_ advice: AdvisorEngine.Advice) {
+    /// Advisor → chat: new chat with the recommended team applied and the task
+    /// text seeded as the draft, no team saved.
+    private func useAdviceInChat(_ advice: AdvisorEngine.Advice, task: String) {
         model.addConfiguration()
         if let id = model.selectedConfigID {
             model.applyTemplate(advice.strategy, to: id)
+            model.updateDraft(id, task)
         }
         model.navSection = .chats
+        model.flashSuccess(model.t("advisor.usedInChat"))
     }
 
-    /// Advisor → loop: a new loop pre-filled with the recommended kind, goal and
-    /// worker model, opened in the Loop Builder.
-    private func createLoop(from advice: AdvisorEngine.Advice) {
-        let prefill = LoopPlan(kind: advice.loopKind,
+    /// Advisor → loop: a new loop pre-filled with a name inferred from the task,
+    /// plus the recommended kind, goal and worker model, opened in the Loop Builder.
+    private func createLoop(from advice: AdvisorEngine.Advice, task: String) {
+        let inferred = AppModel.inferredTitle(from: task)
+        let name = inferred.isEmpty ? String(task.prefix(48)) : inferred
+        let prefill = LoopPlan(name: name,
+                               kind: advice.loopKind,
                                goal: advice.goalSuggestion,
                                workerModel: advice.model)
         LoopStore.shared.addLoop(prefill: prefill)
         model.navSection = .loops
+        model.flashSuccess(model.t("loop.createdFromAdvice"))
     }
 
     var body: some View {
@@ -133,27 +140,24 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else if model.navSection == .advisor {
-                AdvisorView(onUseInChat: { advice in useAdviceInChat(advice) },
-                            onCreateLoop: { advice in createLoop(from: advice) })
+                AdvisorView(onUseInChat: { advice, task in useAdviceInChat(advice, task: task) },
+                            onCreateLoop: { advice, task in createLoop(from: advice, task: task) })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .particleLab {
                 ParticleLabView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let id = model.selectedConfigID, let chat = model.selectedConfiguration {
-                // Center: the chat — the protagonist, full width.
+            } else if let id = model.selectedConfigID, let chat = model.selectedConfiguration,
+                      let vm = model.chatViewModel(for: id) {
+                // Center: the chat — the protagonist, full width. The VM is owned
+                // by AppModel, so a running turn survives navigating away.
                 ChatView(config: chat,
-                         binary: model.settings.claudeBinary,
-                         permissionMode: model.settings.chatAutonomy.permissionMode,
+                         vm: vm,
                          showInspector: $model.showInspector,
                          showSidebar: $model.showSidebar,
                          showActivity: $model.showActivity,
-                         persist: { [id] messages in model.updateTranscript(id, messages) },
                          rename: { [id] title in model.renameConfiguration(id, title) },
-                         autoTitle: { [id] text in model.autoTitleIfNeeded(id, fromFirstMessage: text) },
-                         saveDraft: { [id] text in model.updateDraft(id, text) },
-                         ensureStrategyFiles: { [id] in model.writeStrategyFilesQuietly(id) },
-                         persistUsage: { [id] tokens, cost in model.updateUsage(id, tokens: tokens, costUSD: cost) })
-                    .id("\(id)|\(chat.repoPath ?? "none")")
+                         saveDraft: { [id] text in model.updateDraft(id, text) })
+                    .id(id)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 EmptyEditorState(onDescribeTask: { startFromTask() })
@@ -163,14 +167,36 @@ struct ContentView: View {
         .frame(minWidth: 720, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
         .background(hazeBackground)
         // App-wide banner so success/errors surface anywhere, not just the editor.
-        .overlay(alignment: .top) { GlobalBanner() }
+        .bannerOverlay()
         // Per-chat configuration as a modal sheet (strategy + file generation).
         .sheet(isPresented: $model.showInspector) {
             if let id = model.selectedConfigID { configSheet(id) }
         }
         .onChange(of: model.selectedConfigID) { model.rememberSelection() }
+        .onChange(of: model.selectedTeamID) { model.rememberSelection() }
         .task { await model.refreshConnectedProviders() }
-        .onAppear { if !didOnboard { showOnboarding = true } }
+        .onAppear {
+            if !didOnboard { showOnboarding = true }
+            // Wire the loop store's feedback into the global banner (idempotent).
+            LoopStore.shared.onError = { key, detail in
+                model.flashFailure(model.t(key, detail))
+            }
+            if let err = LoopStore.shared.loadError {
+                model.flashFailure(model.t(err.key, err.detail))
+                LoopStore.shared.loadError = nil
+            }
+            LoopStore.shared.onRunFinished = { id, summary in
+                // Only announce runs the user isn't already looking at.
+                guard model.navSection != .loops || LoopStore.shared.selectedLoopID != id else { return }
+                let name = LoopStore.shared.loops.first(where: { $0.id == id })?.name ?? ""
+                let d = name.isEmpty ? model.t("loop.untitled") : name
+                switch summary.pass {
+                case .some(true): model.flashSuccess(model.t("loop.runDone", d))
+                case .some(false): model.flashFailure(model.t("loop.runFailed", d))
+                case .none: model.flashSuccess(model.t("loop.runDoneUnverified", d))
+                }
+            }
+        }
         .sheet(isPresented: $showOnboarding, onDismiss: { didOnboard = true }) {
             OnboardingView(onCreate: { model.addConfiguration() },
                            onDescribeTask: { startFromTask() })
@@ -207,31 +233,8 @@ struct ContentView: View {
         }
         .frame(minWidth: 820, idealWidth: 1040, maxWidth: .infinity,
                minHeight: 640, idealHeight: 820, maxHeight: .infinity)
-    }
-}
-
-/// App-wide success/error banner, driven by `model.banner`. Auto-dismiss is
-/// handled in AppModel; this just renders it wherever the user is.
-private struct GlobalBanner: View {
-    @Environment(AppModel.self) private var model
-    var body: some View {
-        if let banner = model.banner {
-            let isSuccess: Bool = { if case .success = banner { return true } else { return false } }()
-            let text: String = { if case .success(let m) = banner { return m }
-                                 if case .failure(let m) = banner { return m }; return "" }()
-            HStack(spacing: Space.s) {
-                Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                Text(text).font(.sfCallout.weight(.medium)).fixedSize(horizontal: false, vertical: true)
-                Button { model.banner = nil } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
-                    .buttonStyle(.plain)
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
-            .background(Capsule().fill(isSuccess ? Theme.success : Theme.danger)
-                .shadow(color: .black.opacity(0.25), radius: 10, y: 4))
-            .padding(.top, Space.m)
-            .transition(.move(edge: .top).combined(with: .opacity))
-        }
+        // Sheets cover the window's banner overlay, so the sheet hosts its own.
+        .bannerOverlay()
     }
 }
 

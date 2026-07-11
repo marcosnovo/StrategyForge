@@ -46,6 +46,19 @@ enum LoopKind: String, Codable, CaseIterable, Identifiable, Hashable {
     }
 }
 
+/// The persisted outcome of a loop's most recent run, shown when the loop is
+/// idle ("last run: PASS · 3 turns · 2h ago").
+struct LoopRunSummary: Codable, Hashable {
+    var date: Date
+    /// true = verified PASS, false = failed/out of turns, nil = done unverified.
+    var pass: Bool?
+    /// The verifier's one-line reason (or the run's error), if any.
+    var reason: String?
+    var iterations: Int
+    var tokens: Int
+    var costUSD: Double
+}
+
 /// A saved loop: what "done" means, the guardrails, the worker/verifier pair,
 /// and the repo it targets. Persisted as JSON by `LoopStore`.
 struct LoopPlan: Codable, Identifiable, Hashable {
@@ -76,6 +89,8 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     var repoBookmark: Data?
     var updatedAt: Date
     var lastRunAt: Date?
+    /// Outcome of the most recent finished run (nil until a run finishes).
+    var lastRun: LoopRunSummary?
 
     /// Clamp the emergency brake to a sane range.
     static func clampTurns(_ n: Int) -> Int { min(max(n, 1), 100) }
@@ -96,7 +111,8 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         repoPath: String? = nil,
         repoBookmark: Data? = nil,
         updatedAt: Date = Date(),
-        lastRunAt: Date? = nil
+        lastRunAt: Date? = nil,
+        lastRun: LoopRunSummary? = nil
     ) {
         self.id = id
         self.name = name
@@ -114,12 +130,13 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         self.repoBookmark = repoBookmark
         self.updatedAt = updatedAt
         self.lastRunAt = lastRunAt
+        self.lastRun = lastRun
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, kind, goal, neverTouch, stopIf, maxTurns, intervalMinutes
         case workerModel, verifierEnabled, verifierModel, memoryEnabled
-        case repoPath, repoBookmark, updatedAt, lastRunAt
+        case repoPath, repoBookmark, updatedAt, lastRunAt, lastRun
     }
 
     // Tolerant decode: missing keys fall back to defaults (mirrors Configuration),
@@ -146,6 +163,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         repoBookmark = try c.decodeIfPresent(Data.self, forKey: .repoBookmark)
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
         lastRunAt = try c.decodeIfPresent(Date.self, forKey: .lastRunAt)
+        lastRun = ((try? c.decodeIfPresent(LoopRunSummary.self, forKey: .lastRun)) ?? nil)
     }
 
     // MARK: - Validation

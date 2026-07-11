@@ -77,8 +77,6 @@ struct StrategyEditorView: View {
 
     private var generateBar: some View {
         VStack(spacing: Space.m) {
-            bannerView
-
             if !hasRepo {
                 HStack(spacing: Space.s) {
                     Image(systemName: "folder.badge.plus").foregroundStyle(Theme.accent)
@@ -108,7 +106,8 @@ struct StrategyEditorView: View {
 
             HStack(spacing: Space.m) {
                 Button {
-                    if model.save() { model.flashSuccess(model.t("banner.saved")) }
+                    model.save()
+                    model.flashSuccess(model.t("banner.saved"))
                 } label: {
                     Label(model.t("editor.save"), systemImage: "tray.and.arrow.down")
                 }
@@ -179,25 +178,6 @@ struct StrategyEditorView: View {
         .frame(maxWidth: .infinity)
         .background(.bar)
         .overlay(alignment: .top) { Divider() }
-    }
-
-    @ViewBuilder
-    private var bannerView: some View {
-        if let banner = model.banner {
-            let isSuccess: Bool = { if case .success = banner { return true } else { return false } }()
-            let text: String = { if case .success(let m) = banner { return m }; if case .failure(let m) = banner { return m }; return "" }()
-            HStack(spacing: 8) {
-                Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                Text(text).font(.callout).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button { model.banner = nil } label: { Image(systemName: "xmark") }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel(model.t("preview.dismiss"))
-            }
-            .padding(Space.m)
-            .foregroundStyle(.white)
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(isSuccess ? Theme.success : Theme.danger))
-        }
     }
 
     /// Run a generate action, confirming first if it would overwrite agent files.

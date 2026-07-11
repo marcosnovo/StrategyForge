@@ -15,7 +15,6 @@ struct FilePreviewSheet: View {
     let config: Configuration
 
     @State private var selectedFile: String?
-    @State private var didCopy = false
 
     private var files: [GeneratedFile] { model.previewFiles(for: config) }
     private var launchCommand: String { model.launchCommand(for: config) }
@@ -37,6 +36,9 @@ struct FilePreviewSheet: View {
             previewTabs
         }
         .frame(minWidth: 720, idealWidth: 820, minHeight: 560, idealHeight: 640)
+        // The copy button flashes a banner; as a sheet this view covers the
+        // window's banner host, so it carries its own.
+        .bannerOverlay()
     }
 
     // MARK: - Launch command
@@ -56,19 +58,9 @@ struct FilePreviewSheet: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
-                Button {
-                    let pb = NSPasteboard.general
-                    pb.clearContents()
-                    pb.setString(launchCommand, forType: .string)
-                    model.flashSuccess(model.t("banner.copied"))
-                    flashCopied()
-                } label: {
-                    Image(systemName: didCopy ? "checkmark.circle.fill" : "doc.on.doc")
-                        .foregroundStyle(didCopy ? Color.green : Theme.accent)
-                }
-                .buttonStyle(.borderless)
-                .help(model.t("preview.copy.help"))
-                .accessibilityLabel(model.t("preview.copy.help"))
+                CopyButton(text: launchCommand,
+                           help: model.t("preview.copy.help"),
+                           flashKey: "banner.copied")
             }
             .padding(Space.m)
             .background(
@@ -119,14 +111,6 @@ struct FilePreviewSheet: View {
                     .padding(Space.l)
             }
             .background(Theme.insetBg)
-        }
-    }
-
-    private func flashCopied() {
-        didCopy = true
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.5))
-            didCopy = false
         }
     }
 }

@@ -12,12 +12,10 @@ import SwiftUI
 import AppKit
 
 struct AdvisorView: View {
-    let onUseInChat: (AdvisorEngine.Advice) -> Void
-    let onCreateLoop: (AdvisorEngine.Advice) -> Void
+    let onUseInChat: (AdvisorEngine.Advice, String) -> Void
+    let onCreateLoop: (AdvisorEngine.Advice, String) -> Void
 
     @Environment(AppModel.self) private var model
-    @State private var task = ""
-    @State private var advice: AdvisorEngine.Advice?
     @State private var copiedCommand = false
 
     var body: some View {
@@ -25,7 +23,7 @@ struct AdvisorView: View {
             VStack(alignment: .leading, spacing: Space.l) {
                 hero
                 promptCard
-                if let advice {
+                if let advice = model.advisorAdvice {
                     // staggeredAppear cascades the cards on appear; the plain
                     // opacity transition just handles insertion into the layout.
                     resultsSection(advice)
@@ -60,16 +58,17 @@ struct AdvisorView: View {
     // MARK: - Prompt
 
     private var promptCard: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
+        @Bindable var model = model
+        return VStack(alignment: .leading, spacing: Space.m) {
             FieldLabel(text: model.t("advisor.prompt.label"))
-            TextEditor(text: $task)
+            TextEditor(text: $model.advisorTask)
                 .font(.sfBodyM)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 120)
                 .padding(Space.s)
                 .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
                 .overlay(alignment: .topLeading) {
-                    if task.isEmpty {
+                    if model.advisorTask.isEmpty {
                         Text(model.t("advisor.placeholder"))
                             .font(.sfBodyM)
                             .foregroundStyle(.tertiary)
@@ -78,7 +77,7 @@ struct AdvisorView: View {
                     }
                 }
             HStack {
-                Text(model.t("advisor.charCount", task.count))
+                Text(model.t("advisor.charCount", model.advisorTask.count))
                     .font(.sfCaption2)
                     .foregroundStyle(.tertiary)
                 Spacer()
@@ -88,7 +87,7 @@ struct AdvisorView: View {
                     Label(model.t("advisor.analyze"), systemImage: "wand.and.stars")
                 }
                 .buttonStyle(.moon)
-                .disabled(task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(model.advisorTask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .card()
@@ -98,7 +97,7 @@ struct AdvisorView: View {
     private func analyze() {
         copiedCommand = false
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            advice = AdvisorEngine.advise(task: task)
+            model.advisorAdvice = AdvisorEngine.advise(task: model.advisorTask)
         }
     }
 
@@ -145,7 +144,7 @@ struct AdvisorView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            if let note = advice.model.safeguardNote {
+            if let note = advice.model.safeguardNoteKey.map({ model.t($0) }) {
                 Label(note, systemImage: "info.circle")
                     .font(.sfCaption2)
                     .foregroundStyle(Theme.warning)
@@ -181,7 +180,7 @@ struct AdvisorView: View {
         }
         return HStack(spacing: 5) {
             Image(systemName: "bolt.fill").font(.system(size: 9))
-            Text(String(format: "$%.2f", cost.perRun))
+            Text(model.t("cost.perRun", String(format: "$%.2f", cost.perRun)))
                 .font(.sfCaption2.weight(.semibold))
         }
         .foregroundStyle(color)
@@ -220,7 +219,7 @@ struct AdvisorView: View {
     private func actionsRow(_ advice: AdvisorEngine.Advice) -> some View {
         HStack(spacing: Space.m) {
             Button {
-                onUseInChat(advice)
+                onUseInChat(advice, model.advisorTask)
             } label: {
                 Label(model.t("advisor.action.chat"), systemImage: "bubble.left.and.bubble.right.fill")
             }
@@ -228,7 +227,7 @@ struct AdvisorView: View {
             .controlSize(.large)
 
             Button {
-                onCreateLoop(advice)
+                onCreateLoop(advice, model.advisorTask)
             } label: {
                 Label(model.t("advisor.action.loop"), systemImage: "arrow.triangle.2.circlepath")
             }

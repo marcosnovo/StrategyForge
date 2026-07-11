@@ -43,6 +43,8 @@ struct AppSettings: Codable, Hashable {
     var chatAutonomy: ChatAutonomy
     /// Restored UI state: the last-selected chat and whether the activity panel was open.
     var lastSelectedConfigID: String?
+    /// The last team open in the Team section (device-local, like the chat above).
+    var lastSelectedTeamID: String?
     var showActivity: Bool
 
     init(
@@ -54,6 +56,7 @@ struct AppSettings: Codable, Hashable {
         language: AppLanguage = .system,
         chatAutonomy: ChatAutonomy = .acceptEdits,
         lastSelectedConfigID: String? = nil,
+        lastSelectedTeamID: String? = nil,
         showActivity: Bool = false
     ) {
         self.defaultReposPath = defaultReposPath
@@ -64,13 +67,14 @@ struct AppSettings: Codable, Hashable {
         self.language = language
         self.chatAutonomy = chatAutonomy
         self.lastSelectedConfigID = lastSelectedConfigID
+        self.lastSelectedTeamID = lastSelectedTeamID
         self.showActivity = showActivity
     }
 
     // Tolerant decoding so older saved data (without newer keys) still loads.
     private enum CodingKeys: String, CodingKey {
         case defaultReposPath, defaultReposBookmark, claudeBinary, codexBinary, geminiBinary
-        case language, chatAutonomy, lastSelectedConfigID, showActivity
+        case language, chatAutonomy, lastSelectedConfigID, lastSelectedTeamID, showActivity
     }
 
     init(from decoder: Decoder) throws {
@@ -83,6 +87,7 @@ struct AppSettings: Codable, Hashable {
         language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
         chatAutonomy = try c.decodeIfPresent(ChatAutonomy.self, forKey: .chatAutonomy) ?? .acceptEdits
         lastSelectedConfigID = try c.decodeIfPresent(String.self, forKey: .lastSelectedConfigID)
+        lastSelectedTeamID = try c.decodeIfPresent(String.self, forKey: .lastSelectedTeamID)
         showActivity = try c.decodeIfPresent(Bool.self, forKey: .showActivity) ?? false
     }
 

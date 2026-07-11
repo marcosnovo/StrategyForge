@@ -29,7 +29,8 @@ struct NavRail: View {
                 model.addConfiguration()
             }
             item("bubble.left.and.bubble.right.fill", "sidebar.chats",
-                 active: model.navSection == .chats) {
+                 active: model.navSection == .chats,
+                 running: !model.runningChatIDs.isEmpty) {
                 model.navSection = .chats
                 if !showSidebar {
                     if reduceMotion { showSidebar = true }
@@ -41,7 +42,8 @@ struct NavRail: View {
                 model.navSection = .team
             }
             item("arrow.triangle.2.circlepath", "rail.loops",
-                 active: model.navSection == .loops) {
+                 active: model.navSection == .loops,
+                 running: !LoopStore.shared.runningLoopIDs.isEmpty) {
                 model.navSection = .loops
             }
             item("wand.and.stars", "rail.advisor",
@@ -84,22 +86,27 @@ struct NavRail: View {
 
     /// A fixed 3pt slot under every icon; only the active item fills it with the
     /// 2.5pt coral dot. Single `matchedGeometryEffect` source (one active item),
-    /// so the dot glides between sections along the rail.
+    /// so the dot glides between sections along the rail. An inactive section
+    /// with work in flight shows a pulsing dot instead (outside the matched-
+    /// geometry branch, so the glide is untouched).
     @ViewBuilder
-    private func navDot(_ active: Bool) -> some View {
+    private func navDot(_ active: Bool, running: Bool = false) -> some View {
         ZStack {
             if active {
                 Circle()
                     .fill(Theme.coral)
                     .matchedGeometryEffect(id: "navdot", in: navDotNS)
                     .frame(width: 2.5, height: 2.5)
+            } else if running {
+                RunningPulseDot()
             }
         }
         .frame(height: 3)
     }
 
     private func item(_ icon: String, _ labelKey: String,
-                      active: Bool = false, action: @escaping () -> Void) -> some View {
+                      active: Bool = false, running: Bool = false,
+                      action: @escaping () -> Void) -> some View {
         // The rail is always dark, so everything is light; the selected item gets a
         // brighter icon/label and a light fill (never the dark graphite accent).
         Button(action: action) {
@@ -112,7 +119,7 @@ struct NavRail: View {
                         .fill(active ? Color.white.opacity(0.18) : .clear))
                     .overlay(RoundedRectangle(cornerRadius: 12)
                         .strokeBorder(Color.white.opacity(active ? 0.25 : 0), lineWidth: 1))
-                navDot(active)
+                navDot(active, running: running)
                 Text(model.t(labelKey))
                     .font(.system(size: 9, weight: active ? .semibold : .medium))
                     .foregroundStyle(active ? Color.white : Color.white.opacity(0.55))
@@ -155,4 +162,25 @@ struct NavRail: View {
         .help("Particle Lab (DEBUG)")
     }
     #endif
+}
+
+/// The rail's "work in flight elsewhere" indicator: a 4pt coral dot with a slow
+/// opacity pulse (static under Reduce Motion).
+private struct RunningPulseDot: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dim = false
+
+    var body: some View {
+        Circle()
+            .fill(Theme.coral)
+            .frame(width: 4, height: 4)
+            .opacity(reduceMotion ? 1 : (dim ? 0.35 : 1))
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    dim = true
+                }
+            }
+            .accessibilityHidden(true)
+    }
 }

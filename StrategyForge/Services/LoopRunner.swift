@@ -19,7 +19,15 @@ enum LoopStage: Hashable { case idle, act, verify, done, failed }
 @MainActor
 final class LoopRunController {
 
-    var isRunning = false
+    var isRunning = false {
+        didSet { if isRunning != oldValue { onRunningChanged?(isRunning) } }
+    }
+    /// Notifies the owner (LoopStore) when a run starts/ends — drives the global
+    /// running indicators.
+    @ObservationIgnored var onRunningChanged: ((Bool) -> Void)?
+    /// Called once per finished run (PASS, FAIL, error, out of turns, or
+    /// done-unverified) with the run's summary. NOT called on stop()/cancel.
+    @ObservationIgnored var onFinished: ((LoopRunSummary) -> Void)?
     /// 1-based current iteration; 0 when idle.
     var iteration = 0
     var maxTurns = 1
@@ -47,6 +55,16 @@ final class LoopRunController {
 
     /// The outcome of one streamed work turn.
     private enum TurnOutcome { case finished, failed(String), sessionMissing }
+
+    /// Build + emit the run summary for a terminal state (never for stop/cancel).
+    private func emitFinished(pass: Bool?) {
+        onFinished?(LoopRunSummary(date: Date(),
+                                   pass: pass,
+                                   reason: lastVerdictReason,
+                                   iterations: iteration,
+                                   tokens: totalTokens,
+                                   costUSD: totalCostUSD))
+    }
 
     func start(plan: LoopPlan, repoURL: URL, binary: String) {
         guard !isRunning else { return }
@@ -99,6 +117,7 @@ final class LoopRunController {
                     statusKey = "progress.status.error"
                     lastVerdictReason = String(message.prefix(200))
                     finishedSuccessfully = false
+                    emitFinished(pass: false)
                     return
                 }
                 if Task.isCancelled { break }
@@ -110,6 +129,7 @@ final class LoopRunController {
                     // pretending the goal was met (finishedSuccessfully stays nil).
                     stage = .done
                     statusKey = "progress.status.doneUnverified"
+                    emitFinished(pass: nil)
                     return
                 }
 
@@ -130,6 +150,7 @@ final class LoopRunController {
                         stage = .done
                         statusKey = "progress.status.pass"
                         finishedSuccessfully = true
+                        emitFinished(pass: true)
                         return
                     } else if turn < turns {
                         statusKey = "progress.status.retry"
@@ -137,6 +158,7 @@ final class LoopRunController {
                         stage = .failed
                         statusKey = "progress.status.outOfTurns"
                         finishedSuccessfully = false
+                        emitFinished(pass: false)
                     }
                 } catch {
                     if Task.isCancelled { break }
@@ -144,6 +166,7 @@ final class LoopRunController {
                     statusKey = "progress.status.error"
                     lastVerdictReason = String(error.localizedDescription.prefix(200))
                     finishedSuccessfully = false
+                    emitFinished(pass: false)
                     return
                 }
             }

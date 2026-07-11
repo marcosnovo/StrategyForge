@@ -40,7 +40,7 @@ extension L10n {
         "progress.run.needsRepo": ("Pick a project folder first — the loop needs somewhere to work.",
                                    "Elige primero una carpeta de proyecto — el bucle necesita dónde trabajar."),
         "progress.run.needsGoal": ("Write a goal first — the loop needs a “done when”.",
-                                   "Escribe primero un objetivo — el bucle necesita un «listo cuando»."),
+                                   "Escribe primero un objetivo — el bucle necesita un «terminado cuando»."),
         "progress.run.singlePass": ("Only goal-based loops iterate on their own — this kind runs a single pass.",
                                     "Solo los bucles por objetivo iteran por sí solos — este tipo hace una sola pasada."),
         "progress.run.tokens": ("%@ tokens", "%@ tokens"),

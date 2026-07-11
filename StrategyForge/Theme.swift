@@ -545,6 +545,75 @@ struct SectionHeader<Trailing: View>: View {
     }
 }
 
+// MARK: - App-wide banner (shared)
+
+/// App-wide banner capsule: renders `AppModel.banner` (success/failure) wherever
+/// it's hosted; the ✕ calls `model.dismissBanner()`. Port of ContentView's old
+/// private GlobalBanner, promoted so window roots AND sheets can host it.
+struct BannerCapsule: View {
+    @Environment(AppModel.self) private var model
+    var body: some View {
+        if let banner = model.banner {
+            let isSuccess: Bool = { if case .success = banner { return true } else { return false } }()
+            let text: String = { if case .success(let m) = banner { return m }
+                                 if case .failure(let m) = banner { return m }; return "" }()
+            HStack(spacing: Space.s) {
+                Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                Text(text).font(.sfCallout.weight(.medium)).fixedSize(horizontal: false, vertical: true)
+                Button { model.dismissBanner() } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+                    .buttonStyle(.plain)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+            .background(Capsule().fill(isSuccess ? Theme.success : Theme.danger)
+                .shadow(color: .black.opacity(0.25), radius: 10, y: 4))
+            .padding(.top, Space.m)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+}
+
+extension View {
+    /// Top-aligned overlay hosting the shared banner. Apply to window roots AND
+    /// sheet roots that can emit banners (sheets otherwise hide the window's).
+    func bannerOverlay() -> some View { overlay(alignment: .top) { BannerCapsule() } }
+}
+
+// MARK: - Copy button (shared)
+
+/// Icon-only borderless copy button: copies `text` to the pasteboard, flips its
+/// icon to a checkmark for ~1.5 s, and (when `flashKey` is set) flashes the
+/// shared success banner with that localized message.
+struct CopyButton: View {
+    /// Copied to NSPasteboard on tap.
+    let text: String
+    /// Tooltip + accessibility label.
+    var help: String
+    /// When set: `model.flashSuccess(model.t(flashKey!))` on tap.
+    var flashKey: String? = nil
+    @Environment(AppModel.self) private var model
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            if let flashKey { model.flashSuccess(model.t(flashKey)) }
+            copied = true
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
+                copied = false
+            }
+        } label: {
+            Image(systemName: copied ? "checkmark.circle.fill" : "doc.on.doc")
+                .foregroundStyle(copied ? Theme.success : Theme.accent)
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
 // MARK: - Small labeled control caption (mono caps)
 
 struct FieldLabel: View {

@@ -29,8 +29,49 @@ final class LoopStore {
     @ObservationIgnored
     private var liveRepoURLs: [LoopPlan.ID: URL] = [:]
 
+    // MARK: - Run lifetime (store-owned controllers)
+
+    /// One run controller per loop, owned here (not by the run panel) so a run
+    /// survives navigating to another loop/section. Not observed: lazily filling
+    /// this cache from a view body must not mutate observed state mid-render.
+    @ObservationIgnored private var runControllers: [LoopPlan.ID: LoopRunController] = [:]
+    /// Loops with a run in flight (observed — drives global running indicators).
+    /// Mutated only from onRunningChanged callbacks (action context).
+    var runningLoopIDs: Set<LoopPlan.ID> = []
+    /// Error sink wired by the app shell: (localization key, %@ detail).
+    @ObservationIgnored var onError: ((String, String) -> Void)?
+    /// A corrupt-load error parked until the app shell can show it (load()
+    /// runs before any banner surface exists).
+    var loadError: (key: String, detail: String)?
+    /// Called after a run finishes (any terminal state) with its summary.
+    @ObservationIgnored var onRunFinished: ((LoopPlan.ID, LoopRunSummary) -> Void)?
+
     init() {
         load()
+    }
+
+    /// The (cached) run controller for a loop — create-on-miss. Safe to call from
+    /// a view body: creation mutates only the @ObservationIgnored registry;
+    /// `runningLoopIDs` changes only inside the controller's callbacks.
+    func runController(for id: LoopPlan.ID) -> LoopRunController {
+        if let existing = runControllers[id] { return existing }
+        let controller = LoopRunController()
+        controller.onRunningChanged = { [weak self] running in
+            guard let self else { return }
+            if running { self.runningLoopIDs.insert(id) }
+            else { self.runningLoopIDs.remove(id) }
+        }
+        controller.onFinished = { [weak self] summary in
+            guard let self else { return }
+            if let i = self.loops.firstIndex(where: { $0.id == id }) {
+                self.loops[i].lastRun = summary
+                self.loops[i].lastRunAt = summary.date
+                self.save()
+            }
+            self.onRunFinished?(id, summary)
+        }
+        runControllers[id] = controller
+        return controller
     }
 
     // MARK: - Selection / editing
@@ -63,6 +104,10 @@ final class LoopStore {
     }
 
     func delete(_ id: LoopPlan.ID) {
+        // Stop and drop any in-flight run before the plan disappears.
+        runControllers[id]?.stop()
+        runControllers[id] = nil
+        runningLoopIDs.remove(id)
         loops.removeAll { $0.id == id }
         liveRepoURLs[id] = nil
         if selectedLoopID == id { selectedLoopID = loops.first?.id }
@@ -125,18 +170,22 @@ final class LoopStore {
 
         var schemaVersion: Int
         var loops: [LoopPlan]
+        /// The last-open loop, restored across launches (device-local).
+        var selectedLoopID: UUID?
 
-        init(loops: [LoopPlan], schemaVersion: Int = currentVersion) {
+        init(loops: [LoopPlan], selectedLoopID: UUID? = nil, schemaVersion: Int = currentVersion) {
             self.schemaVersion = schemaVersion
             self.loops = loops
+            self.selectedLoopID = selectedLoopID
         }
 
-        enum CodingKeys: String, CodingKey { case schemaVersion, loops }
+        enum CodingKeys: String, CodingKey { case schemaVersion, loops, selectedLoopID }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 0
             loops = try c.decodeIfPresent([LoopPlan].self, forKey: .loops) ?? []
+            selectedLoopID = ((try? c.decodeIfPresent(UUID.self, forKey: .selectedLoopID)) ?? nil)
         }
     }
 
@@ -145,11 +194,16 @@ final class LoopStore {
     }
 
     /// Persist the store. Loops are small, so a synchronous atomic write keeps
-    /// this simple; failures are silent by design (the next save retries).
+    /// this simple; failures surface through `onError` (a silent save failure
+    /// would silently lose loops).
     func save() {
-        let state = PersistedLoops(loops: loops)
-        guard let data = try? JSONEncoder().encode(state) else { return }
-        try? data.write(to: storeURL, options: .atomic)
+        let state = PersistedLoops(loops: loops, selectedLoopID: selectedLoopID)
+        do {
+            let data = try JSONEncoder().encode(state)
+            try data.write(to: storeURL, options: .atomic)
+        } catch {
+            onError?("banner.loopsSaveFailed", error.localizedDescription)
+        }
     }
 
     private func load() {
@@ -165,9 +219,16 @@ final class LoopStore {
             let backup = url.deletingLastPathComponent()
                 .appendingPathComponent("loops-corrupt-\(stamp).json")
             try? FileManager.default.copyItem(at: url, to: backup)
+            // Park the error: load() runs before any banner surface exists, so
+            // the app shell flushes this on appear.
+            loadError = ("banner.loopsCorrupt", backup.lastPathComponent)
             return
         }
         loops = decoded.loops
-        selectedLoopID = loops.first?.id
+        if let sel = decoded.selectedLoopID, loops.contains(where: { $0.id == sel }) {
+            selectedLoopID = sel
+        } else {
+            selectedLoopID = loops.first?.id
+        }
     }
 }

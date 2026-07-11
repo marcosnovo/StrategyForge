@@ -56,8 +56,10 @@ enum Constants {
         let id: String
         /// Human-friendly name shown in pickers.
         let displayName: String
-        /// Optional note surfaced as a tooltip (e.g. Fable's safeguard behavior).
-        let safeguardNote: String?
+        /// Optional localization KEY for a note surfaced as a tooltip (e.g.
+        /// Fable's safeguard behavior). Resolve it through `AppModel.t(_:)` /
+        /// `L10n` at render time so it follows the live language setting.
+        let safeguardNoteKey: String?
     }
 
     /// The catalog of currently valid Claude models. Update here when Anthropic
@@ -66,24 +68,22 @@ enum Constants {
         ModelInfo(
             id: "claude-opus-4-8",
             displayName: "Opus 4.8",
-            safeguardNote: nil
+            safeguardNoteKey: nil
         ),
         ModelInfo(
             id: "claude-fable-5",
             displayName: "Fable 5",
-            safeguardNote: "Fable 5 may redirect certain queries to Opus 4.8 as a "
-                + "safeguard. This is expected behavior, not a bug — occasional "
-                + "responses may come from Opus."
+            safeguardNoteKey: "model.fable.safeguard"
         ),
         ModelInfo(
             id: "claude-sonnet-5",
             displayName: "Sonnet 5",
-            safeguardNote: nil
+            safeguardNoteKey: nil
         ),
         ModelInfo(
             id: "claude-haiku-4-5",
             displayName: "Haiku 4.5",
-            safeguardNote: nil
+            safeguardNoteKey: nil
         ),
     ]
 
