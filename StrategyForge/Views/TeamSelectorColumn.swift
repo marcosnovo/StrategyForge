@@ -72,7 +72,7 @@ struct TeamSelectorColumn: View {
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             .help(model.t("team.import"))
             Button {
-                selectedID = nil   // show the create browser
+                model.guardedLeave { selectedID = nil }   // show the create browser
             } label: {
                 Image(systemName: "plus")
             }
@@ -100,7 +100,7 @@ struct TeamSelectorColumn: View {
                 Text(model.t("team.none.desc"))
                     .font(.sfCallout).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                Button { selectedID = nil } label: {
+                Button { model.guardedLeave { selectedID = nil } } label: {
                     Label(model.t("team.create"), systemImage: "plus")
                 }
                 .buttonStyle(.moon)

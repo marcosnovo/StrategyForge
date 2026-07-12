@@ -14,6 +14,10 @@ struct SidebarView: View {
     @Binding var showSidebar: Bool
     @State private var pendingDelete: Configuration.ID?
     @State private var searchText = ""
+    @State private var hoveredID: Configuration.ID?
+    /// The chat being renamed (drives the rename dialog) + its editable text.
+    @State private var renamingID: Configuration.ID?
+    @State private var renameText = ""
 
     /// Chats sorted newest-first, filtered by the search field.
     private var visibleConfigs: [Configuration] {
@@ -41,6 +45,7 @@ struct SidebarView: View {
                         .padding(.vertical, 3)
                         .tag(config.id)
                         .contextMenu {
+                            Button(model.t("sidebar.rename")) { beginRename(config) }
                             Button(model.t("config.duplicate")) { model.duplicateConfiguration(config.id) }
                             Button(model.t("doc.export")) { model.exportStrategyDocument(config) }
                             if config.repoPath != nil {
@@ -70,9 +75,6 @@ struct SidebarView: View {
             }
             .scrollContentBackground(.hidden)
             .background(.regularMaterial)
-
-            Divider()
-            footer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.regularMaterial)
@@ -88,6 +90,16 @@ struct SidebarView: View {
             Button(model.t("common.cancel"), role: .cancel) { pendingDelete = nil }
         } message: {
             Text(model.t("sidebar.deleteMsg"))
+        }
+        // Rename a chat inline via a small dialog (also on the row's ✎ / context menu).
+        .alert(model.t("sidebar.rename.title"),
+               isPresented: Binding(get: { renamingID != nil }, set: { if !$0 { renamingID = nil } })) {
+            TextField(model.t("chat.untitled"), text: $renameText)
+            Button(model.t("common.cancel"), role: .cancel) { renamingID = nil }
+            Button(model.t("sidebar.rename")) {
+                if let id = renamingID { model.renameConfiguration(id, renameText) }
+                renamingID = nil
+            }
         }
     }
 
@@ -110,17 +122,33 @@ struct SidebarView: View {
     /// A conversation row: a rounded strategy-diagram avatar, the chat title, a
     /// preview of the last message, and the time — like a modern messenger.
     private func chatRow(_ config: Configuration) -> some View {
-        HStack(spacing: Space.s) {
+        let hovering = hoveredID == config.id
+        return HStack(spacing: Space.s) {
             StrategyThumbnail(strategy: config.strategy)
                 .frame(width: 38, height: 38)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .help(model.strategyDisplayName(config.strategy))
             VStack(alignment: .leading, spacing: 2) {
-                // Title on its own full-width line so it isn't crowded by the time.
-                Text(config.name.isEmpty ? model.t("chat.untitled") : config.name)
-                    .font(.sfBodyM.weight(.semibold))
-                    .lineLimit(1).truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // Title line: name + (on hover) quick rename / delete actions.
+                HStack(spacing: 4) {
+                    Text(config.name.isEmpty ? model.t("chat.untitled") : config.name)
+                        .font(.sfBodyM.weight(.semibold))
+                        .lineLimit(1).truncationMode(.tail)
+                    Spacer(minLength: Space.xs)
+                    if hovering {
+                        Button { beginRename(config) } label: {
+                            Image(systemName: "pencil").font(.system(size: 10))
+                        }
+                        .buttonStyle(.borderless).foregroundStyle(.secondary)
+                        .help(model.t("sidebar.rename"))
+                        Button { pendingDelete = config.id } label: {
+                            Image(systemName: "trash").font(.system(size: 10))
+                        }
+                        .buttonStyle(.borderless).foregroundStyle(.secondary)
+                        .help(model.t("sidebar.delete"))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 HStack(spacing: Space.xs) {
                     Text(previewLine(config))
                         .font(.sfCaption2)
@@ -136,6 +164,17 @@ struct SidebarView: View {
                 }
             }
         }
+        .contentShape(Rectangle())
+        .onHover { h in
+            if h { hoveredID = config.id }
+            else if hoveredID == config.id { hoveredID = nil }
+        }
+    }
+
+    /// Open the rename dialog for a chat, seeded with its current name.
+    private func beginRename(_ config: Configuration) {
+        renameText = config.name
+        renamingID = config.id
     }
 
     /// The most recent non-empty message, if any (for the row preview).
@@ -164,6 +203,13 @@ struct SidebarView: View {
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             .help(model.t("import.repo"))
+            // Quick "new chat" right where the chats live.
+            Button { model.addConfiguration() } label: {
+                Image(systemName: "square.and.pencil")
+            }
+            .buttonStyle(.borderless)
+            .help(model.t("sidebar.new"))
+            .accessibilityLabel(model.t("sidebar.new"))
         }
         .padding(.horizontal, Space.m)
         .padding(.top, Space.m).padding(.bottom, Space.s)
@@ -172,18 +218,6 @@ struct SidebarView: View {
         .zoomWindowOnDoubleClick()
     }
 
-    private var footer: some View {
-        HStack {
-            SettingsLink {
-                Label(model.t("sidebar.settings"), systemImage: "gearshape")
-            }
-            .buttonStyle(.borderless)
-            Spacer()
-        }
-        .padding(.horizontal, Space.m)
-        .padding(.vertical, Space.s)
-        .background(.bar)
-    }
 }
 
 /// The minimized sidebar: a thin full-height rail with expand + new-chat + settings.

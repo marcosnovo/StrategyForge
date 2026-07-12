@@ -25,16 +25,20 @@ struct NavRail: View {
                 .padding(.top, Space.s)
 
             item("square.and.pencil", "sidebar.new") {
-                model.navSection = .chats
-                model.addConfiguration()
+                model.guardedLeave {
+                    model.navSection = .chats
+                    model.addConfiguration()
+                }
             }
             item("bubble.left.and.bubble.right.fill", "sidebar.chats",
                  active: model.navSection == .chats,
                  running: !model.runningChatIDs.isEmpty) {
-                model.navSection = .chats
-                if !showSidebar {
-                    if reduceMotion { showSidebar = true }
-                    else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
+                model.guardedLeave {
+                    model.navSection = .chats
+                    if !showSidebar {
+                        if reduceMotion { showSidebar = true }
+                        else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
+                    }
                 }
             }
             item("person.3.sequence.fill", "rail.team",
@@ -44,20 +48,22 @@ struct NavRail: View {
             item("arrow.triangle.2.circlepath", "rail.loops",
                  active: model.navSection == .loops,
                  running: !LoopStore.shared.runningLoopIDs.isEmpty) {
-                model.navSection = .loops
+                model.guardedLeave { model.navSection = .loops }
             }
             item("wand.and.stars", "rail.advisor",
                  active: model.navSection == .advisor) {
-                model.navSection = .advisor
+                model.guardedLeave { model.navSection = .advisor }
             }
             item("point.3.connected.trianglepath.dotted", "rail.connected",
                  active: model.navSection == .services) {
-                model.navSection = .services
+                model.guardedLeave { model.navSection = .services }
             }
             item("gauge.with.dots.needle.bottom.50percent", "rail.usage",
                  active: model.navSection == .usage) {
-                model.navSection = .usage
-                Task { await model.refreshUsage() }
+                model.guardedLeave {
+                    model.navSection = .usage
+                    Task { await model.refreshUsage() }
+                }
             }
 
             #if DEBUG

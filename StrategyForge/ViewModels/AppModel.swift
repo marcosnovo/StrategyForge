@@ -27,6 +27,15 @@ final class AppModel {
     /// The team currently open in the Team section (independent of the selected chat).
     var selectedTeamID: SavedTeam.ID?
 
+    /// A team being configured but NOT yet saved: picking a strategy opens this
+    /// draft in the editor; it only joins `savedTeams` when the user hits "Create".
+    /// Navigating away with a draft prompts a discard confirmation.
+    var draftTeam: SavedTeam?
+    /// A pending navigation deferred while the discard-draft confirmation is shown.
+    @ObservationIgnored private var pendingLeave: (() -> Void)?
+    /// Drives the "discard this draft team?" confirmation.
+    var showDiscardDraftConfirm = false
+
     // MARK: - Providers
     /// Providers whose CLI is currently installed/detected. Drives locked vs
     /// selectable state in the model/provider pickers.
@@ -737,6 +746,65 @@ final class AppModel {
         return team.id
     }
 
+    // MARK: Draft team (configure before committing)
+
+    /// Open a strategy as an in-memory DRAFT team (fresh ids), without saving it. The
+    /// Team editor shows it with a "Create team" button; nothing is persisted yet.
+    func beginDraftTeam(from strategy: Strategy, named: String? = nil) {
+        var s = strategy
+        s.id = UUID()
+        s.roles = s.roles.map { var r = $0; r.id = UUID(); return r }
+        let label = (named?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+            ?? strategyDisplayName(strategy)
+        selectedTeamID = nil
+        draftTeam = SavedTeam(name: label, strategy: s)
+    }
+
+    /// Commit the draft into the saved library and select it.
+    func commitDraftTeam() {
+        guard let draft = draftTeam else { return }
+        savedTeams.insert(draft, at: 0)
+        selectedTeamID = draft.id
+        draftTeam = nil
+        save()
+        flashSuccess(t("team.created", draft.name))
+    }
+
+    /// A binding to the draft team (nil when there's no draft), for the editor.
+    var draftTeamBinding: Binding<SavedTeam>? {
+        guard draftTeam != nil else { return nil }
+        return Binding(
+            get: { self.draftTeam ?? SavedTeam(name: "", strategy: StrategyLibrary.solo()) },
+            set: { self.draftTeam = $0 }
+        )
+    }
+
+    /// Run `action`, but if an uncommitted draft team is open, first ask the user to
+    /// confirm discarding it. Wrap any "leave the draft" navigation in this.
+    func guardedLeave(_ action: @escaping () -> Void) {
+        if draftTeam != nil {
+            pendingLeave = action
+            showDiscardDraftConfirm = true
+        } else {
+            action()
+        }
+    }
+
+    /// User confirmed discarding the draft: drop it and run the deferred navigation.
+    func confirmDiscardDraft() {
+        draftTeam = nil
+        showDiscardDraftConfirm = false
+        let action = pendingLeave
+        pendingLeave = nil
+        action?()
+    }
+
+    /// User cancelled: keep editing the draft.
+    func cancelDiscardDraft() {
+        pendingLeave = nil
+        showDiscardDraftConfirm = false
+    }
+
     /// A stable two-way binding to a saved team, for the Team editor.
     func teamBinding(_ id: SavedTeam.ID) -> Binding<SavedTeam> {
         Binding(
@@ -753,12 +821,21 @@ final class AppModel {
     /// Add a fresh worker role to a saved team. Returns the new role's id.
     @discardableResult
     func addRole(toTeam id: SavedTeam.ID) -> AgentRole.ID? {
-        guard let i = savedTeams.firstIndex(where: { $0.id == id }) else { return nil }
-        let existing = Set(savedTeams[i].strategy.roles.map(\.name))
-        var name = "agent"; var n = 2
-        while existing.contains(name) { name = "agent-\(n)"; n += 1 }
-        let role = AgentRole(name: name, role: .worker, model: .sonnet5,
+        func makeRole(existingNames: Set<String>) -> AgentRole {
+            var name = "agent"; var n = 2
+            while existingNames.contains(name) { name = "agent-\(n)"; n += 1 }
+            return AgentRole(name: name, role: .worker, model: .sonnet5,
                              systemPrompt: "", description: t("team.newRole.description"), count: 1)
+        }
+        // Draft team (not yet saved) → mutate the in-memory draft.
+        if var draft = draftTeam, draft.id == id {
+            let role = makeRole(existingNames: Set(draft.strategy.roles.map(\.name)))
+            draft.strategy.roles.append(role)
+            draftTeam = draft
+            return role.id
+        }
+        guard let i = savedTeams.firstIndex(where: { $0.id == id }) else { return nil }
+        let role = makeRole(existingNames: Set(savedTeams[i].strategy.roles.map(\.name)))
         savedTeams[i].strategy.roles.append(role)
         savedTeams[i].updatedAt = Date()
         save()
@@ -832,6 +909,13 @@ final class AppModel {
 
     /// Remove a role from a saved team (the orchestrator can't be deleted).
     func deleteRole(_ roleID: AgentRole.ID, fromTeam id: SavedTeam.ID) {
+        // Draft team (not yet saved) → mutate the in-memory draft.
+        if var draft = draftTeam, draft.id == id {
+            guard let r = draft.strategy.roles.first(where: { $0.id == roleID }), !r.isOrchestrator else { return }
+            draft.strategy.roles.removeAll { $0.id == roleID }
+            draftTeam = draft
+            return
+        }
         guard let i = savedTeams.firstIndex(where: { $0.id == id }),
               let r = savedTeams[i].strategy.roles.first(where: { $0.id == roleID }),
               !r.isOrchestrator else { return }

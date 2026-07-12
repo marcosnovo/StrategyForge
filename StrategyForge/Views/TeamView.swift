@@ -11,9 +11,15 @@
 import SwiftUI
 
 struct TeamView: View {
+    enum Mode { case saved, draft }
+
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var team: SavedTeam
+    /// `.draft` = not yet saved (shows "Create team"); `.saved` = library team.
+    var mode: Mode = .saved
+    /// Commit a draft into the saved library. Only used in `.draft` mode.
+    var onCommit: () -> Void = {}
 
     @State private var selectedRoleID: AgentRole.ID?
     @State private var confirmDeleteTeam = false
@@ -21,6 +27,7 @@ struct TeamView: View {
     @State private var saveTask: Task<Void, Never>?
 
     private var strategy: Strategy { team.strategy }
+    private var isDraft: Bool { mode == .draft }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -57,7 +64,9 @@ struct TeamView: View {
             Button(model.t("common.cancel"), role: .cancel) { pendingDeleteRole = nil }
         }
         // Persist edits, coalesced so typing doesn't write the store per keystroke.
+        // Drafts are in-memory only — never autosaved until the user hits "Create".
         .onChange(of: team) {
+            guard !isDraft else { return }
             saveTask?.cancel()
             saveTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(600))
@@ -65,7 +74,7 @@ struct TeamView: View {
                 model.save()
             }
         }
-        .onDisappear { model.save() }
+        .onDisappear { if !isDraft { model.save() } }
     }
 
     // MARK: - Canvas (left)
@@ -76,6 +85,14 @@ struct TeamView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
+                    // Visualize the whole strategy (like the picker), now with room
+                    // to breathe — the topology reads at a glance before the cards.
+                    StrategyDiagramView(strategy: strategy, compact: false)
+                        .frame(height: StrategyDiagramView.preferredHeight(for: strategy))
+                        .frame(maxWidth: .infinity)
+                        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+                        .staggeredAppear(index: 0)
+
                     if let orch = strategy.orchestrator {
                         HStack(spacing: Space.xs) {
                             sectionLabel("team.orchestrator.section", systemImage: "crown.fill")
@@ -130,44 +147,62 @@ struct TeamView: View {
                 TextField(model.t("team.name"), text: $team.name)
                     .textFieldStyle(.plain)
                     .font(.sfDisplay)
-                Text(model.strategyDisplayName(strategy))
-                    .font(.sfCallout).foregroundStyle(.secondary).lineLimit(1)
+                if isDraft {
+                    Label(model.t("team.draft.badge"), systemImage: "pencil.line")
+                        .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.warning)
+                } else {
+                    Text(model.strategyDisplayName(strategy))
+                        .font(.sfCallout).foregroundStyle(.secondary).lineLimit(1)
+                }
             }
             Spacer()
             costPill
-            Menu {
-                Button { model.copyTeamShareText(team) } label: {
-                    Label(model.t("team.share.copy"), systemImage: "square.on.square")
-                }
-                Button { model.exportTeamDocument(team) } label: {
-                    Label(model.t("team.share.export"), systemImage: "arrow.up.doc")
-                }
-                Divider()
-                Button(role: .destructive) {
-                    confirmDeleteTeam = true
+            if isDraft {
+                // A draft is not saved yet: cancel discards it, "Create" commits.
+                Button(model.t("common.cancel")) { model.draftTeam = nil }
+                    .buttonStyle(.bordered).controlSize(.large)
+                Button {
+                    onCommit()
                 } label: {
-                    Label(model.t("team.deleteTeam"), systemImage: "trash")
+                    Label(model.t("team.create.commit"), systemImage: "checkmark")
                 }
-            } label: {
-                Image(systemName: "ellipsis.circle")
+                .buttonStyle(.moon)
+                .controlSize(.large)
+            } else {
+                Menu {
+                    Button { model.copyTeamShareText(team) } label: {
+                        Label(model.t("team.share.copy"), systemImage: "square.on.square")
+                    }
+                    Button { model.exportTeamDocument(team) } label: {
+                        Label(model.t("team.share.export"), systemImage: "arrow.up.doc")
+                    }
+                    Divider()
+                    Button(role: .destructive) {
+                        confirmDeleteTeam = true
+                    } label: {
+                        Label(model.t("team.deleteTeam"), systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .help(model.t("common.more"))
+                Button {
+                    model.useTeamInNewChat(team)
+                } label: {
+                    Label(model.t("team.useInChat"), systemImage: "bubble.left.and.bubble.right.fill")
+                }
+                .buttonStyle(.moon)
+                .controlSize(.large)
+                Button {
+                    model.save()
+                    model.flashSuccess(model.t("banner.saved"))
+                } label: {
+                    Label(model.t("editor.save"), systemImage: "tray.and.arrow.down")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
             }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-            .help(model.t("common.more"))
-            Button {
-                model.useTeamInNewChat(team)
-            } label: {
-                Label(model.t("team.useInChat"), systemImage: "bubble.left.and.bubble.right.fill")
-            }
-            .buttonStyle(.moon)
-            .controlSize(.large)
-            Button {
-                model.save()
-                model.flashSuccess(model.t("banner.saved"))
-            } label: {
-                Label(model.t("editor.save"), systemImage: "tray.and.arrow.down")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
         }
         .padding(Space.l)
         .zoomWindowOnDoubleClick()

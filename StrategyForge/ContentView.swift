@@ -101,14 +101,19 @@ struct ContentView: View {
                 ProviderConfigView(provider: model.selectedService)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .team {
-                if let tid = model.selectedTeamID, model.savedTeams.contains(where: { $0.id == tid }) {
+                if let draft = model.draftTeamBinding {
+                    // A draft is being configured → edit it, commit only on "Create".
+                    TeamView(team: draft, mode: .draft, onCommit: { model.commitDraftTeam() })
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let tid = model.selectedTeamID, model.savedTeams.contains(where: { $0.id == tid }) {
                     // A team is open → edit it (canvas + detail).
                     TeamView(team: model.teamBinding(tid))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     // No team open → the strategy browser is the "create a team" surface.
+                    // Selecting a strategy opens a DRAFT (not saved until "Create").
                     StrategyPickerColumn(config: nil, selectedStrategyName: nil,
-                                         onSelect: { model.createTeam(from: $0) })
+                                         onSelect: { model.beginDraftTeam(from: $0) })
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else if model.navSection == .usage {
@@ -168,6 +173,14 @@ struct ContentView: View {
         .background(hazeBackground)
         // App-wide banner so success/errors surface anywhere, not just the editor.
         .bannerOverlay()
+        // Leaving an uncommitted draft team warns that it will be lost.
+        .confirmationDialog(model.t("team.draft.discardTitle"),
+                            isPresented: $model.showDiscardDraftConfirm, titleVisibility: .visible) {
+            Button(model.t("team.draft.discard"), role: .destructive) { model.confirmDiscardDraft() }
+            Button(model.t("team.draft.keep"), role: .cancel) { model.cancelDiscardDraft() }
+        } message: {
+            Text(model.t("team.draft.discardMsg"))
+        }
         // Per-chat configuration as a modal sheet (strategy + file generation).
         .sheet(isPresented: $model.showInspector) {
             if let id = model.selectedConfigID { configSheet(id) }
