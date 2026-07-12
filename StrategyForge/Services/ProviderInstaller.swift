@@ -30,14 +30,21 @@ enum ProviderInstaller {
                     return
                 }
 
+                // Install into a USER-writable prefix (~/.npm-global) so a plain
+                // `npm install -g` never hits EACCES on /usr/local/lib (the default
+                // global prefix). resolveBinary() already looks in ~/.npm-global/bin.
+                let home = FileManager.default.homeDirectoryForCurrentUser.path
+                let prefix = "\(home)/.npm-global"
+                try? FileManager.default.createDirectory(atPath: prefix, withIntermediateDirectories: true)
+
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: npm)
-                process.arguments = ["install", "-g", provider.npmPackage]
+                process.arguments = ["install", "-g", "--prefix", prefix, provider.npmPackage]
 
                 var env = ProcessInfo.processInfo.environment
-                let home = FileManager.default.homeDirectoryForCurrentUser.path
                 let binDir = (npm as NSString).deletingLastPathComponent
-                env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+                env["NPM_CONFIG_PREFIX"] = prefix
+                env["PATH"] = "\(binDir):\(prefix)/bin:\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
                 process.environment = env
 
                 let out = Pipe()

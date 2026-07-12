@@ -54,10 +54,8 @@ struct NavRail: View {
                  running: !LoopStore.shared.runningLoopIDs.isEmpty) {
                 model.guardedLeave { model.navSection = .loops }
             }
-            item("wand.and.stars", "rail.advisor",
-                 active: model.navSection == .advisor) {
-                model.guardedLeave { model.navSection = .advisor }
-            }
+            // Advisor is integrated as the inline recommendation card while composing
+            // the first message — not a standalone section.
             item("point.3.connected.trianglepath.dotted", "rail.connected",
                  active: model.navSection == .services) {
                 model.guardedLeave { model.navSection = .services }

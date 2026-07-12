@@ -406,6 +406,75 @@ struct Particle3DSpinner: View {
     }
 }
 
+// MARK: - Coral "thinking" spinner (the brand mark, built from dots)
+
+/// The app's signature "alive / thinking" indicator: the branching-coral logo drawn
+/// as dots that GROW from the root out to the tips in a loop, with a gentle breath —
+/// as if the mark is being built while the agent thinks.
+struct CoralThinkingSpinner: View {
+    var size: CGFloat = 40
+    var color: Color = Theme.coral
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Precomputed dots along the coral branches: (position 0…1, growth order 0…1).
+    private static let dots: [(CGPoint, Double)] = buildDots()
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { tl in
+            let t = tl.date.timeIntervalSinceReferenceDate
+            Canvas { ctx, sz in
+                let base = max(1.2, sz.width * 0.05)
+                // Growth cycles: sweep root→tips, hold, then fade + rebuild.
+                let cycle = 2.6
+                let phase = reduceMotion ? 1.0 : (t.truncatingRemainder(dividingBy: cycle)) / cycle
+                let grow = reduceMotion ? 1.0 : min(1.0, phase * 1.55)   // full by ~2/3, then holds
+                let fade = reduceMotion ? 1.0 : (phase > 0.86 ? max(0, 1 - (phase - 0.86) / 0.14) : 1)
+                for (p01, order) in Self.dots {
+                    let pos = CGPoint(x: p01.x * sz.width, y: p01.y * sz.height)
+                    let d = grow - order
+                    let lit = d < 0 ? 0 : min(1, d * 6)                  // soft leading edge
+                    let breath = 0.82 + 0.18 * sin(t * 2 + order * 3)    // alive even when grown
+                    let r = base * (0.45 + 0.7 * lit)
+                    ctx.fill(pfDot(pos, r * 2.6), with: .color(color.opacity(0.12 * lit * fade)))
+                    ctx.fill(pfDot(pos, r), with: .color(color.opacity((0.18 + 0.72 * lit) * breath * fade)))
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    /// Sample dots along the coral mark's branches (root at the bottom), ordering them
+    /// by depth so they light in sequence from the trunk out to the four tips.
+    private static func buildDots() -> [(CGPoint, Double)] {
+        // (startX,startY, ctrlX,ctrlY, endX,endY, depth) on a 0…100 canvas — matches CoralMark.
+        let branches: [(CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, Double)] = [
+            (50, 84, 50, 70, 50, 60, 0),
+            (50, 60, 40, 52, 29, 40, 1),
+            (29, 40, 24, 31, 21, 24, 2),
+            (29, 40, 34, 31, 39, 25, 2),
+            (50, 60, 60, 52, 71, 40, 1),
+            (71, 40, 76, 31, 79, 24, 2),
+            (71, 40, 66, 31, 61, 25, 2),
+        ]
+        func quad(_ a: CGFloat, _ c: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat {
+            let mt = 1 - t; return mt * mt * a + 2 * mt * t * c + t * t * b
+        }
+        let k = 6
+        var out: [(CGPoint, Double)] = []
+        for br in branches {
+            for i in 0..<k {
+                let f = CGFloat(i) / CGFloat(k - 1)
+                let x = quad(br.0, br.2, br.4, f) / 100
+                let y = quad(br.1, br.3, br.5, f) / 100
+                let order = (br.6 + Double(f)) / 3.0
+                out.append((CGPoint(x: x, y: y), order))
+            }
+        }
+        return out
+    }
+}
+
 // MARK: - Particle Lab (a gallery of the motion system)
 
 /// A gallery for previewing every spinner / waiting element and the ambient
@@ -420,6 +489,23 @@ struct ParticleLabView: View {
                     Text("Particle Lab").font(.sfDisplay)
                     Text("Dot & sparkle motion system — spinners, waiting states and ambient identity.")
                         .font(.sfCallout).foregroundStyle(.secondary)
+                }
+
+                Text("Brand — thinking").font(.sfCardTitle)
+                LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
+                    demo("CoralThinkingSpinner", "The coral mark builds from dots · alive") {
+                        HStack(spacing: Space.l) {
+                            CoralThinkingSpinner(size: 28)
+                            CoralThinkingSpinner(size: 44)
+                            CoralThinkingSpinner(size: 64)
+                        }
+                    }
+                    demo("Teal / on dark", "Any tint") {
+                        HStack(spacing: Space.l) {
+                            CoralThinkingSpinner(size: 44, color: Theme.teal)
+                            CoralThinkingSpinner(size: 44)
+                        }
+                    }
                 }
 
                 Text("3D particle figures").font(.sfCardTitle)
