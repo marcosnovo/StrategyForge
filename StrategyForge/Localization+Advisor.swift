@@ -43,6 +43,13 @@ extension L10n {
                               "Usando el motor local — Apple Intelligence no está disponible en este Mac."),
         "advisor.loop.whyResults": ("A loop re-runs the team until the goal is met — better coverage and fewer misses on broad searches.",
                                     "Un bucle repite el equipo hasta cumplir el objetivo — mejor cobertura y menos fallos en búsquedas amplias."),
+        "advisor.tier.saver": ("Economy", "Económica"),
+        "advisor.tier.saver.note": ("Cheaper & faster — good enough for most", "Más barata y rápida — suficiente para la mayoría"),
+        "advisor.tier.balanced": ("Recommended", "Recomendada"),
+        "advisor.tier.balanced.note": ("Best balance of quality and cost", "Mejor equilibrio calidad/coste"),
+        "advisor.tier.max": ("Max quality", "Máxima calidad"),
+        "advisor.tier.max.note": ("Better results, higher cost", "Mejores resultados, más coste"),
+        "advisor.tier.caption": ("Options", "Opciones"),
 
         // MARK: Decision path
         "advisor.path.title": ("How we decided", "Cómo lo decidimos"),

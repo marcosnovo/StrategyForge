@@ -47,7 +47,10 @@ struct ChatView: View {
     /// Advisor-in-chat: the debounced recommendation computed from the draft of
     /// a brand-new chat, and whether the user waved the card away this session.
     @State private var advisorDismissed = false
-    @State private var inlineAdvice: AdvisorEngine.Advice?
+    /// Cost/quality options for the first message (Economy · Recommended · Max) and
+    /// which one the user picked (defaults to the balanced recommendation).
+    @State private var inlineTiers: [AdvisorEngine.Tier] = []
+    @State private var selectedTierID = "balanced"
     @State private var adviceTask: Task<Void, Never>?
     /// Persisted, user-resizable width of the agent-activity panel.
     @AppStorage("col.activity") private var activityW = 320.0
@@ -88,7 +91,7 @@ struct ChatView: View {
                 ResizableDivider(
                     width: Binding(get: { CGFloat(activityW) }, set: { activityW = Double($0) }),
                     range: 260...560, sign: -1)
-                AgentActivityPanel(vm: vm, focus: $agentFocus)
+                AgentActivityPanel(vm: vm, focus: $agentFocus, previewStrategy: advisorPreviewStrategy)
                     .frame(width: CGFloat(activityW))
             }
             if showActivity, let focus = agentFocus {
@@ -197,20 +200,7 @@ struct ChatView: View {
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
             if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
-            if advisorCardVisible, let advice = inlineAdvice {
-                AdvisorInlineCard(
-                    advice: advice,
-                    strategyName: model.strategyDisplayName(advice.strategy),
-                    onApplyTeam: {
-                        model.applyTemplate(advice.strategy, to: config.id)
-                        withAnimation { advisorDismissed = true }
-                    },
-                    onCreateLoop: { createLoop(from: advice) },
-                    onDismiss: { withAnimation { advisorDismissed = true } },
-                    onEnableAI: { openAppleIntelligenceSettings() })
-                    .padding(.horizontal, Space.m)
-                    .padding(.top, Space.s)
-            }
+            if advisorCardVisible { advisorCard }
             // At most one coach banner at a time: the Advisor card wins.
             if let tip = saverTip, !advisorCardVisible {
                 TokenSaverBanner(tip: tip,
@@ -225,7 +215,7 @@ struct ChatView: View {
         .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82), value: vm.deniedTools)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.editedFiles.count)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: saverTip)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: inlineAdvice)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: inlineTiers)
         // Arm the convert tip on the render right after an attachment is staged.
         .onChange(of: vm.attachments.count) { old, new in
             justAttached = new > old
@@ -236,18 +226,21 @@ struct ChatView: View {
             adviceTask?.cancel()
             let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
             guard vm.messages.isEmpty, !advisorDismissed, trimmed.count >= 25 else {
-                withAnimation { inlineAdvice = nil }
+                withAnimation { inlineTiers = [] }
                 return
             }
             adviceTask = Task {
                 try? await Task.sleep(for: .milliseconds(500))
                 guard !Task.isCancelled else { return }
-                // Use the same on-device-AI path the first turn will apply, so the
-                // card matches the team that actually runs (falls back to the fast
-                // deterministic engine when Apple Intelligence is unavailable).
-                let advice = await AdvisorEngine.adviseWithAI(task: draft)
+                // Same on-device-AI path the first turn will apply, as three cost/
+                // quality options — so the card matches what actually runs (falls back
+                // to the deterministic engine when Apple Intelligence is unavailable).
+                let tiers = await AdvisorEngine.adviseTiers(task: draft)
                 guard !Task.isCancelled else { return }
-                withAnimation { inlineAdvice = advice }
+                withAnimation {
+                    inlineTiers = tiers
+                    if !tiers.contains(where: { $0.id == selectedTierID }) { selectedTierID = "balanced" }
+                }
             }
         }
         // Drop files anywhere on the chat to attach them for review.
@@ -271,10 +264,41 @@ struct ChatView: View {
 
     // MARK: - Advisor in chat
 
+    /// The inline recommendation card (Economy · Recommended · Max), extracted so the
+    /// chat column stays simple enough for the type-checker.
+    private var advisorCard: some View {
+        AdvisorInlineCard(
+            tiers: inlineTiers,
+            selectedID: selectedTierID,
+            onSelectTier: { id in withAnimation(.easeOut(duration: 0.15)) { selectedTierID = id } },
+            onApplyTeam: {
+                if let advice = selectedTier?.advice { model.applyTemplate(advice.strategy, to: config.id) }
+                withAnimation { advisorDismissed = true }
+            },
+            onCreateLoop: { if let a = selectedTier?.advice { createLoop(from: a) } },
+            onDismiss: { withAnimation { advisorDismissed = true } },
+            onEnableAI: { openAppleIntelligenceSettings() })
+            .padding(.horizontal, Space.m)
+            .padding(.top, Space.s)
+    }
+
     /// The inline Advisor card shows only while composing the first message of
     /// a fresh chat — and it displaces the Token Saver banner (never stack two).
     private var advisorCardVisible: Bool {
-        vm.messages.isEmpty && !advisorDismissed && inlineAdvice != nil
+        vm.messages.isEmpty && !advisorDismissed && !inlineTiers.isEmpty
+    }
+
+    /// The currently-selected recommendation option.
+    private var selectedTier: AdvisorEngine.Tier? {
+        inlineTiers.first { $0.id == selectedTierID } ?? inlineTiers.first { $0.id == "balanced" } ?? inlineTiers.first
+    }
+
+    /// When the team is still "auto" and a recommendation is on screen, the activity
+    /// panel previews the selected option's strategy so the right side shows what's
+    /// recommended (not the placeholder default).
+    private var advisorPreviewStrategy: Strategy? {
+        guard config.strategyIsAuto, advisorCardVisible else { return nil }
+        return selectedTier?.advice.strategy
     }
 
     /// Open System Settings so the user can turn on Apple Intelligence (for smarter,

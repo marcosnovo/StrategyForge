@@ -284,6 +284,77 @@ enum AdvisorEngine {
                       usedAI: true)
     }
 
+    // MARK: - Tiered options (cheaper ↔ better results)
+
+    /// One recommendation option at a cost/quality point.
+    struct Tier: Identifiable, Hashable {
+        let id: String          // "saver" | "balanced" | "max"
+        let labelKey: String    // short name, e.g. "advisor.tier.balanced"
+        let noteKey: String     // tradeoff, e.g. "cheaper & faster"
+        let advice: Advice
+    }
+
+    /// Three options for the same task: a cheaper/faster one, the balanced
+    /// recommendation (AI-shaped when available), and a max-quality one that spends
+    /// more for better results. Same shape/loop/goal — they differ in model tier and
+    /// team size, so the estimated cost tells the tradeoff honestly.
+    static func adviseTiers(task: String) async -> [Tier] {
+        let balanced = await adviseWithAI(task: task)
+        let saver = variant(of: balanced, model: downTier(balanced.model), countDelta: -1,
+                            effort: lower(balanced.effort),
+                            id: "saver", labelKey: "advisor.tier.saver", noteKey: "advisor.tier.saver.note")
+        let max = variant(of: balanced, model: upTier(balanced.model), countDelta: +2,
+                          effort: higher(balanced.effort),
+                          id: "max", labelKey: "advisor.tier.max", noteKey: "advisor.tier.max.note")
+        let mid = Tier(id: "balanced", labelKey: "advisor.tier.balanced",
+                       noteKey: "advisor.tier.balanced.note", advice: balanced)
+        // Drop a tier that collapses to the same model AND team as the balanced one
+        // (e.g. already at Haiku → no cheaper tier), so we never show duplicates.
+        var tiers = [saver, mid, max]
+        tiers = tiers.enumerated().filter { i, t in
+            i == 1 || !sameShape(t.advice, as: balanced)
+        }.map { $0.element }
+        return tiers
+    }
+
+    /// Build a cost/quality variant of an advice: swap the orchestrator model, nudge
+    /// the largest fan-out role's count, and re-estimate the cost.
+    private static func variant(of base: Advice, model: ClaudeModel, countDelta: Int,
+                                effort: CostEffort, id: String, labelKey: String, noteKey: String) -> Tier {
+        var s = base.strategy
+        if let i = s.roles.firstIndex(where: { $0.isOrchestrator }) { s.roles[i].model = model }
+        let subIdx = s.roles.indices.filter { !s.roles[$0].isOrchestrator }
+        if let idx = subIdx.max(by: { s.roles[$0].count < s.roles[$1].count }) {
+            s.roles[idx].count = max(1, min(6, s.roles[idx].count + countDelta))
+        }
+        let advice = Advice(model: model, strategy: s, shapeRationaleKey: base.shapeRationaleKey,
+                            loopKind: base.loopKind, effort: effort, decisionPath: base.decisionPath,
+                            goalSuggestion: base.goalSuggestion,
+                            estimatedCost: CostEstimator.estimate(s, effort: effort),
+                            aiRationale: base.aiRationale, usedAI: base.usedAI)
+        return Tier(id: id, labelKey: labelKey, noteKey: noteKey, advice: advice)
+    }
+
+    private static func sameShape(_ a: Advice, as b: Advice) -> Bool {
+        a.model == b.model
+            && a.strategy.roles.map { "\($0.name)|\($0.count)" } == b.strategy.roles.map { "\($0.name)|\($0.count)" }
+    }
+
+    private static func downTier(_ m: ClaudeModel) -> ClaudeModel {
+        switch m { case .fable5: return .opus48; case .opus48: return .sonnet5
+                   case .sonnet5: return .haiku45; case .haiku45: return .haiku45 }
+    }
+    private static func upTier(_ m: ClaudeModel) -> ClaudeModel {
+        switch m { case .haiku45: return .sonnet5; case .sonnet5: return .opus48
+                   case .opus48: return .fable5; case .fable5: return .fable5 }
+    }
+    private static func lower(_ e: CostEffort) -> CostEffort {
+        switch e { case .high: return .medium; case .medium: return .low; case .low: return .low }
+    }
+    private static func higher(_ e: CostEffort) -> CostEffort {
+        switch e { case .low: return .medium; case .medium: return .high; case .high: return .high }
+    }
+
     // MARK: - Helpers
 
     /// Lowercase, fold diacritics, strip light punctuation, collapse whitespace,

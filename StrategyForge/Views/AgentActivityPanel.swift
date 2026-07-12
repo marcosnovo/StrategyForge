@@ -31,9 +31,18 @@ struct AgentActivityPanel: View {
     /// The agent whose detail column is open (nil = closed). Bound to the parent
     /// so the drill-down column lives at the far right of the window.
     @Binding var focus: AgentFocus?
+    /// When set (and not running), the panel previews this RECOMMENDED strategy in the
+    /// header + diagram, so the right side reflects the pending recommendation.
+    var previewStrategy: Strategy? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hoveredAgent: AgentFocus?
     @State private var showDiagram = true
+
+    /// The strategy to show: the recommendation preview when idle, else the live team.
+    private var shownStrategy: Strategy {
+        (!vm.isRunning ? previewStrategy : nil) ?? vm.config.strategy
+    }
+    private var isPreviewing: Bool { !vm.isRunning && previewStrategy != nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -42,13 +51,20 @@ struct AgentActivityPanel: View {
                 // sfCardTitle line + a quiet subrow), so the three column headers
                 // read at one harmonious size instead of big/tiny/big.
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(model.strategyDisplayName(vm.config.strategy))
+                    Text(model.strategyDisplayName(shownStrategy))
                         .font(.sfCardTitle).lineLimit(1)
-                    Text(model.t("activity.title"))
-                        .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
+                    Text(model.t(isPreviewing ? "activity.recommended" : "activity.title"))
+                        .font(.sfCaption2)
+                        .foregroundStyle(isPreviewing ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.secondaryOnMaterial))
+                        .lineLimit(1)
                 }
                 Spacer()
-                if vm.isRunning {
+                if isPreviewing {
+                    Label(model.t("activity.preview"), systemImage: "sparkles")
+                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
+                        .padding(.horizontal, Space.s).padding(.vertical, 3)
+                        .background(Capsule().fill(Theme.accentSoft))
+                } else if vm.isRunning {
                     HStack(spacing: 4) {
                         Image(systemName: "circle.fill").font(.system(size: 6))
                             .symbolEffect(.pulse, options: .repeating)
@@ -89,7 +105,7 @@ struct AgentActivityPanel: View {
 
     private var statusCard: some View {
         let subagent = vm.activeSubagent
-        let modelName = vm.config.strategy.orchestrator?.model.displayName ?? "—"
+        let modelName = shownStrategy.orchestrator?.model.displayName ?? "—"
         return VStack(alignment: .leading, spacing: Space.s) {
             if let goal = goalText {
                 HStack(spacing: 6) {
@@ -111,7 +127,7 @@ struct AgentActivityPanel: View {
                 Spacer()
             }
             HStack(spacing: Space.m) {
-                stat("person.2.fill", "\(vm.config.strategy.roles.count)")
+                stat("person.2.fill", "\(shownStrategy.roles.count)")
                 if let start = vm.turnStartedAt, vm.isRunning {
                     TimelineView(.periodic(from: start, by: 1)) { ctx in
                         stat("clock", elapsed(from: start, to: ctx.date))
@@ -160,7 +176,7 @@ struct AgentActivityPanel: View {
             }
             .buttonStyle(.plain)
             if showDiagram {
-                StrategyDiagramView(strategy: vm.config.strategy,
+                StrategyDiagramView(strategy: shownStrategy,
                                     activeAgent: vm.activeSubagent,
                                     isLive: vm.isRunning,
                                     compact: true)
@@ -177,10 +193,10 @@ struct AgentActivityPanel: View {
             .joined(separator: " ")
     }
     private var orchestratorName: String {
-        (vm.config.strategy.orchestrator?.name).map(titleCase) ?? model.t("activity.orchestrator")
+        (shownStrategy.orchestrator?.name).map(titleCase) ?? model.t("activity.orchestrator")
     }
     private var subagentNames: [String] {
-        vm.config.strategy.subagentRoles.map { titleCase($0.name) }
+        shownStrategy.subagentRoles.map { titleCase($0.name) }
     }
 
     enum AgentStatus { case active, done, idle }
@@ -192,7 +208,7 @@ struct AgentActivityPanel: View {
             Text(model.t("activity.team")).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
             agentRow(name: orchestratorName, icon: "brain.head.profile", target: .orchestrator,
                      objective: orchestratorObjective, status: orchestratorStatus)
-            ForEach(vm.config.strategy.subagentRoles) { role in
+            ForEach(shownStrategy.subagentRoles) { role in
                 let name = titleCase(role.name)
                 agentRow(name: name, icon: "person.fill", target: .sub(name),
                          objective: role.description, status: status(forSubagent: name))
@@ -201,7 +217,7 @@ struct AgentActivityPanel: View {
     }
 
     private var orchestratorObjective: String {
-        let d = vm.config.strategy.orchestrator?.description ?? ""
+        let d = shownStrategy.orchestrator?.description ?? ""
         return d.isEmpty ? model.t("activity.orchestrator.role") : d
     }
     private var orchestratorStatus: AgentStatus {

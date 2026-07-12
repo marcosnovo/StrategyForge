@@ -692,6 +692,8 @@ enum L10n {
 
         // MARK: Agent activity panel
         "activity.title": ("AGENT ACTIVITY", "ACTIVIDAD DE AGENTES"),
+        "activity.recommended": ("RECOMMENDED TEAM", "EQUIPO RECOMENDADO"),
+        "activity.preview": ("Preview", "Vista previa"),
         "activity.running": ("Working", "Trabajando"),
         "activity.orchestrator": ("Orchestrator", "Orquestador"),
         "activity.orchestrator.role": ("Plans the work and delegates to the team",
