@@ -108,27 +108,48 @@ enum StrategyGenerator {
         let t = task.lowercased()
         func has(_ words: [String]) -> Bool { words.contains { t.contains($0) } }
 
-        if has(["understand", "explain", "explore", "unfamiliar", "how does", "entender", "explica", "explora"]) {
-            return (.researchFanout, 3)
+        // Does the task explicitly ask for BREADTH / parallel coverage ("from several
+        // fronts", "exhaustive", "in parallel", "a prioritized backlog", "across N
+        // areas")? That's the strongest signal for a fan-out team + supervisor, so it
+        // upgrades otherwise-single-agent shapes (a broad review → specialists, etc.).
+        let breadth = has(["exhaustiv", "varios frentes", "varias areas", "varias áreas",
+                           "desde varios", "en varios", "en paralelo", "in parallel",
+                           "several fronts", "multiple angles", "many areas", "backlog",
+                           "cada modulo", "cada módulo", "every module", "todo el codigo",
+                           "todo el código", "entire codebase", "whole codebase"])
+
+        if has(["understand", "explain", "explore", "unfamiliar", "how does",
+                "entender", "explica", "explora", "investiga", "investigar", "research"]) {
+            return (.researchFanout, breadth ? 4 : 3)
         }
-        if has(["across", "all files", "every file", "bulk", "migrate", "rename", "masivo", "todos los", "en todo"]) {
-            return (.orchestratorWorkers, 3)
+        if has(["across", "all files", "every file", "bulk", "migrate", "rename",
+                "masivo", "todos los", "en todo", "migrar", "migración", "migracion"]) {
+            return (.orchestratorWorkers, breadth ? 4 : 3)
         }
-        if has(["review", "verify", "production", "critical", "safe", "revisar", "verificar", "crítico", "producción"]) {
-            return (.plannerReviewer, 1)
+        // A code review / audit: broad ("from several fronts") → domain specialists
+        // (each covers an angle); a focused one → planner → reviewer.
+        if has(["review", "audit", "revisar", "auditar", "auditoria", "auditoría",
+                "verify", "verificar", "production", "critical", "safe",
+                "crítico", "producción", "qa"]) {
+            return breadth ? (.domainSpecialists, 4) : (.plannerReviewer, 1)
         }
-        if has(["design", "architecture", "trade-off", "tradeoff", "decide", "compare", "arquitectura", "diseñar", "decidir"]) {
-            return (.debateConsensus, 1)
+        if has(["design", "architecture", "trade-off", "tradeoff", "decide", "compare",
+                "arquitectura", "diseñar", "decidir"]) {
+            return breadth ? (.domainSpecialists, 4) : (.debateConsensus, 1)
         }
-        if has(["frontend", "backend", "database", "security", "full-stack", "fullstack", "dominio", "especialista"]) {
-            return (.domainSpecialists, 1)
+        if has(["frontend", "backend", "database", "security", "full-stack", "fullstack",
+                "dominio", "especialista"]) {
+            return (.domainSpecialists, breadth ? 4 : 3)
         }
         if has(["adversarial", "break", "attack", "harden", "sparring", "romper", "atacar"]) {
             return (.sparring, 1)
         }
-        if has(["experiment", "try", "quick", "small", "play", "experimentar", "probar", "rápido", "pequeño"]) {
+        if has(["experiment", "try", "quick", "small", "play",
+                "experimentar", "probar", "rápido", "pequeño"]) {
             return (.solo, 1)
         }
+        // Any remaining breadth signal → a small fan-out beats the solo/exec default.
+        if breadth { return (.orchestratorWorkers, 3) }
         return (.executorAdvisor, 1)
     }
 }

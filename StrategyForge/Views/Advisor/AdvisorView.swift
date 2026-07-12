@@ -17,6 +17,7 @@ struct AdvisorView: View {
 
     @Environment(AppModel.self) private var model
     @State private var copiedCommand = false
+    @State private var thinking = false
 
     var body: some View {
         ScrollView {
@@ -84,20 +85,35 @@ struct AdvisorView: View {
                 Button {
                     analyze()
                 } label: {
-                    Label(model.t("advisor.analyze"), systemImage: "wand.and.stars")
+                    if thinking {
+                        HStack(spacing: Space.s) {
+                            DotSpinner(size: 15, color: Theme.onAccent)
+                            Text(model.t("advisor.thinking"))
+                        }
+                    } else {
+                        Label(model.t("advisor.analyze"), systemImage: "wand.and.stars")
+                    }
                 }
                 .buttonStyle(.moon)
-                .disabled(model.advisorTask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(thinking || model.advisorTask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .card()
     }
 
-    /// Analysis is synchronous and local — a tiny animation is all it needs.
+    /// Recommend a setup. The deterministic pass is instant; when Apple Intelligence
+    /// is available we additionally let the on-device model reshape the team (free,
+    /// private) — hence the async path + a brief "thinking" state.
     private func analyze() {
         copiedCommand = false
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            model.advisorAdvice = AdvisorEngine.advise(task: model.advisorTask)
+        let task = model.advisorTask
+        thinking = true
+        Task {
+            let advice = await AdvisorEngine.adviseWithAI(task: task)
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                model.advisorAdvice = advice
+            }
+            thinking = false
         }
     }
 
@@ -162,10 +178,14 @@ struct AdvisorView: View {
             StrategyDiagramView(strategy: advice.strategy, compact: true, ambient: false)
                 .frame(height: 140)
             Text(model.strategyDisplayName(advice.strategy)).font(.sfCardTitle)
-            Text(model.t(advice.shapeRationaleKey))
+            Text(advice.aiRationale ?? model.t(advice.shapeRationaleKey))
                 .font(.sfCallout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if advice.aiRationale != nil {
+                Label(model.t("advisor.aiBadge"), systemImage: "sparkles")
+                    .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+            }
         }
         .card()
     }

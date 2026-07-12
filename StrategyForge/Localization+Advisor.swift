@@ -28,6 +28,8 @@ extension L10n {
             "p. ej. «Migra todas las llamadas de bcrypt a argon2 y corre los tests hasta que pasen» — o «Resume estas 40 entrevistas de clientes en cinco temas»."),
         "advisor.charCount": ("%lld characters", "%lld caracteres"),
         "advisor.analyze": ("Analyze", "Analizar"),
+        "advisor.thinking": ("Thinking…", "Pensando…"),
+        "advisor.aiBadge": ("Shaped by on-device AI", "Diseñado por IA en el dispositivo"),
 
         // MARK: Decision path
         "advisor.path.title": ("How we decided", "Cómo lo decidimos"),
@@ -79,6 +81,8 @@ extension L10n {
         "advisor.ev.long": ("long, detailed prompt", "prompt largo y detallado"),
         "advisor.ev.scope": ("mentions the repo, tests, many files or days of work",
                              "menciona el repo, tests, muchos archivos o días de trabajo"),
+        "advisor.ev.breadth": ("asks for breadth: several fronts, exhaustive, in parallel, a backlog",
+                               "pide amplitud: varios frentes, exhaustiva, en paralelo, un backlog"),
         "advisor.ev.speedWords": ("quick-task words (summarize, translate, list…)",
                                   "palabras de tarea rápida (resumir, traducir, listar…)"),
         "advisor.ev.ambition": ("architecture / multi-day / deep-research scope",

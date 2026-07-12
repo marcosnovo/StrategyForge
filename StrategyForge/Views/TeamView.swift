@@ -144,18 +144,27 @@ struct TeamView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: Space.m) {
             if isDraft {
-                // Clear way back to the strategy picker (discards the draft).
+                // A clear, obvious "‹ Strategies" chip back to the picker (discards
+                // the draft) — reads as navigation, not a label.
                 Button { model.draftTeam = nil } label: {
-                    Label(model.t("team.draft.back"), systemImage: "chevron.left")
-                        .font(.sfCallout.weight(.medium))
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left").font(.system(size: 11, weight: .semibold))
+                        Text(model.t("team.draft.back")).font(.sfCallout.weight(.medium))
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(Theme.insetBg))
+                    .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
                 .help(model.t("team.draft.back"))
             }
             VStack(alignment: .leading, spacing: 2) {
                 TextField(model.t("team.name"), text: $team.name)
                     .textFieldStyle(.plain)
-                    .font(.sfDisplay)
+                    // sfCardTitle (not the huge display) so long names ("Team lead +
+                    // parallel workers") fit the crowded header without truncating.
+                    .font(isDraft ? .sfCardTitle : .sfDisplay)
+                    .lineLimit(1)
                 if isDraft {
                     Label(model.t("team.draft.badge"), systemImage: "pencil.line")
                         .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.warning)
@@ -164,7 +173,8 @@ struct TeamView: View {
                         .font(.sfCallout).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
             costPill
             if isDraft {
                 // Not saved yet — "Create" commits it (Back, top-left, discards).

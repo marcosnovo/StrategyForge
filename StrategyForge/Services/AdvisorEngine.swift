@@ -42,6 +42,9 @@ enum AdvisorEngine {
         /// A one-line verifiable goal drafted from the task text (best effort).
         let goalSuggestion: String
         let estimatedCost: StrategyCost
+        /// Free-text rationale from the on-device model, when AI upgraded the shape
+        /// (nil for the pure deterministic path).
+        var aiRationale: String? = nil
 
         static func == (lhs: Advice, rhs: Advice) -> Bool {
             lhs.model == rhs.model
@@ -92,6 +95,14 @@ enum AdvisorEngine {
         SignalGroup(evidenceKey: "advisor.ev.scope", keywords: [
             "repo", "test", "multiple files", "varios archivos", "muchos archivos",
             "all files", "todos los archivos", "en todo", "dias", "days", "hours", "horas",
+        ]),
+        // Explicit breadth ("from several fronts", "exhaustive", "in parallel", a
+        // "prioritized backlog") is real depth: it warrants a strong model + a team,
+        // so it must NOT collapse to the cheap-model executor+advisor downgrade.
+        SignalGroup(evidenceKey: "advisor.ev.breadth", keywords: [
+            "exhaustiv", "varios frentes", "desde varios", "en varios", "en paralelo",
+            "in parallel", "several fronts", "multiple angles", "many areas", "backlog",
+            "varias areas", "auditoria",
         ]),
     ]
 
@@ -242,6 +253,31 @@ enum AdvisorEngine {
                       decisionPath: steps,
                       goalSuggestion: draftGoal(task: trimmed, normalized: text),
                       estimatedCost: CostEstimator.estimate(strategy, effort: effort))
+    }
+
+    /// Like `advise`, but UPGRADES the team shape with Apple's on-device model when
+    /// available — free and private (no subscription tokens). The deterministic pass
+    /// still provides the model tier, loop kind, effort, decision path and goal (so
+    /// the visual "why" is intact); the AI only reshapes the team and supplies a
+    /// one-line rationale. Falls back to `advise` on any error or when AI is off.
+    static func adviseWithAI(task: String) async -> Advice {
+        let base = advise(task: task)
+        guard StrategyGenerator.isAIAvailable,
+              !task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return base }
+        let ai = await StrategyGenerator.generate(from: task)
+        guard ai.usedAI else { return base }
+        var s = ai.strategy
+        // Keep the recommended model on the orchestrator (launch command + cost).
+        if let i = s.roles.firstIndex(where: { $0.isOrchestrator }) { s.roles[i].model = base.model }
+        return Advice(model: base.model,
+                      strategy: s,
+                      shapeRationaleKey: base.shapeRationaleKey,
+                      loopKind: base.loopKind,
+                      effort: base.effort,
+                      decisionPath: base.decisionPath,
+                      goalSuggestion: base.goalSuggestion,
+                      estimatedCost: CostEstimator.estimate(s, effort: base.effort),
+                      aiRationale: ai.aiRationale)
     }
 
     // MARK: - Helpers
