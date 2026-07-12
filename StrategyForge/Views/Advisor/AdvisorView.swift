@@ -97,8 +97,42 @@ struct AdvisorView: View {
                 .buttonStyle(.moon)
                 .disabled(thinking || model.advisorTask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+            if StrategyGenerator.aiStatus != .available { aiUnavailableNote }
         }
         .card()
+    }
+
+    /// Shown when the on-device model can't shape the recommendation: explains the
+    /// current source (local engine) and — when it's just off — offers to enable it.
+    @ViewBuilder
+    private var aiUnavailableNote: some View {
+        let status = StrategyGenerator.aiStatus
+        HStack(alignment: .top, spacing: Space.s) {
+            Image(systemName: "cpu").font(.system(size: 12)).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.t("advisor.localOnly")).font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if status == .notEnabled || status == .notReady {
+                    Button(model.t("advisor.enableAI.full")) { openAppleIntelligenceSettings() }
+                        .buttonStyle(.plain).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(Space.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.warning.opacity(0.08)))
+    }
+
+    private func openAppleIntelligenceSettings() {
+        let candidates = [
+            "x-apple.systempreferences:com.apple.preferences.AppleIntelligence",
+            "x-apple.systempreferences:com.apple.Siri-Settings.extension",
+            "x-apple.systempreferences:",
+        ]
+        for s in candidates {
+            if let url = URL(string: s), NSWorkspace.shared.open(url) { return }
+        }
     }
 
     /// Recommend a setup. The deterministic pass is instant; when Apple Intelligence
@@ -182,10 +216,11 @@ struct AdvisorView: View {
                 .font(.sfCallout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if advice.aiRationale != nil {
-                Label(model.t("advisor.aiBadge"), systemImage: "sparkles")
-                    .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
-            }
+            // Honest source label: Apple Intelligence vs the local deterministic engine.
+            Label(model.t(advice.usedAI ? "advisor.source.ai.full" : "advisor.source.local.full"),
+                  systemImage: advice.usedAI ? "sparkles" : "cpu")
+                .font(.sfCaption2.weight(.medium))
+                .foregroundStyle(advice.usedAI ? Theme.accent : .secondary)
         }
         .card()
     }
@@ -230,6 +265,10 @@ struct AdvisorView: View {
                 .padding(Space.m)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+            // Why turning this into a loop improves broad-search / research results.
+            Label(model.t("advisor.loop.whyResults"), systemImage: "arrow.triangle.2.circlepath")
+                .font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .card()
     }

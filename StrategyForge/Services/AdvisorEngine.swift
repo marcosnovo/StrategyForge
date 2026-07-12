@@ -45,6 +45,9 @@ enum AdvisorEngine {
         /// Free-text rationale from the on-device model, when AI upgraded the shape
         /// (nil for the pure deterministic path).
         var aiRationale: String? = nil
+        /// True when Apple Intelligence shaped this recommendation (vs the local
+        /// deterministic engine) — so the UI can label the source honestly.
+        var usedAI: Bool = false
 
         static func == (lhs: Advice, rhs: Advice) -> Bool {
             lhs.model == rhs.model
@@ -277,7 +280,8 @@ enum AdvisorEngine {
                       decisionPath: base.decisionPath,
                       goalSuggestion: base.goalSuggestion,
                       estimatedCost: CostEstimator.estimate(s, effort: base.effort),
-                      aiRationale: ai.aiRationale)
+                      aiRationale: ai.aiRationale,
+                      usedAI: true)
     }
 
     // MARK: - Helpers

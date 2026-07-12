@@ -206,7 +206,8 @@ struct ChatView: View {
                         withAnimation { advisorDismissed = true }
                     },
                     onCreateLoop: { createLoop(from: advice) },
-                    onDismiss: { withAnimation { advisorDismissed = true } })
+                    onDismiss: { withAnimation { advisorDismissed = true } },
+                    onEnableAI: { openAppleIntelligenceSettings() })
                     .padding(.horizontal, Space.m)
                     .padding(.top, Space.s)
             }
@@ -241,8 +242,12 @@ struct ChatView: View {
             adviceTask = Task {
                 try? await Task.sleep(for: .milliseconds(500))
                 guard !Task.isCancelled else { return }
-                // advise(task:) is pure and fast — fine on the main actor.
-                withAnimation { inlineAdvice = AdvisorEngine.advise(task: draft) }
+                // Use the same on-device-AI path the first turn will apply, so the
+                // card matches the team that actually runs (falls back to the fast
+                // deterministic engine when Apple Intelligence is unavailable).
+                let advice = await AdvisorEngine.adviseWithAI(task: draft)
+                guard !Task.isCancelled else { return }
+                withAnimation { inlineAdvice = advice }
             }
         }
         // Drop files anywhere on the chat to attach them for review.
@@ -270,6 +275,19 @@ struct ChatView: View {
     /// a fresh chat — and it displaces the Token Saver banner (never stack two).
     private var advisorCardVisible: Bool {
         vm.messages.isEmpty && !advisorDismissed && inlineAdvice != nil
+    }
+
+    /// Open System Settings so the user can turn on Apple Intelligence (for smarter,
+    /// on-device recommendations). Tries the dedicated pane, then falls back.
+    private func openAppleIntelligenceSettings() {
+        let candidates = [
+            "x-apple.systempreferences:com.apple.preferences.AppleIntelligence",
+            "x-apple.systempreferences:com.apple.Siri-Settings.extension",
+            "x-apple.systempreferences:",
+        ]
+        for s in candidates {
+            if let url = URL(string: s), NSWorkspace.shared.open(url) { return }
+        }
     }
 
     /// Hand this chat over to the Loop Builder, prefilled from an advice.

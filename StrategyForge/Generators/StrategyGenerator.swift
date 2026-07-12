@@ -53,6 +53,19 @@ enum StrategyGenerator {
     /// Whether the on-device model is ready (Apple Intelligence on + downloaded).
     static var isAIAvailable: Bool { SystemLanguageModel.default.isAvailable }
 
+    /// Coarse availability of the on-device model, for the UI to explain the
+    /// recommendation source and offer to turn Apple Intelligence on.
+    enum AIStatus: Equatable { case available, notEnabled, notReady, notEligible }
+    static var aiStatus: AIStatus {
+        switch SystemLanguageModel.default.availability {
+        case .available: return .available
+        case .unavailable(.appleIntelligenceNotEnabled): return .notEnabled
+        case .unavailable(.modelNotReady): return .notReady
+        case .unavailable(.deviceNotEligible): return .notEligible
+        @unknown default: return .notEligible
+        }
+    }
+
     private static let instructions = """
     You design agent teams for the Claude Code CLI. Given a coding task, choose the \
     team SHAPE that fits and a team size. Prefer the simplest shape that works. Use a \

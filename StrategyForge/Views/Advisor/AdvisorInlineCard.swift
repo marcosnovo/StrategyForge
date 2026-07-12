@@ -19,6 +19,8 @@ struct AdvisorInlineCard: View {
     let onApplyTeam: () -> Void
     let onCreateLoop: () -> Void
     let onDismiss: () -> Void
+    /// Open System Settings so the user can turn on Apple Intelligence.
+    var onEnableAI: () -> Void = {}
 
     @Environment(AppModel.self) private var model
     @State private var showWhy = false
@@ -32,8 +34,17 @@ struct AdvisorInlineCard: View {
                 .background(Circle().fill(Theme.accentSoft))
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 1) {
-                FieldLabel(text: model.t("advisor.inline.caption"))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    // Honest source: Apple Intelligence vs the local deterministic engine.
+                    Label(model.t(advice.usedAI ? "advisor.source.ai" : "advisor.source.local"),
+                          systemImage: advice.usedAI ? "sparkles" : "cpu")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(advice.usedAI ? Theme.accent : Theme.secondaryOnMaterial)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Capsule().fill((advice.usedAI ? Theme.accent : Theme.inkDim).opacity(0.14)))
+                    FieldLabel(text: model.t("advisor.inline.caption"))
+                }
                 HStack(spacing: Space.xs) {
                     Image(systemName: advice.model.tierIcon)
                         .font(.system(size: 10, weight: .semibold))
@@ -48,6 +59,14 @@ struct AdvisorInlineCard: View {
             .help(summary)   // the untruncated summary lives in the tooltip
 
             Spacer(minLength: Space.s)
+
+            // Recommendation came from the local engine only because Apple
+            // Intelligence is off → one tap to turn it on for smarter picks.
+            if !advice.usedAI, StrategyGenerator.aiStatus == .notEnabled {
+                Button(model.t("advisor.enableAI"), action: onEnableAI)
+                    .buttonStyle(.plain).font(.sfCaption2.weight(.medium))
+                    .foregroundStyle(Theme.accent)
+            }
 
             // "Why this?" — the decision path, on demand instead of in the way.
             Button { showWhy = true } label: {
@@ -100,8 +119,10 @@ struct AdvisorInlineCard: View {
                                 removal: .opacity))
     }
 
-    /// "Fable 5 · Planner → Reviewer · Goal loop" — the whole advice, one line.
+    /// "Fable 5 · Planner → Reviewer · Goal loop · ~$0.83" — the whole advice + its
+    /// estimated per-run cost, one line.
     private var summary: String {
-        "\(advice.model.displayName) · \(strategyName) · \(model.t(advice.loopKind.labelKey))"
+        let cost = String(format: "$%.2f", advice.estimatedCost.perRun)
+        return "\(advice.model.displayName) · \(strategyName) · \(model.t(advice.loopKind.labelKey)) · ~\(cost)"
     }
 }
