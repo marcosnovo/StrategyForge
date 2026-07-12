@@ -32,7 +32,7 @@ struct NavRail: View {
             }
             item("bubble.left.and.bubble.right.fill", "sidebar.chats",
                  active: model.navSection == .chats,
-                 running: !model.runningChatIDs.isEmpty) {
+                 running: !model.runningChatIDs.isEmpty || !model.attentionChatIDs.isEmpty) {
                 model.guardedLeave {
                     model.navSection = .chats
                     if !showSidebar {

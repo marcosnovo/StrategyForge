@@ -59,6 +59,7 @@ enum L10n {
         "sidebar.new": ("New chat", "Nuevo chat"),
         "sidebar.search": ("Search", "Buscar"),
         "sidebar.rename": ("Rename", "Renombrar"),
+        "sidebar.needsAttention": ("Needs your attention", "Requiere tu atención"),
         "sidebar.rename.title": ("Rename chat", "Renombrar chat"),
         "team.create.commit": ("Create team", "Crear equipo"),
         "team.draft.badge": ("Draft — not created yet", "Borrador — sin crear"),

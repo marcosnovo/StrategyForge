@@ -131,8 +131,14 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Title line: name + (on hover) quick rename / delete actions.
                 HStack(spacing: 4) {
+                    // A coral badge marks a chat that finished / needs a decision while
+                    // you were away, so the one needing you is recognizable at a glance.
+                    if model.attentionChatIDs.contains(config.id) {
+                        Circle().fill(Theme.accent).frame(width: 7, height: 7)
+                            .help(model.t("sidebar.needsAttention"))
+                    }
                     Text(config.name.isEmpty ? model.t("chat.untitled") : config.name)
-                        .font(.sfBodyM.weight(.semibold))
+                        .font(.sfBodyM.weight(model.attentionChatIDs.contains(config.id) ? .bold : .semibold))
                         .lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: Space.xs)
                     if hovering {

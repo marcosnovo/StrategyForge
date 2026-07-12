@@ -120,6 +120,23 @@ final class AppModel {
     /// Mutated only from `onRunningChanged` callbacks (action context), never
     /// from view-body paths.
     var runningChatIDs: Set<Configuration.ID> = []
+    /// Chats that need the user's attention (a finished turn or a pending permission
+    /// decision they weren't looking at). Drives a sidebar badge; also bounces the Dock.
+    var attentionChatIDs: Set<Configuration.ID> = []
+
+    /// Flag a chat as needing attention and — if the app is in the background — bounce
+    /// the Dock so it's noticeable. `critical` keeps bouncing until the app is focused
+    /// (used for a pending permission decision).
+    func flagAttention(_ id: Configuration.ID, critical: Bool) {
+        attentionChatIDs.insert(id)
+        if !NSApp.isActive {
+            NSApp.requestUserAttention(critical ? .criticalRequest : .informationalRequest)
+        }
+    }
+    /// Clear a chat's attention flag (called when the user opens it).
+    func clearAttention(_ id: Configuration.ID) {
+        if attentionChatIDs.contains(id) { attentionChatIDs.remove(id) }
+    }
 
     // MARK: - Advisor state (B3 — survives leaving the section)
 
@@ -1052,8 +1069,10 @@ final class AppModel {
                 self.runningChatIDs.insert(id)
             } else {
                 self.runningChatIDs.remove(id)
+                let elsewhere = self.navSection != .chats || self.selectedConfigID != id
+                let needsPermission = !(vm?.deniedTools.isEmpty ?? true)
                 // Finish banner only when the user is somewhere else.
-                if self.navSection != .chats || self.selectedConfigID != id {
+                if elsewhere {
                     let name = self.configurations.first(where: { $0.id == id })?.name ?? ""
                     let display = name.isEmpty ? self.t("chat.untitled") : name
                     if vm?.errorText != nil {
@@ -1061,6 +1080,11 @@ final class AppModel {
                     } else {
                         self.flashSuccess(self.t("chat.turnDone", display))
                     }
+                }
+                // Bounce the Dock + flag the chat when the user isn't watching (or a
+                // permission decision is now pending — that keeps bouncing).
+                if elsewhere || needsPermission || !NSApp.isActive {
+                    self.flagAttention(id, critical: needsPermission)
                 }
             }
         }

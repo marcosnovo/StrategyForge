@@ -122,6 +122,7 @@ struct ChatView: View {
                 codeMode = true
                 model.openInCodeMode = nil
             }
+            model.clearAttention(config.id)   // the user is now looking at it
         }
         .sheet(isPresented: $showInstall) {
             ProviderInstallSheet(provider: .claude) { Task { await checkEngine() } }
