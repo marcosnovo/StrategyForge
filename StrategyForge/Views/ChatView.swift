@@ -52,6 +52,10 @@ struct ChatView: View {
     @State private var inlineTiers: [AdvisorEngine.Tier] = []
     @State private var selectedTierID = "balanced"
     @State private var adviceTask: Task<Void, Never>?
+    /// @-mention autocomplete: the repo's file list (loaded once per repo) and the
+    /// current matches for the `@token` being typed.
+    @State private var allRepoFiles: [String] = []
+    @State private var mentionMatches: [String] = []
     /// Persisted, user-resizable width of the agent-activity panel.
     @AppStorage("col.activity") private var activityW = 320.0
     private let rename: (String) -> Void
@@ -1035,6 +1039,7 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: Space.s) {
+            if !mentionMatches.isEmpty { mentionPopover }
             if !vm.attachments.isEmpty { attachmentChips }
             HStack(spacing: Space.s) {
             // Attach files for Claude to review.
@@ -1063,6 +1068,8 @@ struct ChatView: View {
                 .shadow(color: Theme.accent.opacity(inputFocused ? 0.18 : 0), radius: 8)
                 .focused($inputFocused)
                 .animation(.easeOut(duration: 0.18), value: inputFocused)
+                // @-mentions: refresh the file-autocomplete as the draft changes.
+                .onChange(of: vm.input) { refreshMentions() }
                 .onSubmit { send() }
                 // Up arrow on an empty field recalls the last message to edit/resend.
                 .onKeyPress(.upArrow) {
@@ -1091,6 +1098,94 @@ struct ChatView: View {
         .padding(Space.m)
         .background(.bar)
         .sensoryFeedback(.impact(weight: .medium), trigger: sendPulse)
+        // Load the repo's file list once (and when the repo changes) for @-mentions.
+        .task(id: config.repoPath) { await loadRepoFiles() }
+    }
+
+    // MARK: - @-mention autocomplete
+
+    /// A popover of repo files matching the `@token` currently being typed. Selecting
+    /// one inserts its path so the model knows which file to read (it's under cwd).
+    private var mentionPopover: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(mentionMatches, id: \.self) { path in
+                Button { insertMention(path) } label: {
+                    HStack(spacing: Space.s) {
+                        Image(systemName: "doc.text").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                        Text(path).font(.sfCaption2).lineLimit(1).truncationMode(.middle)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, Space.s).padding(.vertical, 5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .hoverTint(cornerRadius: 6)
+            }
+        }
+        .padding(Space.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    /// The active `@token` in the draft — the run after the last `@` when that `@`
+    /// begins a word and nothing after it is whitespace. Nil when not mentioning.
+    private func currentMentionToken(_ s: String) -> String? {
+        guard let at = s.range(of: "@", options: .backwards) else { return nil }
+        if at.lowerBound != s.startIndex {
+            let before = s[s.index(before: at.lowerBound)]
+            if !before.isWhitespace { return nil }
+        }
+        let after = s[at.upperBound...]
+        if after.contains(where: { $0.isWhitespace }) { return nil }
+        return String(after)
+    }
+
+    private func refreshMentions() {
+        guard let token = currentMentionToken(vm.input), !allRepoFiles.isEmpty else {
+            if !mentionMatches.isEmpty { mentionMatches = [] }
+            return
+        }
+        let q = token.lowercased()
+        let hits = q.isEmpty ? allRepoFiles : allRepoFiles.filter { $0.lowercased().contains(q) }
+        // Shorter paths (closer to the repo root) first; basename-prefix hits win.
+        mentionMatches = Array(hits.sorted {
+            let ap = ($0 as NSString).lastPathComponent.lowercased().hasPrefix(q)
+            let bp = ($1 as NSString).lastPathComponent.lowercased().hasPrefix(q)
+            if ap != bp { return ap }
+            return $0.count < $1.count
+        }.prefix(8))
+    }
+
+    private func insertMention(_ path: String) {
+        guard let at = vm.input.range(of: "@", options: .backwards) else { return }
+        vm.input.replaceSubrange(at.lowerBound..., with: "@\(path) ")
+        mentionMatches = []
+    }
+
+    /// Enumerate the repo's files (relative paths), skipping heavy/hidden dirs, so
+    /// @-mention autocomplete has something to match. Runs off the main actor.
+    private func loadRepoFiles() async {
+        guard let repo = config.repoPath, !repo.isEmpty else { allRepoFiles = []; return }
+        let files = await Task.detached(priority: .utility) { () -> [String] in
+            let root = URL(fileURLWithPath: repo)
+            let skip: Set<String> = [".git", "node_modules", ".build", "DerivedData",
+                                     ".next", "dist", "build", ".venv", "Pods", ".swiftpm"]
+            var out: [String] = []
+            let en = FileManager.default.enumerator(
+                at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
+            let prefix = root.path + "/"
+            while let u = en?.nextObject() as? URL {
+                if skip.contains(u.lastPathComponent) { en?.skipDescendants(); continue }
+                let isDir = (try? u.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                if isDir { continue }
+                out.append(u.path.replacingOccurrences(of: prefix, with: ""))
+                if out.count >= 4000 { break }
+            }
+            return out
+        }.value
+        allRepoFiles = files
     }
 
     /// Chips for staged attachments, each removable.

@@ -28,6 +28,8 @@ struct SidebarView: View {
             $0.name.lowercased().contains(q)
             || ($0.repoPath ?? "").lowercased().contains(q)
             || model.strategyDisplayName($0.strategy).lowercased().contains(q)
+            // Full-text: search the actual conversation, not just the title.
+            || $0.transcript.contains { $0.text.lowercased().contains(q) }
         }
     }
 
@@ -189,10 +191,29 @@ struct SidebarView: View {
     }
 
     private func previewLine(_ config: Configuration) -> String {
+        // When a search matched inside the conversation (not the title), show the
+        // matching snippet so it's clear WHY this chat surfaced.
+        let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        if !q.isEmpty, !config.name.lowercased().contains(q),
+           let hit = config.transcript.first(where: { $0.text.lowercased().contains(q) }) {
+            return searchSnippet(around: q, in: hit.text)
+        }
         if let msg = lastMessage(config) {
             return msg.replacingOccurrences(of: "\n", with: " ")
         }
         return config.repoPath.map { ($0 as NSString).lastPathComponent } ?? model.t("chat.noRepo")
+    }
+
+    /// A short excerpt of `text` centered on the search match, with ellipses.
+    private func searchSnippet(around q: String, in text: String) -> String {
+        let flat = text.replacingOccurrences(of: "\n", with: " ")
+        guard let r = flat.lowercased().range(of: q) else { return flat }
+        let start = flat.index(r.lowerBound, offsetBy: -24, limitedBy: flat.startIndex) ?? flat.startIndex
+        let end = flat.index(r.upperBound, offsetBy: 40, limitedBy: flat.endIndex) ?? flat.endIndex
+        var s = String(flat[start..<end])
+        if start != flat.startIndex { s = "…" + s }
+        if end != flat.endIndex { s += "…" }
+        return s
     }
 
     private var header: some View {
