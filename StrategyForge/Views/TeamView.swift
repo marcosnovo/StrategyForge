@@ -163,6 +163,7 @@ struct TeamView: View {
                     .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
+                .fixedSize()
                 .help(model.t("team.draft.back"))
             }
             VStack(alignment: .leading, spacing: 2) {
@@ -183,6 +184,7 @@ struct TeamView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
             costPill
+                .fixedSize()
             if isDraft {
                 // Not saved yet — "Create" commits it (Back, top-left, discards).
                 Button {
@@ -192,6 +194,7 @@ struct TeamView: View {
                 }
                 .buttonStyle(.moon)
                 .controlSize(.large)
+                .fixedSize()
             } else {
                 Menu {
                     Button { model.copyTeamShareText(team) } label: {
@@ -218,6 +221,7 @@ struct TeamView: View {
                 }
                 .buttonStyle(.moon)
                 .controlSize(.large)
+                .fixedSize()
                 Button {
                     model.save()
                     model.flashSuccess(model.t("banner.saved"))
@@ -226,6 +230,7 @@ struct TeamView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
+                .fixedSize()
             }
         }
         .padding(Space.l)

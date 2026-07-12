@@ -96,8 +96,41 @@ struct LoopEditorView: View {
                     kindCell(kind).staggeredAppear(index: index)
                 }
             }
+            // A plain-language explainer of the chosen type: who starts it, when it
+            // stops repeating, and what it's best for.
+            kindFacts
+                .id(plan.kind)
+                .transition(.opacity)
         }
         .card()
+    }
+
+    /// Three concise facts that make the selected loop type self-explanatory.
+    private var kindFacts: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            kindFact("play.circle.fill", model.t("loop.explain.starts"),
+                     model.t(plan.kind.startsKey), Theme.accent)
+            Divider()
+            kindFact("flag.checkered", model.t("loop.explain.until"),
+                     model.t(plan.kind.untilKey), Theme.success)
+            Divider()
+            kindFact("sparkles", model.t("loop.explain.bestFor"),
+                     model.t(plan.kind.suitsKey), Theme.accent)
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+    }
+
+    private func kindFact(_ icon: String, _ label: String, _ text: String, _ tint: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(tint).frame(width: 16)
+            Text(label.uppercased()).font(.sfFieldLabel).foregroundStyle(.secondary)
+                .frame(width: 112, alignment: .leading)
+            Text(text).font(.sfCaption2).foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private func kindCell(_ kind: LoopKind) -> some View {
@@ -322,8 +355,8 @@ struct LoopEditorView: View {
             SectionHeader("point.3.connected.trianglepath.dotted",
                           model.t("loop.editor.diagram.title"),
                           subtitle: model.t("loop.editor.diagram.subtitle"))
-            LoopDiagramView(plan: plan, isLive: false)
-                .frame(height: 150)
+            LoopKindFlowDiagram(kind: plan.kind)
+                .frame(height: 140)
                 // Faint, always-mounted wash behind the cycle diagram (static
                 // mount — never animated in/out; see the note in ChatView).
                 .background(

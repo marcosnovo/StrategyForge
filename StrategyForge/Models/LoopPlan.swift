@@ -23,6 +23,10 @@ enum LoopKind: String, Codable, CaseIterable, Identifiable, Hashable {
     var blurbKey: String { "loop.kind.\(rawValue).blurb" }
     /// Localization key for the "suits …" hint.
     var suitsKey: String { "loop.kind.\(rawValue).suits" }
+    /// Localization key for "what starts / triggers each cycle".
+    var startsKey: String { "loop.kind.\(rawValue).starts" }
+    /// Localization key for "when it stops repeating".
+    var untilKey: String { "loop.kind.\(rawValue).until" }
 
     /// The cycle spelled out — a literal, not localized: it names the stages the
     /// same way the generated files and the diagram do.

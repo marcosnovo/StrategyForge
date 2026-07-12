@@ -145,3 +145,122 @@ struct LoopDiagramView: View {
         return p
     }
 }
+
+// MARK: - Horizontal flow (explainer)
+
+/// A left-to-right flow of a loop kind's stages — reads as a *process*, which
+/// explains a loop far better than a ring: a tinted TRIGGER pill on the left,
+/// neutral work stages, a green EXIT pill, and a dashed "repeat" arc curving back
+/// underneath. Static and on-brand (coral wires, Coral tokens); used in the editor
+/// to make each loop type self-explanatory.
+struct LoopKindFlowDiagram: View {
+    let kind: LoopKind
+    @Environment(AppModel.self) private var model
+
+    /// Stage labels in flow order (same source as the ring diagram).
+    private var stageKeys: [String] {
+        switch kind {
+        case .turnBased: return ["loop.stage.prompt", "loop.stage.work", "loop.stage.check", "loop.stage.reply"]
+        case .goalBased: return ["loop.stage.goal", "loop.stage.try", "loop.stage.judge", "loop.stage.done"]
+        case .timeBased: return ["loop.stage.interval", "loop.stage.check", "loop.stage.react", "loop.stage.wait"]
+        case .proactive: return ["loop.stage.event", "loop.stage.route", "loop.stage.work", "loop.stage.review"]
+        }
+    }
+
+    var body: some View {
+        let labels = stageKeys.map { model.t($0) }
+        let repeatLabel = model.t("loop.flow.repeat")
+        Canvas { ctx, size in
+            let n = max(labels.count, 1)
+            let font = Font.system(size: 11, weight: .semibold, design: .monospaced)
+            let resolved = labels.map { ctx.resolve(Text($0).font(font)) }
+            let sizes = resolved.map { $0.measure(in: CGSize(width: 220, height: 40)) }
+            let pillW = sizes.map { $0.width + 22 }
+            let pillH: CGFloat = 30
+            let gap: CGFloat = 24
+            let totalW = pillW.reduce(0, +) + gap * CGFloat(n - 1)
+
+            // Row sits a little above centre so the repeat arc has room below.
+            let y = size.height / 2 - 14
+            var x = max((size.width - totalW) / 2, 8)
+            var rects: [CGRect] = []
+            for i in 0..<n {
+                let rect = CGRect(x: x, y: y - pillH / 2, width: pillW[i], height: pillH)
+                rects.append(rect)
+                x += pillW[i] + gap
+            }
+
+            // Straight coral arrows between consecutive stages.
+            for i in 0..<(n - 1) {
+                let a = CGPoint(x: rects[i].maxX + 3, y: y)
+                let b = CGPoint(x: rects[i + 1].minX - 7, y: y)
+                var p = Path(); p.move(to: a); p.addLine(to: b)
+                ctx.stroke(p, with: .color(Theme.accent.opacity(0.8)),
+                           style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                ctx.fill(head(at: b, angle: 0, size: 6), with: .color(Theme.accent))
+            }
+
+            // Dashed "repeat" arc curving back from the last stage to the trigger.
+            if n >= 2 {
+                let start = CGPoint(x: rects[n - 1].midX, y: rects[n - 1].maxY)
+                let end = CGPoint(x: rects[0].midX, y: rects[0].maxY)
+                let dip = min(rects[0].maxY + 36, size.height - 14)
+                var arc = Path()
+                arc.move(to: start)
+                arc.addCurve(to: end,
+                             control1: CGPoint(x: start.x, y: dip),
+                             control2: CGPoint(x: end.x, y: dip))
+                ctx.stroke(arc, with: .color(Theme.accent.opacity(0.45)),
+                           style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                ctx.fill(head(at: CGPoint(x: end.x, y: end.y + 1), angle: -.pi / 2, size: 6),
+                         with: .color(Theme.accent.opacity(0.7)))
+                let lbl = ctx.resolve(Text("↺ \(repeatLabel)")
+                    .font(.system(size: 9.5, weight: .semibold)))
+                var shaded = lbl; shaded.shading = .color(Theme.accent.opacity(0.8))
+                ctx.draw(shaded, at: CGPoint(x: (start.x + end.x) / 2, y: dip - 3), anchor: .center)
+            }
+
+            // Pills: first = trigger (accent), last = exit (green), middle neutral.
+            for (i, r) in resolved.enumerated() {
+                let rect = rects[i]
+                let isTrigger = i == 0
+                let isExit = i == n - 1
+                let tint = isExit ? Theme.success : Theme.accent
+                let shape = Path(roundedRect: rect, cornerRadius: rect.height / 2)
+                ctx.fill(shape, with: .color(isTrigger ? Theme.accentSoft
+                                             : (isExit ? Theme.success.opacity(0.12) : Theme.cardBg)))
+                ctx.stroke(shape, with: .color(isTrigger || isExit ? tint : Theme.hairline),
+                           lineWidth: isTrigger || isExit ? 1.5 : 1)
+                var shaded = r
+                shaded.shading = .color(isExit ? Theme.success : Color.primary)
+                ctx.draw(shaded, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.hairline, lineWidth: 1))
+        .id(kind)
+        .accessibilityLabel(labels.joined(separator: " → "))
+    }
+
+    private func head(at tip: CGPoint, angle: CGFloat, size: CGFloat) -> Path {
+        let a1 = angle + .pi - 0.4
+        let a2 = angle + .pi + 0.4
+        var p = Path()
+        p.move(to: tip)
+        p.addLine(to: CGPoint(x: tip.x + cos(a1) * size, y: tip.y + sin(a1) * size))
+        p.addLine(to: CGPoint(x: tip.x + cos(a2) * size, y: tip.y + sin(a2) * size))
+        p.closeSubpath()
+        return p
+    }
+}
+
+#Preview("Loop flows") {
+    VStack(spacing: 16) {
+        ForEach(LoopKind.allCases) { k in
+            LoopKindFlowDiagram(kind: k).frame(height: 140)
+        }
+    }
+    .padding()
+    .frame(width: 480)
+    .environment(AppModel())
+}
