@@ -72,6 +72,11 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
     /// Whether the app can actually *run* a chat on this provider today.
     var isExecutable: Bool { self == .claude }
 
+    /// Whether this provider's CLI streams structured file-edit / command events that
+    /// Code Mode (diffs, terminal, git panel) can render. Only Claude Code does today;
+    /// gating on this keeps the code workspace honest until Codex/Gemini catch up.
+    var supportsCodeMode: Bool { self == .claude }
+
     /// The npm package the app installs to get this provider's CLI (login-based).
     var npmPackage: String {
         switch self {

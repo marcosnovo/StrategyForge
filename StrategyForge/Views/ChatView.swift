@@ -628,8 +628,11 @@ struct ChatView: View {
         .fixedSize()
     }
 
-    /// Code mode is offered only when the chat targets a real folder on disk.
-    private var codeModeEligible: Bool { !(config.repoPath ?? "").isEmpty }
+    /// Code mode is offered only when the chat targets a real folder on disk AND the
+    /// provider streams the file/command events the workspace renders (Claude today).
+    private var codeModeEligible: Bool {
+        !(config.repoPath ?? "").isEmpty && config.provider.supportsCodeMode
+    }
 
     private func copyToClipboard(_ text: String) {
         NSPasteboard.general.clearContents()
