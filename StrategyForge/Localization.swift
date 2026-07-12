@@ -705,6 +705,8 @@ enum L10n {
         "code.branch.create": ("Create", "Crear"),
         "code.branch.placeholder": ("feature/my-change", "feature/mi-cambio"),
         "code.branch.none": ("branch", "rama"),
+        "code.stage": ("Stage for commit", "Preparar para commit"),
+        "code.unstage": ("Unstage", "Quitar de preparado"),
         "chat.connectRepo": ("Connect a folder", "Conectar carpeta"),
         "chat.connectRepo.help": ("Bind a project folder so the agent can read and edit files (Code mode).",
                                   "Vincula una carpeta de proyecto para que el agente lea y edite archivos (modo código)."),

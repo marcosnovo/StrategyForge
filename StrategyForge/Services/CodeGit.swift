@@ -79,6 +79,27 @@ enum CodeGit {
     nonisolated static func stage(repo: String, file: String) async -> Bool {
         await runGit(repo, ["add", "--", file])
     }
+    /// Unstage a file (git restore --staged file).
+    nonisolated static func unstage(repo: String, file: String) async -> Bool {
+        await runGit(repo, ["restore", "--staged", "--", file])
+    }
+    /// The set of currently-staged files, as ABSOLUTE paths (to match editedFiles).
+    nonisolated static func stagedFiles(repo: String) async -> Set<String> {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return [] }
+            let r = runResult(git, ["-C", repo, "diff", "--cached", "--name-only"])
+            guard r.ok else { return [] }
+            return Set(r.out.split(separator: "\n")
+                .map { (repo as NSString).appendingPathComponent(String($0)) })
+        }.value
+    }
+    /// Commit only what's already staged (no `add -A`).
+    nonisolated static func commitStaged(repo: String, message: String) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, "git not found") }
+            return runResult(git, ["-C", repo, "commit", "-m", message])
+        }.value
+    }
     /// Stage everything and commit. Returns combined output (for error surfacing).
     nonisolated static func commit(repo: String, message: String) async -> (ok: Bool, out: String) {
         await Task.detached(priority: .userInitiated) {

@@ -36,6 +36,8 @@ struct CodeModeView: View {
     @State private var branches: [String] = []
     @State private var showNewBranch = false
     @State private var newBranchName = ""
+    // Per-file staging (absolute paths, matching editedFiles)
+    @State private var staged: Set<String> = []
 
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
@@ -53,6 +55,7 @@ struct CodeModeView: View {
         .onAppear {
             if selected == nil { selected = files.first }
             Task { await loadDiff() }
+            Task { await loadStaged() }
             Task {
                 if let repo = vm.config.repoPath {
                     branch = await CodeGit.currentBranch(repo: repo)
@@ -94,14 +97,22 @@ struct CodeModeView: View {
     private func performStage() {
         guard let file = selected, let repo = vm.config.repoPath else { return }
         gitBusy = true
-        Task { _ = await CodeGit.stage(repo: repo, file: file); gitBusy = false }
+        Task {
+            _ = await CodeGit.stage(repo: repo, file: file)
+            staged = await CodeGit.stagedFiles(repo: repo)
+            gitBusy = false
+        }
     }
     private func performCommit() {
         guard let repo = vm.config.repoPath, !commitMessage.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         gitBusy = true; gitError = nil
         Task {
-            let r = await CodeGit.commit(repo: repo, message: commitMessage)
+            // If the user staged specific files, commit only those; otherwise commit
+            // everything (the default one-shot flow).
+            let r = staged.isEmpty ? await CodeGit.commit(repo: repo, message: commitMessage)
+                                   : await CodeGit.commitStaged(repo: repo, message: commitMessage)
             if r.ok { commitMessage = ""; await loadDiff() } else { gitError = r.out }
+            staged = await CodeGit.stagedFiles(repo: repo)
             branch = await CodeGit.currentBranch(repo: repo)
             gitBusy = false
         }
@@ -153,20 +164,47 @@ struct CodeModeView: View {
 
     private func fileRow(_ path: String) -> some View {
         let isSel = selected == path
-        return Button { selected = path } label: {
-            HStack(spacing: Space.s) {
-                Image(systemName: icon(for: path)).font(.system(size: 11))
-                    .foregroundStyle(isSel ? Theme.accent : .secondary).frame(width: 16)
-                Text((path as NSString).lastPathComponent)
-                    .font(.sfCaption2.weight(isSel ? .semibold : .regular))
-                    .foregroundStyle(isSel ? .primary : .secondary).lineLimit(1).truncationMode(.middle)
-                Spacer(minLength: 0)
+        let isStaged = staged.contains(path)
+        return HStack(spacing: 4) {
+            // Checkbox: stage / unstage this file for a selective commit.
+            if isRepo {
+                Button { toggleStage(path) } label: {
+                    Image(systemName: isStaged ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(isStaged ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.tertiary))
+                }
+                .buttonStyle(.plain)
+                .help(model.t(isStaged ? "code.unstage" : "code.stage"))
             }
-            .padding(.horizontal, Space.s).padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 7).fill(isSel ? Theme.accentSoft : .clear))
-            .contentShape(Rectangle())
+            Button { selected = path } label: {
+                HStack(spacing: Space.s) {
+                    Image(systemName: icon(for: path)).font(.system(size: 11))
+                        .foregroundStyle(isSel ? Theme.accent : .secondary).frame(width: 16)
+                    Text((path as NSString).lastPathComponent)
+                        .font(.sfCaption2.weight(isSel ? .semibold : .regular))
+                        .foregroundStyle(isSel ? .primary : .secondary).lineLimit(1).truncationMode(.middle)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, Space.s).padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 7).fill(isSel ? Theme.accentSoft : .clear))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+    }
+
+    private func toggleStage(_ path: String) {
+        guard let repo = vm.config.repoPath else { return }
+        Task {
+            if staged.contains(path) { _ = await CodeGit.unstage(repo: repo, file: path) }
+            else { _ = await CodeGit.stage(repo: repo, file: path) }
+            staged = await CodeGit.stagedFiles(repo: repo)
+        }
+    }
+
+    private func loadStaged() async {
+        guard let repo = vm.config.repoPath else { staged = []; return }
+        staged = await CodeGit.stagedFiles(repo: repo)
     }
 
     private var emptyFiles: some View {
@@ -390,7 +428,7 @@ struct CodeModeView: View {
             let title = (commitMessage.isEmpty ? draftMessage() : commitMessage)
             let pr = await GitHubCLI.createPR(repo: repo,
                                               title: title.isEmpty ? "Update" : title,
-                                              body: model.t("code.pr.body"))
+                                              body: prBody())
             if pr.ok {
                 prURL = pr.url
                 model.flashSuccess(model.t("code.pr.opened"))
@@ -399,6 +437,15 @@ struct CodeModeView: View {
             }
             pushing = false
         }
+    }
+
+    /// Draft the PR body from the agent's last summary (best effort), with a footer.
+    private func prBody() -> String {
+        let summary = (vm.messages.last(where: { $0.role == .assistant })?.text ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let capped = summary.count > 1200 ? String(summary.prefix(1200)) + "…" : summary
+        let footer = "\n\n— " + model.t("code.pr.body")
+        return capped.isEmpty ? model.t("code.pr.body") : capped + footer
     }
 
     /// Draft a commit message from the agent's last reply (editable by the user).
