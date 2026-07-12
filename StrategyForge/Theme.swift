@@ -110,6 +110,10 @@ enum Theme {
         dark:  Color(red: 1.000, green: 0.361, blue: 0.424))   // #FF5C6C
 
     // MARK: Metrics — softer, more rounded (reference-style)
+    /// Top inset for column headers so their content clears the floating traffic
+    /// lights / hidden titlebar (content fills to the window edge; this pushes the
+    /// header text down to a comfortable toolbar height instead of the very edge).
+    static let titlebarInset: CGFloat = 30
     static let corner: CGFloat = 18
     static let innerCorner: CGFloat = 14
     /// Chat message bubble radius.

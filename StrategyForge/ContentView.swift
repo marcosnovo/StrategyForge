@@ -173,6 +173,10 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 720, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
+        // Fill UNDER the hidden titlebar so there's no empty band at the very top —
+        // the columns paint to the window's edge; the nav rail's own top padding still
+        // clears the floating traffic lights.
+        .ignoresSafeArea(.container, edges: .top)
         .background(hazeBackground)
         // App-wide banner so success/errors surface anywhere, not just the editor.
         .bannerOverlay()

@@ -20,9 +20,13 @@ struct CodeLauncherView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
                 hero
-                cloneCard
-                pickCard
                 if !lastRepo.isEmpty, FileManager.default.fileExists(atPath: lastRepo) { resumeCard }
+                // Open a LOCAL folder first — that's the Claude-Code habit (work on a
+                // checkout you already have, nothing is cloned). Clone is the shortcut
+                // for when you don't have it locally yet.
+                pickCard
+                cloneCard
+                credentialsNote
                 if !CodeGit.isAvailable { gitMissingNote }
             }
             .frame(maxWidth: 640)
@@ -115,6 +119,13 @@ struct CodeLauncherView: View {
         }
         .buttonStyle(.plain)
         .card()
+    }
+
+    /// Clarify that there's no in-app GitHub login — it uses the user's own creds.
+    private var credentialsNote: some View {
+        Label(model.t("code.credsNote"), systemImage: "info.circle")
+            .font(.sfCaption2).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var gitMissingNote: some View {

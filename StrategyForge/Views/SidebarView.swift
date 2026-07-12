@@ -212,7 +212,7 @@ struct SidebarView: View {
             .accessibilityLabel(model.t("sidebar.new"))
         }
         .padding(.horizontal, Space.m)
-        .padding(.top, Space.m).padding(.bottom, Space.s)
+        .padding(.top, Theme.titlebarInset).padding(.bottom, Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial)
         .zoomWindowOnDoubleClick()

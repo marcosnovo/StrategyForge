@@ -567,7 +567,7 @@ struct ChatView: View {
             .help(model.t("inspector.toggle"))
             .accessibilityLabel(model.t("chat.settings"))
         }
-        .padding(Space.m)
+        .padding(.horizontal, Space.m).padding(.bottom, Space.m).padding(.top, Theme.titlebarInset)
         .background {
             Rectangle().fill(.bar)
                 .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
