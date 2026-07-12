@@ -406,6 +406,47 @@ struct Particle3DSpinner: View {
     }
 }
 
+// MARK: - Wave dot grid
+
+/// A grid of dots that stretch vertically in a diagonal travelling wave — at each
+/// crest the dots elongate and merge into little bars, then relax back to dots. A
+/// calm, hypnotic "processing" loop (inspired by the reference clip).
+struct WaveDotGrid: View {
+    var size: CGFloat = 40
+    var color: Color = Theme.accent
+    var cols: Int = 4
+    var rows: Int = 4
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { tl in
+            let t = reduceMotion ? 0 : tl.date.timeIntervalSinceReferenceDate
+            Canvas { ctx, sz in
+                let pad = sz.width * 0.14
+                let cw = (sz.width - pad * 2) / CGFloat(cols)
+                let ch = (sz.height - pad * 2) / CGFloat(rows)
+                let base = min(cw, ch) * 0.34
+                for r in 0..<rows {
+                    for c in 0..<cols {
+                        let cx = pad + (CGFloat(c) + 0.5) * cw
+                        let cy = pad + (CGFloat(r) + 0.5) * ch
+                        // Diagonal wave: later rows/cols lag, so the crest sweeps across.
+                        let phase = t * 2.3 - (Double(r) * 0.5 + Double(c) * 0.85)
+                        let amp = (sin(phase) + 1) / 2                     // 0…1
+                        let h = base * 2 * (0.55 + 1.5 * amp)             // vertical stretch → merge at crest
+                        let w = base * 2 * (0.9 + 0.15 * amp)
+                        let rect = CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
+                        ctx.fill(Path(roundedRect: rect, cornerRadius: w / 2),
+                                 with: .color(color.opacity(0.28 + 0.62 * amp)))
+                    }
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Coral "thinking" spinner (the brand mark, built from dots)
 
 /// The app's signature "alive / thinking" indicator: the branching-coral logo drawn
@@ -552,6 +593,9 @@ struct ParticleLabView: View {
                     }
                     demo("CometSpinner", "Orbiting head + fading trail") {
                         sizes { CometSpinner(size: $0) }
+                    }
+                    demo("WaveDotGrid", "Dots stretch + merge in a diagonal wave") {
+                        sizes { WaveDotGrid(size: $0) }
                     }
                     demo("WorkingLogo", "The shared 'working' indicator") {
                         sizes { WorkingLogo(size: $0) }
