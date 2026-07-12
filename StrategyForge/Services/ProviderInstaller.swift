@@ -25,6 +25,7 @@ enum ConnectEvent: Sendable, Equatable {
     case log(String)
     case url(String)         // the sign-in URL to open
     case needsNode
+    case needsTerminal       // this CLI's login must be finished in Terminal
     case failed(String)
     case done
 }
@@ -167,8 +168,16 @@ enum ProviderInstaller {
                     }
                     guard installOK else { continuation.yield(.failed("Install did not finish")); continuation.finish(); return }
                 }
-                // 2. Web sign-in.
+                // 2. Sign-in. Providers whose login is an interactive TUI (Gemini)
+                // can't be driven headlessly — hand off to Terminal instead of running
+                // a subprocess that would just exit with a nonzero code.
                 continuation.yield(.phase(.signingIn))
+                if provider.loginNeedsTerminal {
+                    await MainActor.run { launchSignIn(provider) }
+                    continuation.yield(.needsTerminal)
+                    continuation.finish()
+                    return
+                }
                 for await ev in signIn(provider) {
                     switch ev {
                     case .log(let l):

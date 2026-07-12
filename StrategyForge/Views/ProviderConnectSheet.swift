@@ -17,7 +17,7 @@ struct ProviderConnectSheet: View {
     /// Called after a successful connect so the caller can re-detect.
     var onConnected: () -> Void = {}
 
-    enum Phase: Equatable { case installing, signingIn, done, failed(String) }
+    enum Phase: Equatable { case installing, signingIn, terminal, done, failed(String) }
     @State private var phase: Phase = .installing
     @State private var log: [String] = []
     @State private var url: String?
@@ -40,6 +40,10 @@ struct ProviderConnectSheet: View {
                     Label(model.t("provider.signin.openPage"), systemImage: "arrow.up.forward.app")
                 }
                 .buttonStyle(.moon)
+            }
+            if phase == .terminal {
+                Button(model.t("provider.signin.terminal")) { ProviderInstaller.launchSignIn(provider) }
+                    .buttonStyle(.moon)
             }
             if case .failed = phase {
                 Button(model.t("provider.signin.terminal")) { ProviderInstaller.launchSignIn(provider) }
@@ -74,7 +78,7 @@ struct ProviderConnectSheet: View {
                      state: phase == .installing ? .active : .done)
             Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(.tertiary)
             stepPill(2, model.t("provider.connect.step.signin"),
-                     state: phase == .signingIn ? .active : (phase == .done ? .done : .pending))
+                     state: (phase == .signingIn || phase == .terminal) ? .active : (phase == .done ? .done : .pending))
         }
     }
 
@@ -102,6 +106,9 @@ struct ProviderConnectSheet: View {
         case .signingIn:
             Label(model.t("provider.signin.waiting"), systemImage: "safari")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        case .terminal:
+            Label(model.t("provider.signin.terminalNote"), systemImage: "terminal")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         case .done:
             Label(model.t("provider.connect.done"), systemImage: "checkmark.circle.fill")
                 .font(.callout).foregroundStyle(Theme.success)
@@ -118,6 +125,7 @@ struct ProviderConnectSheet: View {
             case .log(let l): log.append(l)
             case .url(let u): url = u
             case .needsNode: phase = .failed(model.t("provider.needsNode"))
+            case .needsTerminal: phase = .terminal
             case .failed(let m): phase = .failed(m)
             case .done: phase = .done; onConnected()
             }

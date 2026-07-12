@@ -397,6 +397,8 @@ enum L10n {
         "provider.signin.openPage": ("Open sign-in page", "Abrir página de inicio de sesión"),
         "provider.signin.done": ("Signed in", "Sesión iniciada"),
         "provider.signin.terminal": ("Open in Terminal instead", "Abrir en Terminal"),
+        "provider.signin.terminalNote": ("This CLI signs in from the Terminal. We opened a window — follow the steps there, then come back and press Done.",
+                                         "Este CLI inicia sesión desde el Terminal. Hemos abierto una ventana — sigue los pasos ahí, vuelve y pulsa Hecho."),
         "provider.connect.title": ("Connect %@", "Conectar %@"),
         "provider.connect.step.install": ("Install", "Instalar"),
         "provider.connect.step.signin": ("Sign in", "Iniciar sesión"),
@@ -442,6 +444,9 @@ enum L10n {
                                        "Cuándo el orquestador debe pasarle trabajo a este asistente. Sé específico y orientado a la acción: esto es lo que dispara la delegación."),
 
         "field.model": ("Model", "Modelo"),
+        "field.aiProvider": ("AI Provider", "Proveedor de IA"),
+        "glossary.aiProvider": ("Choose which AI runs this agent. Every agent can use a different one — mix Claude, ChatGPT and Gemini in one team.",
+                                "Elige qué IA ejecuta este agente. Cada agente puede usar una distinta: mezcla Claude, ChatGPT y Gemini en un equipo."),
         "field.instances": ("Instances", "Instancias"),
         "field.tools": ("Tools", "Herramientas"),
         "field.name": ("Name", "Nombre"),

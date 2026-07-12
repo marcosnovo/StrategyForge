@@ -115,7 +115,7 @@ struct RoleEditorForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            modelField
+            aiChoiceCard
             HStack(alignment: .bottom, spacing: 16) {
                 labeled("field.instances") { countStepper }
                 labeled("field.tools") { toolsMenu }
@@ -158,65 +158,98 @@ struct RoleEditorForm: View {
         }
     }
 
-    /// Model picker + a capability-tier hint, separate from Claude Code's runtime
-    /// effort setting.
-    private var modelField: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 4) {
-                FieldLabel(text: model.t("field.model"))
-                InfoPopoverButton(text: model.t("glossary.modelEffort"))
-                Spacer()
-                providerMenu
+    /// The heart of the panel: WHICH AI (the provider) and HOW SMART (the model),
+    /// wrapped in ONE inset card so they read as a single, obvious decision —
+    /// "pick the AI, then pick how powerful it is."
+    private var aiChoiceCard: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            // 1. WHICH AI — a visible row of provider cards (was a tiny corner menu).
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    FieldLabel(text: model.t("field.aiProvider"))
+                    InfoPopoverButton(text: model.t("glossary.aiProvider"))
+                    Spacer()
+                }
+                aiProviderRow
             }
-            if role.provider == .claude {
-                modelGrid
-                if let noteKey = role.model.safeguardNoteKey {
-                    Label(model.t(noteKey), systemImage: "info.circle")
-                        .font(.sfCaption2).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            // 2. HOW SMART — the model tier grid for the chosen provider.
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    FieldLabel(text: model.t("field.model"))
+                    InfoPopoverButton(text: model.t("glossary.modelEffort"))
+                    Spacer()
                 }
-            } else {
-                providerModelGrid
-                if !role.provider.isExecutable {
-                    Label(model.t("provider.soon.note"), systemImage: "clock")
-                        .font(.sfCaption2).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                if role.provider == .claude {
+                    modelGrid
+                    if let noteKey = role.model.safeguardNoteKey {
+                        Label(model.t(noteKey), systemImage: "info.circle")
+                            .font(.sfCaption2).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    providerModelGrid
+                    if !role.provider.isExecutable {
+                        Label(model.t("provider.soon.note"), systemImage: "clock")
+                            .font(.sfCaption2).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+            }
+        }
+        .padding(Space.m)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    /// The "which AI" control: one tappable card per provider. This is what enables
+    /// cross-provider "mixes" — each agent can run on a different AI.
+    private var aiProviderRow: some View {
+        HStack(spacing: Space.s) {
+            ForEach(AIProvider.allCases) { p in
+                Button {
+                    if model.isConnected(p) {
+                        role.provider = p
+                        role.providerModelID = p == .claude ? nil : p.models.first?.id
+                    } else {
+                        // Not connected yet — send the user straight to Connect.
+                        model.navSection = .services
+                        model.selectedService = p
+                    }
+                } label: { providerCard(p) }
+                .buttonStyle(.plain)
+                .help(model.isConnected(p) ? p.displayName : model.t("provider.locked"))
             }
         }
     }
 
-    /// Per-role AI back-end — this is what enables cross-provider "mixes".
-    private var providerMenu: some View {
-        Menu {
-            ForEach(AIProvider.allCases) { p in
-                if model.isConnected(p) {
-                    Button {
-                        role.provider = p
-                        role.providerModelID = p == .claude ? nil : p.models.first?.id
-                    } label: {
-                        Label(p.displayName, systemImage: role.provider == p ? "checkmark" : p.icon)
-                    }
-                } else {
-                    Button { model.navSection = .services; model.selectedService = p } label: {
-                        Label("\(p.displayName) — \(model.t("provider.locked"))", systemImage: "lock.fill")
-                    }
+    /// One provider card: brand logo + name, tinted in the provider's color when
+    /// selected. An unconnected provider is dimmed with a lock and, when tapped,
+    /// routes to Connect instead of selecting.
+    private func providerCard(_ p: AIProvider) -> some View {
+        let selected = role.provider == p
+        let connected = model.isConnected(p)
+        return VStack(spacing: 5) {
+            ZStack(alignment: .topTrailing) {
+                ProviderLogo(provider: p, size: 24, templateTint: connected ? p.tint : Theme.inkDim)
+                    .frame(maxWidth: .infinity)
+                if !connected {
+                    Image(systemName: "lock.fill").font(.system(size: 8)).foregroundStyle(Theme.inkDim)
                 }
             }
-            Divider()
-            Button(model.t("provider.manage")) { model.navSection = .services }
-        } label: {
-            HStack(spacing: 3) {
-                // SF Symbol (not ProviderLogo): a Menu label doesn't honor a
-                // resizable image's frame, which rendered the logo huge.
-                Image(systemName: role.provider.icon).font(.system(size: 9))
-                Text(role.provider.displayName).font(.sfCaption2.weight(.semibold))
-            }
-            .foregroundStyle(role.provider.tint)
-            .padding(.horizontal, 8).padding(.vertical, 2)
-            .background(Capsule().fill(role.provider.tint.opacity(0.14)))
+            Text(p.displayName)
+                .font(.sfCaption2.weight(.semibold))
+                .foregroundStyle(selected ? p.tint : .secondary)
+                .lineLimit(1).minimumScaleFactor(0.75)
         }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 9).padding(.horizontal, 6)
+        .opacity(connected ? 1 : 0.6)
+        .background(RoundedRectangle(cornerRadius: 10)
+            .fill(selected ? p.tint.opacity(0.12) : Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .strokeBorder(selected ? p.tint : Theme.hairline, lineWidth: selected ? 1.5 : 1))
+        .contentShape(Rectangle())
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selected)
     }
 
     /// Model grid for a non-Claude provider (writes providerModelID).

@@ -87,7 +87,14 @@ struct TeamView: View {
                 VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                     // Visualize the whole strategy (like the picker), now with room
                     // to breathe — the topology reads at a glance before the cards.
-                    StrategyDiagramView(strategy: strategy, compact: false)
+                    StrategyDiagramView(
+                        strategy: strategy,
+                        compact: false,
+                        onSelectNode: { rid in
+                            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { selectedRoleID = rid }
+                        },
+                        selectedRoleID: selectedRoleID
+                    )
                         .frame(height: StrategyDiagramView.preferredHeight(for: strategy))
                         .frame(maxWidth: .infinity)
                         .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))

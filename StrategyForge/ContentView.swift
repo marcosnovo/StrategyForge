@@ -77,9 +77,12 @@ struct ContentView: View {
                 ServicesListColumn().frame(width: CGFloat(servicesW))
                 ResizableDivider(width: widthBinding($servicesW), range: 200...460)
             } else if model.navSection == .team {
-                // Team section always leads with the team selector (list + empty state).
-                TeamSelectorColumn(selectedID: $model.selectedTeamID).frame(width: CGFloat(teamW))
-                ResizableDivider(width: widthBinding($teamW), range: 220...480)
+                // While configuring a DRAFT (creating), the editor takes the full width —
+                // no team-list column beside it (that squished sliver was the glitch).
+                if model.draftTeamBinding == nil {
+                    TeamSelectorColumn(selectedID: $model.selectedTeamID).frame(width: CGFloat(teamW))
+                    ResizableDivider(width: widthBinding($teamW), range: 220...480)
+                }
             } else if model.navSection == .loops {
                 // Loops section leads with the loop list (mirrors Team).
                 LoopSelectorColumn(store: LoopStore.shared)

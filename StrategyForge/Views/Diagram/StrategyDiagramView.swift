@@ -16,6 +16,8 @@ import SwiftUI
 /// One box in the diagram.
 private struct DiagramNode: Identifiable {
     let id = UUID()
+    /// The team role this box represents, so a tap can select/edit it.
+    var roleID: UUID?
     var title: String
     var model: String
     var subtitle: String?
@@ -122,6 +124,7 @@ private enum DiagramSpecBuilder {
         // Orchestrator (or the single solo agent).
         let orchRole = strategy.orchestrator
         let orchestrator = DiagramNode(
+            roleID: orchRole?.id,
             title: titleCase(orchRole?.name ?? "orchestrator"),
             model: orchRole?.modelDisplayName ?? "—",
             subtitle: t(orchestratorSubtitleKey(strategy)),
@@ -164,6 +167,7 @@ private enum DiagramSpecBuilder {
             let subKey = rightSubtitleKey(box.role.role, strategy: strategy)
             let subtitle: String? = subKey == nil ? nil : t(subKey!)
             let node = DiagramNode(
+                roleID: box.role.id,
                 title: box.title,
                 model: box.role.modelDisplayName,
                 subtitle: subtitle,
@@ -236,6 +240,12 @@ struct StrategyDiagramView: View {
     /// activity panel passes `false` for the compact idle diagram to stay calm and
     /// cheap when many other things move; anything live always animates.
     var ambient: Bool = true
+    /// When set, tapping a node calls this with the role's id — so the diagram
+    /// doubles as a selector: click a box to edit that agent in the detail panel.
+    var onSelectNode: ((UUID) -> Void)? = nil
+    /// The currently-selected role's id — its box gets a highlighted ring so the
+    /// diagram and the detail panel always agree on which agent is being edited.
+    var selectedRoleID: UUID? = nil
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppModel.self) private var model
@@ -251,6 +261,10 @@ struct StrategyDiagramView: View {
             }
             return spec.orchestrator.id
         }()
+        // Which node maps to the role currently open in the detail panel.
+        let selectedNodeID: UUID? = selectedRoleID.flatMap { rid in
+            spec.allNodes.first { $0.roleID == rid }?.id
+        }
 
         // Motion is the diagram's identity: the coral signal dots always drift along
         // the delegation edges (unless the user asked to reduce motion). A live agent
@@ -268,12 +282,16 @@ struct StrategyDiagramView: View {
                     // At rest the halo shouldn't breathe — only the live node pulses.
                     let pulse: CGFloat = isLive ? CGFloat(0.5 + 0.5 * sin(t * 1.7)) : 0.6
                     canvas(spec: spec, palette: palette, activeID: activeID,
-                           time: t, pulse: pulse)
+                           selectedID: selectedNodeID, time: t, pulse: pulse)
                 }
             } else {
-                canvas(spec: spec, palette: palette, activeID: activeID, time: 0, pulse: 0.6)
+                canvas(spec: spec, palette: palette, activeID: activeID,
+                       selectedID: selectedNodeID, time: 0, pulse: 0.6)
             }
         }
+        // Tap a box to select/edit that agent (only when a caller opts in). Sits above
+        // the Canvas as invisible hit targets aligned to the same computed layout.
+        .overlay { tapTargets(spec: spec) }
         .clipShape(RoundedRectangle(cornerRadius: 14))
         // Force a fresh Canvas when the strategy changes so the drawing can never
         // lag behind the picker selection.
@@ -282,16 +300,39 @@ struct StrategyDiagramView: View {
 
     /// One frame of the diagram. Pure drawing from `size`; no GeometryReader.
     private func canvas(spec: DiagramSpec, palette: DiagramPalette, activeID: UUID?,
-                        time t: Double, pulse: CGFloat) -> some View {
+                        selectedID: UUID?, time t: Double, pulse: CGFloat) -> some View {
         Canvas { ctx, size in
             let frames = layout(spec: spec, in: size)
             // No opaque canvas fill, no engineering dot-grid — the diagram sits
             // directly on its card surface for a clean, modern, minimal look.
             drawBackground(spec: spec, frames: frames, size: size, pulse: pulse, ctx: &ctx, palette: palette)
             drawEdges(spec: spec, frames: frames, time: t, ctx: &ctx, palette: palette)
-            drawNodes(spec: spec, frames: frames, pulse: pulse, activeID: activeID, ctx: &ctx, palette: palette)
+            drawNodes(spec: spec, frames: frames, pulse: pulse, activeID: activeID,
+                      selectedID: selectedID, ctx: &ctx, palette: palette)
             if !compact {
                 drawLabels(spec: spec, frames: frames, size: size, ctx: &ctx, palette: palette)
+            }
+        }
+    }
+
+    /// Invisible tap targets over each node, aligned to the same layout the Canvas
+    /// draws, so clicking a box selects that agent. No-op unless `onSelectNode` is set.
+    @ViewBuilder
+    private func tapTargets(spec: DiagramSpec) -> some View {
+        if let onSelectNode {
+            GeometryReader { geo in
+                let frames = layout(spec: spec, in: geo.size)
+                ForEach(spec.allNodes) { node in
+                    if let rect = frames[node.id], let rid = node.roleID {
+                        Rectangle()
+                            .fill(.clear)
+                            .contentShape(Rectangle())
+                            .frame(width: rect.width, height: rect.height)
+                            .position(x: rect.midX, y: rect.midY)
+                            .onTapGesture { onSelectNode(rid) }
+                            .help(node.title)
+                    }
+                }
             }
         }
     }
@@ -446,7 +487,7 @@ struct StrategyDiagramView: View {
 
     // MARK: Nodes (drawn in Canvas)
 
-    private func drawNodes(spec: DiagramSpec, frames: [UUID: CGRect], pulse: CGFloat, activeID: UUID?, ctx: inout GraphicsContext, palette: DiagramPalette) {
+    private func drawNodes(spec: DiagramSpec, frames: [UUID: CGRect], pulse: CGFloat, activeID: UUID?, selectedID: UUID?, ctx: inout GraphicsContext, palette: DiagramPalette) {
         for node in spec.allNodes {
             guard let rect = frames[node.id] else { continue }
             let live = node.id == activeID
@@ -454,6 +495,13 @@ struct StrategyDiagramView: View {
             // A collapsed ×N role is ONE clean box (no messy stacked cards behind it —
             // those overlapped and hid the model text); the count rides a small badge.
             drawBox(rect, node: node, pulse: pulse, live: live, ctx: &ctx, palette: palette)
+
+            // The box open in the detail panel gets a crisp accent selection ring, so
+            // clicking a node and editing it on the right always feel connected.
+            if node.id == selectedID && !live {
+                let ring = Path(roundedRect: rect.insetBy(dx: -2.5, dy: -2.5), cornerRadius: 13)
+                ctx.stroke(ring, with: .color(palette.accent), lineWidth: 2)
+            }
 
             // Text — clipped to the node so long names/models never overflow the box.
             var tctx = ctx
