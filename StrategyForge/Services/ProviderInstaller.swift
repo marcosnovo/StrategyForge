@@ -18,6 +18,17 @@ enum InstallEvent: Sendable, Equatable {
     case failed(String)      // install failed with this message
 }
 
+/// Events for the unified connect flow (install if needed → web sign-in).
+enum ConnectEvent: Sendable, Equatable {
+    enum Step: Sendable, Equatable { case installing, signingIn }
+    case phase(Step)
+    case log(String)
+    case url(String)         // the sign-in URL to open
+    case needsNode
+    case failed(String)
+    case done
+}
+
 enum ProviderInstaller {
 
     /// Install a provider's CLI globally via npm, streaming progress. Runs the
@@ -132,6 +143,43 @@ enum ProviderInstaller {
                 }
                 do { try process.run() }
                 catch { continuation.yield(.failed(error.localizedDescription)); continuation.finish() }
+            }
+        }
+    }
+
+    /// The whole "connect" journey as ONE stream: install the CLI if it's missing
+    /// (silently, to a user-writable prefix), then run the web sign-in — so a single
+    /// Coral flow does everything, no manual Terminal.
+    nonisolated static func connect(_ provider: AIProvider) -> AsyncStream<ConnectEvent> {
+        AsyncStream { continuation in
+            Task.detached {
+                // 1. Install only if the CLI can't be found.
+                if ClaudeRunner.resolveBinary(provider.binaryName) == nil {
+                    continuation.yield(.phase(.installing))
+                    var installOK = false
+                    for await ev in install(provider) {
+                        switch ev {
+                        case .log(let l): continuation.yield(.log(l))
+                        case .needsNode: continuation.yield(.needsNode); continuation.finish(); return
+                        case .failed(let m): continuation.yield(.failed(m)); continuation.finish(); return
+                        case .finished: installOK = true
+                        }
+                    }
+                    guard installOK else { continuation.yield(.failed("Install did not finish")); continuation.finish(); return }
+                }
+                // 2. Web sign-in.
+                continuation.yield(.phase(.signingIn))
+                for await ev in signIn(provider) {
+                    switch ev {
+                    case .log(let l):
+                        continuation.yield(.log(l))
+                        if let u = firstURL(in: l) { continuation.yield(.url(u.absoluteString)) }
+                    case .needsNode: continuation.yield(.needsNode); continuation.finish(); return
+                    case .failed(let m): continuation.yield(.failed(m)); continuation.finish(); return
+                    case .finished: continuation.yield(.done); continuation.finish(); return
+                    }
+                }
+                continuation.finish()
             }
         }
     }

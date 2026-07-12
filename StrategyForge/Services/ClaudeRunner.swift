@@ -301,15 +301,17 @@ enum ClaudeRunner {
         // 2. Ask an interactive login shell (sources ~/.zshrc → nvm/npm/Homebrew).
         if let viaShell = which(name), fm.isExecutableFile(atPath: viaShell) { return viaShell }
 
-        // 3. Fall back to common install locations — ONLY for claude. (These are
-        // claude-specific; using them for codex/gemini falsely resolved to claude.)
-        guard (name as NSString).lastPathComponent == "claude" else { return nil }
+        // 3. Fall back to common install locations by the binary's LEAF name, so a
+        // fresh `npm install -g --prefix ~/.npm-global` is found even when that bin
+        // dir isn't on the login-shell PATH. claude gets a couple of extra spots.
         let home = fm.homeDirectoryForCurrentUser.path
-        let candidates = [
-            "\(home)/.local/bin/claude", "\(home)/.claude/local/claude",
-            "/opt/homebrew/bin/claude", "/usr/local/bin/claude",
-            "\(home)/.npm-global/bin/claude", "\(home)/bin/claude",
+        let leaf = (name as NSString).lastPathComponent
+        var candidates = [
+            "\(home)/.npm-global/bin/\(leaf)",
+            "/opt/homebrew/bin/\(leaf)", "/usr/local/bin/\(leaf)",
+            "\(home)/.local/bin/\(leaf)", "\(home)/bin/\(leaf)",
         ]
+        if leaf == "claude" { candidates.append("\(home)/.claude/local/claude") }
         return candidates.first { fm.isExecutableFile(atPath: $0) }
     }
 
