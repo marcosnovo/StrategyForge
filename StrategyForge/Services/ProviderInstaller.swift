@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import AppKit
 
 enum InstallEvent: Sendable, Equatable {
     case log(String)         // a line of installer output
@@ -82,8 +83,67 @@ enum ProviderInstaller {
         }
     }
 
-    /// Launch the provider's sign-in in Terminal so the browser OAuth completes,
-    /// then the app re-detects the connected CLI.
+    /// Web sign-in WITHOUT a Terminal: run the CLI's login command as a background
+    /// subprocess (it starts a local callback server + opens the browser), stream its
+    /// output, and open the first auth URL it prints ourselves for good measure. The
+    /// process exits when the browser flow completes. Mirrors `install`.
+    nonisolated static func signIn(_ provider: AIProvider) -> AsyncStream<InstallEvent> {
+        AsyncStream { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let parts = provider.loginCommand.split(separator: " ").map(String.init)
+                guard let first = parts.first, let bin = ClaudeRunner.resolveBinary(first) else {
+                    continuation.yield(.failed("Couldn't find the \(provider.binaryName) CLI — install it first."))
+                    continuation.finish(); return
+                }
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: bin)
+                process.arguments = Array(parts.dropFirst())
+                var env = ProcessInfo.processInfo.environment
+                let home = FileManager.default.homeDirectoryForCurrentUser.path
+                let binDir = (bin as NSString).deletingLastPathComponent
+                env["PATH"] = "\(binDir):\(home)/.npm-global/bin:\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+                process.environment = env
+                let out = Pipe(); process.standardOutput = out; process.standardError = out
+                process.standardInput = Pipe()   // never block on a missing TTY
+
+                let buffer = LineAccumulator()
+                var openedURL = false
+                out.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    guard !data.isEmpty else { return }
+                    for line in buffer.append(data) {
+                        continuation.yield(.log(line))
+                        if !openedURL, let url = firstURL(in: line) {
+                            openedURL = true
+                            DispatchQueue.main.async { NSWorkspace.shared.open(url) }
+                        }
+                    }
+                }
+                process.terminationHandler = { proc in
+                    out.fileHandleForReading.readabilityHandler = nil
+                    for line in buffer.drain() { continuation.yield(.log(line)) }
+                    if proc.terminationStatus == 0 { continuation.yield(.finished) }
+                    else { continuation.yield(.failed("Sign-in exited with code \(proc.terminationStatus)")) }
+                    continuation.finish()
+                }
+                continuation.onTermination = { _ in
+                    out.fileHandleForReading.readabilityHandler = nil
+                    if process.isRunning { process.terminate() }
+                }
+                do { try process.run() }
+                catch { continuation.yield(.failed(error.localizedDescription)); continuation.finish() }
+            }
+        }
+    }
+
+    /// The first http(s) URL in a line of CLI output (the OAuth link).
+    static func firstURL(in line: String) -> URL? {
+        guard let r = line.range(of: "https?://[^\\s\"'<>]+", options: .regularExpression) else { return nil }
+        return URL(string: String(line[r]))
+    }
+
+    /// Fallback: launch the provider's sign-in in Terminal (for CLIs whose login needs
+    /// a real TTY), then the app re-detects the connected CLI.
     @MainActor
     static func launchSignIn(_ provider: AIProvider) {
         let cmd = provider.loginCommand

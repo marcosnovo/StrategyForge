@@ -294,9 +294,8 @@ struct ChatView: View {
     /// The inline Advisor card shows only while composing the first message of
     /// a fresh chat — and it displaces the Token Saver banner (never stack two).
     private var advisorCardVisible: Bool {
-        // Not in Code mode — a code session is a single-agent workspace, so a team
-        // recommendation there is off-topic and confusing.
-        !codeMode && vm.messages.isEmpty && !advisorDismissed && !inlineTiers.isEmpty
+        // Integrated identically in Chat AND Code — same full capabilities everywhere.
+        vm.messages.isEmpty && !advisorDismissed && !inlineTiers.isEmpty
     }
 
     /// The currently-selected recommendation option.
@@ -308,7 +307,9 @@ struct ChatView: View {
     /// panel previews the selected option's strategy so the right side shows what's
     /// recommended (not the placeholder default).
     private var advisorPreviewStrategy: Strategy? {
-        guard config.strategyIsAuto, advisorCardVisible else { return nil }
+        // Preview whenever the recommendation card is up (Chat or Code) — not only for
+        // "auto" chats — so the right panel tracks the selection everywhere.
+        guard advisorCardVisible else { return nil }
         return selectedTier?.advice.strategy
     }
 
@@ -699,10 +700,20 @@ struct ChatView: View {
             // then renders no TimelineView at all — free) while the outer
             // opacity fades the last frame out. Static under Reduce Motion.
             .background {
-                AuroraBackground(intensity: vm.messages.isEmpty ? 0.8 : 0)
-                    .opacity(vm.messages.isEmpty ? 1 : 0)
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.45),
-                               value: vm.messages.isEmpty)
+                ZStack {
+                    AuroraBackground(intensity: vm.messages.isEmpty ? 0.8 : 0)
+                    // The Lab's dot field as a full ambient backdrop on the empty
+                    // canvas (fades out when the conversation starts; stilled under
+                    // Reduce Motion). Always mounted to avoid the TimelineView-insert
+                    // hang, gated to zero work by density/opacity when there are messages.
+                    if !reduceMotion {
+                        ParticleField(density: vm.messages.isEmpty ? 120 : 0, reactive: vm.messages.isEmpty)
+                            .opacity(vm.messages.isEmpty ? 0.5 : 0)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .opacity(vm.messages.isEmpty ? 1 : 0)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.45), value: vm.messages.isEmpty)
             }
         }
     }
@@ -808,24 +819,6 @@ struct ChatView: View {
         }
         .padding(.top, Space.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // The Lab's ambient dot field as the empty-chat backdrop — a full, quiet
-        // particle wash behind the whole blank canvas (not just a corner), so an empty
-        // chat feels alive. The transaction guard makes this TimelineView's removal
-        // SNAP when the first message lands (its structural removal must never animate,
-        // see the postmortem comment in `body`).
-        .background {
-            if !reduceMotion {
-                GeometryReader { geo in
-                    ParticleField(density: 110, reactive: true)
-                        .frame(width: max(geo.size.width, geo.size.height) * 1.1,
-                               height: max(geo.size.width, geo.size.height) * 1.1)
-                        .position(x: geo.size.width * 0.62, y: geo.size.height * 0.42)
-                        .opacity(0.28)
-                        .allowsHitTesting(false)
-                        .transaction { $0.animation = nil }
-                }
-            }
-        }
     }
 
     /// The differentiator, front and center on an empty chat: this chat is driven

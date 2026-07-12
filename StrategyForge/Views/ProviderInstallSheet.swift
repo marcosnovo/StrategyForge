@@ -19,6 +19,7 @@ struct ProviderInstallSheet: View {
     enum State: Equatable { case running, needsNode, failed(String), done }
     @SwiftUI.State private var state: State = .running
     @SwiftUI.State private var log: [String] = []
+    @SwiftUI.State private var showSignIn = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
@@ -56,7 +57,7 @@ struct ProviderInstallSheet: View {
             HStack {
                 Spacer()
                 if state == .done {
-                    Button(model.t("provider.signin")) { ProviderInstaller.launchSignIn(provider) }
+                    Button(model.t("provider.signin")) { showSignIn = true }
                         .buttonStyle(.moon)
                 }
                 Button(model.t("common.done")) { dismiss() }
@@ -66,6 +67,9 @@ struct ProviderInstallSheet: View {
         .padding(Space.l)
         .frame(width: 460)
         .task { await run() }
+        .sheet(isPresented: $showSignIn) {
+            ProviderSignInSheet(provider: provider) { onConnected() }
+        }
     }
 
     private func run() async {

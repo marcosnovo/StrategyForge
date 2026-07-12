@@ -67,6 +67,7 @@ struct ProviderConfigView: View {
     @Environment(AppModel.self) private var model
     let provider: AIProvider
     @State private var connecting = false
+    @State private var signingIn = false
     @State private var test: TestState = .idle
 
     private enum TestState: Equatable { case idle, running, ok(String), fail(String) }
@@ -91,6 +92,9 @@ struct ProviderConfigView: View {
         .sheet(isPresented: $connecting) {
             ProviderInstallSheet(provider: provider) { Task { await model.refreshConnectedProviders() } }
         }
+        .sheet(isPresented: $signingIn) {
+            ProviderSignInSheet(provider: provider) { Task { await model.refreshConnectedProviders() } }
+        }
     }
 
     private var header: some View {
@@ -110,8 +114,8 @@ struct ProviderConfigView: View {
                 Label(model.t("provider.connected"), systemImage: "checkmark.circle.fill")
                     .font(.sfCardTitle).foregroundStyle(Theme.success)
                 Spacer()
-                // Already connected — offer a discreet re-auth, not a prompt.
-                Button(model.t("provider.reconnect")) { ProviderInstaller.launchSignIn(provider) }
+                // Already connected — offer a discreet re-auth (web sign-in).
+                Button(model.t("provider.reconnect")) { signingIn = true }
                     .buttonStyle(.plain).font(.sfCaption2).foregroundStyle(.secondary)
             } else {
                 Label(model.t("provider.notFound"), systemImage: "xmark.circle")
