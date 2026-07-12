@@ -97,7 +97,7 @@ struct SettingsView: View {
     private func statusRow(_ label: String, ok: Bool, pending: Bool = false) -> some View {
         LabeledContent(label) {
             if pending {
-                DotSpinner(size: 14)
+                WorkingLogo(size: 14)
             } else {
                 Label(ok ? model.t("settings.code.ready") : model.t("settings.code.missing"),
                       systemImage: ok ? "checkmark.circle.fill" : "xmark.circle")
@@ -127,7 +127,7 @@ struct SettingsView: View {
                             Label(model.t("account.syncNow"), systemImage: "arrow.triangle.2.circlepath")
                         }
                         .disabled(auth.isBusy)
-                        if auth.isBusy { ProgressView().controlSize(.small) }
+                        if auth.isBusy { WorkingLogo(size: 16) }
                         if let msg = auth.lastSyncMessage {
                             Text(msg).font(.caption).foregroundStyle(Theme.success)
                         }

@@ -28,7 +28,7 @@ struct ProviderConnectSheet: View {
                 ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
                 Text(model.t("provider.connect.title", provider.displayName)).font(.sfCardTitle)
                 Spacer()
-                if phase == .installing || phase == .signingIn { DotSpinner(size: 16) }
+                if phase == .installing || phase == .signingIn { WorkingLogo(size: 16) }
             }
 
             steps

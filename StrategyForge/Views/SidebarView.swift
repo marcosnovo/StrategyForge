@@ -162,7 +162,7 @@ struct SidebarView: View {
                         .lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: Space.xs)
                     if model.runningChatIDs.contains(config.id) {
-                        DotSpinner(size: 12)
+                        WorkingLogo(size: 12)
                     } else {
                         Text(config.recency.formatted(.relative(presentation: .named)))
                             .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1).fixedSize()

@@ -115,7 +115,7 @@ struct LoopSelectorColumn: View {
                     .buttonStyle(.borderless)
                     .help(model.t("loop.delete"))
                 } else if store.runningLoopIDs.contains(loop.id) {
-                    DotSpinner(size: 12)
+                    WorkingLogo(size: 12)
                 } else {
                     Text(model.t("loop.list.turns", loop.maxTurns))
                         .font(.sfCaption2).monospacedDigit()

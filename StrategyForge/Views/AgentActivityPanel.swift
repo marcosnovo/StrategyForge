@@ -182,7 +182,7 @@ struct AgentActivityPanel: View {
                 Spacer()
                 if vm.isRunning {
                     HStack(spacing: 4) {
-                        DotSpinner(size: 11)
+                        WorkingLogo(size: 12, color: Theme.success)
                         Text(model.t("activity.usage.live")).font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(Theme.success)
                     }

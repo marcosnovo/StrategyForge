@@ -28,7 +28,7 @@ struct ProviderSignInSheet: View {
                 ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
                 Text(model.t("provider.signin.title", provider.displayName)).font(.sfCardTitle)
                 Spacer()
-                if phase == .running { DotSpinner(size: 16) }
+                if phase == .running { WorkingLogo(size: 16) }
             }
 
             switch phase {

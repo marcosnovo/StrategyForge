@@ -150,7 +150,7 @@ struct ProviderConfigView: View {
                 Button {
                     runTest()
                 } label: {
-                    if test == .running { DotSpinner(size: 16) }
+                    if test == .running { WorkingLogo(size: 16) }
                     else { Text(model.t("provider.test.run")) }
                 }
                 .buttonStyle(.bordered).controlSize(.small)

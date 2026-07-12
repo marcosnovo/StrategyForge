@@ -72,7 +72,7 @@ struct ConnectedServicesSection: View {
     private func statusBadge(_ provider: AIProvider) -> some View {
         switch status[provider] ?? .checking {
         case .checking:
-            HStack(spacing: 4) { DotSpinner(size: 16); Text(model.t("provider.checking")).font(.caption) }
+            HStack(spacing: 4) { WorkingLogo(size: 16); Text(model.t("provider.checking")).font(.caption) }
                 .foregroundStyle(.secondary)
         case .found:
             Label(model.t("provider.connected"), systemImage: "checkmark.circle.fill")
@@ -125,7 +125,7 @@ struct ConnectedServicesSection: View {
                 ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
                 Text(model.t("provider.installing", provider.displayName)).font(.sfCardTitle)
                 Spacer()
-                if installState == .running { DotSpinner(size: 16) }
+                if installState == .running { WorkingLogo(size: 16) }
             }
 
             switch installState {

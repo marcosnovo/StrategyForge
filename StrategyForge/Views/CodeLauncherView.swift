@@ -65,7 +65,7 @@ struct CodeLauncherView: View {
                     .onSubmit(clone)
                 Button(action: clone) {
                     if cloning {
-                        HStack(spacing: Space.s) { DotSpinner(size: 15, color: Theme.onAccent); Text(model.t("code.cloning")) }
+                        HStack(spacing: Space.s) { WorkingLogo(size: 15, color: Theme.onAccent); Text(model.t("code.cloning")) }
                     } else {
                         Label(model.t("code.clone.action"), systemImage: "arrow.down.circle")
                     }

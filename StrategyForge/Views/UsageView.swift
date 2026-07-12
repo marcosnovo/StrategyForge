@@ -150,7 +150,7 @@ struct UsageView: View {
 
     private var loadingCard: some View {
         HStack(spacing: Space.s) {
-            DotSpinner(size: 16)
+            WorkingLogo(size: 16)
             Text(model.t("usage.loading")).font(.sfCallout).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .center).padding(Space.l)

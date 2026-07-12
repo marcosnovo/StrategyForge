@@ -87,7 +87,7 @@ struct AdvisorView: View {
                 } label: {
                     if thinking {
                         HStack(spacing: Space.s) {
-                            DotSpinner(size: 15, color: Theme.onAccent)
+                            WorkingLogo(size: 15, color: Theme.onAccent)
                             Text(model.t("advisor.thinking"))
                         }
                     } else {
