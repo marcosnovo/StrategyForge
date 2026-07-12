@@ -32,6 +32,10 @@ struct CodeModeView: View {
     // Push & PR
     @State private var pushing = false
     @State private var prURL: String?
+    // Branch switching
+    @State private var branches: [String] = []
+    @State private var showNewBranch = false
+    @State private var newBranchName = ""
 
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
@@ -49,7 +53,12 @@ struct CodeModeView: View {
         .onAppear {
             if selected == nil { selected = files.first }
             Task { await loadDiff() }
-            Task { if let repo = vm.config.repoPath { branch = await CodeGit.currentBranch(repo: repo) } }
+            Task {
+                if let repo = vm.config.repoPath {
+                    branch = await CodeGit.currentBranch(repo: repo)
+                    branches = await CodeGit.branches(repo: repo)
+                }
+            }
         }
         .onChange(of: vm.editedFiles) { _, new in
             if selected == nil || !(new.contains(selected ?? "")) { selected = new.first }
@@ -62,6 +71,11 @@ struct CodeModeView: View {
         .confirmationDialog(model.t("code.commitConfirm"), isPresented: $confirmCommit, titleVisibility: .visible) {
             Button(model.t("code.commit")) { performCommit() }
             Button(model.t("common.cancel"), role: .cancel) {}
+        }
+        .alert(model.t("code.branch.new"), isPresented: $showNewBranch) {
+            TextField(model.t("code.branch.placeholder"), text: $newBranchName)
+            Button(model.t("common.cancel"), role: .cancel) {}
+            Button(model.t("code.branch.create")) { createNewBranch() }
         }
     }
 
@@ -119,13 +133,7 @@ struct CodeModeView: View {
                         Text("\(files.count)").font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
                     }
                 }
-                if let branch {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.branch").font(.system(size: 9))
-                        Text(branch).font(.sfCaption2.weight(.medium)).lineLimit(1)
-                    }
-                    .foregroundStyle(Theme.accent)
-                }
+                if isRepo { branchMenu }
             }
             .padding(Space.m)
             Divider()
@@ -322,6 +330,54 @@ struct CodeModeView: View {
         }
         .background(.bar)
         .onAppear { if commitMessage.isEmpty { commitMessage = draftMessage() } }
+    }
+
+    // MARK: Branch switcher
+
+    /// A dropdown to switch branches or create a new one (git blocks a switch with a
+    /// dirty tree, so this can't silently lose work).
+    private var branchMenu: some View {
+        Menu {
+            ForEach(branches, id: \.self) { b in
+                Button { switchBranch(b) } label: {
+                    Label(b, systemImage: b == branch ? "checkmark" : "arrow.triangle.branch")
+                }
+            }
+            if !branches.isEmpty { Divider() }
+            Button { newBranchName = ""; showNewBranch = true } label: {
+                Label(model.t("code.branch.new"), systemImage: "plus")
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.triangle.branch").font(.system(size: 9))
+                Text(branch ?? model.t("code.branch.none")).font(.sfCaption2.weight(.medium)).lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 7))
+            }
+            .foregroundStyle(Theme.accent)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .disabled(gitBusy || pushing)
+    }
+
+    private func switchBranch(_ b: String) {
+        guard b != branch, let repo = vm.config.repoPath else { return }
+        gitBusy = true; gitError = nil
+        Task {
+            let r = await CodeGit.checkout(repo: repo, branch: b)
+            if r.ok { branch = b; await loadDiff() } else { gitError = r.out }
+            gitBusy = false
+        }
+    }
+
+    private func createNewBranch() {
+        let name = newBranchName.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: " ", with: "-")
+        guard !name.isEmpty, let repo = vm.config.repoPath else { return }
+        gitBusy = true; gitError = nil
+        Task {
+            let r = await CodeGit.createBranch(repo: repo, name: name)
+            if r.ok { branch = name; branches = await CodeGit.branches(repo: repo) } else { gitError = r.out }
+            gitBusy = false
+        }
     }
 
     /// Push the current branch to origin and open a pull request via `gh`.

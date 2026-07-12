@@ -12,6 +12,8 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(AuthModel.self) private var auth
     @AppStorage(Analytics.enabledKey) private var telemetryEnabled = false
+    /// GitHub CLI auth status for the Code section (nil = still checking).
+    @State private var ghAuthed: Bool?
 
     var body: some View {
         @Bindable var model = model
@@ -43,6 +45,8 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            codeSection
+
             Section(model.t("settings.autonomy.section")) {
                 Picker(model.t("settings.autonomy"), selection: Binding(
                     get: { model.settings.chatAutonomy },
@@ -73,6 +77,35 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 520, height: 620)
         .onDisappear { model.save() }
+    }
+
+    /// Code / GitHub connection readiness: git, gh, and gh auth.
+    private var codeSection: some View {
+        Section(model.t("settings.code")) {
+            statusRow(model.t("settings.code.git"), ok: CodeGit.isAvailable)
+            statusRow(model.t("settings.code.gh"), ok: GitHubCLI.isInstalled)
+            if GitHubCLI.isInstalled {
+                statusRow(model.t("settings.code.ghAuth"), ok: ghAuthed ?? false, pending: ghAuthed == nil)
+            }
+            Text(model.t("settings.code.caption"))
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .task { if GitHubCLI.isInstalled { ghAuthed = await GitHubCLI.isAuthenticated() } }
+    }
+
+    private func statusRow(_ label: String, ok: Bool, pending: Bool = false) -> some View {
+        LabeledContent(label) {
+            if pending {
+                DotSpinner(size: 14)
+            } else {
+                Label(ok ? model.t("settings.code.ready") : model.t("settings.code.missing"),
+                      systemImage: ok ? "checkmark.circle.fill" : "xmark.circle")
+                    .foregroundStyle(ok ? Theme.success : .secondary)
+                    .font(.caption)
+                    .labelStyle(.titleAndIcon)
+            }
+        }
     }
 
     @ViewBuilder
