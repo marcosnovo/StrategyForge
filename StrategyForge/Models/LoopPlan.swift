@@ -27,6 +27,14 @@ enum LoopKind: String, Codable, CaseIterable, Identifiable, Hashable {
     var startsKey: String { "loop.kind.\(rawValue).starts" }
     /// Localization key for "when it stops repeating".
     var untilKey: String { "loop.kind.\(rawValue).until" }
+    /// Legend rows (Start / Trigger / Rule / Stop) — the shared spec-sheet skeleton
+    /// that makes each kind's purpose unmistakable.
+    var legendStartKey: String { "loop.kind.\(rawValue).legend.start" }
+    var legendTriggerKey: String { "loop.kind.\(rawValue).legend.trigger" }
+    var legendRuleKey: String { "loop.kind.\(rawValue).legend.rule" }
+    var legendStopKey: String { "loop.kind.\(rawValue).legend.stop" }
+    /// Honest cadence footer key (uses the plan's real maxTurns / intervalMinutes).
+    var cadenceKey: String { "loop.cadence.\(rawValue)" }
 
     /// The cycle spelled out — a literal, not localized: it names the stages the
     /// same way the generated files and the diagram do.

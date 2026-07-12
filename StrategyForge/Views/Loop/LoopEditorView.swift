@@ -96,41 +96,74 @@ struct LoopEditorView: View {
                     kindCell(kind).staggeredAppear(index: index)
                 }
             }
-            // A plain-language explainer of the chosen type: who starts it, when it
-            // stops repeating, and what it's best for.
-            kindFacts
+            // A spec-sheet legend that makes the chosen type's PURPOSE unmistakable:
+            // Start / Trigger / Rule / Stop (color-coded, stable key) + Best for +
+            // an honest cadence footer tied to the plan's real numbers.
+            kindLegend
                 .id(plan.kind)
                 .transition(.opacity)
         }
         .card()
     }
 
-    /// Three concise facts that make the selected loop type self-explanatory.
-    private var kindFacts: some View {
+    /// The Start / Trigger / Rule / Stop legend (poster-style), color-coded so the
+    /// eyebrow column reads as a stable key across all four loop types.
+    private var kindLegend: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            kindFact("play.circle.fill", model.t("loop.explain.starts"),
-                     model.t(plan.kind.startsKey), Theme.accent)
+            legendRow(Theme.accent, model.t("loop.legend.start"), model.t(plan.kind.legendStartKey))
             Divider()
-            kindFact("flag.checkered", model.t("loop.explain.until"),
-                     model.t(plan.kind.untilKey), Theme.success)
+            legendRow(Theme.teal, model.t("loop.legend.trigger"), model.t(plan.kind.legendTriggerKey))
             Divider()
-            kindFact("sparkles", model.t("loop.explain.bestFor"),
-                     model.t(plan.kind.suitsKey), Theme.accent)
+            legendRow(Theme.warning, model.t("loop.legend.rule"), model.t(plan.kind.legendRuleKey))
+            Divider()
+            legendRow(Theme.success, model.t("loop.legend.stop"), model.t(plan.kind.legendStopKey))
+            Divider()
+            // "Best for" — the when-to-pick answer, muted (no chip).
+            legendRow(nil, model.t("loop.explain.bestFor").uppercased(), model.t(plan.kind.suitsKey),
+                      glyph: "sparkles")
+            cadenceFooter
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
     }
 
-    private func kindFact(_ icon: String, _ label: String, _ text: String, _ tint: Color) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(tint).frame(width: 16)
-            Text(label.uppercased()).font(.sfFieldLabel).foregroundStyle(.secondary)
-                .frame(width: 112, alignment: .leading)
+    /// One legend row: a color chip (or a muted glyph) + a mono-caps eyebrow in a
+    /// fixed column + a one-sentence description.
+    private func legendRow(_ chip: Color?, _ eyebrow: String, _ text: String,
+                           glyph: String? = nil) -> some View {
+        HStack(alignment: .top, spacing: Space.s) {
+            Group {
+                if let chip {
+                    RoundedRectangle(cornerRadius: 2).fill(chip).frame(width: 10, height: 10)
+                } else if let glyph {
+                    Image(systemName: glyph).font(.system(size: 10)).foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 12, alignment: .leading)
+            .padding(.top, 2)
+            Text(eyebrow).font(.sfFieldLabel).foregroundStyle(.secondary)
+                .frame(width: 92, alignment: .leading)
             Text(text).font(.sfCaption2).foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// The honest cadence for this type, using the plan's real maxTurns / interval.
+    private var cadenceFooter: some View {
+        let text: String
+        switch plan.kind {
+        case .turnBased: text = model.t("loop.cadence.turnBased")
+        case .goalBased: text = model.t("loop.cadence.goalBased", plan.maxTurns)
+        case .timeBased: text = model.t("loop.cadence.timeBased", plan.intervalMinutes)
+        case .proactive: text = model.t("loop.cadence.proactive")
+        }
+        return HStack(spacing: 6) {
+            Image(systemName: "gauge.with.needle").font(.system(size: 10)).foregroundStyle(.tertiary)
+            Text(text).font(.sfCaption2).foregroundStyle(.secondary)
+        }
+        .padding(.top, 2)
     }
 
     private func kindCell(_ kind: LoopKind) -> some View {
@@ -355,8 +388,9 @@ struct LoopEditorView: View {
             SectionHeader("point.3.connected.trianglepath.dotted",
                           model.t("loop.editor.diagram.title"),
                           subtitle: model.t("loop.editor.diagram.subtitle"))
-            LoopKindFlowDiagram(kind: plan.kind)
-                .frame(height: 140)
+            LoopKindFlowDiagram(kind: plan.kind, maxTurns: plan.maxTurns,
+                                intervalMinutes: plan.intervalMinutes)
+                .frame(height: plan.kind == .proactive ? 160 : 140)
                 // Faint, always-mounted wash behind the cycle diagram (static
                 // mount — never animated in/out; see the note in ChatView).
                 .background(

@@ -216,6 +216,9 @@ struct AdvisorView: View {
                 .font(.sfCallout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            // A derived spec-sheet — the same legend skeleton as the loops explainer —
+            // so it's unmistakable what this team is and when to use it.
+            strategyLegend(advice.strategy)
             // Honest source label: Apple Intelligence vs the local deterministic engine.
             Label(model.t(advice.usedAI ? "advisor.source.ai.full" : "advisor.source.local.full"),
                   systemImage: advice.usedAI ? "sparkles" : "cpu")
@@ -223,6 +226,32 @@ struct AdvisorView: View {
                 .foregroundStyle(advice.usedAI ? Theme.accent : .secondary)
         }
         .card()
+    }
+
+    /// Trigger / Rule / Best-for legend derived from the strategy's roles — mirrors
+    /// the loops explainer so Chat and Code read as one system.
+    private func strategyLegend(_ strategy: Strategy) -> some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            legendRow(Theme.teal, model.t("loop.legend.trigger"), model.strategyTriggerLine(strategy))
+            Divider()
+            legendRow(Theme.warning, model.t("loop.legend.rule"), model.strategyTopologyLine(strategy))
+            Divider()
+            legendRow(Theme.success, model.t("loop.explain.bestFor").uppercased(), model.strategyGoodFor(strategy))
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+    }
+
+    private func legendRow(_ chip: Color, _ eyebrow: String, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: Space.s) {
+            RoundedRectangle(cornerRadius: 2).fill(chip).frame(width: 10, height: 10).padding(.top, 2)
+            Text(eyebrow).font(.sfFieldLabel).foregroundStyle(.secondary)
+                .frame(width: 84, alignment: .leading)
+            Text(text).font(.sfCaption2).foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     /// Same visual language as TeamView's cost pill, fed by the advice estimate.

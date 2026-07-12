@@ -41,8 +41,8 @@ extension L10n {
 
         // MARK: Loop kinds
         "loop.kind.turnBased": ("Turn-based", "Por turnos"),
-        "loop.kind.turnBased.blurb": ("You still hold the reins: run as many rounds as you like, then it hands control back to you.",
-                                      "Tú llevas el timón: haz tantas rondas como quieras y luego te devuelve el control."),
+        "loop.kind.turnBased.blurb": ("You decide each round: run it, check it, then say “again” or “stop”.",
+                                      "Tú decides cada ronda: ejecuta, revisa y di «otra vez» o «parar»."),
         "loop.kind.turnBased.suits": ("Exploratory work where you decide the next step each round.",
                                       "Trabajo exploratorio donde tú decides el siguiente paso en cada ronda."),
         "loop.kind.turnBased.starts": ("You — you prompt it each round.",
@@ -50,8 +50,8 @@ extension L10n {
         "loop.kind.turnBased.until": ("You stop, or the turn limit is reached.",
                                       "Tú paras, o se alcanza el límite de turnos."),
         "loop.kind.goalBased": ("Goal loop", "Por objetivo"),
-        "loop.kind.goalBased.blurb": ("You define what “done” means, and it keeps trying until it clears the bar.",
-                                      "Tú defines qué significa «terminado» y sigue intentándolo hasta superar la meta."),
+        "loop.kind.goalBased.blurb": ("You set the goal; an independent verifier checks every attempt and gates the exit.",
+                                      "Tú fijas la meta; un verificador independiente comprueba cada intento y controla la salida."),
         "loop.kind.goalBased.suits": ("Tests-pass or bug-cleared tasks with a checkable finish line.",
                                       "Tareas tipo «los tests pasan» o «bug resuelto», con una meta comprobable."),
         "loop.kind.goalBased.starts": ("A goal you define up front.",
@@ -59,8 +59,8 @@ extension L10n {
         "loop.kind.goalBased.until": ("An independent verifier confirms the goal — or the turn limit hits.",
                                       "Un verificador independiente confirma el objetivo — o se agotan los turnos."),
         "loop.kind.timeBased": ("Scheduled", "Programado"),
-        "loop.kind.timeBased.blurb": ("Fires on a timer — good for things that change on a regular schedule.",
-                                      "Se dispara con un temporizador — ideal para cosas que cambian con regularidad."),
+        "loop.kind.timeBased.blurb": ("Fires on a timer — no human, no goal gate: check, react, wait, repeat.",
+                                      "Se dispara con un temporizador — sin humano ni meta: revisa, reacciona, espera, repite."),
         "loop.kind.timeBased.suits": ("Recurring check-ins — a daily summary, a routine health check.",
                                       "Tareas recurrentes — un resumen diario, una revisión rutinaria de estado."),
         "loop.kind.timeBased.starts": ("A timer — every set interval.",
@@ -68,8 +68,8 @@ extension L10n {
         "loop.kind.timeBased.until": ("You stop it — otherwise it keeps running on schedule.",
                                       "Tú lo paras — si no, sigue ejecutándose según el horario."),
         "loop.kind.proactive": ("Proactive", "Proactivo"),
-        "loop.kind.proactive.blurb": ("No human writes: it anticipates, processes and reviews tasks as they arrive.",
-                                      "Nadie escribe: anticipa, procesa y revisa las tareas según van llegando."),
+        "loop.kind.proactive.blurb": ("Reacts to outside events, routing each to parallel agents that review the result.",
+                                      "Reacciona a eventos externos, enrutando cada uno a agentes paralelos que revisan el resultado."),
         "loop.kind.proactive.suits": ("Reacting to outside events — a build breaks, new work arrives.",
                                       "Reaccionar a eventos externos — algo se rompe, llega trabajo nuevo."),
         "loop.kind.proactive.starts": ("An outside event fires it.",
@@ -82,6 +82,47 @@ extension L10n {
         "loop.explain.starts": ("Starts with", "Empieza con"),
         "loop.explain.until": ("Repeats until", "Repite hasta"),
         "loop.explain.bestFor": ("Best for", "Ideal para"),
+
+        // MARK: Diagram branch labels
+        "loop.flow.nextRound": ("next round", "otra ronda"),
+        "loop.flow.stop": ("stop", "parar"),
+        "loop.flow.pass": ("Pass", "Pasa"),
+        "loop.flow.fail": ("Fail", "Falla"),
+        "loop.flow.everyMin": ("every %lld min", "cada %lld min"),
+
+        // MARK: Legend eyebrows (shared, mono-caps) + honest cadence footer
+        "loop.legend.start": ("START", "INICIO"),
+        "loop.legend.trigger": ("TRIGGER", "DISPARO"),
+        "loop.legend.rule": ("RULE", "REGLA"),
+        "loop.legend.stop": ("STOP", "PARADA"),
+        "loop.cadence.turnBased": ("You drive — one round at a time.", "Tú marcas el ritmo — una ronda cada vez."),
+        "loop.cadence.goalBased": ("Up to %lld turns, then the brake.", "Hasta %lld turnos, luego el freno."),
+        "loop.cadence.timeBased": ("Runs every %lld min.", "Se ejecuta cada %lld min."),
+        "loop.cadence.proactive": ("Watches continuously.", "Vigila de forma continua."),
+
+        // MARK: Turn-based legend
+        "loop.kind.turnBased.legend.start": ("You — one prompt per round.", "Tú — un prompt por ronda."),
+        "loop.kind.turnBased.legend.trigger": ("Your next prompt.", "Tu siguiente prompt."),
+        "loop.kind.turnBased.legend.rule": ("You decide each round: go again or stop.", "Tú decides cada ronda: seguir o parar."),
+        "loop.kind.turnBased.legend.stop": ("You stop it, or the turn limit hits.", "Tú lo paras, o se alcanza el límite de turnos."),
+
+        // MARK: Goal-based legend
+        "loop.kind.goalBased.legend.start": ("A goal you define up front.", "Un objetivo que defines de antemano."),
+        "loop.kind.goalBased.legend.trigger": ("Each attempt runs, then is judged.", "Cada intento se ejecuta y luego se juzga."),
+        "loop.kind.goalBased.legend.rule": ("An independent verifier gates the exit: Fail → retry, Pass → done.", "Un verificador independiente controla la salida: Falla → reintenta, Pasa → hecho."),
+        "loop.kind.goalBased.legend.stop": ("The verifier confirms the goal — or the turn limit hits.", "El verificador confirma el objetivo — o se agotan los turnos."),
+
+        // MARK: Time-based legend
+        "loop.kind.timeBased.legend.start": ("A timer, on a fixed interval.", "Un temporizador, en un intervalo fijo."),
+        "loop.kind.timeBased.legend.trigger": ("The interval fires it — no human, no goal gate.", "El intervalo lo dispara — sin humano, sin meta."),
+        "loop.kind.timeBased.legend.rule": ("Check, react, wait, repeat on the clock.", "Revisa, reacciona, espera y repite según el reloj."),
+        "loop.kind.timeBased.legend.stop": ("You stop it — otherwise it runs on schedule.", "Tú lo paras — si no, sigue según el horario."),
+
+        // MARK: Proactive legend
+        "loop.kind.proactive.legend.start": ("An outside event arrives.", "Llega un evento externo."),
+        "loop.kind.proactive.legend.trigger": ("Any watched event fires it — no one is online.", "Cualquier evento vigilado lo dispara — nadie está en línea."),
+        "loop.kind.proactive.legend.rule": ("A router fans work out to parallel agents, then reviews.", "Un enrutador reparte el trabajo a agentes en paralelo y luego revisa."),
+        "loop.kind.proactive.legend.stop": ("You stop it — otherwise it watches continuously.", "Tú lo paras — si no, vigila de forma continua."),
 
         // MARK: Diagram stages
         "loop.stage.prompt": ("Prompt", "Prompt"),

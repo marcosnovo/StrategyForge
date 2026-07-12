@@ -232,6 +232,30 @@ final class AppModel {
         return t(key + ".not")
     }
 
+    /// A derived one-line description of HOW a strategy is triggered — the assistant
+    /// explainer's TRIGGER row, mirroring the loops legend so both surfaces feel like
+    /// one system. Pure function over the roles, so it works for custom strategies too.
+    func strategyTriggerLine(_ strategy: Strategy) -> String {
+        let subs = strategy.subagentRoles
+        if subs.isEmpty { return t("strat.trigger.oneShot") }
+        if subs.contains(where: { $0.role == .advisor }) { return t("strat.trigger.everyTurn") }
+        return t("strat.trigger.cycle")
+    }
+
+    /// A derived one-line description of a strategy's TOPOLOGY (the RULE row): what
+    /// shape the team is, named in plain language from the roles.
+    func strategyTopologyLine(_ strategy: Strategy) -> String {
+        let subs = strategy.subagentRoles
+        let total = subs.reduce(0) { $0 + $1.count }
+        if subs.isEmpty { return t("strat.topo.solo") }
+        if subs.contains(where: { $0.role == .advisor }) { return t("strat.topo.advisor") }
+        if subs.contains(where: { $0.role == .planner }) && subs.contains(where: { $0.role == .reviewer }) {
+            return t("strat.topo.plannerReview")
+        }
+        if subs.allSatisfy({ $0.role == .specialist }) { return t("strat.topo.specialists", subs.count) }
+        return t("strat.topo.fanout", total)
+    }
+
     /// A 1-2 word task category ("Debug", "Explore", …) for the strategy chooser.
     func strategyTaskTag(_ strategy: Strategy) -> String {
         guard let key = strategyKey(strategy.name) else { return "" }

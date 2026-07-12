@@ -486,6 +486,16 @@ enum L10n {
         "strat.solo.desc": ("A single agent with no subagents — a baseline to compare cost and quality against multi-agent strategies.",
                             "Un único agente sin subagentes: una base para comparar coste y calidad frente a estrategias multiagente."),
 
+        // MARK: Assistant explainer — derived trigger + topology (mirrors loop legend)
+        "strat.trigger.oneShot": ("One request, one response.", "Una petición, una respuesta."),
+        "strat.trigger.everyTurn": ("An advisor weighs in every turn.", "Un asesor interviene en cada turno."),
+        "strat.trigger.cycle": ("One plan-and-delegate cycle per request.", "Un ciclo de planear y delegar por petición."),
+        "strat.topo.solo": ("One agent handles everything.", "Un solo agente se encarga de todo."),
+        "strat.topo.advisor": ("An executor works; an advisor reviews each turn.", "Un ejecutor trabaja; un asesor revisa cada turno."),
+        "strat.topo.plannerReview": ("Plan → build → review.", "Planea → construye → revisa."),
+        "strat.topo.specialists": ("Routes each task to %lld specialists.", "Enruta cada tarea a %lld especialistas."),
+        "strat.topo.fanout": ("An orchestrator delegates to %lld agents.", "Un orquestador delega en %lld agentes."),
+
         // MARK: Beginner — good-for / not-for + badge
         "strat.badge.beginner": ("Beginner-friendly", "Fácil para empezar"),
         "strat.goodfor": ("Good for", "Ideal para"),

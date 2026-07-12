@@ -148,98 +148,238 @@ struct LoopDiagramView: View {
 
 // MARK: - Horizontal flow (explainer)
 
-/// A left-to-right flow of a loop kind's stages — reads as a *process*, which
-/// explains a loop far better than a ring: a tinted TRIGGER pill on the left,
-/// neutral work stages, a green EXIT pill, and a dashed "repeat" arc curving back
-/// underneath. Static and on-brand (coral wires, Coral tokens); used in the editor
-/// to make each loop type self-explanatory.
+/// Explains a loop kind with a flow diagram whose *topology is distinct per type*,
+/// so its mechanism is unmistakable: turn-based has a human Y/N branch, goal-based a
+/// verifier Pass/Fail gate, time-based a timer cycle, proactive an event fan-in →
+/// router → parallel workers. Static, on-brand (coral trigger, green exit, hairline
+/// structure, dashed loop-backs). Used in the editor's cycle card.
 struct LoopKindFlowDiagram: View {
     let kind: LoopKind
+    /// Real plan values, so the timer arc / brake can show honest numbers.
+    var maxTurns: Int = 20
+    var intervalMinutes: Int = 30
     @Environment(AppModel.self) private var model
 
-    /// Stage labels in flow order (same source as the ring diagram).
-    private var stageKeys: [String] {
+    private var accessibilitySuffix: String {
         switch kind {
-        case .turnBased: return ["loop.stage.prompt", "loop.stage.work", "loop.stage.check", "loop.stage.reply"]
-        case .goalBased: return ["loop.stage.goal", "loop.stage.try", "loop.stage.judge", "loop.stage.done"]
-        case .timeBased: return ["loop.stage.interval", "loop.stage.check", "loop.stage.react", "loop.stage.wait"]
-        case .proactive: return ["loop.stage.event", "loop.stage.route", "loop.stage.work", "loop.stage.review"]
+        case .turnBased: return ", human decides each round"
+        case .goalBased: return ", verifier gates the exit"
+        case .timeBased: return ", fires on a timer"
+        case .proactive: return ", event-driven and parallel"
         }
     }
 
     var body: some View {
-        let labels = stageKeys.map { model.t($0) }
-        let repeatLabel = model.t("loop.flow.repeat")
         Canvas { ctx, size in
-            let n = max(labels.count, 1)
-            let font = Font.system(size: 11, weight: .semibold, design: .monospaced)
-            let resolved = labels.map { ctx.resolve(Text($0).font(font)) }
-            let sizes = resolved.map { $0.measure(in: CGSize(width: 220, height: 40)) }
-            let pillW = sizes.map { $0.width + 22 }
-            let pillH: CGFloat = 30
-            let gap: CGFloat = 24
-            let totalW = pillW.reduce(0, +) + gap * CGFloat(n - 1)
-
-            // Row sits a little above centre so the repeat arc has room below.
-            let y = size.height / 2 - 14
-            var x = max((size.width - totalW) / 2, 8)
-            var rects: [CGRect] = []
-            for i in 0..<n {
-                let rect = CGRect(x: x, y: y - pillH / 2, width: pillW[i], height: pillH)
-                rects.append(rect)
-                x += pillW[i] + gap
-            }
-
-            // Straight coral arrows between consecutive stages.
-            for i in 0..<(n - 1) {
-                let a = CGPoint(x: rects[i].maxX + 3, y: y)
-                let b = CGPoint(x: rects[i + 1].minX - 7, y: y)
-                var p = Path(); p.move(to: a); p.addLine(to: b)
-                ctx.stroke(p, with: .color(Theme.accent.opacity(0.8)),
-                           style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                ctx.fill(head(at: b, angle: 0, size: 6), with: .color(Theme.accent))
-            }
-
-            // Dashed "repeat" arc curving back from the last stage to the trigger.
-            if n >= 2 {
-                let start = CGPoint(x: rects[n - 1].midX, y: rects[n - 1].maxY)
-                let end = CGPoint(x: rects[0].midX, y: rects[0].maxY)
-                let dip = min(rects[0].maxY + 36, size.height - 14)
-                var arc = Path()
-                arc.move(to: start)
-                arc.addCurve(to: end,
-                             control1: CGPoint(x: start.x, y: dip),
-                             control2: CGPoint(x: end.x, y: dip))
-                ctx.stroke(arc, with: .color(Theme.accent.opacity(0.45)),
-                           style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-                ctx.fill(head(at: CGPoint(x: end.x, y: end.y + 1), angle: -.pi / 2, size: 6),
-                         with: .color(Theme.accent.opacity(0.7)))
-                let lbl = ctx.resolve(Text("↺ \(repeatLabel)")
-                    .font(.system(size: 9.5, weight: .semibold)))
-                var shaded = lbl; shaded.shading = .color(Theme.accent.opacity(0.8))
-                ctx.draw(shaded, at: CGPoint(x: (start.x + end.x) / 2, y: dip - 3), anchor: .center)
-            }
-
-            // Pills: first = trigger (accent), last = exit (green), middle neutral.
-            for (i, r) in resolved.enumerated() {
-                let rect = rects[i]
-                let isTrigger = i == 0
-                let isExit = i == n - 1
-                let tint = isExit ? Theme.success : Theme.accent
-                let shape = Path(roundedRect: rect, cornerRadius: rect.height / 2)
-                ctx.fill(shape, with: .color(isTrigger ? Theme.accentSoft
-                                             : (isExit ? Theme.success.opacity(0.12) : Theme.cardBg)))
-                ctx.stroke(shape, with: .color(isTrigger || isExit ? tint : Theme.hairline),
-                           lineWidth: isTrigger || isExit ? 1.5 : 1)
-                var shaded = r
-                shaded.shading = .color(isExit ? Theme.success : Color.primary)
-                ctx.draw(shaded, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
+            switch kind {
+            case .turnBased: drawTurnBased(&ctx, size)
+            case .goalBased: drawGoalBased(&ctx, size)
+            case .timeBased: drawTimeBased(&ctx, size)
+            case .proactive: drawProactive(&ctx, size)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.hairline, lineWidth: 1))
         .id(kind)
-        .accessibilityLabel(labels.joined(separator: " → "))
+        .accessibilityLabel(model.t(kind.blurbKey) + accessibilitySuffix)
+    }
+
+    // MARK: Topologies
+
+    /// Prompt → Work → Check → ◇(you) : "stop" → Reply, dashed "next round" back.
+    private func drawTurnBased(_ ctx: inout GraphicsContext, _ size: CGSize) {
+        let W = size.width, H = size.height
+        let row = H * 0.56
+        let prompt = pillRect(&ctx, CGPoint(x: W * 0.11, y: row), model.t("loop.stage.prompt"))
+        let work   = pillRect(&ctx, CGPoint(x: W * 0.31, y: row), model.t("loop.stage.work"))
+        let check  = pillRect(&ctx, CGPoint(x: W * 0.50, y: row), model.t("loop.stage.check"))
+        let dc = CGPoint(x: W * 0.68, y: row); let half: CGFloat = 15
+        let reply  = pillRect(&ctx, CGPoint(x: W * 0.88, y: row), model.t("loop.stage.reply"))
+
+        arrow(&ctx, from: CGPoint(x: prompt.maxX + 3, y: row), to: CGPoint(x: work.minX - 7, y: row))
+        arrow(&ctx, from: CGPoint(x: work.maxX + 3, y: row), to: CGPoint(x: check.minX - 7, y: row))
+        arrow(&ctx, from: CGPoint(x: check.maxX + 3, y: row), to: CGPoint(x: dc.x - half - 5, y: row))
+        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: row), to: CGPoint(x: reply.minX - 7, y: row))
+        branchLabel(&ctx, model.t("loop.flow.stop"), at: CGPoint(x: (dc.x + half + reply.minX) / 2, y: row - 10))
+        // "next round" arcs over the top back to Prompt.
+        loopBack(&ctx, from: CGPoint(x: dc.x, y: dc.y - half),
+                 to: CGPoint(x: prompt.midX, y: prompt.minY - 2),
+                 dip: H * 0.14, endAngle: .pi / 2)
+        branchLabel(&ctx, model.t("loop.flow.nextRound"),
+                    at: CGPoint(x: (dc.x + prompt.midX) / 2, y: H * 0.13), color: Theme.accent.opacity(0.8))
+
+        fillPill(&ctx, prompt, model.t("loop.stage.prompt"), .trigger)
+        fillPill(&ctx, work, model.t("loop.stage.work"), .work)
+        fillPill(&ctx, check, model.t("loop.stage.check"), .work)
+        drawDiamond(&ctx, center: dc, half: half, glyph: "person.fill")
+        fillPill(&ctx, reply, model.t("loop.stage.reply"), .exit)
+    }
+
+    /// Goal → Try → ◇(verifier) : "Pass" → Done, dashed "Fail" back to Try.
+    private func drawGoalBased(_ ctx: inout GraphicsContext, _ size: CGSize) {
+        let W = size.width, H = size.height
+        let row = H * 0.52
+        let goal = pillRect(&ctx, CGPoint(x: W * 0.12, y: row), model.t("loop.stage.goal"))
+        let tryR = pillRect(&ctx, CGPoint(x: W * 0.36, y: row), model.t("loop.stage.try"))
+        let dc = CGPoint(x: W * 0.58, y: row); let half: CGFloat = 16
+        let done = pillRect(&ctx, CGPoint(x: W * 0.84, y: row), model.t("loop.stage.done"))
+
+        arrow(&ctx, from: CGPoint(x: goal.maxX + 3, y: row), to: CGPoint(x: tryR.minX - 7, y: row))
+        arrow(&ctx, from: CGPoint(x: tryR.maxX + 3, y: row), to: CGPoint(x: dc.x - half - 5, y: row))
+        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: row), to: CGPoint(x: done.minX - 7, y: row))
+        branchLabel(&ctx, model.t("loop.flow.pass"), at: CGPoint(x: (dc.x + half + done.minX) / 2, y: row - 10), color: Theme.success)
+        // "Fail" arcs under, back to Try (retry the attempt, not the goal).
+        loopBack(&ctx, from: CGPoint(x: dc.x, y: dc.y + half),
+                 to: CGPoint(x: tryR.midX, y: tryR.maxY + 2),
+                 dip: H * 0.88, endAngle: -.pi / 2)
+        branchLabel(&ctx, model.t("loop.flow.fail"),
+                    at: CGPoint(x: (dc.x + tryR.midX) / 2, y: H * 0.9), color: Theme.warning)
+
+        fillPill(&ctx, goal, model.t("loop.stage.goal"), .trigger)
+        fillPill(&ctx, tryR, model.t("loop.stage.try"), .work)
+        drawDiamond(&ctx, center: dc, half: half, glyph: "checkmark.seal.fill")
+        fillPill(&ctx, done, model.t("loop.stage.done"), .exit)
+    }
+
+    /// ⏱ (clock trigger) → Check → React → Wait, dashed "every N min" arc back.
+    private func drawTimeBased(_ ctx: inout GraphicsContext, _ size: CGSize) {
+        let W = size.width, H = size.height
+        let row = H * 0.50
+        let clock = CGPoint(x: W * 0.12, y: row); let r: CGFloat = 18
+        let check = pillRect(&ctx, CGPoint(x: W * 0.38, y: row), model.t("loop.stage.check"))
+        let react = pillRect(&ctx, CGPoint(x: W * 0.58, y: row), model.t("loop.stage.react"))
+        let wait  = pillRect(&ctx, CGPoint(x: W * 0.78, y: row), model.t("loop.stage.wait"))
+
+        arrow(&ctx, from: CGPoint(x: clock.x + r + 3, y: row), to: CGPoint(x: check.minX - 7, y: row))
+        arrow(&ctx, from: CGPoint(x: check.maxX + 3, y: row), to: CGPoint(x: react.minX - 7, y: row))
+        arrow(&ctx, from: CGPoint(x: react.maxX + 3, y: row), to: CGPoint(x: wait.minX - 7, y: row))
+        loopBack(&ctx, from: CGPoint(x: wait.midX, y: wait.maxY + 2),
+                 to: CGPoint(x: clock.x, y: clock.y + r + 2),
+                 dip: H * 0.9, endAngle: -.pi / 2)
+        branchLabel(&ctx, model.t("loop.flow.everyMin", intervalMinutes),
+                    at: CGPoint(x: (wait.midX + clock.x) / 2, y: H * 0.92), color: Theme.accent.opacity(0.8))
+
+        circleNode(&ctx, center: clock, radius: r, glyph: "clock.fill", role: .trigger)
+        fillPill(&ctx, check, model.t("loop.stage.check"), .work)
+        fillPill(&ctx, react, model.t("loop.stage.react"), .work)
+        fillPill(&ctx, wait, model.t("loop.stage.wait"), .work)
+    }
+
+    /// Several events fan into a Router diamond, which fans out to parallel workers,
+    /// which converge into Review; a dashed arc shows it keeps watching.
+    private func drawProactive(_ ctx: inout GraphicsContext, _ size: CGSize) {
+        let W = size.width, H = size.height
+        let er: CGFloat = 11
+        let events: [(CGPoint, String)] = [
+            (CGPoint(x: W * 0.10, y: H * 0.24), "bolt.fill"),
+            (CGPoint(x: W * 0.10, y: H * 0.50), "arrow.down.doc.fill"),
+            (CGPoint(x: W * 0.10, y: H * 0.76), "exclamationmark.triangle.fill"),
+        ]
+        let dc = CGPoint(x: W * 0.40, y: H * 0.50); let half: CGFloat = 19
+        let w1 = pillRect(&ctx, CGPoint(x: W * 0.68, y: H * 0.30), model.t("loop.stage.work"))
+        let w2 = pillRect(&ctx, CGPoint(x: W * 0.68, y: H * 0.70), model.t("loop.stage.work"))
+        let review = pillRect(&ctx, CGPoint(x: W * 0.90, y: H * 0.50), model.t("loop.stage.review"))
+
+        // Fan-in: each event → router.
+        for (p, _) in events {
+            arrow(&ctx, from: CGPoint(x: p.x + er + 2, y: p.y), to: CGPoint(x: dc.x - half - 4, y: dc.y))
+        }
+        // Fan-out: router → each worker.
+        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: dc.y), to: CGPoint(x: w1.minX - 7, y: w1.midY))
+        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: dc.y), to: CGPoint(x: w2.minX - 7, y: w2.midY))
+        // Converge: workers → review.
+        arrow(&ctx, from: CGPoint(x: w1.maxX + 3, y: w1.midY), to: CGPoint(x: review.minX - 7, y: review.midY))
+        arrow(&ctx, from: CGPoint(x: w2.maxX + 3, y: w2.midY), to: CGPoint(x: review.minX - 7, y: review.midY))
+        // Keeps watching: dashed arc from review back to the events column.
+        loopBack(&ctx, from: CGPoint(x: review.midX, y: review.maxY + 2),
+                 to: CGPoint(x: events[2].0.x, y: events[2].0.y + er + 2),
+                 dip: H * 0.96, endAngle: -.pi / 2)
+
+        for (p, glyph) in events { circleNode(&ctx, center: p, radius: er, glyph: glyph, role: .trigger) }
+        drawDiamond(&ctx, center: dc, half: half, glyph: "arrow.triangle.branch")
+        fillPill(&ctx, w1, model.t("loop.stage.work"), .work)
+        fillPill(&ctx, w2, model.t("loop.stage.work"), .work)
+        fillPill(&ctx, review, model.t("loop.stage.review"), .exit)
+    }
+
+    // MARK: Drawing primitives
+
+    private enum NodeRole { case trigger, work, exit }
+    private var pillFont: Font { .system(size: 11, weight: .semibold, design: .monospaced) }
+
+    /// The rect a pill will occupy (measured), so arrows can be routed before the
+    /// pill is drawn on top.
+    private func pillRect(_ ctx: inout GraphicsContext, _ center: CGPoint, _ text: String) -> CGRect {
+        let s = ctx.resolve(Text(text).font(pillFont)).measure(in: CGSize(width: 220, height: 40))
+        let w = s.width + 22, h: CGFloat = 30
+        return CGRect(x: center.x - w / 2, y: center.y - h / 2, width: w, height: h)
+    }
+
+    private func fillPill(_ ctx: inout GraphicsContext, _ rect: CGRect, _ text: String, _ role: NodeRole) {
+        let shape = Path(roundedRect: rect, cornerRadius: rect.height / 2)
+        let fill: Color, stroke: Color, lw: CGFloat
+        switch role {
+        case .trigger: fill = Theme.accentSoft; stroke = Theme.accent; lw = 1.5
+        case .work:    fill = Theme.cardBg; stroke = Theme.hairline; lw = 1
+        case .exit:    fill = Theme.success.opacity(0.12); stroke = Theme.success; lw = 1.5
+        }
+        ctx.fill(shape, with: .color(fill))
+        ctx.stroke(shape, with: .color(stroke), lineWidth: lw)
+        var t = ctx.resolve(Text(text).font(pillFont))
+        t.shading = .color(role == .exit ? Theme.success : Color.primary)
+        ctx.draw(t, at: CGPoint(x: rect.midX, y: rect.midY))
+    }
+
+    private func circleNode(_ ctx: inout GraphicsContext, center: CGPoint, radius: CGFloat, glyph: String, role: NodeRole) {
+        let rect = CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
+        let (fill, stroke): (Color, Color) = role == .exit
+            ? (Theme.success.opacity(0.12), Theme.success) : (Theme.accentSoft, Theme.accent)
+        ctx.fill(Path(ellipseIn: rect), with: .color(fill))
+        ctx.stroke(Path(ellipseIn: rect), with: .color(stroke), lineWidth: 1.5)
+        var g = ctx.resolve(Text(Image(systemName: glyph)).font(.system(size: radius * 0.72)))
+        g.shading = .color(stroke)
+        ctx.draw(g, at: center)
+    }
+
+    private func drawDiamond(_ ctx: inout GraphicsContext, center c: CGPoint, half: CGFloat, glyph: String?) {
+        var p = Path()
+        p.move(to: CGPoint(x: c.x, y: c.y - half))
+        p.addLine(to: CGPoint(x: c.x + half, y: c.y))
+        p.addLine(to: CGPoint(x: c.x, y: c.y + half))
+        p.addLine(to: CGPoint(x: c.x - half, y: c.y))
+        p.closeSubpath()
+        ctx.fill(p, with: .color(Theme.cardBg))
+        ctx.stroke(p, with: .color(Theme.accent), lineWidth: 1.5)
+        if let glyph {
+            var g = ctx.resolve(Text(Image(systemName: glyph)).font(.system(size: half * 0.7)))
+            g.shading = .color(Theme.accent.opacity(0.5))
+            ctx.draw(g, at: c)
+        }
+    }
+
+    private func arrow(_ ctx: inout GraphicsContext, from a: CGPoint, to b: CGPoint,
+                       color: Color = Theme.accent.opacity(0.8)) {
+        var p = Path(); p.move(to: a); p.addLine(to: b)
+        ctx.stroke(p, with: .color(color), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+        ctx.fill(head(at: b, angle: atan2(b.y - a.y, b.x - a.x), size: 6), with: .color(color))
+    }
+
+    /// A dashed cubic loop-back with an arrowhead at the end (`endAngle` = travel dir).
+    private func loopBack(_ ctx: inout GraphicsContext, from a: CGPoint, to b: CGPoint,
+                          dip: CGFloat, endAngle: CGFloat) {
+        var p = Path()
+        p.move(to: a)
+        p.addCurve(to: b, control1: CGPoint(x: a.x, y: dip), control2: CGPoint(x: b.x, y: dip))
+        ctx.stroke(p, with: .color(Theme.accent.opacity(0.45)),
+                   style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+        ctx.fill(head(at: b, angle: endAngle, size: 6), with: .color(Theme.accent.opacity(0.7)))
+    }
+
+    private func branchLabel(_ ctx: inout GraphicsContext, _ text: String, at p: CGPoint,
+                             color: Color = Theme.inkDim) {
+        var t = ctx.resolve(Text(text).font(.system(size: 9.5, weight: .semibold)))
+        t.shading = .color(color)
+        ctx.draw(t, at: p, anchor: .center)
     }
 
     private func head(at tip: CGPoint, angle: CGFloat, size: CGFloat) -> Path {
@@ -257,10 +397,11 @@ struct LoopKindFlowDiagram: View {
 #Preview("Loop flows") {
     VStack(spacing: 16) {
         ForEach(LoopKind.allCases) { k in
-            LoopKindFlowDiagram(kind: k).frame(height: 140)
+            LoopKindFlowDiagram(kind: k, maxTurns: 20, intervalMinutes: 30)
+                .frame(height: k == .proactive ? 160 : 140)
         }
     }
     .padding()
-    .frame(width: 480)
+    .frame(width: 520)
     .environment(AppModel())
 }

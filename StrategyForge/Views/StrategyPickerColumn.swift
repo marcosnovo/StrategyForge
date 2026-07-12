@@ -163,6 +163,14 @@ struct StrategyPickerColumn: View {
                         .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
+                // What SHAPE is this team — answered at a glance, derived from roles.
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.triangle.branch").font(.system(size: 9))
+                        .foregroundStyle(Theme.accent)
+                    Text(model.strategyTopologyLine(template))
+                        .font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                }
                 let goodFor = model.strategyGoodFor(template)
                 if !goodFor.isEmpty {
                     Text("\(model.t("picker.bestfor")): \(goodFor)")
