@@ -99,7 +99,8 @@ struct AdvisorInlineCard: View {
                     VStack(spacing: 1) {
                         Text(model.t(tier.labelKey))
                             .font(.sfCaption2.weight(.semibold))
-                        Text("~" + String(format: "$%.2f", tier.advice.estimatedCost.perRun))
+                        // Tokens are the headline; the dollar figure rides in parens.
+                        Text(tier.advice.estimatedCost.headline)
                             .font(.system(size: 9, weight: .medium))
                             .foregroundStyle(on ? Theme.onAccent.opacity(0.9) : .secondary)
                     }
@@ -108,8 +109,6 @@ struct AdvisorInlineCard: View {
                     .background(RoundedRectangle(cornerRadius: 9)
                         .fill(on ? Theme.accent : Theme.hairline.opacity(0.5)))
                     .foregroundStyle(on ? AnyShapeStyle(Theme.onAccent) : AnyShapeStyle(.primary))
-                    .overlay(RoundedRectangle(cornerRadius: 9)
-                        .strokeBorder(Theme.accent.opacity(on ? 0 : 0.0), lineWidth: 1))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

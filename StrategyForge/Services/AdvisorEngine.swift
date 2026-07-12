@@ -300,10 +300,10 @@ enum AdvisorEngine {
     /// team size, so the estimated cost tells the tradeoff honestly.
     static func adviseTiers(task: String) async -> [Tier] {
         let balanced = await adviseWithAI(task: task)
-        let saver = variant(of: balanced, model: downTier(balanced.model), countDelta: -1,
+        let saver = variant(of: balanced, shift: -1, countDelta: -1,
                             effort: lower(balanced.effort),
                             id: "saver", labelKey: "advisor.tier.saver", noteKey: "advisor.tier.saver.note")
-        let max = variant(of: balanced, model: upTier(balanced.model), countDelta: +2,
+        let max = variant(of: balanced, shift: +1, countDelta: +2,
                           effort: higher(balanced.effort),
                           id: "max", labelKey: "advisor.tier.max", noteKey: "advisor.tier.max.note")
         let mid = Tier(id: "balanced", labelKey: "advisor.tier.balanced",
@@ -317,22 +317,28 @@ enum AdvisorEngine {
         return tiers
     }
 
-    /// Build a cost/quality variant of an advice: swap the orchestrator model, nudge
-    /// the largest fan-out role's count, and re-estimate the cost.
-    private static func variant(of base: Advice, model: ClaudeModel, countDelta: Int,
+    /// Build a cost/quality variant of an advice: shift EVERY agent's model up/down a
+    /// tier (so the whole team visibly changes), nudge the largest fan-out role's
+    /// count, and re-estimate the cost.
+    private static func variant(of base: Advice, shift: Int, countDelta: Int,
                                 effort: CostEffort, id: String, labelKey: String, noteKey: String) -> Tier {
         var s = base.strategy
-        if let i = s.roles.firstIndex(where: { $0.isOrchestrator }) { s.roles[i].model = model }
+        for i in s.roles.indices { s.roles[i].model = shiftModel(s.roles[i].model, by: shift) }
         let subIdx = s.roles.indices.filter { !s.roles[$0].isOrchestrator }
         if let idx = subIdx.max(by: { s.roles[$0].count < s.roles[$1].count }) {
             s.roles[idx].count = max(1, min(6, s.roles[idx].count + countDelta))
         }
-        let advice = Advice(model: model, strategy: s, shapeRationaleKey: base.shapeRationaleKey,
+        let headModel = s.roles.first(where: { $0.isOrchestrator })?.model ?? shiftModel(base.model, by: shift)
+        let advice = Advice(model: headModel, strategy: s, shapeRationaleKey: base.shapeRationaleKey,
                             loopKind: base.loopKind, effort: effort, decisionPath: base.decisionPath,
                             goalSuggestion: base.goalSuggestion,
                             estimatedCost: CostEstimator.estimate(s, effort: effort),
                             aiRationale: base.aiRationale, usedAI: base.usedAI)
         return Tier(id: id, labelKey: labelKey, noteKey: noteKey, advice: advice)
+    }
+
+    private static func shiftModel(_ m: ClaudeModel, by: Int) -> ClaudeModel {
+        by < 0 ? downTier(m) : (by > 0 ? upTier(m) : m)
     }
 
     private static func sameShape(_ a: Advice, as b: Advice) -> Bool {

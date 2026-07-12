@@ -91,7 +91,8 @@ struct ChatView: View {
                 ResizableDivider(
                     width: Binding(get: { CGFloat(activityW) }, set: { activityW = Double($0) }),
                     range: 260...560, sign: -1)
-                AgentActivityPanel(vm: vm, focus: $agentFocus, previewStrategy: advisorPreviewStrategy)
+                AgentActivityPanel(vm: vm, focus: $agentFocus,
+                                   previewStrategy: advisorPreviewStrategy, previewLabel: advisorPreviewLabel)
                     .frame(width: CGFloat(activityW))
             }
             if showActivity, let focus = agentFocus {
@@ -299,6 +300,12 @@ struct ChatView: View {
     private var advisorPreviewStrategy: Strategy? {
         guard config.strategyIsAuto, advisorCardVisible else { return nil }
         return selectedTier?.advice.strategy
+    }
+
+    /// The selected option's name (Economy / Recommended / Max), for the preview label.
+    private var advisorPreviewLabel: String? {
+        guard advisorPreviewStrategy != nil, let tier = selectedTier else { return nil }
+        return model.t(tier.labelKey)
     }
 
     /// Open System Settings so the user can turn on Apple Intelligence (for smarter,

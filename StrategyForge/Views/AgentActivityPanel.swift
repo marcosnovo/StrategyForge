@@ -34,6 +34,8 @@ struct AgentActivityPanel: View {
     /// When set (and not running), the panel previews this RECOMMENDED strategy in the
     /// header + diagram, so the right side reflects the pending recommendation.
     var previewStrategy: Strategy? = nil
+    /// The name of the previewed option (Economy / Recommended / Max), for the label.
+    var previewLabel: String? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hoveredAgent: AgentFocus?
     @State private var showDiagram = true
@@ -53,7 +55,10 @@ struct AgentActivityPanel: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(model.strategyDisplayName(shownStrategy))
                         .font(.sfCardTitle).lineLimit(1)
-                    Text(model.t(isPreviewing ? "activity.recommended" : "activity.title"))
+                    // While previewing, the eyebrow names the chosen option (e.g.
+                    // "MAX QUALITY") so it tracks the selection, not a fixed label.
+                    Text(isPreviewing ? (previewLabel?.uppercased() ?? model.t("activity.recommended"))
+                                      : model.t("activity.title"))
                         .font(.sfCaption2)
                         .foregroundStyle(isPreviewing ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.secondaryOnMaterial))
                         .lineLimit(1)
@@ -89,6 +94,7 @@ struct AgentActivityPanel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.m) {
                     statusCard
+                    liveUsageCard.panelCard()
                     teamSection.panelCard()
                     if !vm.todos.isEmpty { tasksSection.panelCard() }
                     stepsSection.panelCard()
@@ -157,6 +163,65 @@ struct AgentActivityPanel: View {
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: text)
         }
         .foregroundStyle(Theme.secondaryOnMaterial)
+    }
+
+    // MARK: Live usage (tokens + cost for the AIs in this chat)
+
+    /// A live meter of this chat's token spend + cost, with the models in play — a
+    /// quiet, pretty readout that ticks up during a run.
+    private var liveUsageCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack {
+                Text(model.t("activity.usage.title"))
+                    .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
+                Spacer()
+                if vm.isRunning {
+                    HStack(spacing: 4) {
+                        DotSpinner(size: 11)
+                        Text(model.t("activity.usage.live")).font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(Theme.success)
+                    }
+                }
+            }
+            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                Text(formatTokens(vm.totalTokens))
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.accent)
+                    .contentTransition(.numericText())
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.totalTokens)
+                Text(model.t("activity.usage.tokens"))
+                    .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+                Spacer()
+                if vm.totalCostUSD > 0 {
+                    Text(String(format: "$%.2f", vm.totalCostUSD))
+                        .font(.sfMono).foregroundStyle(.primary)
+                        .contentTransition(.numericText())
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.totalCostUSD)
+                }
+            }
+            // The models (AIs) this chat's team runs on.
+            let models = orderedDistinctModels
+            if !models.isEmpty {
+                HStack(spacing: Space.xs) {
+                    ForEach(models, id: \.self) { m in
+                        HStack(spacing: 3) {
+                            Image(systemName: m.tierIcon).font(.system(size: 8, weight: .semibold))
+                            Text(m.displayName).font(.system(size: 9, weight: .medium))
+                        }
+                        .foregroundStyle(Theme.secondaryOnMaterial)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.hairline.opacity(0.6)))
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    /// Distinct models used across the (running) team, in role order.
+    private var orderedDistinctModels: [ClaudeModel] {
+        var seen = Set<ClaudeModel>()
+        return vm.config.strategy.roles.compactMap { seen.insert($0.model).inserted ? $0.model : nil }
     }
 
     // MARK: Diagram (bottom, collapsible)

@@ -14,6 +14,8 @@ import Foundation
 struct StrategyCost {
     /// Approximate USD for one task/run.
     let perRun: Double
+    /// Approximate total tokens (input + output) for one run — the headline figure.
+    let perRunTokens: Int
     /// Contribution per model (USD), for the breakdown.
     let byModel: [ClaudeModel: Double]
 
@@ -27,6 +29,16 @@ struct StrategyCost {
         default:    return .high
         }
     }
+
+    /// Compact token count, e.g. "1.2M" or "135k".
+    var tokensShort: String {
+        if perRunTokens >= 1_000_000 { return String(format: "%.1fM", Double(perRunTokens) / 1_000_000) }
+        if perRunTokens >= 1_000 { return "\(perRunTokens / 1_000)k" }
+        return "\(perRunTokens)"
+    }
+    var usdShort: String { String(format: "$%.2f", perRun) }
+    /// The headline cost, tokens first with the dollar figure in parentheses.
+    var headline: String { "~\(tokensShort) (\(usdShort))" }
 }
 
 /// How thorough Claude works on a request. Per the model-vs-effort model, effort
@@ -75,6 +87,7 @@ enum CostEstimator {
     /// scales every role's token workload; it does not change model pricing.
     static func estimate(_ strategy: Strategy, effort: CostEffort) -> StrategyCost {
         var total = 0.0
+        var tokens = 0.0
         var byModel: [ClaudeModel: Double] = [:]
         let m = effort.multiplier
 
@@ -85,9 +98,10 @@ enum CostEstimator {
             let cost = count * (load.input * m / 1_000_000 * price.inputPerM
                               + load.output * m / 1_000_000 * price.outputPerM)
             total += cost
+            tokens += count * (load.input + load.output) * m
             byModel[role.model, default: 0] += cost
         }
 
-        return StrategyCost(perRun: total, byModel: byModel)
+        return StrategyCost(perRun: total, perRunTokens: Int(tokens), byModel: byModel)
     }
 }

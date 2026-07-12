@@ -235,7 +235,7 @@ struct AdvisorView: View {
         }
         return HStack(spacing: 5) {
             Image(systemName: "bolt.fill").font(.system(size: 9))
-            Text(model.t("cost.perRun", String(format: "$%.2f", cost.perRun)))
+            Text(cost.headline)
                 .font(.sfCaption2.weight(.semibold))
         }
         .foregroundStyle(color)
