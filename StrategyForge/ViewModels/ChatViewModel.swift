@@ -107,7 +107,9 @@ final class ChatViewModel {
     @ObservationIgnored private let onFirstUserMessage: (String) -> Void
     /// First-message hook: may return a strategy recommended from the prompt (when
     /// the chat's team is still "auto"), which is adopted before this turn runs.
-    @ObservationIgnored private let autoRecommendStrategy: (String) -> Strategy?
+    /// Async so it can use the on-device model; returns nil instantly for chats whose
+    /// team the user already chose.
+    @ObservationIgnored private let autoRecommendStrategy: (String) async -> Strategy?
     /// Writes the strategy's .claude files into the repo so the run actually uses
     /// the configured team. Called right before each run (idempotent).
     @ObservationIgnored private let ensureStrategyFiles: () -> Void
@@ -122,7 +124,7 @@ final class ChatViewModel {
          permissionMode: String = "acceptEdits",
          persist: @escaping ([ChatMessage]) -> Void = { _ in },
          onFirstUserMessage: @escaping (String) -> Void = { _ in },
-         autoRecommendStrategy: @escaping (String) -> Strategy? = { _ in nil },
+         autoRecommendStrategy: @escaping (String) async -> Strategy? = { _ in nil },
          ensureStrategyFiles: @escaping () -> Void = {},
          persistUsage: @escaping (Int, Double) -> Void = { _, _ in }) {
         self.config = config
@@ -232,11 +234,32 @@ final class ChatViewModel {
         lastStreamPersist = .distantPast
         runTask?.cancel()   // never leave a prior run's subprocess orphaned
         if messages.isEmpty {
-            // Recommend a team from the prompt (when still "auto") BEFORE writing the
-            // .claude files, so this very first turn already runs the fitting team.
-            if let recommended = autoRecommendStrategy(text) { config.strategy = recommended }
-            onFirstUserMessage(text)   // auto-title the chat
+            // First turn on an "auto" chat: recommend a team from the prompt with the
+            // on-device model (async, free, private) BEFORE the run, so the very first
+            // turn already uses the fitting team. `autoRecommendStrategy` returns nil
+            // instantly when the user already chose a team, so established chats aren't
+            // delayed. isRunning locks the composer while we (briefly) decide.
+            isRunning = true
+            let firstText = text
+            Task { [weak self] in
+                guard let self else { return }
+                if let recommended = await self.autoRecommendStrategy(firstText) {
+                    self.config.strategy = recommended
+                }
+                self.onFirstUserMessage(firstText)   // auto-title the chat
+                self.commitAndRun(promptText: promptText, displayText: displayText,
+                                  repo: repo, useMeta: useMeta, extraDirs: extraDirs)
+            }
+            return
         }
+        commitAndRun(promptText: promptText, displayText: displayText,
+                     repo: repo, useMeta: useMeta, extraDirs: extraDirs)
+    }
+
+    /// Write the team files, append the turn, and launch the run. Split out of `send`
+    /// so the first turn can first `await` an on-device team recommendation.
+    private func commitAndRun(promptText: String, displayText: String,
+                              repo: String, useMeta: Bool, extraDirs: [String]) {
         // Put the strategy's .claude files in the working folder so the team applies.
         if config.repoPath?.isEmpty ?? true {
             try? StrategyWriter(repoURL: URL(fileURLWithPath: repo), binary: binary)

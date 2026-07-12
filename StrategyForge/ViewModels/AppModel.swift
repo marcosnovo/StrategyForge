@@ -712,11 +712,16 @@ final class AppModel {
     /// user's prompt (deterministic AdvisorEngine), apply + persist it, and return it
     /// so the very first turn already uses the recommended team. Returns nil when the
     /// user has already chosen a team (nothing to recommend).
-    func autoRecommendStrategyIfNeeded(_ id: Configuration.ID, task: String) -> Strategy? {
-        guard let i = configurations.firstIndex(where: { $0.id == id }),
-              configurations[i].strategyIsAuto,
+    func autoRecommendStrategyIfNeeded(_ id: Configuration.ID, task: String) async -> Strategy? {
+        guard let idx0 = configurations.firstIndex(where: { $0.id == id }),
+              configurations[idx0].strategyIsAuto,
               !task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        let advice = AdvisorEngine.advise(task: task)
+        // On-device AI reshapes the team when Apple Intelligence is available (free,
+        // private); otherwise the deterministic engine. Re-find the index after the
+        // await in case the array changed while we were thinking.
+        let advice = await AdvisorEngine.adviseWithAI(task: task)
+        guard let i = configurations.firstIndex(where: { $0.id == id }),
+              configurations[i].strategyIsAuto else { return nil }
         configurations[i].strategy = advice.strategy
         configurations[i].strategyIsAuto = false
         save()
@@ -1030,7 +1035,10 @@ final class AppModel {
             permissionMode: settings.chatAutonomy.permissionMode,
             persist: { [weak self] messages in self?.updateTranscript(id, messages) },
             onFirstUserMessage: { [weak self] text in self?.autoTitleIfNeeded(id, fromFirstMessage: text) },
-            autoRecommendStrategy: { [weak self] text in self?.autoRecommendStrategyIfNeeded(id, task: text) },
+            autoRecommendStrategy: { [weak self] text in
+                guard let self else { return nil }
+                return await self.autoRecommendStrategyIfNeeded(id, task: text)
+            },
             ensureStrategyFiles: { [weak self] in self?.writeStrategyFilesQuietly(id) },
             persistUsage: { [weak self] tokens, cost in self?.updateUsage(id, tokens: tokens, costUSD: cost) })
         vm.onRunningChanged = { [weak self, weak vm] running in
