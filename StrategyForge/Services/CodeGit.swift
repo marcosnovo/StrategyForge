@@ -95,6 +95,79 @@ enum CodeGit {
         }.value
     }
 
+    // MARK: - Repo lifecycle (clone / branch / push) — Code section
+
+    /// Whether `git` is available at all (for gating clone/push UI).
+    static var isAvailable: Bool { gitPath() != nil }
+
+    /// A local folder name inferred from a clone URL ("git@…/foo.git" → "foo").
+    static func repoName(from url: String) -> String {
+        var s = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasSuffix(".git") { s = String(s.dropLast(4)) }
+        while s.hasSuffix("/") { s = String(s.dropLast()) }
+        let last = (s as NSString).lastPathComponent
+        return last.isEmpty ? "repo" : last
+    }
+
+    /// Clone `url` into `parentDir/<name>` (never clobbering an existing folder).
+    /// Returns the local path on success. Relies on the user's own git credentials.
+    nonisolated static func clone(url: String, into parentDir: String) async -> (ok: Bool, path: String?, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, nil, "git not found") }
+            try? FileManager.default.createDirectory(atPath: parentDir, withIntermediateDirectories: true)
+            let base = (parentDir as NSString).appendingPathComponent(repoName(from: url))
+            var dest = base; var n = 2
+            while FileManager.default.fileExists(atPath: dest) { dest = "\(base)-\(n)"; n += 1 }
+            let r = runResult(git, ["clone", "--", url, dest])
+            return (r.ok, r.ok ? dest : nil, r.out)
+        }.value
+    }
+
+    /// Create a branch off HEAD and switch to it.
+    nonisolated static func createBranch(repo: String, name: String) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, "git not found") }
+            return runResult(git, ["-C", repo, "checkout", "-b", name])
+        }.value
+    }
+
+    /// List local branches (current first).
+    nonisolated static func branches(repo: String) async -> [String] {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return [] }
+            let r = runResult(git, ["-C", repo, "branch", "--format=%(refname:short)"])
+            guard r.ok else { return [] }
+            return r.out.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        }.value
+    }
+
+    /// Switch to an existing branch.
+    nonisolated static func checkout(repo: String, branch: String) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, "git not found") }
+            return runResult(git, ["-C", repo, "checkout", branch])
+        }.value
+    }
+
+    /// Push the current branch to origin, setting upstream. Returns combined output.
+    nonisolated static func push(repo: String) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, "git not found") }
+            let branch = runResult(git, ["-C", repo, "rev-parse", "--abbrev-ref", "HEAD"])
+                .out.trimmingCharacters(in: .whitespacesAndNewlines)
+            return runResult(git, ["-C", repo, "push", "-u", "origin", branch])
+        }.value
+    }
+
+    /// True if the working tree has uncommitted changes.
+    nonisolated static func hasUncommittedChanges(repo: String) async -> Bool {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return false }
+            return !runResult(git, ["-C", repo, "status", "--porcelain"])
+                .out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }.value
+    }
+
     /// Parse a unified diff into displayable lines with old/new line numbers.
     static func parse(_ diff: String) -> [DiffLine] {
         var lines: [DiffLine] = []

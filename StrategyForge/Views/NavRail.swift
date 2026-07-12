@@ -41,6 +41,10 @@ struct NavRail: View {
                     }
                 }
             }
+            item("chevron.left.forwardslash.chevron.right", "rail.code",
+                 active: model.navSection == .code) {
+                model.guardedLeave { model.navSection = .code }
+            }
             item("person.3.sequence.fill", "rail.team",
                  active: model.navSection == .team) {
                 model.navSection = .team

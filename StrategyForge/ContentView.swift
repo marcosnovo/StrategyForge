@@ -85,7 +85,7 @@ struct ContentView: View {
                 LoopSelectorColumn(store: LoopStore.shared)
                 Divider()
             } else if model.navSection == .usage || model.navSection == .advisor
-                        || model.navSection == .particleLab {
+                        || model.navSection == .particleLab || model.navSection == .code {
                 // Single full-width surfaces — no second column.
                 EmptyView()
             } else if model.showSidebar || model.selectedConfiguration == nil {
@@ -150,6 +150,9 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .particleLab {
                 ParticleLabView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.navSection == .code {
+                CodeLauncherView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let id = model.selectedConfigID, let chat = model.selectedConfiguration,
                       let vm = model.chatViewModel(for: id) {

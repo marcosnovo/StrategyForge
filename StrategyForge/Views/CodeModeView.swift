@@ -29,6 +29,9 @@ struct CodeModeView: View {
     @State private var gitBusy = false
     @State private var gitError: String?
     @State private var showTerminal = true
+    // Push & PR
+    @State private var pushing = false
+    @State private var prURL: String?
 
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
@@ -290,15 +293,56 @@ struct CodeModeView: View {
                 TextField(model.t("code.commitPlaceholder"), text: $commitMessage)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { if !commitMessage.trimmingCharacters(in: .whitespaces).isEmpty { confirmCommit = true } }
-                if gitBusy { DotSpinner(size: 16) }
+                if gitBusy || pushing { DotSpinner(size: 16) }
                 Button(model.t("code.commit")) { confirmCommit = true }
                     .buttonStyle(.moon)
-                    .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty || gitBusy)
+                    .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty || gitBusy || pushing)
+                // One tap to push the branch and open a PR (needs the gh CLI).
+                if GitHubCLI.isInstalled {
+                    Button { pushAndPR() } label: {
+                        Label(model.t("code.pushPR"), systemImage: "arrow.up.right.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(gitBusy || pushing)
+                }
             }
-            .padding(Space.m)
+            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+            if let prURL {
+                HStack(spacing: Space.xs) {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.success)
+                    Link(model.t("code.viewPR"), destination: URL(string: prURL) ?? URL(fileURLWithPath: "/"))
+                        .font(.sfCaption2)
+                }
+                .padding(.horizontal, Space.m).padding(.bottom, Space.s)
+            } else if !GitHubCLI.isInstalled {
+                Text(model.t("code.ghMissing")).font(.sfCaption2).foregroundStyle(.tertiary)
+                    .padding(.horizontal, Space.m).padding(.bottom, Space.xs)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .background(.bar)
         .onAppear { if commitMessage.isEmpty { commitMessage = draftMessage() } }
+    }
+
+    /// Push the current branch to origin and open a pull request via `gh`.
+    private func pushAndPR() {
+        guard let repo = vm.config.repoPath, !pushing else { return }
+        pushing = true; gitError = nil; prURL = nil
+        Task {
+            let push = await CodeGit.push(repo: repo)
+            guard push.ok else { gitError = push.out; pushing = false; return }
+            let title = (commitMessage.isEmpty ? draftMessage() : commitMessage)
+            let pr = await GitHubCLI.createPR(repo: repo,
+                                              title: title.isEmpty ? "Update" : title,
+                                              body: model.t("code.pr.body"))
+            if pr.ok {
+                prURL = pr.url
+                model.flashSuccess(model.t("code.pr.opened"))
+            } else {
+                gitError = pr.out
+            }
+            pushing = false
+        }
     }
 
     /// Draft a commit message from the agent's last reply (editable by the user).

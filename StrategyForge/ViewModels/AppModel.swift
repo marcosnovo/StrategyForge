@@ -59,8 +59,13 @@ final class AppModel {
     /// Which top-level section the nav rail shows: the chats, or connected services.
     /// `particleLab` is a DEBUG-only gallery for previewing the dot/particle motion
     /// system (spinners + waiting states) — its nav entry only appears in Debug builds.
-    enum NavSection { case chats, services, team, usage, loops, advisor, particleLab }
+    /// `code` is the repo-first door: connect a repo → work → PR (single-agent Claude).
+    enum NavSection { case chats, services, team, usage, loops, advisor, particleLab, code }
     var navSection: NavSection = .chats
+
+    /// The chat that should open directly in Code Mode (set by the Code launcher;
+    /// ChatView consumes it once on appear).
+    var openInCodeMode: Configuration.ID?
 
     // MARK: - Usage (real Claude token usage from local logs)
     /// Aggregated Claude usage read from ~/.claude logs (nil until first refresh).
@@ -1075,6 +1080,55 @@ final class AppModel {
         }
         chatVMs[id] = nil
         runningChatIDs.remove(id)
+    }
+
+    // MARK: - Code section (repo-first, single-agent Claude)
+
+    /// Create a single-agent (solo Claude) chat bound to `repoURL` and open it in
+    /// Code Mode. This is the repo-first "door" — no team design, straight to work.
+    func openCodeChat(repoURL: URL) {
+        let bookmark = try? repoURL.bookmarkData(options: [.withSecurityScope],
+                                                 includingResourceValuesForKeys: nil, relativeTo: nil)
+        var config = Configuration(
+            name: repoURL.lastPathComponent,
+            strategy: StrategyLibrary.solo(),
+            repoPath: repoURL.path,
+            repoBookmark: bookmark,
+            lastActiveAt: Date(),
+            titleWasManuallySet: true
+        )
+        config.strategyIsAuto = false
+        configurations.append(config)
+        selectedConfigID = config.id
+        liveRepoURLs[config.id] = repoURL
+        openInCodeMode = config.id
+        UserDefaults.standard.set(repoURL.path, forKey: "code.lastRepo")
+        navSection = .chats
+        save()
+    }
+
+    /// Clone `url` into the default repos folder, then open it in Code Mode.
+    func cloneAndOpenCodeChat(url: String) async {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let parent = resolvedDefaultReposURL()?.path
+            ?? (NSHomeDirectory() as NSString).appendingPathComponent("Coral")
+        let r = await CodeGit.clone(url: trimmed, into: parent)
+        guard r.ok, let path = r.path else { flashFailure(t("code.cloneFailed")); return }
+        openCodeChat(repoURL: URL(fileURLWithPath: path))
+        flashSuccess(t("code.cloned", (path as NSString).lastPathComponent))
+    }
+
+    /// Pick a local folder and open it in Code Mode.
+    func pickAndOpenCodeChat() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = t("repo.picker.prompt")
+        if let base = resolvedDefaultReposURL() { panel.directoryURL = base }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        openCodeChat(repoURL: url)
     }
 
     // MARK: - Repo selection

@@ -116,6 +116,13 @@ struct ChatView: View {
         // Proactively check the engine is installed (Claude), so the user is guided
         // to one-tap setup instead of hitting a technical error after sending.
         .task(id: config.provider) { await checkEngine() }
+        // Opened from the Code launcher → drop straight into the workspace once.
+        .onAppear {
+            if model.openInCodeMode == config.id {
+                codeMode = true
+                model.openInCodeMode = nil
+            }
+        }
         .sheet(isPresented: $showInstall) {
             ProviderInstallSheet(provider: .claude) { Task { await checkEngine() } }
         }
