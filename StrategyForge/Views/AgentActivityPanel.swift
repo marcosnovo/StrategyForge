@@ -39,6 +39,8 @@ struct AgentActivityPanel: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hoveredAgent: AgentFocus?
     @State private var showDiagram = true
+    /// The team list starts collapsed so the panel reads at a glance.
+    @State private var showTeam = false
 
     /// The strategy to show: the recommendation preview when idle, else the live team.
     private var shownStrategy: Strategy {
@@ -93,23 +95,36 @@ struct AgentActivityPanel: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.m) {
-                    statusCard
+                    // Order per request: live usage, then orchestrator+diagram merged,
+                    // then the (collapsed-by-default) team.
                     liveUsageCard.panelCard()
+                    orchestratorDiagramCard.panelCard()
                     teamSection.panelCard()
                     if !vm.todos.isEmpty { tasksSection.panelCard() }
                     stepsSection.panelCard()
-                    diagramCard.panelCard()
                 }
                 .padding(Space.m)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.regularMaterial)
+        // Weekly / 5-hour usage figures for the live meter (Claude local logs).
+        .task { if model.claudeUsage == nil { await model.refreshUsage() } }
     }
 
-    // MARK: Status
+    // MARK: Orchestrator + diagram (merged card)
 
-    private var statusCard: some View {
+    /// The orchestrator status + the live topology, in one card (order: usage → this
+    /// → team). The diagram stays collapsible via the header toggle.
+    private var orchestratorDiagramCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            orchestratorContent
+            Divider().padding(.vertical, 2)
+            diagramContent
+        }
+    }
+
+    private var orchestratorContent: some View {
         let subagent = vm.activeSubagent
         let modelName = shownStrategy.orchestrator?.model.displayName ?? "—"
         return VStack(alignment: .leading, spacing: Space.s) {
@@ -143,9 +158,7 @@ struct AgentActivityPanel: View {
                 if vm.totalCostUSD > 0 { stat("dollarsign.circle", String(format: "$%.2f", vm.totalCostUSD)) }
             }
         }
-        .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
     }
 
     /// The current objective/goal name: the in-progress task, else the chat title.
@@ -199,35 +212,72 @@ struct AgentActivityPanel: View {
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.totalCostUSD)
                 }
             }
-            // The models (AIs) this chat's team runs on.
-            let models = orderedDistinctModels
-            if !models.isEmpty {
-                HStack(spacing: Space.xs) {
-                    ForEach(models, id: \.self) { m in
-                        HStack(spacing: 3) {
-                            Image(systemName: m.tierIcon).font(.system(size: 8, weight: .semibold))
-                            Text(m.displayName).font(.system(size: 9, weight: .medium))
-                        }
-                        .foregroundStyle(Theme.secondaryOnMaterial)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Capsule().fill(Theme.hairline.opacity(0.6)))
-                    }
-                    Spacer(minLength: 0)
+            Divider().padding(.vertical, 1)
+
+            // Account-wide usage from Claude's local logs: this week + the current
+            // 5-hour rate-limit window.
+            if let u = model.claudeUsage, u.hasData {
+                usageLine(model.t("activity.usage.week"), formatTokens(u.weekTokens))
+                if u.blockResetAt != nil {
+                    usageLine(model.t("activity.usage.block"), fiveHourText(u))
+                } else {
+                    usageLine(model.t("activity.usage.block"), model.t("usage.noActiveWindow"))
                 }
+                // Bars per model (the AIs configured / in use this week).
+                if !u.weekByModel.isEmpty {
+                    VStack(spacing: 4) {
+                        ForEach(u.weekByModel) { m in usageBar(m, total: u.weekTokens) }
+                    }
+                    .padding(.top, 2)
+                }
+            } else {
+                usageLine(model.t("activity.usage.week"), model.t("usage.noWeek"))
             }
         }
     }
 
-    /// Distinct models used across the (running) team, in role order.
-    private var orderedDistinctModels: [ClaudeModel] {
-        var seen = Set<ClaudeModel>()
-        return vm.config.strategy.roles.compactMap { seen.insert($0.model).inserted ? $0.model : nil }
+    /// One "label … value" line in the usage meter.
+    private func usageLine(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+            Spacer()
+            Text(value).font(.sfCaption2.weight(.semibold)).foregroundStyle(.primary)
+                .monospacedDigit()
+        }
     }
 
-    // MARK: Diagram (bottom, collapsible)
+    /// A per-model usage bar (share of the week's tokens), like the Usage screen.
+    private func usageBar(_ m: ModelUsage, total: Int) -> some View {
+        let frac = total > 0 ? Double(m.tokens) / Double(total) : 0
+        return VStack(spacing: 2) {
+            HStack {
+                Text(m.model).font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
+                Spacer()
+                Text(formatTokens(m.tokens)).font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.tertiaryOnMaterial)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.hairline).frame(height: 5)
+                    Capsule().fill(Theme.primaryFill).frame(width: max(4, geo.size.width * frac), height: 5)
+                }
+            }
+            .frame(height: 5)
+        }
+    }
 
-    /// The live topology at the bottom of the panel — visible unless collapsed.
-    private var diagramCard: some View {
+    /// "128k · resets 3h 12m" for the current 5-hour window.
+    private func fiveHourText(_ u: UsageSummary) -> String {
+        guard let reset = u.blockResetAt else { return formatTokens(u.blockTokens) }
+        let s = max(0, Int(reset.timeIntervalSince(Date())))
+        let h = s / 3600, mm = (s % 3600) / 60
+        let left = h > 0 ? "\(h)h \(mm)m" : "\(mm)m"
+        return "\(formatTokens(u.blockTokens)) · \(model.t("usage.resetsIn", left))"
+    }
+
+    // MARK: Diagram (collapsible, inside the merged card)
+
+    /// The live topology — visible unless collapsed.
+    private var diagramContent: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             Button { withAnimation(.easeInOut(duration: 0.15)) { showDiagram.toggle() } } label: {
                 HStack {
@@ -270,13 +320,31 @@ struct AgentActivityPanel: View {
     /// and a filling progress bar (Claude-style).
     private var teamSection: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            Text(model.t("activity.team")).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
-            agentRow(name: orchestratorName, icon: "brain.head.profile", target: .orchestrator,
-                     objective: orchestratorObjective, status: orchestratorStatus)
-            ForEach(shownStrategy.subagentRoles) { role in
-                let name = titleCase(role.name)
-                agentRow(name: name, icon: "person.fill", target: .sub(name),
-                         objective: role.description, status: status(forSubagent: name))
+            // Collapsible header (collapsed by default) so the panel stays compact.
+            Button { withAnimation(.easeInOut(duration: 0.15)) { showTeam.toggle() } } label: {
+                HStack {
+                    Text(model.t("activity.team")).font(.sfFieldLabel)
+                        .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
+                    Text("\(shownStrategy.roles.count)")
+                        .font(.sfCaption2.weight(.bold)).monospacedDigit()
+                        .foregroundStyle(Theme.secondaryOnMaterial)
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(Capsule().fill(Theme.hairline.opacity(0.6)))
+                    Spacer()
+                    Image(systemName: showTeam ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if showTeam {
+                agentRow(name: orchestratorName, icon: "brain.head.profile", target: .orchestrator,
+                         objective: orchestratorObjective, status: orchestratorStatus)
+                ForEach(shownStrategy.subagentRoles) { role in
+                    let name = titleCase(role.name)
+                    agentRow(name: name, icon: "person.fill", target: .sub(name),
+                             objective: role.description, status: status(forSubagent: name))
+                }
             }
         }
     }
