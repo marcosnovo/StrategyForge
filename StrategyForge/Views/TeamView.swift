@@ -143,6 +143,15 @@ struct TeamView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: Space.m) {
+            if isDraft {
+                // Clear way back to the strategy picker (discards the draft).
+                Button { model.draftTeam = nil } label: {
+                    Label(model.t("team.draft.back"), systemImage: "chevron.left")
+                        .font(.sfCallout.weight(.medium))
+                }
+                .buttonStyle(.borderless)
+                .help(model.t("team.draft.back"))
+            }
             VStack(alignment: .leading, spacing: 2) {
                 TextField(model.t("team.name"), text: $team.name)
                     .textFieldStyle(.plain)
@@ -158,9 +167,7 @@ struct TeamView: View {
             Spacer()
             costPill
             if isDraft {
-                // A draft is not saved yet: cancel discards it, "Create" commits.
-                Button(model.t("common.cancel")) { model.draftTeam = nil }
-                    .buttonStyle(.bordered).controlSize(.large)
+                // Not saved yet — "Create" commits it (Back, top-left, discards).
                 Button {
                     onCommit()
                 } label: {

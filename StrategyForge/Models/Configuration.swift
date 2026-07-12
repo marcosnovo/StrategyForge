@@ -34,6 +34,10 @@ struct Configuration: Codable, Identifiable, Hashable {
     /// True once the user renamed the chat, so auto-titling from the first message
     /// stops. Bookkeeping — not part of `hasSameContent`.
     var titleWasManuallySet: Bool
+    /// True for a fresh chat whose team was NOT chosen by the user yet: the first
+    /// message auto-recommends a strategy from the prompt. Cleared once the team is
+    /// recommended or the user picks one. Bookkeeping — not part of `hasSameContent`.
+    var strategyIsAuto: Bool
     /// Unsent chat input, preserved across chat switches / relaunches. Device-local.
     var draft: String
     /// Cumulative token usage + cost for this chat. Device-local.
@@ -52,6 +56,7 @@ struct Configuration: Codable, Identifiable, Hashable {
         lastActiveAt: Date? = nil,
         transcript: [ChatMessage] = [],
         titleWasManuallySet: Bool = false,
+        strategyIsAuto: Bool = false,
         draft: String = "",
         totalTokens: Int = 0,
         totalCostUSD: Double = 0
@@ -67,13 +72,14 @@ struct Configuration: Codable, Identifiable, Hashable {
         self.lastActiveAt = lastActiveAt
         self.transcript = transcript
         self.titleWasManuallySet = titleWasManuallySet
+        self.strategyIsAuto = strategyIsAuto
         self.draft = draft
         self.totalTokens = totalTokens
         self.totalCostUSD = totalCostUSD
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, strategy, provider, repoPath, repoBookmark, updatedAt, lastGeneratedAt, lastActiveAt, transcript, titleWasManuallySet, draft, totalTokens, totalCostUSD
+        case id, name, strategy, provider, repoPath, repoBookmark, updatedAt, lastGeneratedAt, lastActiveAt, transcript, titleWasManuallySet, strategyIsAuto, draft, totalTokens, totalCostUSD
     }
 
     // Tolerant decode: files written before sync existed have no updatedAt.
@@ -93,6 +99,9 @@ struct Configuration: Codable, Identifiable, Hashable {
         lastActiveAt = try c.decodeIfPresent(Date.self, forKey: .lastActiveAt)
         transcript = try c.decodeIfPresent([ChatMessage].self, forKey: .transcript) ?? []
         titleWasManuallySet = try c.decodeIfPresent(Bool.self, forKey: .titleWasManuallySet) ?? false
+        // Existing chats (pre-flag) have already run, so default to NOT auto — we
+        // must never silently re-pick the team of an established conversation.
+        strategyIsAuto = try c.decodeIfPresent(Bool.self, forKey: .strategyIsAuto) ?? false
         draft = try c.decodeIfPresent(String.self, forKey: .draft) ?? ""
         totalTokens = try c.decodeIfPresent(Int.self, forKey: .totalTokens) ?? 0
         totalCostUSD = try c.decodeIfPresent(Double.self, forKey: .totalCostUSD) ?? 0

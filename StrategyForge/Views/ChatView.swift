@@ -411,9 +411,18 @@ struct ChatView: View {
                         Button(model.t("chat.createLoop")) { createLoopFromChat() }
                     } label: {
                         HStack(spacing: 4) {
-                            Text(model.strategyDisplayName(config.strategy))
-                                .font(.sfCaption2.weight(.medium))
-                                .foregroundStyle(Theme.accent)
+                            // Until the first message picks a team, show "Auto team"
+                            // (a wand), not a concrete strategy that looks pre-decided.
+                            if config.strategyIsAuto {
+                                Image(systemName: "wand.and.stars")
+                                    .font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.accent)
+                                Text(model.t("chat.autoTeam.badge"))
+                                    .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+                            } else {
+                                Text(model.strategyDisplayName(config.strategy))
+                                    .font(.sfCaption2.weight(.medium))
+                                    .foregroundStyle(Theme.accent)
+                            }
                             // Explicit disclosure cue: the capsule is a menu, not a label.
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 9, weight: .semibold))
@@ -749,7 +758,41 @@ struct ChatView: View {
 
     /// The differentiator, front and center on an empty chat: this chat is driven
     /// by the team you designed — show it (diagram + name + size + what it's for).
+    /// When the team is still "auto", we instead invite the user to just describe
+    /// their task (we'll pick the agents) — so nothing looks pre-decided.
+    @ViewBuilder
     private var strategyHook: some View {
+        if config.strategyIsAuto {
+            autoTeamHook
+        } else {
+            chosenTeamHook
+        }
+    }
+
+    private var autoTeamHook: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: "wand.and.stars")
+                .font(.system(size: 26)).foregroundStyle(Theme.accent)
+                .frame(width: 104, height: 64)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.accentSoft))
+                .breathingGlow(color: Theme.coral, enabled: !reduceMotion)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.t("chat.autoTeam.badge"))
+                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Text(model.t("chat.autoTeam.title")).font(.sfCardTitle)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(model.t("chat.autoTeam.desc"))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(Space.m)
+        .frame(maxWidth: 560, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
+    }
+
+    private var chosenTeamHook: some View {
         let teammates = config.strategy.subagentRoles.reduce(0) { $0 + max(1, $1.count) }
         return HStack(spacing: Space.m) {
             StrategyThumbnail(strategy: config.strategy)

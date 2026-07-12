@@ -327,12 +327,14 @@ final class AppModel {
     /// Create a new configuration seeded with the first template and select it.
     func addConfiguration() {
         // A new chat: empty name (shows the "New chat" placeholder and enables
-        // auto-titling from the first message). Executor+Advisor is the gentlest
-        // default strategy.
+        // auto-titling from the first message). The team is left "auto": the first
+        // message recommends one from the prompt (executorAdvisor is only the
+        // provisional placeholder used if the user never types anything).
         let config = Configuration(
             name: "",
             strategy: StrategyLibrary.executorAdvisor(),
-            lastActiveAt: Date()   // newest chat sorts to the top
+            lastActiveAt: Date(),   // newest chat sorts to the top
+            strategyIsAuto: true
         )
         configurations.append(config)
         selectedConfigID = config.id
@@ -646,6 +648,7 @@ final class AppModel {
     func applyTemplate(_ template: Strategy, to id: Configuration.ID) {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
         configurations[i].strategy = template
+        configurations[i].strategyIsAuto = false   // user/AI chose a team explicitly
         save()   // persist the strategy change so it survives relaunch
         flashSuccess(t("team.applied", strategyDisplayName(template)))
     }
@@ -700,8 +703,25 @@ final class AppModel {
     func applyTeam(_ team: SavedTeam, to configID: Configuration.ID) {
         guard let i = configurations.firstIndex(where: { $0.id == configID }) else { return }
         configurations[i].strategy = team.strategyCopy()
+        configurations[i].strategyIsAuto = false   // user chose a team explicitly
         save()
         flashSuccess(t("team.applied", team.name))
+    }
+
+    /// First-message hook: if the chat's team is still "auto", recommend one from the
+    /// user's prompt (deterministic AdvisorEngine), apply + persist it, and return it
+    /// so the very first turn already uses the recommended team. Returns nil when the
+    /// user has already chosen a team (nothing to recommend).
+    func autoRecommendStrategyIfNeeded(_ id: Configuration.ID, task: String) -> Strategy? {
+        guard let i = configurations.firstIndex(where: { $0.id == id }),
+              configurations[i].strategyIsAuto,
+              !task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        let advice = AdvisorEngine.advise(task: task)
+        configurations[i].strategy = advice.strategy
+        configurations[i].strategyIsAuto = false
+        save()
+        flashSuccess(t("chat.autoTeam", strategyDisplayName(advice.strategy)))
+        return advice.strategy
     }
 
     /// B7: start a fresh chat that uses a saved team (the library's fast path).
@@ -1010,6 +1030,7 @@ final class AppModel {
             permissionMode: settings.chatAutonomy.permissionMode,
             persist: { [weak self] messages in self?.updateTranscript(id, messages) },
             onFirstUserMessage: { [weak self] text in self?.autoTitleIfNeeded(id, fromFirstMessage: text) },
+            autoRecommendStrategy: { [weak self] text in self?.autoRecommendStrategyIfNeeded(id, task: text) },
             ensureStrategyFiles: { [weak self] in self?.writeStrategyFilesQuietly(id) },
             persistUsage: { [weak self] tokens, cost in self?.updateUsage(id, tokens: tokens, costUSD: cost) })
         vm.onRunningChanged = { [weak self, weak vm] running in

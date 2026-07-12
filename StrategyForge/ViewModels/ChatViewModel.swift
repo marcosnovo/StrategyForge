@@ -105,6 +105,9 @@ final class ChatViewModel {
     @ObservationIgnored private let persist: ([ChatMessage]) -> Void
     /// Called with the text of the very first user message (for auto-titling).
     @ObservationIgnored private let onFirstUserMessage: (String) -> Void
+    /// First-message hook: may return a strategy recommended from the prompt (when
+    /// the chat's team is still "auto"), which is adopted before this turn runs.
+    @ObservationIgnored private let autoRecommendStrategy: (String) -> Strategy?
     /// Writes the strategy's .claude files into the repo so the run actually uses
     /// the configured team. Called right before each run (idempotent).
     @ObservationIgnored private let ensureStrategyFiles: () -> Void
@@ -119,6 +122,7 @@ final class ChatViewModel {
          permissionMode: String = "acceptEdits",
          persist: @escaping ([ChatMessage]) -> Void = { _ in },
          onFirstUserMessage: @escaping (String) -> Void = { _ in },
+         autoRecommendStrategy: @escaping (String) -> Strategy? = { _ in nil },
          ensureStrategyFiles: @escaping () -> Void = {},
          persistUsage: @escaping (Int, Double) -> Void = { _, _ in }) {
         self.config = config
@@ -126,6 +130,7 @@ final class ChatViewModel {
         self.permissionMode = permissionMode
         self.persist = persist
         self.onFirstUserMessage = onFirstUserMessage
+        self.autoRecommendStrategy = autoRecommendStrategy
         self.ensureStrategyFiles = ensureStrategyFiles
         self.persistUsage = persistUsage
         self.messages = config.transcript
@@ -226,7 +231,12 @@ final class ChatViewModel {
         turnStartedAt = Date()
         lastStreamPersist = .distantPast
         runTask?.cancel()   // never leave a prior run's subprocess orphaned
-        if messages.isEmpty { onFirstUserMessage(text) }   // auto-title the chat
+        if messages.isEmpty {
+            // Recommend a team from the prompt (when still "auto") BEFORE writing the
+            // .claude files, so this very first turn already runs the fitting team.
+            if let recommended = autoRecommendStrategy(text) { config.strategy = recommended }
+            onFirstUserMessage(text)   // auto-title the chat
+        }
         // Put the strategy's .claude files in the working folder so the team applies.
         if config.repoPath?.isEmpty ?? true {
             try? StrategyWriter(repoURL: URL(fileURLWithPath: repo), binary: binary)
