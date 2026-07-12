@@ -100,8 +100,11 @@ struct ResizableDivider: View {
             hovering = h
             if h { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
         }
+        // Measure in GLOBAL space: the divider itself moves as the column resizes, so
+        // a local-space translation would "chase" the cursor and feel steppy. Global
+        // space tracks the pointer 1:1 for a smooth drag.
         .gesture(
-            DragGesture(minimumDistance: 0)
+            DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { v in
                     if startWidth == nil { startWidth = width }
                     let proposed = (startWidth ?? width) + sign * v.translation.width

@@ -495,8 +495,14 @@ struct ChatView: View {
                         Text(model.t("chat.subtitle", (path as NSString).lastPathComponent))
                             .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
                     } else {
-                        Text(model.t("chat.scratch"))
-                            .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+                        // No repo yet → a one-tap "connect a folder" right in the chat,
+                        // so code work is reachable without hunting for it.
+                        Button { _ = model.pickRepo(for: config.id) } label: {
+                            Label(model.t("chat.connectRepo"), systemImage: "folder.badge.plus")
+                                .font(.sfCaption2)
+                        }
+                        .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                        .help(model.t("chat.connectRepo.help"))
                     }
                 }
             }

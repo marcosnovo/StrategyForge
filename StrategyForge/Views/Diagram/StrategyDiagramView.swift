@@ -451,15 +451,8 @@ struct StrategyDiagramView: View {
             guard let rect = frames[node.id] else { continue }
             let live = node.id == activeID
 
-            // Stacked cards behind (for collapsed ×N roles).
-            if node.stackCount > 1 {
-                for i in stride(from: 2, through: 1, by: -1) {
-                    let off = CGFloat(6 * i)
-                    var faint = ctx
-                    faint.opacity = 0.5
-                    drawBox(rect.offsetBy(dx: off, dy: off), node: node, pulse: pulse, live: false, ctx: &faint, palette: palette)
-                }
-            }
+            // A collapsed ×N role is ONE clean box (no messy stacked cards behind it —
+            // those overlapped and hid the model text); the count rides a small badge.
             drawBox(rect, node: node, pulse: pulse, live: live, ctx: &ctx, palette: palette)
 
             // Text — clipped to the node so long names/models never overflow the box.
@@ -482,11 +475,13 @@ struct StrategyDiagramView: View {
                 drawText(&tctx, modelT, at: CGPoint(x: cx, y: rect.midY + 9), color: node.isAccent ? palette.accent : palette.secondary)
             }
 
-            // ×N badge.
+            // ×N badge — a small pill hugging the top-right CORNER (outside the box),
+            // so it never sits on the title/model text.
             if node.stackCount > 1 {
-                let cap = CGRect(x: rect.maxX - 36, y: rect.maxY - 22, width: 30, height: 16)
-                ctx.fill(Path(roundedRect: cap, cornerRadius: 8), with: .color(palette.accent))
-                drawText(&ctx, Text("×\(node.stackCount)").font(.system(size: 10, weight: .bold, design: .monospaced)),
+                let w: CGFloat = compact ? 22 : 26, h: CGFloat = compact ? 14 : 16
+                let cap = CGRect(x: rect.maxX - w * 0.55, y: rect.minY - h * 0.45, width: w, height: h)
+                ctx.fill(Path(roundedRect: cap, cornerRadius: h / 2), with: .color(palette.accent))
+                drawText(&ctx, Text("×\(node.stackCount)").font(.system(size: compact ? 9 : 10, weight: .bold, design: .monospaced)),
                          at: CGPoint(x: cap.midX, y: cap.midY), color: Theme.onAccent)
             }
         }

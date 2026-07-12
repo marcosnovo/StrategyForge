@@ -51,23 +51,15 @@ struct AgentActivityPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: Space.s) {
-                // Same title treatment as the Chats list and the chat header (a
-                // sfCardTitle line + a quiet subrow), so the three column headers
-                // read at one harmonious size instead of big/tiny/big.
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(model.strategyDisplayName(shownStrategy))
-                        .font(.sfCardTitle).lineLimit(1)
-                    // While previewing, the eyebrow names the chosen option (e.g.
-                    // "MAX QUALITY") so it tracks the selection, not a fixed label.
-                    Text(isPreviewing ? (previewLabel?.uppercased() ?? model.t("activity.recommended"))
-                                      : model.t("activity.title"))
-                        .font(.sfCaption2)
-                        .foregroundStyle(isPreviewing ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.secondaryOnMaterial))
-                        .lineLimit(1)
-                }
+                // No big title here — the cards below already show the team, so the
+                // header is just a quiet eyebrow + the current status/preview badge
+                // (removes the redundant, cluttered strategy-name row).
+                Text(model.t("activity.title"))
+                    .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
                 Spacer()
                 if isPreviewing {
-                    Label(model.t("activity.preview"), systemImage: "sparkles")
+                    // Name the chosen option so the preview badge tracks the selection.
+                    Label(previewLabel ?? model.t("activity.preview"), systemImage: "sparkles")
                         .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
                         .padding(.horizontal, Space.s).padding(.vertical, 3)
                         .background(Capsule().fill(Theme.accentSoft))
@@ -274,15 +266,35 @@ struct AgentActivityPanel: View {
         return "\(formatTokens(u.blockTokens)) · \(model.t("usage.resetsIn", left))"
     }
 
+    /// The cost tier (low/medium/high) of the shown/selected strategy.
+    private var diagramCostPill: some View {
+        let cost = CostEstimator.estimate(shownStrategy)
+        let color: Color
+        let key: String
+        switch cost.tier {
+        case .low:    color = Theme.success; key = "cost.tier.low"
+        case .medium: color = Theme.warning; key = "cost.tier.medium"
+        case .high:   color = Theme.danger;  key = "cost.tier.high"
+        }
+        return HStack(spacing: 3) {
+            Image(systemName: "bolt.fill").font(.system(size: 8))
+            Text(model.t(key)).font(.system(size: 9, weight: .semibold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 6).padding(.vertical, 1)
+        .background(Capsule().fill(color.opacity(0.16)))
+    }
+
     // MARK: Diagram (collapsible, inside the merged card)
 
     /// The live topology — visible unless collapsed.
     private var diagramContent: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             Button { withAnimation(.easeInOut(duration: 0.15)) { showDiagram.toggle() } } label: {
-                HStack {
+                HStack(spacing: Space.s) {
                     Text(model.t("activity.tab.diagram")).font(.sfFieldLabel)
                         .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
+                    diagramCostPill
                     Spacer()
                     Image(systemName: showDiagram ? "chevron.down" : "chevron.up")
                         .font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
