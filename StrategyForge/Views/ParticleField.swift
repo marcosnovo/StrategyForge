@@ -345,12 +345,23 @@ struct Particle3DSpinner: View {
         return P3(x: x, y: y, z: z)
     }
 
+    /// Point clouds are size-independent, so compute each figure ONCE and reuse it
+    /// every frame (this spinner is the app-wide waiting indicator — often several on
+    /// screen at 30fps, so avoiding a per-frame rebuild matters).
+    private static let cache: [Figure: [P3]] = {
+        var d: [Figure: [P3]] = [:]
+        for f in Figure.allCases { d[f] = computePoints(f) }
+        return d
+    }()
+    private static func points(_ f: Figure) -> [P3] { cache[f] ?? [] }
+
     /// The point cloud for each figure, normalized to ~[-1, 1].
-    private static func points(_ f: Figure) -> [P3] {
+    private static func computePoints(_ f: Figure) -> [P3] {
         switch f {
         case .sphere:
-            // Fibonacci sphere — evenly distributed dots on a globe.
-            let n = 64
+            // Fibonacci sphere — evenly distributed dots on a globe. 48 reads the same
+            // as 64 at the sizes we render but costs ~25% less per frame.
+            let n = 48
             let ga = Double.pi * (3 - 5.0.squareRoot())
             return (0..<n).map { i in
                 let y = 1 - 2 * (Double(i) + 0.5) / Double(n)

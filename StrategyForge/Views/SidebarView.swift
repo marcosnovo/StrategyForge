@@ -24,12 +24,14 @@ struct SidebarView: View {
         let sorted = model.configurations.sorted { $0.recency > $1.recency }
         let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return sorted }
+        // The transcript scan is the costly part (many chats × long histories); only
+        // run it once the query is specific enough to be worth it.
+        let deep = q.count >= 2
         return sorted.filter {
             $0.name.lowercased().contains(q)
             || ($0.repoPath ?? "").lowercased().contains(q)
             || model.strategyDisplayName($0.strategy).lowercased().contains(q)
-            // Full-text: search the actual conversation, not just the title.
-            || $0.transcript.contains { $0.text.lowercased().contains(q) }
+            || (deep && $0.transcript.contains { $0.text.lowercased().contains(q) })
         }
     }
 

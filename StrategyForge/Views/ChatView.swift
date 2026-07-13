@@ -1395,6 +1395,8 @@ struct ChatView: View {
             modelEffortChip
         }
         .padding(.horizontal, 2)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: vm.effort)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: vm.permissionMode)
     }
 
     /// Aceptar ediciones / Plan / Automático — the CLI permission mode, switchable
