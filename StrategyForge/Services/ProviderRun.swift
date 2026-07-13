@@ -65,9 +65,16 @@ struct CLIOneShotRunner: OneShotRunner {
         let (args, mode) = Self.command(for: provider, prompt: prompt, model: model,
                                         permissionMode: permissionMode, reasoningEffort: reasoningEffort,
                                         hasAPIKey: apiKey != nil)
-        // OpenAI API key travels via the environment, never the argv.
+        // Auth/keys travel via the environment, never the argv.
         var extraEnv: [String: String] = [:]
         if provider == .openai, let apiKey { extraEnv["OPENAI_API_KEY"] = apiKey }
+        if provider == .gemini {
+            if let apiKey { extraEnv["GEMINI_API_KEY"] = apiKey }
+            // Otherwise use the Google login the interactive `gemini` sign-in stored:
+            // run non-interactively the CLI needs an auth method named explicitly, or
+            // it errors ("Please set an Auth method … GOOGLE_GENAI_USE_GCA").
+            else { extraEnv["GOOGLE_GENAI_USE_GCA"] = "true" }
+        }
         let (out, err, status) = try await Self.launch(bin: bin, args: args, cwd: cwd, extraEnv: extraEnv)
         if status != 0 {
             let msg = err.trimmingCharacters(in: .whitespacesAndNewlines)
