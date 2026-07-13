@@ -143,8 +143,13 @@ enum ClaudeUsageStore {
             byModel[s.model, default: 0] += s.tokens
             weekTokens += s.tokens
         }
+        // Order by capability (most powerful first), NOT by usage — so the strongest
+        // model is always on top; tokens only break ties within a tier.
         let models = byModel.map { ModelUsage(model: $0.key, tokens: $0.value) }
-            .sorted { $0.tokens > $1.tokens }
+            .sorted {
+                let ra = Self.powerRank($0.model), rb = Self.powerRank($1.model)
+                return ra != rb ? ra < rb : $0.tokens > $1.tokens
+            }
 
         return UsageSummary(
             blockStart: liveBlockStart,
@@ -154,6 +159,15 @@ enum ClaudeUsageStore {
             weekByModel: models,
             lastActivity: samples.last?.date,
             computedAt: now)
+    }
+
+    /// Capability rank for display ordering — lower = more powerful (shown higher).
+    static func powerRank(_ model: String) -> Int {
+        let m = model.lowercased()
+        if m.contains("opus") || m.contains("fable") { return 0 }
+        if m.contains("sonnet") || m.contains("gemini 2.5 pro") || (m.contains("gpt-5") && !m.contains("mini")) { return 1 }
+        if m.contains("haiku") || m.contains("mini") || m.contains("flash") { return 3 }
+        return 2
     }
 
     private static func floorToHour(_ date: Date) -> Date {

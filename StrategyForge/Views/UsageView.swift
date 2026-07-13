@@ -131,11 +131,14 @@ struct UsageView: View {
     private func modelBar(_ m: ModelUsage, total: Int) -> some View {
         let frac = total > 0 ? Double(m.tokens) / Double(total) : 0
         return VStack(spacing: 3) {
-            HStack {
+            HStack(spacing: Space.s) {
                 Text(m.model).font(.sfCaption2.weight(.medium))
                 Spacer()
+                Text(formatTokens(m.tokens)).font(.sfCaption2.weight(.medium).monospacedDigit())
+                    .foregroundStyle(.primary)
                 Text("\(Int((frac * 100).rounded()))%")
-                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .font(.sfCaption2).foregroundStyle(.secondary).monospacedDigit()
+                    .frame(width: 34, alignment: .trailing)
                     .contentTransition(.numericText())
             }
             GeometryReader { geo in
