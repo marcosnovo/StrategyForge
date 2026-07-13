@@ -30,6 +30,9 @@ struct StrategyWriter {
         let existing = try? String(contentsOf: claudeMdURL, encoding: .utf8)
         let merged = ClaudeMdGenerator.merged(existing: existing, strategy: strategy, binary: binary)
         files.append(GeneratedFile(relativePath: ClaudeMdGenerator.fileName, contents: merged))
+        if let mcp = McpConfigGenerator.json(for: strategy.mcpServers) {
+            files.append(GeneratedFile(relativePath: McpConfigGenerator.fileName, contents: mcp))
+        }
         return files
     }
 
@@ -80,6 +83,15 @@ struct StrategyWriter {
         let merged = ClaudeMdGenerator.merged(existing: existing, strategy: strategy, binary: binary)
         try merged.write(to: claudeMdURL, atomically: true, encoding: .utf8)
         written.append(ClaudeMdGenerator.fileName)
+
+        // 3. .mcp.json — external tool servers Claude Code auto-loads. Written only
+        // when the strategy defines servers (never clobbers a hand-authored file
+        // with an empty one).
+        if let mcp = McpConfigGenerator.json(for: strategy.mcpServers) {
+            let url = repoURL.appendingPathComponent(McpConfigGenerator.fileName)
+            try mcp.write(to: url, atomically: true, encoding: .utf8)
+            written.append(McpConfigGenerator.fileName)
+        }
 
         return written
     }

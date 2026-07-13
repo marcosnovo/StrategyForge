@@ -18,19 +18,39 @@ struct Strategy: Codable, Identifiable, Hashable {
     /// delegate and the limitations (single level of delegation, no lateral
     /// worker-to-worker communication). Must be honest about the Claude Code model.
     var orchestrationNotes: String
+    /// External tool servers (MCP) this strategy makes available — written to
+    /// `.mcp.json` in the project so Claude Code auto-loads them.
+    var mcpServers: [McpServer]
 
     init(
         id: UUID = UUID(),
         name: String,
         description: String,
         roles: [AgentRole],
-        orchestrationNotes: String
+        orchestrationNotes: String,
+        mcpServers: [McpServer] = []
     ) {
         self.id = id
         self.name = name
         self.description = description
         self.roles = roles
         self.orchestrationNotes = orchestrationNotes
+        self.mcpServers = mcpServers
+    }
+
+    // Tolerant decode: `mcpServers` is new, so strategies saved by older versions
+    // (Configuration/SavedTeam JSON) simply default to none. Encode stays synthesized.
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, roles, orchestrationNotes, mcpServers
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        description = try c.decode(String.self, forKey: .description)
+        roles = try c.decode([AgentRole].self, forKey: .roles)
+        orchestrationNotes = try c.decode(String.self, forKey: .orchestrationNotes)
+        mcpServers = try c.decodeIfPresent([McpServer].self, forKey: .mcpServers) ?? []
     }
 
     // MARK: - Convenience
@@ -43,6 +63,32 @@ struct Strategy: Codable, Identifiable, Hashable {
     /// All non-orchestrator roles — the ones that become subagent files.
     var subagentRoles: [AgentRole] {
         roles.filter { !$0.isOrchestrator }
+    }
+}
+
+// MARK: - MCP
+
+/// One MCP (Model Context Protocol) tool server the project exposes to the agents.
+/// Serialized into `.mcp.json` as `{ name: { command, args, env } }`, which Claude
+/// Code auto-loads from the project root.
+struct McpServer: Codable, Hashable, Identifiable {
+    var id: UUID
+    var name: String                 // the server key, e.g. "github"
+    var command: String              // launcher, e.g. "npx" or an absolute path
+    var args: [String]
+    var env: [String: String]
+
+    init(id: UUID = UUID(), name: String = "", command: String = "",
+         args: [String] = [], env: [String: String] = [:]) {
+        self.id = id; self.name = name; self.command = command; self.args = args; self.env = env
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        command = try c.decodeIfPresent(String.self, forKey: .command) ?? ""
+        args = try c.decodeIfPresent([String].self, forKey: .args) ?? []
+        env = try c.decodeIfPresent([String: String].self, forKey: .env) ?? [:]
     }
 }
 

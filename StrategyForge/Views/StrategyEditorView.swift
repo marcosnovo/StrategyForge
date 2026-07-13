@@ -21,6 +21,7 @@ struct StrategyEditorView: View {
     @State private var confirmOverwrite = false
     @State private var pendingConflicts: [String] = []
     @State private var runPending: (() -> Void)?
+    @State private var showMcp = false
 
     private var hasRepo: Bool { config.repoPath != nil }
     private var canGenerate: Bool { config.strategy.isValid && hasRepo }
@@ -35,6 +36,7 @@ struct StrategyEditorView: View {
                 strategyCard
                 repoCard
                 rolesDisclosure(allIssues: allIssues)
+                mcpCard
                 validationSummary(allIssues)
             }
             .padding(Space.xl)
@@ -71,6 +73,75 @@ struct StrategyEditorView: View {
             return model.t("summary.willHappen.solo", name, files)
         }
         return model.t("summary.willHappen", instances + 1, name, files)
+    }
+
+    // MARK: - MCP tool servers
+
+    /// Optional external tool servers (MCP) — collapsed by default so beginners
+    /// don't have to think about it; written to `.mcp.json` when set.
+    private var mcpCard: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            DisclosureGroup(isExpanded: $showMcp) {
+                VStack(alignment: .leading, spacing: Space.m) {
+                    ForEach($config.strategy.mcpServers) { $server in
+                        mcpRow($server)
+                    }
+                    Button {
+                        config.strategy.mcpServers.append(McpServer(command: "npx"))
+                        showMcp = true
+                    } label: {
+                        Label(model.t("mcp.add"), systemImage: "plus.circle")
+                    }
+                    .buttonStyle(.bordered).controlSize(.small)
+                    Text(model.t("mcp.note")).font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, Space.s)
+            } label: {
+                HStack(spacing: Space.s) {
+                    Label(model.t("mcp.title"), systemImage: "puzzlepiece.extension.fill")
+                        .font(.sfCardTitle)
+                    if !config.strategy.mcpServers.isEmpty {
+                        Text("\(config.strategy.mcpServers.count)")
+                            .font(.sfCaption2.weight(.bold)).foregroundStyle(Theme.accent)
+                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(Capsule().fill(Theme.accentSoft))
+                    }
+                }
+            }
+        }
+        .card()
+    }
+
+    private func mcpRow(_ server: Binding<McpServer>) -> some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            HStack(spacing: Space.s) {
+                TextField(model.t("mcp.name"), text: server.name).textFieldStyle(.roundedBorder)
+                Button(role: .destructive) {
+                    config.strategy.mcpServers.removeAll { $0.id == server.wrappedValue.id }
+                } label: { Image(systemName: "trash") }
+                .buttonStyle(.borderless).help(model.t("mcp.remove"))
+            }
+            TextField(model.t("mcp.command"), text: server.command).textFieldStyle(.roundedBorder)
+            TextField(model.t("mcp.args"), text: Binding(
+                get: { server.wrappedValue.args.joined(separator: " ") },
+                set: { server.wrappedValue.args = $0.split(separator: " ").map(String.init) }))
+                .textFieldStyle(.roundedBorder).font(.body.monospaced())
+            TextField(model.t("mcp.env"), text: Binding(
+                get: { server.wrappedValue.env.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: "\n") },
+                set: { txt in
+                    var d: [String: String] = [:]
+                    for line in txt.split(whereSeparator: \.isNewline) {
+                        let kv = line.split(separator: "=", maxSplits: 1)
+                        guard kv.count == 2 else { continue }
+                        d[kv[0].trimmingCharacters(in: .whitespaces)] = String(kv[1])
+                    }
+                    server.wrappedValue.env = d
+                }), axis: .vertical)
+                .textFieldStyle(.roundedBorder).font(.body.monospaced()).lineLimit(1...4)
+        }
+        .padding(Space.s)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
     }
 
     // MARK: - Bottom action bar

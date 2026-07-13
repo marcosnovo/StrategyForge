@@ -656,6 +656,17 @@ enum L10n {
         "chat.send": ("Send", "Enviar"),
         "chat.stop": ("Stop", "Parar"),
 
+        // MCP tool servers
+        "mcp.title": ("Tool servers (MCP)", "Servidores de herramientas (MCP)"),
+        "mcp.add": ("Add server", "Añadir servidor"),
+        "mcp.remove": ("Remove server", "Quitar servidor"),
+        "mcp.name": ("Name (e.g. github)", "Nombre (p. ej. github)"),
+        "mcp.command": ("Command (e.g. npx)", "Comando (p. ej. npx)"),
+        "mcp.args": ("Arguments (space-separated)", "Argumentos (separados por espacios)"),
+        "mcp.env": ("Environment (KEY=VALUE per line)", "Entorno (CLAVE=VALOR por línea)"),
+        "mcp.note": ("MCP servers give the agents extra tools (web, GitHub, databases…). Written to .mcp.json, which Claude Code loads automatically.",
+                     "Los servidores MCP dan herramientas extra a los agentes (web, GitHub, bases de datos…). Se escriben en .mcp.json, que Claude Code carga automáticamente."),
+
         "chat.edit": ("Edit & resend", "Editar y reenviar"),
         "chat.regenerate": ("Regenerate", "Regenerar"),
 
