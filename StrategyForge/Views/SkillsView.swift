@@ -51,7 +51,6 @@ struct SkillsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
         .task(id: tab) { store.scan(projectRepo: projectRepo) }
-        .sheet(item: $pending) { installSheet($0) }
     }
 
     // MARK: - Left column
@@ -172,10 +171,11 @@ struct SkillsView: View {
                     Text(c.description).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(2)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "arrow.down.circle").foregroundStyle(Theme.accent)
+                Image(systemName: "chevron.right").font(.system(size: 11)).foregroundStyle(.tertiary)
             }
             .padding(.vertical, 6).padding(.horizontal, Space.s)
             .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            .selectedRow(pending?.slug == c.slug, cornerRadius: 8)
         }
         .buttonStyle(.plain).hoverTint(cornerRadius: 8).disabled(fetching)
     }
@@ -211,7 +211,7 @@ struct SkillsView: View {
     }
 
     private func installedRow(_ skill: AgentSkill) -> some View {
-        Button { selected = skill } label: {
+        Button { selected = skill; pending = nil } label: {
             HStack(spacing: Space.s) {
                 Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 12))
                     .foregroundStyle(selected?.id == skill.id ? Theme.accent : .secondary).frame(width: 20)
@@ -237,52 +237,122 @@ struct SkillsView: View {
 
     @ViewBuilder
     private var detail: some View {
-        if let s = selected, store.installed.contains(where: { $0.id == s.id }) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Space.m) {
-                    HStack(spacing: Space.s) {
-                        Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 20)).foregroundStyle(Theme.accent)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(s.name).font(.sfDisplay)
-                            Text(s.description).font(.sfCallout).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer()
-                    }
-                    HStack(spacing: Space.s) {
-                        scopeBadge(s.scope)
-                        kindTag(s.kind)
-                        if s.canRunCode {
-                            Label(model.t("skills.trust.badge"), systemImage: "exclamationmark.shield.fill")
-                                .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.warning)
-                                .padding(.horizontal, 8).padding(.vertical, 3)
-                                .background(Capsule().fill(Theme.warning.opacity(0.14)))
-                        }
-                        Spacer()
-                        useInTeamMenu(s)
-                        if let p = s.localPath {
-                            Button { NSWorkspace.shared.activateFileViewerSelecting([p]) } label: {
-                                Label(model.t("skills.reveal"), systemImage: "arrow.up.forward.app")
-                            }.controlSize(.small)
-                        }
-                        if s.coralManaged {
-                            Button(role: .destructive) { try? store.uninstall(s); selected = nil } label: {
-                                Label(model.t("skills.remove"), systemImage: "trash")
-                            }.controlSize(.small)
-                        }
-                    }
-                    teamsUsing(s)
-                    Divider()
-                    MarkdownView(text: s.body.isEmpty ? s.description : s.body)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(Space.xl).frame(maxWidth: 760, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+        if fetching && pending == nil {
+            VStack(spacing: Space.s) { WorkingLogo(size: 22); Text(model.t("skills.fetching")).font(.sfCaption2).foregroundStyle(.secondary) }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let p = pending {
+            previewDetail(p)
+        } else if let s = selected, store.installed.contains(where: { $0.id == s.id }) {
+            installedDetail(s)
         } else {
             ContentUnavailableView {
                 Label(model.t("skills.detail.title"), systemImage: "puzzlepiece.extension")
             } description: { Text(model.t("skills.detail.desc")) }
+        }
+    }
+
+    /// Detail for an INSTALLED skill: badges, use-in-team, reveal/remove, playbook.
+    private func installedDetail(_ s: AgentSkill) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.m) {
+                HStack(spacing: Space.s) {
+                    Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 20)).foregroundStyle(Theme.accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(s.name).font(.sfDisplay)
+                        Text(s.description).font(.sfCallout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                }
+                HStack(spacing: Space.s) {
+                    scopeBadge(s.scope)
+                    kindTag(s.kind)
+                    if s.canRunCode {
+                        Label(model.t("skills.trust.badge"), systemImage: "exclamationmark.shield.fill")
+                            .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.warning)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(Theme.warning.opacity(0.14)))
+                    }
+                    Spacer()
+                    useInTeamMenu(s)
+                    if let p = s.localPath {
+                        Button { NSWorkspace.shared.activateFileViewerSelecting([p]) } label: {
+                            Label(model.t("skills.reveal"), systemImage: "arrow.up.forward.app")
+                        }.controlSize(.small)
+                    }
+                    if s.coralManaged {
+                        Button(role: .destructive) { try? store.uninstall(s); selected = nil } label: {
+                            Label(model.t("skills.remove"), systemImage: "trash")
+                        }.controlSize(.small)
+                    }
+                }
+                teamsUsing(s)
+                Divider()
+                MarkdownView(text: s.body.isEmpty ? s.description : s.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(Space.xl).frame(maxWidth: 760, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Detail for a DISCOVER preview (not yet installed) — shown in the right pane
+    /// instead of a modal: header, source, trust note, scope + Install, playbook.
+    private func previewDetail(_ p: AgentSkill) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.m) {
+                HStack(spacing: Space.s) {
+                    Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 20)).foregroundStyle(Theme.accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(p.name).font(.sfDisplay)
+                        Text(p.description).font(.sfCallout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if case .github(let o, let r, _, _) = p.source {
+                            Text("\(o)/\(r) · \(model.t("skills.source.community"))")
+                                .font(.sfCaption2).foregroundStyle(.tertiary)
+                        }
+                    }
+                    Spacer()
+                    kindTag(p.kind)
+                }
+                if p.canRunCode {
+                    HStack(alignment: .top, spacing: Space.s) {
+                        Image(systemName: "exclamationmark.shield.fill").foregroundStyle(Theme.warning)
+                        Text(model.t("skills.trust.body")).font(.sfCaption2).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(Space.s).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.warning.opacity(0.10)))
+                }
+                // Install controls: scope + action, inline (no modal).
+                HStack(spacing: Space.m) {
+                    Picker(model.t("skills.scope.label"), selection: $confirmScope) {
+                        Text(model.t("skills.scope.personal")).tag(AgentSkill.Scope.personal)
+                        if let repo = projectRepo { Text(repo.lastPathComponent).tag(AgentSkill.Scope.project(repo)) }
+                    }
+                    .fixedSize()
+                    Spacer()
+                    Button(model.t("common.cancel")) { pending = nil }
+                    Button(model.t("skills.confirm.install")) {
+                        let preview = p, scope = confirmScope
+                        installing = true
+                        Task {
+                            do {
+                                _ = try await store.install(preview, into: scope)
+                                model.flashSuccess(model.t("skills.installedOk", preview.name))
+                                pending = nil; tab = .installed
+                                selected = store.installed.first { $0.slug == preview.slug }
+                            } catch { model.flashFailure(model.t("skills.installFailed")) }
+                            installing = false
+                        }
+                    }
+                    .buttonStyle(.moon).controlSize(.small).disabled(installing)
+                }
+                Divider()
+                MarkdownView(text: p.body.isEmpty ? p.description : p.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(Space.xl).frame(maxWidth: 760, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -348,66 +418,14 @@ struct SkillsView: View {
     // MARK: - Install (fetch → trust/confirm sheet → write)
 
     private func install(curated c: CuratedSkill) {
-        errorText = nil; fetching = true
+        errorText = nil; fetching = true; selected = nil
         Task { do { pending = try await store.preview(c) } catch { errorText = error.localizedDescription }; fetching = false }
     }
     private func install(ref: String) {
         guard !ref.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        errorText = nil; fetching = true
+        errorText = nil; fetching = true; selected = nil
         Task { do { pending = try await store.preview(githubRef: ref) } catch { errorText = error.localizedDescription }; fetching = false }
     }
 
     @State private var confirmScope: AgentSkill.Scope = .personal
-
-    private func installSheet(_ preview: AgentSkill) -> some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            Text(model.t("skills.confirm.title")).font(.sfCardTitle)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(preview.name).font(.sfCallout.weight(.semibold))
-                Text(preview.description).font(.sfCaption2).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if case .github(let o, let r, _, _) = preview.source {
-                    Text("\(o)/\(r) · \(model.t("skills.source.community"))")
-                        .font(.sfCaption2).foregroundStyle(.tertiary)
-                }
-            }
-            if preview.canRunCode {
-                HStack(alignment: .top, spacing: Space.s) {
-                    Image(systemName: "exclamationmark.shield.fill").foregroundStyle(Theme.warning)
-                    Text(model.t("skills.trust.body")).font(.sfCaption2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(Space.s).frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.warning.opacity(0.10)))
-            }
-            // Scope: personal always; project only when a repo chat is open.
-            Picker(model.t("skills.scope.label"), selection: $confirmScope) {
-                Text(model.t("skills.scope.personal")).tag(AgentSkill.Scope.personal)
-                if let repo = projectRepo { Text(repo.lastPathComponent).tag(AgentSkill.Scope.project(repo)) }
-            }
-            .pickerStyle(.radioGroup)
-            ScrollView {
-                MarkdownView(text: preview.body).frame(maxWidth: .infinity, alignment: .leading).padding(Space.s)
-            }
-            .frame(height: 200).background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
-            HStack {
-                Spacer()
-                Button(model.t("common.cancel")) { pending = nil }
-                Button(model.t("skills.confirm.install")) {
-                    let preview = preview, scope = confirmScope
-                    installing = true
-                    Task {
-                        do {
-                            _ = try await store.install(preview, into: scope)
-                            model.flashSuccess(model.t("skills.installedOk", preview.name))
-                            pending = nil; tab = .installed
-                        } catch { model.flashFailure(model.t("skills.installFailed")) }
-                        installing = false
-                    }
-                }
-                .buttonStyle(.moon).keyboardShortcut(.defaultAction).disabled(installing)
-            }
-        }
-        .padding(Space.l).frame(width: 520)
-    }
 }

@@ -25,12 +25,14 @@ struct ServicesListColumn: View {
             .zoomWindowOnDoubleClick()
             Divider()
 
-            List(selection: $model.selectedService) {
-                ForEach(AIProvider.allCases) { p in
-                    row(p).tag(p)
+            // ScrollView + LazyVStack (not List(selection:)) so the macOS system
+            // selection block never paints over our soft .selectedRow treatment.
+            ScrollView {
+                LazyVStack(spacing: 2) {
+                    ForEach(AIProvider.allCases) { p in row(p) }
                 }
+                .padding(.horizontal, Space.s).padding(.top, Space.xs)
             }
-            .listStyle(.plain)   // suppress the solid system-accent selection block
             .scrollContentBackground(.hidden)
             .background(Theme.appBg)
         }

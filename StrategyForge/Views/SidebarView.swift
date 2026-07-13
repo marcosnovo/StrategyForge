@@ -42,45 +42,49 @@ struct SidebarView: View {
             searchField
             Divider()
 
-            List(selection: $model.selectedConfigID) {
-                ForEach(visibleConfigs) { config in
-                    chatRow(config)
-                        .selectedRow(model.selectedConfigID == config.id, cornerRadius: 8)
-                        .hoverTint(cornerRadius: 8)
-                        .padding(.vertical, Space.xs)
-                        .tag(config.id)
-                        .contextMenu {
-                            Button(model.t("sidebar.rename")) { beginRename(config) }
-                            Button(model.t("config.duplicate")) { model.duplicateConfiguration(config.id) }
-                            Button(model.t("doc.export")) { model.exportStrategyDocument(config) }
-                            if config.repoPath != nil {
-                                Button(model.t("config.regenerate")) { model.generate(config) }
+            // A plain ScrollView + LazyVStack, NOT List(selection:) — the macOS List
+            // selection highlight paints a solid system-accent block that .listStyle
+            // can't suppress, which buried our soft selection treatment. Selection is
+            // driven by tap so our .selectedRow (tint + hairline + bar) is the only cue.
+            ScrollView {
+                LazyVStack(spacing: 2) {
+                    ForEach(visibleConfigs) { config in
+                        chatRow(config)
+                            .selectedRow(model.selectedConfigID == config.id, cornerRadius: 8)
+                            .hoverTint(cornerRadius: 8)
+                            .contentShape(Rectangle())
+                            .onTapGesture { model.selectedConfigID = config.id }
+                            .contextMenu {
+                                Button(model.t("sidebar.rename")) { beginRename(config) }
+                                Button(model.t("config.duplicate")) { model.duplicateConfiguration(config.id) }
+                                Button(model.t("doc.export")) { model.exportStrategyDocument(config) }
+                                if config.repoPath != nil {
+                                    Button(model.t("config.regenerate")) { model.generate(config) }
+                                }
+                                Divider()
+                                Button(model.t("sidebar.delete"), role: .destructive) {
+                                    pendingDelete = config.id
+                                }
                             }
-                            Divider()
-                            Button(model.t("sidebar.delete"), role: .destructive) {
-                                pendingDelete = config.id
-                            }
-                        }
-                }
-
-                if model.configurations.isEmpty {
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        Text(model.t("sidebar.empty"))
-                            .font(.sfCaption2)
-                            .foregroundStyle(.secondary)
-                        Button {
-                            model.addConfiguration()
-                        } label: {
-                            Label(model.t("sidebar.empty.cta"), systemImage: "square.and.pencil")
-                        }
-                        .buttonStyle(.link)
                     }
-                    .padding(.vertical, Space.xs)
+                    if model.configurations.isEmpty {
+                        VStack(alignment: .leading, spacing: Space.s) {
+                            Text(model.t("sidebar.empty"))
+                                .font(.sfCaption2)
+                                .foregroundStyle(.secondary)
+                            Button {
+                                model.addConfiguration()
+                            } label: {
+                                Label(model.t("sidebar.empty.cta"), systemImage: "square.and.pencil")
+                            }
+                            .buttonStyle(.link)
+                        }
+                        .padding(.vertical, Space.xs)
+                    }
                 }
+                .padding(.horizontal, Space.s).padding(.top, Space.xs)
             }
-            .listStyle(.plain)   // suppress the solid system-accent selection block
             .scrollContentBackground(.hidden)
-            .background(.regularMaterial)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.regularMaterial)

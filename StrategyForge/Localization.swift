@@ -793,6 +793,7 @@ enum L10n {
         "skills.installedOk": ("Installed “%@”.", "Instalada «%@»."),
         "skills.installFailed": ("Couldn't install the skill.", "No se pudo instalar la skill."),
         "skills.search": ("Search by name or purpose", "Buscar por nombre o propósito"),
+        "skills.fetching": ("Fetching skill…", "Obteniendo skill…"),
         "skills.kind.all": ("All", "Todas"),
         "skills.kind.knowledge": ("Knowledge", "Conocimiento"),
         "skills.kind.code": ("Code", "Código"),
