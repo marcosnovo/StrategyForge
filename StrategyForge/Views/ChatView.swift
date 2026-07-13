@@ -296,7 +296,7 @@ struct ChatView: View {
         // The "Coral Bloom" wow beat: a short coral-particle bloom when a turn
         // finishes (every 25th turn escalates with a teal accent). Self-terminating,
         // never blocks input, honors Reduce Motion.
-        .overlay { CoralBloomOverlay(token: bloomToken, milestone: bloomMilestone) }
+        .overlay { CoralAssembleOverlay(token: bloomToken, milestone: bloomMilestone) }
         .onChange(of: vm.isRunning) { wasRunning, nowRunning in
             if wasRunning && !nowRunning && vm.hasFinishedActivity {
                 bloomMilestone = vm.history.count > 0 && vm.history.count % 25 == 0
