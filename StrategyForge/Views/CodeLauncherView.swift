@@ -83,7 +83,7 @@ struct CodeLauncherView: View {
 
     private var githubReposCard: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            SectionHeader("cloud", model.t("code.myRepos.title"), subtitle: model.t("code.myRepos.subtitle"))
+            SectionHeader("cloud", model.t("code.myRepos.title"), subtitle: model.t("code.myRepos.subtitle"), useGitHubMark: true)
             if loadingRepos {
                 HStack(spacing: Space.s) {
                     WorkingLogo(size: 16); Text(model.t("code.myRepos.loading")).font(.sfCaption2).foregroundStyle(.secondary)

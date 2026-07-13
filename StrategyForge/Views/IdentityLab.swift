@@ -132,6 +132,85 @@ private func dot(_ ctx: inout GraphicsContext, _ x: CGFloat, _ y: CGFloat, _ r: 
     ctx.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)), with: .color(color))
 }
 
+// MARK: - Variations of the CURRENT branching mark (art-director workflow)
+
+/// A CoralMark-style glyph from a spec: quad-bezier branches + graded node dots on a
+/// 0…100 canvas. Used to render the three modern variations of the current logo.
+struct CoralVariantMark: View {
+    let branches: [[CGFloat]]     // [sx,sy,cx,cy,ex,ey]
+    let nodes: [[CGFloat]]        // [x,y,r]
+    let strokeFactor: CGFloat
+    var nodeColors: [Color] = []
+    var color: Color = Brand.coral
+    var size: CGFloat = 96
+    /// When set, all strokes + nodes render in this single color (dark-bg / mono).
+    var monoColor: Color? = nil
+
+    var body: some View {
+        Canvas { ctx, sz in
+            func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+                CGPoint(x: x / 100 * sz.width, y: y / 100 * sz.height)
+            }
+            let stroke = monoColor ?? color
+            var path = Path()
+            for b in branches { path.move(to: pt(b[0], b[1])); path.addQuadCurve(to: pt(b[4], b[5]), control: pt(b[2], b[3])) }
+            ctx.stroke(path, with: .color(stroke),
+                       style: StrokeStyle(lineWidth: sz.width * strokeFactor, lineCap: .round, lineJoin: .round))
+            for (i, n) in nodes.enumerated() {
+                let r = n[2] / 100 * sz.width, c = pt(n[0], n[1])
+                let col = monoColor ?? (i < nodeColors.count ? nodeColors[i] : color)
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)), with: .color(col))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The three finalists (exact specs from the workflow), plus the current mark.
+enum CoralVariant: String, CaseIterable, Identifiable {
+    case current, monoline, orgHubFork, polyp
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .current: return "Current (shipping)"
+        case .monoline: return "1 · Coral Monoline"
+        case .orgHubFork: return "2 · Coral Org — Hub-Fork"
+        case .polyp: return "3 · Coral Polyp — Alive"
+        }
+    }
+    var story: String {
+        switch self {
+        case .current: return "The mark you have today — for side-by-side comparison."
+        case .monoline: return "Ruthless mirror symmetry, straight trunk, three nodes. Linear/Stripe-era restraint."
+        case .orgHubFork: return "Same silhouette, but the two forks become hub nodes: a 3-tier orchestrator→hubs→workers graph, one teal signal dot."
+        case .polyp: return "Controlled asymmetry + size-graded tips — the mark feels grown, not drawn."
+        }
+    }
+    var branches: [[CGFloat]] {
+        switch self {
+        case .current: return [[50,84,50,70,50,60],[50,60,40,52,29,40],[29,40,24,31,21,24],[29,40,34,31,39,25],[50,60,60,52,71,40],[71,40,76,31,79,24],[71,40,66,31,61,25]]
+        case .monoline: return [[50,86,50,72,50,58],[50,58,38,46,26,22],[50,58,62,46,74,22],[50,58,36,40,40,30],[50,58,64,40,60,30]]
+        case .orgHubFork: return [[50,84,50,70,50,60],[50,60,40,52,29,40],[29,40,24,31,21,24],[29,40,34,31,39,24],[50,60,60,52,71,40],[71,40,76,31,79,24],[71,40,66,31,61,24]]
+        case .polyp: return [[50,84,51.5,71,49,58],[49,58,39,51,27,41],[27,41,22,32,19,25],[27,41,32,32,37,27],[49,58,60,50,72,43],[72,43,78,34,81,26],[72,43,66,32,60,23]]
+        }
+    }
+    var nodes: [[CGFloat]] {
+        switch self {
+        case .current: return [[50,84,7.6],[21,24,5.6],[39,25,5.6],[61,25,5.6],[79,24,5.6]]
+        case .monoline: return [[50,86,7.2],[26,22,5.4],[74,22,5.4]]
+        case .orgHubFork: return [[50,84,7.8],[29,40,5.9],[71,40,5.9],[21,24,4.6],[39,24,4.6],[61,24,4.6],[79,24,4.6],[50,60,2.6]]
+        case .polyp: return [[50,84,7.8],[19,25,4.8],[37,27,5.4],[60,23,6.2],[81,26,5.1]]
+        }
+    }
+    var strokeFactor: CGFloat { self == .monoline ? 0.058 : 0.062 }
+    var nodeColors: [Color] {
+        self == .orgHubFork
+            ? [Brand.coral, Brand.coral, Brand.coral, Brand.coral300, Brand.coral300, Brand.coral300, Brand.coral300, Brand.teal]
+            : []
+    }
+}
+
 // MARK: - Labs section
 
 struct IdentityLabSection: View {
@@ -186,6 +265,58 @@ struct IdentityLabSection: View {
                 Text(secondary).font(.system(size: 13, weight: .semibold)).foregroundStyle(Brand.teal)
                     .padding(.horizontal, 14).padding(.vertical, 8)
                     .background(Capsule().strokeBorder(Brand.teal, lineWidth: 1.5))
+            }
+        }
+        .padding(Space.l)
+        .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    private func markTile(bg: Color, @ViewBuilder _ content: () -> some View) -> some View {
+        content()
+            .frame(width: 120, height: 120)
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(bg))
+    }
+}
+
+// MARK: - Current-mark variations section (what the client actually wanted)
+
+/// Three modern variations OF the current branching mark (the client prefers the
+/// current glyph over the sphere concepts). Review-only, in Labs.
+struct CoralMarkLabSection: View {
+    private let cols = [GridItem(.adaptive(minimum: 300, maximum: 380), spacing: Space.l)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.l) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Logo — variations of the current mark").font(.sfDisplay)
+                Text("You preferred the current branching mark over the sphere concepts, so a fresh panel of designers evolved IT — three modern, unique takes that keep the one-root-to-four-tips DNA. Frozen on paper, reef-ink and at menu-bar sizes. Labs-only.")
+                    .font(.sfCallout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
+                ForEach(CoralVariant.allCases) { v in card(v) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func card(_ v: CoralVariant) -> some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            Text(v.title).font(.sfCardTitle)
+            Text(v.story).font(.sfCaption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Space.m) {
+                markTile(bg: Brand.paper) {
+                    CoralVariantMark(branches: v.branches, nodes: v.nodes, strokeFactor: v.strokeFactor,
+                                     nodeColors: v.nodeColors, size: 96)
+                }
+                markTile(bg: Brand.reefInk) {
+                    CoralVariantMark(branches: v.branches, nodes: v.nodes, strokeFactor: v.strokeFactor,
+                                     size: 96, monoColor: .white)
+                }
+                VStack(spacing: 12) {
+                    CoralVariantMark(branches: v.branches, nodes: v.nodes, strokeFactor: v.strokeFactor, nodeColors: v.nodeColors, size: 26)
+                    CoralVariantMark(branches: v.branches, nodes: v.nodes, strokeFactor: v.strokeFactor, nodeColors: v.nodeColors, size: 16)
+                }
             }
         }
         .padding(Space.l)

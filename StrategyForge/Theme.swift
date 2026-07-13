@@ -174,6 +174,20 @@ struct CoralMark: View {
     }
 }
 
+/// The official GitHub mark (octicon, template-rendered so it takes the current
+/// foreground color). Use wherever the app talks to GitHub (repos, clone, PRs).
+struct GitHubMark: View {
+    var size: CGFloat = 16
+    var body: some View {
+        Image("GitHubMark")
+            .renderingMode(.template)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Primary "Deep sea" button style
 
 /// The primary action button: a living-coral gradient fill with white text.
@@ -518,19 +532,30 @@ struct SectionHeader<Trailing: View>: View {
     let icon: String
     let title: String
     var subtitle: String?
+    /// When true, the leading badge shows the GitHub mark instead of an SF Symbol.
+    var useGitHubMark = false
     @ViewBuilder var trailing: Trailing
 
-    init(_ icon: String, _ title: String, subtitle: String? = nil, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+    init(_ icon: String, _ title: String, subtitle: String? = nil, useGitHubMark: Bool = false,
+         @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
         self.icon = icon
         self.title = title
         self.subtitle = subtitle
+        self.useGitHubMark = useGitHubMark
         self.trailing = trailing()
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
             HStack(alignment: .firstTextBaseline, spacing: Space.m) {
-                IconBadge(systemName: icon)
+                if useGitHubMark {
+                    GitHubMark(size: 17)
+                        .foregroundStyle(Theme.accent)
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(Theme.accentSoft))
+                } else {
+                    IconBadge(systemName: icon)
+                }
                 Text(title)
                     .font(.sfCardTitle)
                     .fixedSize(horizontal: false, vertical: true)

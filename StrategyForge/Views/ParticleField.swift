@@ -543,6 +543,10 @@ struct ParticleLabView: View {
                         .font(.sfCallout).foregroundStyle(.secondary)
                 }
 
+                // Variations of the CURRENT mark (the preferred direction). Top billing.
+                CoralMarkLabSection()
+                Divider()
+
                 // Logo & identity proposals (review-only).
                 IdentityLabSection()
                 Divider()
