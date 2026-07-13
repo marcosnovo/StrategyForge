@@ -86,10 +86,10 @@ final class TeamCatalogStore {
 
     private func fetchData(_ url: URL) async throws -> Data {
         do {
-            var req = URLRequest(url: url)
-            req.timeoutInterval = 20
-            let (data, resp) = try await URLSession.shared.data(for: req)
-            if let http = resp as? HTTPURLResponse, http.statusCode == 404 { throw FetchError.empty }
+            // Revalidating on-disk cache: a 304 is near-free and the catalog still
+            // works offline from the last good copy (matters at 10k+ users hitting
+            // raw.githubusercontent on every open).
+            let data = try await HTTPCache.data(from: url, timeout: 20)
             guard !data.isEmpty else { throw FetchError.empty }
             return data
         } catch let e as FetchError { throw e }

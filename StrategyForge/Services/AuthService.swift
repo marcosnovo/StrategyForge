@@ -23,8 +23,14 @@ enum AuthError: LocalizedError {
         switch self {
         case .cancelled: return "Sign-in was cancelled."
         case .googleNotConfigured: return "Google sign-in isn't configured yet (missing client ID)."
-        case .badResponse: return "The identity provider returned an unexpected response."
-        case .tokenExchangeFailed(let m): return "Token exchange failed: \(m)"
+        case .badResponse:
+            // A common cause during early launch: the Google OAuth consent screen is
+            // still "Testing"/unverified, which caps sign-in at 100 users and blocks
+            // the rest here. Signing in is optional (it only enables iCloud sync), so
+            // point the user at the alternative rather than dead-ending.
+            return "Google couldn't complete sign-in. If Google sign-in is still being verified this can fail — try Sign in with Apple, or just continue without an account (it's optional; it only enables iCloud sync)."
+        case .tokenExchangeFailed(let m):
+            return "Google sign-in failed: \(m). You can use Sign in with Apple instead, or continue without an account — signing in is optional."
         }
     }
 }
