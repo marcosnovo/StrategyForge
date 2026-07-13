@@ -656,6 +656,15 @@ enum L10n {
         "chat.send": ("Send", "Enviar"),
         "chat.stop": ("Stop", "Parar"),
 
+        // Composer — slash commands
+        "slash.accept": ("Accept edits mode", "Modo aceptar ediciones"),
+        "slash.plan": ("Plan mode (no edits)", "Modo plan (sin ediciones)"),
+        "slash.auto": ("Automatic mode", "Modo automático"),
+        "slash.fast": ("Effort: fast", "Esfuerzo: rápido"),
+        "slash.think": ("Effort: think hard", "Esfuerzo: pensar a fondo"),
+        "slash.ultra": ("Effort: ultracode", "Esfuerzo: ultracode"),
+        "slash.clear": ("Clear the conversation", "Vaciar la conversación"),
+
         // Composer — working-branch / PR bar
         "pr.state.open": ("Open", "Abierto"),
         "pr.state.merged": ("Merged", "Fusionado"),

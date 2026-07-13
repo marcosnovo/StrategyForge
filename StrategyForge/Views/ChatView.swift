@@ -61,6 +61,8 @@ struct ChatView: View {
     /// Working-branch context bar: the branch + its ±diff, and any open PR.
     @State private var branchStat: CodeGit.BranchStat?
     @State private var prInfo: GitHubCLI.PRInfo?
+    /// Slash-command palette matches for the current `/token`.
+    @State private var slashMatches: [SlashCommand] = []
     /// Persisted, user-resizable width of the agent-activity panel.
     @AppStorage("col.activity") private var activityW = 320.0
     private let rename: (String) -> Void
@@ -1046,6 +1048,7 @@ struct ChatView: View {
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             if branchStat != nil { branchBar }
+            if !slashMatches.isEmpty { slashPopover }
             if !mentionMatches.isEmpty { mentionPopover }
             if !vm.attachments.isEmpty { attachmentChips }
             HStack(spacing: Space.s) {
@@ -1075,8 +1078,8 @@ struct ChatView: View {
                 .shadow(color: Theme.accent.opacity(inputFocused ? 0.18 : 0), radius: 8)
                 .focused($inputFocused)
                 .animation(.easeOut(duration: 0.18), value: inputFocused)
-                // @-mentions: refresh the file-autocomplete as the draft changes.
-                .onChange(of: vm.input) { refreshMentions() }
+                // @-mentions + /-commands: refresh both palettes as the draft changes.
+                .onChange(of: vm.input) { refreshMentions(); refreshSlash() }
                 .onSubmit { send() }
                 // Up arrow on an empty field recalls the last message to edit/resend.
                 .onKeyPress(.upArrow) {
@@ -1200,6 +1203,76 @@ struct ChatView: View {
             return out
         }.value
         allRepoFiles = files
+    }
+
+    // MARK: - Slash commands
+
+    private struct SlashCommand: Identifiable {
+        enum Action { case mode(String), effort(Effort), clear }
+        let name: String
+        let descKey: String
+        let icon: String
+        let action: Action
+        var id: String { name }
+    }
+
+    /// Built-in composer commands (Claude-style `/`): switch mode, set effort, clear.
+    private var slashCommands: [SlashCommand] {
+        [.init(name: "accept", descKey: "slash.accept", icon: "pencil.circle", action: .mode("acceptEdits")),
+         .init(name: "plan", descKey: "slash.plan", icon: "list.bullet.clipboard", action: .mode("plan")),
+         .init(name: "auto", descKey: "slash.auto", icon: "bolt.circle", action: .mode("bypassPermissions")),
+         .init(name: "fast", descKey: "slash.fast", icon: "hare", action: .effort(.fast)),
+         .init(name: "think", descKey: "slash.think", icon: "brain", action: .effort(.high)),
+         .init(name: "ultra", descKey: "slash.ultra", icon: "sparkles", action: .effort(.ultra)),
+         .init(name: "clear", descKey: "slash.clear", icon: "eraser", action: .clear)]
+    }
+
+    private var slashPopover: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(slashMatches) { cmd in
+                Button { runSlash(cmd) } label: {
+                    HStack(spacing: Space.s) {
+                        Image(systemName: cmd.icon).font(.system(size: 11)).foregroundStyle(Theme.accent)
+                            .frame(width: 16)
+                        Text("/\(cmd.name)").font(.sfCaption2.weight(.semibold)).monospaced()
+                        Text(model.t(cmd.descKey)).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, Space.s).padding(.vertical, 5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .hoverTint(cornerRadius: 6)
+            }
+        }
+        .padding(Space.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    /// The palette shows while the draft is a lone `/token` (no space yet).
+    private func refreshSlash() {
+        let s = vm.input
+        guard s.first == "/", !s.contains(" ") else {
+            if !slashMatches.isEmpty { slashMatches = [] }
+            return
+        }
+        let q = s.dropFirst().lowercased()
+        slashMatches = slashCommands.filter { q.isEmpty || $0.name.hasPrefix(q) }
+    }
+
+    private func runSlash(_ cmd: SlashCommand) {
+        switch cmd.action {
+        case .mode(let m): withAnimation(.easeOut(duration: 0.15)) { vm.permissionMode = m }
+        case .effort(let e): vm.effort = e
+        case .clear:
+            vm.clearTranscript()
+            saveDraft("")
+        }
+        vm.input = ""
+        slashMatches = []
     }
 
     // MARK: - Working-branch context bar

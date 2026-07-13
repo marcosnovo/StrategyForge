@@ -222,6 +222,14 @@ final class ChatViewModel {
         return !(FileManager.default.fileExists(atPath: repo, isDirectory: &isDir) && isDir.boolValue)
     }
 
+    /// Clear the visible conversation and start a fresh CLI session next turn (/clear).
+    func clearTranscript() {
+        guard !isRunning else { return }
+        messages = []
+        hasSession = false
+        persist(messages)
+    }
+
     func send() {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isRunning else { return }
