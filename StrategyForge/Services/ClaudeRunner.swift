@@ -28,7 +28,8 @@ enum ChatEvent: Sendable, Equatable {
     case todos([AgentTodo])             // the agent's task list (TodoWrite)
     case fileEdited(String)             // absolute path of a file the agent wrote/edited
     case denied([String])               // tool uses the run wasn't permitted to perform
-    case usage(tokens: Int, costUSD: Double)  // consumption for this turn
+    case usage(tokens: Int, costUSD: Double)  // authoritative run total (result line)
+    case modelUsage(model: String, tokens: Int)  // per-message usage tagged with its model (#8)
     case finished                       // the run completed successfully
     case failed(String)                 // the run could not start / errored
 }
@@ -98,6 +99,16 @@ enum ClaudeStreamParser {
                 default:
                     break
                 }
+            }
+            // Per-message token usage tagged with the model that produced it — the
+            // native, exact source for the #8 per-model breakdown (subagent messages
+            // carry their own model, e.g. Haiku).
+            if let modelID = message["model"] as? String,
+               let u = message["usage"] as? [String: Any] {
+                let t = (u["input_tokens"] as? Int ?? 0) + (u["output_tokens"] as? Int ?? 0)
+                    + (u["cache_creation_input_tokens"] as? Int ?? 0)
+                    + (u["cache_read_input_tokens"] as? Int ?? 0)
+                if t > 0 { events.append(.modelUsage(model: modelID, tokens: t)) }
             }
             return events
         }

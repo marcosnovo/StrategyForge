@@ -43,6 +43,7 @@ struct AgentActivityPanel: View {
     /// The team list starts collapsed so the panel reads at a glance.
     @State private var showTeam = false
     @State private var previewingFiles = false
+    @State private var showHistory = false
 
     /// The strategy to show: the recommendation preview when idle, else the live team.
     private var shownStrategy: Strategy {
@@ -99,6 +100,8 @@ struct AgentActivityPanel: View {
                     if !vm.editedFiles.isEmpty { filesSection.panelCard() }
                     if !vm.todos.isEmpty { tasksSection.panelCard() }
                     stepsSection.panelCard()
+                    // Persistent, reviewable history of past turns' agent activity.
+                    if !vm.isRunning && !vm.history.isEmpty { historySection.panelCard() }
                 }
                 .padding(Space.m)
             }
@@ -223,9 +226,12 @@ struct AgentActivityPanel: View {
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.totalCostUSD)
                 }
             }
-            // The models THIS run uses (from the team), so the live total above is
-            // clearly tied to the agents actually running — not the machine-wide week.
-            if !runModelSummary(shownStrategy).isEmpty {
+            // EXACT per-model / per-agent spend for THIS run (from each message's
+            // own model), so e.g. Haiku subagent tokens show up. Falls back to the
+            // team's configured models before any usage has streamed.
+            if !vm.tokensByModel.isEmpty {
+                runTokenBreakdown
+            } else if !runModelSummary(shownStrategy).isEmpty {
                 HStack(spacing: 5) {
                     Image(systemName: "cpu").font(.system(size: 9)).foregroundStyle(Theme.tertiaryOnMaterial)
                     Text(runModelSummary(shownStrategy))
@@ -429,6 +435,118 @@ struct AgentActivityPanel: View {
     }
 
     // MARK: Steps (recent + "see all" on the right)
+
+    // MARK: Persistent agent history (#7)
+
+    private var historySection: some View {
+        DisclosureGroup(isExpanded: $showHistory) {
+            VStack(alignment: .leading, spacing: Space.s) {
+                ForEach(vm.history.reversed()) { turn in historyTurnRow(turn) }
+            }
+            .padding(.top, Space.xs)
+        } label: {
+            HStack(spacing: Space.xs) {
+                Image(systemName: "clock.arrow.circlepath").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                Text(model.t("activity.history")).font(.sfFieldLabel)
+                    .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
+                Text("\(vm.history.count)").font(.sfCaption2.weight(.bold)).foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Theme.accentSoft))
+            }
+        }
+    }
+
+    private func historyTurnRow(_ turn: TurnActivity) -> some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(turn.steps) { step in
+                    ActivityStepRow(step: step, startedAt: turn.startedAt)
+                }
+            }
+            .padding(.top, Space.xs)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.t("activity.history.turn", turn.turnIndex + 1))
+                    .font(.sfCaption2.weight(.semibold))
+                + Text("  \(turn.endedAt.formatted(.relative(presentation: .named)))")
+                    .font(.sfCaption2).foregroundColor(.secondary)
+                if !turn.prompt.isEmpty {
+                    Text(turn.prompt).font(.sfCaption2).foregroundStyle(.secondary)
+                        .lineLimit(2).truncationMode(.tail)
+                }
+                HStack(spacing: Space.s) {
+                    Label("\(turn.steps.count)", systemImage: "list.bullet").font(.system(size: 9, weight: .medium))
+                    if turn.tokensUsed > 0 {
+                        Label(formatTokens(turn.tokensUsed), systemImage: "circle.hexagongrid").font(.system(size: 9, weight: .medium))
+                    }
+                    if turn.costUSD > 0 {
+                        Text(String(format: "$%.2f", turn.costUSD)).font(.system(size: 9, design: .monospaced))
+                    }
+                }
+                .foregroundStyle(Theme.tertiaryOnMaterial)
+                if !turn.byModel.isEmpty {
+                    Text(turn.byModel.map { "\(friendlyModelName($0.model)) \(formatTokens($0.tokens))" }
+                        .joined(separator: " · "))
+                        .font(.system(size: 9)).foregroundStyle(Theme.secondaryOnMaterial)
+                        .lineLimit(1).truncationMode(.tail)
+                }
+            }
+        }
+    }
+
+    // MARK: This-run token breakdown (#8)
+
+    /// Per-model spend this run (strongest model first) + per-agent when available.
+    private var runTokenBreakdown: some View {
+        let total = max(vm.tokensByModel.values.reduce(0, +), 1)
+        let byModel = vm.tokensByModel.sorted {
+            let ra = ClaudeUsageStore.powerRank($0.key), rb = ClaudeUsageStore.powerRank($1.key)
+            return ra != rb ? ra < rb : $0.value > $1.value
+        }
+        let byAgent = vm.tokensByAgent.sorted { $0.value > $1.value }
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(model.t("activity.usage.thisRun"))
+                .font(.system(size: 8.5, weight: .semibold)).foregroundStyle(Theme.tertiaryOnMaterial)
+                .tracking(0.6)
+            ForEach(byModel, id: \.key) { m in
+                spendBar(label: friendlyModelName(m.key), tokens: m.value, total: total)
+            }
+            if !byAgent.isEmpty {
+                ForEach(byAgent, id: \.key) { a in
+                    HStack(spacing: 5) {
+                        Image(systemName: "person.fill").font(.system(size: 8)).foregroundStyle(Theme.secondaryOnMaterial)
+                        Text(a.key).font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
+                        Spacer()
+                        Text(formatTokens(a.value)).font(.system(size: 9, design: .monospaced)).foregroundStyle(Theme.tertiaryOnMaterial)
+                    }
+                }
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private func spendBar(label: String, tokens: Int, total: Int) -> some View {
+        let frac = Double(tokens) / Double(total)
+        return VStack(spacing: 2) {
+            HStack {
+                Text(label).font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
+                Spacer()
+                Text(formatTokens(tokens)).font(.system(size: 9, design: .monospaced)).foregroundStyle(Theme.tertiaryOnMaterial)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.hairline).frame(height: 4)
+                    Capsule().fill(Theme.accent).frame(width: max(4, geo.size.width * frac), height: 4)
+                }
+            }
+            .frame(height: 4)
+        }
+    }
+
+    /// "claude-opus-4-8" → "Opus 4.8" (via ClaudeModel), else a tidied raw id.
+    private func friendlyModelName(_ id: String) -> String {
+        if let m = ClaudeModel(rawValue: id) { return m.displayName }
+        return id.replacingOccurrences(of: "claude-", with: "").capitalized
+    }
 
     // MARK: Files produced
 

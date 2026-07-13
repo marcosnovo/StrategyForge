@@ -552,6 +552,7 @@ final class AppModel {
         invalidateChatVM(id)
         configurations.removeAll { $0.id == id }
         liveRepoURLs[id] = nil
+        try? FileManager.default.removeItem(at: activityURL(id))   // drop the history sidecar
         if selectedConfigID == id { selectedConfigID = configurations.first?.id }
         save()
     }
@@ -1072,6 +1073,31 @@ final class AppModel {
         save(stamp: false)
     }
 
+    // MARK: - Agent activity history (device-local, per-chat sidecar — never synced)
+
+    private func activityURL(_ id: Configuration.ID) -> URL {
+        let dir = AppPaths.supportDirectory().appendingPathComponent("activity", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("\(id.uuidString).json")
+    }
+
+    /// The persisted turn-by-turn agent history for a chat (empty if none).
+    func loadActivity(_ id: Configuration.ID) -> [TurnActivity] {
+        guard let data = try? Data(contentsOf: activityURL(id)) else { return [] }
+        return (try? JSONDecoder().decode([TurnActivity].self, from: data)) ?? []
+    }
+
+    /// Append one finished turn, capped to the last 50, written atomically. Does NOT
+    /// touch data.json / save() — no sync, no mid-stream store rewrites.
+    func appendActivity(_ id: Configuration.ID, _ turn: TurnActivity) {
+        var all = loadActivity(id)
+        all.append(turn)
+        if all.count > 50 { all = Array(all.suffix(50)) }
+        if let data = try? JSONEncoder().encode(all) {
+            try? data.write(to: activityURL(id), options: .atomic)
+        }
+    }
+
     // MARK: - Chat view-model lookup
 
     /// The (cached) view model for a chat. Creates it on first use and keeps it
@@ -1099,7 +1125,9 @@ final class AppModel {
                 return await self.autoRecommendStrategyIfNeeded(id, task: text)
             },
             ensureStrategyFiles: { [weak self] in self?.writeStrategyFilesQuietly(id) },
-            persistUsage: { [weak self] tokens, cost in self?.updateUsage(id, tokens: tokens, costUSD: cost) })
+            persistUsage: { [weak self] tokens, cost in self?.updateUsage(id, tokens: tokens, costUSD: cost) },
+            persistActivity: { [weak self] turn in self?.appendActivity(id, turn) },
+            initialHistory: loadActivity(id))
         vm.onRunningChanged = { [weak self, weak vm] running in
             guard let self else { return }
             if running {

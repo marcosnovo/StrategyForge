@@ -43,9 +43,10 @@ enum Effort: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-/// One entry in the live agent-activity timeline.
-struct ActivityStep: Identifiable, Hashable {
-    let id = UUID()
+/// One entry in the live agent-activity timeline. Codable so it can be persisted
+/// into the per-chat activity history (device-local).
+struct ActivityStep: Identifiable, Hashable, Codable {
+    var id = UUID()
     let title: String
     let detail: String?
     let at: Date
@@ -53,14 +54,95 @@ struct ActivityStep: Identifiable, Hashable {
     /// Which agent performed this step — nil means the orchestrator. Used to
     /// attribute steps to a subagent for the per-agent drill-down.
     var agent: String? = nil
+
+    init(title: String, detail: String?, at: Date, isDelegation: Bool, agent: String? = nil) {
+        self.title = title; self.detail = detail; self.at = at
+        self.isDelegation = isDelegation; self.agent = agent
+    }
+    enum CodingKeys: String, CodingKey { case id, title, detail, at, isDelegation, agent }
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try c.decode(String.self, forKey: .title)
+        detail = try c.decodeIfPresent(String.self, forKey: .detail)
+        at = try c.decodeIfPresent(Date.self, forKey: .at) ?? .distantPast
+        isDelegation = try c.decodeIfPresent(Bool.self, forKey: .isDelegation) ?? false
+        agent = try c.decodeIfPresent(String.self, forKey: .agent)
+    }
 }
 
 /// One shell command the agent ran, with its output (for the code-mode terminal).
-struct CommandRun: Identifiable, Hashable {
-    let id = UUID()
+struct CommandRun: Identifiable, Hashable, Codable {
+    var id = UUID()
     let command: String
     let output: String
     let at: Date
+
+    init(command: String, output: String, at: Date) {
+        self.command = command; self.output = output; self.at = at
+    }
+    enum CodingKeys: String, CodingKey { case id, command, output, at }
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        command = try c.decodeIfPresent(String.self, forKey: .command) ?? ""
+        output = try c.decodeIfPresent(String.self, forKey: .output) ?? ""
+        at = try c.decodeIfPresent(Date.self, forKey: .at) ?? .distantPast
+    }
+}
+
+/// Tokens (and prorated cost) spent by one model during a run — the #8 breakdown.
+struct ModelSpend: Codable, Hashable, Identifiable {
+    var id: String { model }
+    let model: String
+    var tokens: Int
+    var costUSD: Double
+}
+
+/// A persisted record of one finished turn's agent activity (device-local, per chat)
+/// — the #7 reviewable history. Tolerant decode so older/newer files never fail.
+struct TurnActivity: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var turnIndex: Int
+    var prompt: String
+    var startedAt: Date
+    var endedAt: Date
+    var steps: [ActivityStep]
+    var agentsInvolved: [String]
+    var commandLog: [CommandRun]
+    var tokensUsed: Int
+    var costUSD: Double
+    var byModel: [ModelSpend]
+    var byAgent: [String: Int]
+
+    init(turnIndex: Int, prompt: String, startedAt: Date, endedAt: Date,
+         steps: [ActivityStep], agentsInvolved: [String], commandLog: [CommandRun],
+         tokensUsed: Int, costUSD: Double, byModel: [ModelSpend], byAgent: [String: Int]) {
+        self.turnIndex = turnIndex; self.prompt = prompt
+        self.startedAt = startedAt; self.endedAt = endedAt
+        self.steps = steps; self.agentsInvolved = agentsInvolved; self.commandLog = commandLog
+        self.tokensUsed = tokensUsed; self.costUSD = costUSD
+        self.byModel = byModel; self.byAgent = byAgent
+    }
+    enum CodingKeys: String, CodingKey {
+        case id, turnIndex, prompt, startedAt, endedAt, steps, agentsInvolved
+        case commandLog, tokensUsed, costUSD, byModel, byAgent
+    }
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        turnIndex = try c.decodeIfPresent(Int.self, forKey: .turnIndex) ?? 0
+        prompt = try c.decodeIfPresent(String.self, forKey: .prompt) ?? ""
+        startedAt = try c.decodeIfPresent(Date.self, forKey: .startedAt) ?? .distantPast
+        endedAt = try c.decodeIfPresent(Date.self, forKey: .endedAt) ?? .distantPast
+        steps = try c.decodeIfPresent([ActivityStep].self, forKey: .steps) ?? []
+        agentsInvolved = try c.decodeIfPresent([String].self, forKey: .agentsInvolved) ?? []
+        commandLog = try c.decodeIfPresent([CommandRun].self, forKey: .commandLog) ?? []
+        tokensUsed = try c.decodeIfPresent(Int.self, forKey: .tokensUsed) ?? 0
+        costUSD = try c.decodeIfPresent(Double.self, forKey: .costUSD) ?? 0
+        byModel = try c.decodeIfPresent([ModelSpend].self, forKey: .byModel) ?? []
+        byAgent = try c.decodeIfPresent([String: Int].self, forKey: .byAgent) ?? [:]
+    }
 }
 
 /// A staged attachment: the name shown to the user and the (possibly converted)
@@ -100,8 +182,17 @@ final class ChatViewModel {
     var todos: [AgentTodo] = []
     /// Shell commands the agent ran this turn, with output (code-mode terminal).
     var commandLog: [CommandRun] = []
+    /// Per-model token spend for the current turn (exact, from each message's model).
+    var tokensByModel: [String: Int] = [:]
+    /// Per-agent (role) token spend for the current turn — exact on the Meta path,
+    /// best-effort on the native path (usage while a subagent is active).
+    var tokensByAgent: [String: Int] = [:]
+    /// The chat's persisted turn-by-turn agent history (device-local), for review.
+    var history: [TurnActivity] = []
     /// Bash tool_use id → command, to pair output (tool_result) back to its command.
     @ObservationIgnored private var pendingCommands: [String: String] = [:]
+    /// Meta path: remember each role's model within a turn, to attribute its tokens.
+    @ObservationIgnored private var roleModels: [String: String] = [:]
     /// When the current turn started (for the elapsed timer).
     var turnStartedAt: Date?
     /// Files staged to attach to the next message for Claude to review.
@@ -147,6 +238,10 @@ final class ChatViewModel {
     var effort: Effort = .high
     /// Persists cumulative usage (tokens, cost).
     @ObservationIgnored private let persistUsage: (Int, Double) -> Void
+    /// Appends one finished turn's activity to the per-chat device-local history.
+    @ObservationIgnored private let persistActivity: (TurnActivity) -> Void
+    /// Monotonic turn counter for the history records.
+    @ObservationIgnored private var turnIndexCounter = 0
     /// Last time we flushed the transcript mid-stream (throttles disk writes).
     @ObservationIgnored private var lastStreamPersist = Date.distantPast
 
@@ -157,7 +252,9 @@ final class ChatViewModel {
          onFirstUserMessage: @escaping (String) -> Void = { _ in },
          autoRecommendStrategy: @escaping (String) async -> Strategy? = { _ in nil },
          ensureStrategyFiles: @escaping () -> Void = {},
-         persistUsage: @escaping (Int, Double) -> Void = { _, _ in }) {
+         persistUsage: @escaping (Int, Double) -> Void = { _, _ in },
+         persistActivity: @escaping (TurnActivity) -> Void = { _ in },
+         initialHistory: [TurnActivity] = []) {
         self.config = config
         self.binary = binary
         self.permissionMode = permissionMode
@@ -166,12 +263,35 @@ final class ChatViewModel {
         self.autoRecommendStrategy = autoRecommendStrategy
         self.ensureStrategyFiles = ensureStrategyFiles
         self.persistUsage = persistUsage
+        self.persistActivity = persistActivity
+        self.history = initialHistory
+        self.turnIndexCounter = (initialHistory.last?.turnIndex ?? -1) + 1
         self.messages = config.transcript
         self.input = config.draft   // restore unsent text
         self.totalTokens = config.totalTokens
         self.totalCostUSD = config.totalCostUSD
         // A prior transcript implies the repo already has a Claude Code session.
         self.hasSession = !config.transcript.isEmpty
+    }
+
+    /// Capture the just-finished turn into the persisted history, then reset the live
+    /// per-turn activity. Called at turn END (so the last turn survives relaunch) with
+    /// the turn's prompt and the tokens/cost it consumed.
+    private func snapshotTurn(prompt: String, tokens: Int, cost: Double) {
+        guard !timeline.isEmpty || !commandLog.isEmpty || !tokensByModel.isEmpty else { return }
+        let byModel = tokensByModel
+            .map { ModelSpend(model: $0.key, tokens: $0.value,
+                              costUSD: tokens > 0 ? cost * Double($0.value) / Double(tokens) : 0) }
+            .sorted { $0.tokens > $1.tokens }
+        let turn = TurnActivity(
+            turnIndex: turnIndexCounter, prompt: prompt,
+            startedAt: turnStartedAt ?? Date(), endedAt: Date(),
+            steps: timeline, agentsInvolved: agentsInvolved, commandLog: commandLog,
+            tokensUsed: tokens, costUSD: cost, byModel: byModel, byAgent: tokensByAgent)
+        turnIndexCounter += 1
+        history.append(turn)
+        if history.count > 50 { history = Array(history.suffix(50)) }
+        persistActivity(turn)
     }
 
     deinit {
@@ -281,6 +401,9 @@ final class ChatViewModel {
         timeline = []
         todos = []
         commandLog = []
+        tokensByModel = [:]
+        tokensByAgent = [:]
+        roleModels = [:]
         pendingCommands = [:]
         turnStartedAt = Date()
         lastStreamPersist = .distantPast
@@ -359,6 +482,9 @@ final class ChatViewModel {
                                        tokens: totalTokens - startTokens,
                                        costCents: Int(((totalCostUSD - startCost) * 100).rounded()),
                                        meta: useMeta))
+            // Persist this turn's agent activity to the per-chat history (#7).
+            snapshotTurn(prompt: displayText, tokens: totalTokens - startTokens,
+                         cost: totalCostUSD - startCost)
             // Drop the assistant placeholder if nothing came back (e.g. it errored).
             if messages.indices.contains(assistantIndex), messages[assistantIndex].text.isEmpty {
                 messages.remove(at: assistantIndex)
@@ -427,6 +553,11 @@ final class ChatViewModel {
                 totalTokens += tokens
                 totalCostUSD += cost
                 persistUsage(totalTokens, totalCostUSD)
+            case .modelUsage(let model, let tokens):
+                // Exact per-model split; attribute to the active subagent too (native
+                // best-effort — subagent messages carry their own model when inlined).
+                tokensByModel[model, default: 0] += tokens
+                if let sub = activeSubagent { tokensByAgent[sub, default: 0] += tokens }
             case .finished:
                 break
             case .failed(let message):
@@ -476,12 +607,18 @@ final class ChatViewModel {
                 activeSubagent = nil
             } else {
                 activeSubagent = role
+                roleModels[role] = model
                 if !agentsInvolved.contains(role) { agentsInvolved.append(role) }
                 activity.append("→ \(role)")
                 timeline.append(ActivityStep(title: role, detail: model, at: Date(),
                                              isDelegation: true, agent: nil))
             }
-        case .roleFinished(let role, _):
+        case .roleFinished(let role, let tokens):
+            // Exact per-agent + per-model attribution on the cross-provider path.
+            if tokens > 0 {
+                tokensByAgent[role, default: 0] += tokens
+                if let m = roleModels[role] { tokensByModel[m, default: 0] += tokens }
+            }
             if role != orchName {
                 // Attribute a completed step to the agent so the panel marks it done.
                 timeline.append(ActivityStep(title: "done", detail: nil, at: Date(),
@@ -527,7 +664,7 @@ final class ChatViewModel {
         let repo = workingDirectory()
         deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
-        commandLog = []; pendingCommands = [:]
+        commandLog = []; pendingCommands = [:]; tokensByModel = [:]; tokensByAgent = [:]; roleModels = [:]
         lastStreamPersist = .distantPast
         runTask?.cancel()   // don't orphan a prior run
         messages.append(ChatMessage(role: .assistant, text: ""))
@@ -536,6 +673,7 @@ final class ChatViewModel {
         persist(messages)
         let sessionID = config.id.uuidString.lowercased()
         let useMeta = usesMetaOrchestrator
+        let startTokens = totalTokens, startCost = totalCostUSD
         runTask = Task { [binary, model, useMeta] in
             if useMeta {
                 // Cross-provider runs are one-shot; permissions don't apply — just re-run.
@@ -556,6 +694,8 @@ final class ChatViewModel {
             }
             isRunning = false
             hasSession = true
+            snapshotTurn(prompt: prompt, tokens: totalTokens - startTokens,
+                         cost: totalCostUSD - startCost)
             if messages.indices.contains(assistantIndex), messages[assistantIndex].text.isEmpty {
                 messages.remove(at: assistantIndex)
             }
