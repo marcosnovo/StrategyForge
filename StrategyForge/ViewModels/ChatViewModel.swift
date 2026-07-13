@@ -24,8 +24,8 @@ struct ChatMessage: Identifiable, Hashable, Codable {
 enum Effort: String, CaseIterable, Identifiable, Codable {
     case fast, medium, high, ultra
     var id: String { rawValue }
-    var labelKey: String { "effort.\(rawValue)" }
-    var blurbKey: String { "effort.\(rawValue).blurb" }
+    var labelKey: String { "effort.level.\(rawValue)" }
+    var blurbKey: String { "effort.level.\(rawValue).blurb" }
     /// Position on the Faster ↔ Smarter slider (0…3).
     var sliderValue: Double { Double(Self.allCases.firstIndex(of: self) ?? 2) }
     static func at(_ v: Double) -> Effort {
