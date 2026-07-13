@@ -209,15 +209,20 @@ struct ContentView: View {
                 LoopStore.shared.loadError = nil
             }
             LoopStore.shared.onRunFinished = { id, summary in
-                // Only announce runs the user isn't already looking at.
-                guard model.navSection != .loops || LoopStore.shared.selectedLoopID != id else { return }
                 let name = LoopStore.shared.loops.first(where: { $0.id == id })?.name ?? ""
                 let d = name.isEmpty ? model.t("loop.untitled") : name
+                let message: String
                 switch summary.pass {
-                case .some(true): model.flashSuccess(model.t("loop.runDone", d))
-                case .some(false): model.flashFailure(model.t("loop.runFailed", d))
-                case .none: model.flashSuccess(model.t("loop.runDoneUnverified", d))
+                case .some(true): message = model.t("loop.runDone", d)
+                case .some(false): message = model.t("loop.runFailed", d)
+                case .none: message = model.t("loop.runDoneUnverified", d)
                 }
+                // A system notification so a background loop tells you when it's done
+                // even if Coral isn't focused (suppressed by macOS while frontmost).
+                LoopNotifier.notify(title: d, body: message)
+                // In-app banner only for runs the user isn't already watching.
+                guard model.navSection != .loops || LoopStore.shared.selectedLoopID != id else { return }
+                if summary.pass == false { model.flashFailure(message) } else { model.flashSuccess(message) }
             }
         }
         .sheet(isPresented: $showOnboarding, onDismiss: { didOnboard = true }) {
