@@ -47,6 +47,17 @@ enum ClaudeMdGenerator {
         out += "## How to orchestrate\n\n"
         out += "\(strategy.orchestrationNotes)\n\n"
 
+        // Available skills — playbooks in .claude/skills the agents can pull in.
+        if !strategy.skills.isEmpty {
+            out += "## Available skills\n\n"
+            out += "These Agent Skills live in `.claude/skills/` and are pulled into context "
+            out += "automatically when a task matches. Use them instead of improvising:\n\n"
+            for slug in strategy.skills {
+                out += "- `\(slug)` — see `.claude/skills/\(slug)/SKILL.md`.\n"
+            }
+            out += "\n"
+        }
+
         // Subagents table
         let subagents = strategy.subagentRoles
         if subagents.isEmpty {

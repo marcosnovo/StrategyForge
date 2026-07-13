@@ -251,6 +251,7 @@ struct SkillsView: View {
                                 .background(Capsule().fill(Theme.warning.opacity(0.14)))
                         }
                         Spacer()
+                        useInTeamMenu(s)
                         if let p = s.localPath {
                             Button { NSWorkspace.shared.activateFileViewerSelecting([p]) } label: {
                                 Label(model.t("skills.reveal"), systemImage: "arrow.up.forward.app")
@@ -262,6 +263,7 @@ struct SkillsView: View {
                             }.controlSize(.small)
                         }
                     }
+                    teamsUsing(s)
                     Divider()
                     MarkdownView(text: s.body.isEmpty ? s.description : s.body)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -273,6 +275,38 @@ struct SkillsView: View {
             ContentUnavailableView {
                 Label(model.t("skills.detail.title"), systemImage: "puzzlepiece.extension")
             } description: { Text(model.t("skills.detail.desc")) }
+        }
+    }
+
+    /// "Use in a team" — a menu of saved teams; toggling attaches/detaches the skill.
+    /// Attached skills are copied into the repo's .claude/skills when the team is generated.
+    @ViewBuilder
+    private func useInTeamMenu(_ s: AgentSkill) -> some View {
+        if model.savedTeams.isEmpty {
+            EmptyView()
+        } else {
+            Menu {
+                ForEach(model.savedTeams) { team in
+                    Button {
+                        model.toggleSkill(s.slug, inTeam: team.id)
+                    } label: {
+                        Label(team.name, systemImage: model.team(team.id, hasSkill: s.slug) ? "checkmark" : "")
+                    }
+                }
+            } label: {
+                Label(model.t("skills.useInTeam"), systemImage: "person.3.sequence.fill")
+            }
+            .menuStyle(.borderlessButton).fixedSize().controlSize(.small)
+        }
+    }
+
+    /// Teams currently using this skill — shown as a caption under the header.
+    @ViewBuilder
+    private func teamsUsing(_ s: AgentSkill) -> some View {
+        let names = model.savedTeams.filter { $0.strategy.skills.contains(s.slug) }.map(\.name)
+        if !names.isEmpty {
+            Label(model.t("skills.usedInTeams", names.joined(separator: ", ")), systemImage: "person.3.sequence.fill")
+                .font(.sfCaption2).foregroundStyle(Theme.teal)
         }
     }
 

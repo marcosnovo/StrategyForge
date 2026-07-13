@@ -84,6 +84,20 @@ struct StrategyWriter {
         try merged.write(to: claudeMdURL, atomically: true, encoding: .utf8)
         written.append(ClaudeMdGenerator.fileName)
 
+        // 2b. Skills — copy each attached skill folder into the repo's .claude/skills
+        // so Claude Code discovers it. A slug already present in the repo is left as
+        // is; otherwise it's copied from the personal store (~/.claude/skills).
+        for slug in strategy.skills {
+            let dest = repoURL.appendingPathComponent(".claude/skills/\(slug)", isDirectory: true)
+            if fm.fileExists(atPath: dest.path) { continue }
+            let source = fm.homeDirectoryForCurrentUser
+                .appendingPathComponent(".claude/skills/\(slug)", isDirectory: true)
+            guard fm.fileExists(atPath: source.path) else { continue }
+            try? fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? fm.copyItem(at: source, to: dest)
+            written.append(".claude/skills/\(slug)")
+        }
+
         // 3. .mcp.json — external tool servers Claude Code auto-loads. Written only
         // when the strategy defines servers (never clobbers a hand-authored file
         // with an empty one).

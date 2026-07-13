@@ -27,6 +27,7 @@ enum ChatEvent: Sendable, Equatable {
     case delegated(String)              // the orchestrator delegated to this subagent
     case todos([AgentTodo])             // the agent's task list (TodoWrite)
     case fileEdited(String)             // absolute path of a file the agent wrote/edited
+    case skillUsed(String)              // an Agent Skill the model pulled into context
     case denied([String])               // tool uses the run wasn't permitted to perform
     case usage(tokens: Int, costUSD: Double)  // authoritative run total (result line)
     case modelUsage(model: String, tokens: Int)  // per-message usage tagged with its model (#8)
@@ -112,6 +113,13 @@ enum ClaudeStreamParser {
                                 AgentTodo(content: $0["content"] as? String ?? "",
                                           status: $0["status"] as? String ?? "pending")
                             }))
+                        } else if name == "Skill" {
+                            // Claude Code surfaces a skill as a Skill tool_use; the slug
+                            // is in `command`/`name`/`skill` depending on version.
+                            let slug = (input?["command"] as? String)
+                                ?? (input?["name"] as? String)
+                                ?? (input?["skill"] as? String) ?? "skill"
+                            events.append(.skillUsed(slug))
                         } else {
                             events.append(.tool(name: name, detail: toolDetail(name, input)))
                         }

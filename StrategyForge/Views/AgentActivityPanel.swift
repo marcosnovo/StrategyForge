@@ -99,6 +99,7 @@ struct AgentActivityPanel: View {
                     // Always-available list of files the agents produced, so you can
                     // grab them without scrolling the conversation to find where.
                     if !vm.editedFiles.isEmpty { filesSection.panelCard() }
+                    if !vm.skillsUsed.isEmpty { skillsSection.panelCard() }
                     if !vm.todos.isEmpty { tasksSection.panelCard() }
                     stepsSection.panelCard()
                     // Persistent, reviewable history of past turns' agent activity.
@@ -591,6 +592,33 @@ struct AgentActivityPanel: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(isPresented: $previewingFiles) { DocumentPreviewSheet(files: vm.editedFiles) }
+    }
+
+    /// Which Agent Skills the model pulled into context this chat — so it's clear
+    /// (in both normal and code chats) what playbooks were actually used.
+    private var skillsSection: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: Space.xs) {
+                Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 11)).foregroundStyle(Theme.teal)
+                Text(model.t("activity.skills.title"))
+                    .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
+                Text("\(vm.skillsUsed.count)")
+                    .font(.sfCaption2.weight(.bold)).foregroundStyle(Theme.teal)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(Capsule().fill(Theme.teal.opacity(0.14)))
+                Spacer()
+            }
+            ForEach(vm.skillsUsed, id: \.self) { slug in
+                HStack(spacing: Space.s) {
+                    Image(systemName: "puzzlepiece.extension").font(.system(size: 12))
+                        .foregroundStyle(Theme.secondaryOnMaterial).frame(width: 16)
+                    Text(slug).font(.sfCaption2).lineLimit(1).truncationMode(.middle)
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 3).padding(.horizontal, Space.xs)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func fileRow(_ path: String) -> some View {

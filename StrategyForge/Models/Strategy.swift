@@ -21,6 +21,10 @@ struct Strategy: Codable, Identifiable, Hashable {
     /// External tool servers (MCP) this strategy makes available — written to
     /// `.mcp.json` in the project so Claude Code auto-loads them.
     var mcpServers: [McpServer]
+    /// Attached skill slugs (folders under ~/.claude/skills or the repo's
+    /// .claude/skills). On generate, StrategyWriter copies them into the project's
+    /// .claude/skills and CLAUDE.md lists them so agents know they're available.
+    var skills: [String]
 
     init(
         id: UUID = UUID(),
@@ -28,7 +32,8 @@ struct Strategy: Codable, Identifiable, Hashable {
         description: String,
         roles: [AgentRole],
         orchestrationNotes: String,
-        mcpServers: [McpServer] = []
+        mcpServers: [McpServer] = [],
+        skills: [String] = []
     ) {
         self.id = id
         self.name = name
@@ -36,12 +41,13 @@ struct Strategy: Codable, Identifiable, Hashable {
         self.roles = roles
         self.orchestrationNotes = orchestrationNotes
         self.mcpServers = mcpServers
+        self.skills = skills
     }
 
-    // Tolerant decode: `mcpServers` is new, so strategies saved by older versions
-    // (Configuration/SavedTeam JSON) simply default to none. Encode stays synthesized.
+    // Tolerant decode: `mcpServers`/`skills` are new, so strategies saved by older
+    // versions (Configuration/SavedTeam JSON) simply default to none. Encode stays synthesized.
     enum CodingKeys: String, CodingKey {
-        case id, name, description, roles, orchestrationNotes, mcpServers
+        case id, name, description, roles, orchestrationNotes, mcpServers, skills
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -51,6 +57,7 @@ struct Strategy: Codable, Identifiable, Hashable {
         roles = try c.decode([AgentRole].self, forKey: .roles)
         orchestrationNotes = try c.decode(String.self, forKey: .orchestrationNotes)
         mcpServers = try c.decodeIfPresent([McpServer].self, forKey: .mcpServers) ?? []
+        skills = try c.decodeIfPresent([String].self, forKey: .skills) ?? []
     }
 
     // MARK: - Convenience

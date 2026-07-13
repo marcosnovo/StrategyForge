@@ -813,6 +813,26 @@ final class AppModel {
         save()
     }
 
+    // MARK: Skills ↔ teams
+
+    /// True when the given skill slug is attached to the team.
+    func team(_ id: SavedTeam.ID, hasSkill slug: String) -> Bool {
+        savedTeams.first { $0.id == id }?.strategy.skills.contains(slug) ?? false
+    }
+
+    /// Attach/detach a skill slug to a saved team; the slug is copied into the repo's
+    /// .claude/skills (and listed in CLAUDE.md) the next time the team is generated.
+    func toggleSkill(_ slug: String, inTeam id: SavedTeam.ID) {
+        guard let i = savedTeams.firstIndex(where: { $0.id == id }) else { return }
+        if let at = savedTeams[i].strategy.skills.firstIndex(of: slug) {
+            savedTeams[i].strategy.skills.remove(at: at)
+        } else {
+            savedTeams[i].strategy.skills.append(slug)
+        }
+        savedTeams[i].updatedAt = Date()
+        save()
+    }
+
     // MARK: Team-library editing (the Team section works on SavedTeams, not chats)
 
     /// Create a brand-new team from a strategy template (fresh ids), select it, and

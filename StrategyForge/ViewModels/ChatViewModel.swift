@@ -121,19 +121,23 @@ struct TurnActivity: Identifiable, Codable, Hashable {
     var costUSD: Double
     var byModel: [ModelSpend]
     var byAgent: [String: Int]
+    /// Agent Skills the model pulled in during this turn (slugs, de-duplicated).
+    var skillsUsed: [String]
 
     init(turnIndex: Int, prompt: String, startedAt: Date, endedAt: Date,
          steps: [ActivityStep], agentsInvolved: [String], commandLog: [CommandRun],
-         tokensUsed: Int, costUSD: Double, byModel: [ModelSpend], byAgent: [String: Int]) {
+         tokensUsed: Int, costUSD: Double, byModel: [ModelSpend], byAgent: [String: Int],
+         skillsUsed: [String] = []) {
         self.turnIndex = turnIndex; self.prompt = prompt
         self.startedAt = startedAt; self.endedAt = endedAt
         self.steps = steps; self.agentsInvolved = agentsInvolved; self.commandLog = commandLog
         self.tokensUsed = tokensUsed; self.costUSD = costUSD
         self.byModel = byModel; self.byAgent = byAgent
+        self.skillsUsed = skillsUsed
     }
     enum CodingKeys: String, CodingKey {
         case id, turnIndex, prompt, startedAt, endedAt, steps, agentsInvolved
-        case commandLog, tokensUsed, costUSD, byModel, byAgent
+        case commandLog, tokensUsed, costUSD, byModel, byAgent, skillsUsed
     }
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
@@ -149,6 +153,7 @@ struct TurnActivity: Identifiable, Codable, Hashable {
         costUSD = try c.decodeIfPresent(Double.self, forKey: .costUSD) ?? 0
         byModel = try c.decodeIfPresent([ModelSpend].self, forKey: .byModel) ?? []
         byAgent = try c.decodeIfPresent([String: Int].self, forKey: .byAgent) ?? [:]
+        skillsUsed = try c.decodeIfPresent([String].self, forKey: .skillsUsed) ?? []
     }
 }
 
@@ -176,6 +181,10 @@ final class ChatViewModel {
     var activity: [String] = []
     /// Absolute paths of files the agent has written/edited in this chat.
     var editedFiles: [String] = []
+    /// Agent Skills the model has pulled in across this chat (slugs, unique).
+    var skillsUsed: [String] = []
+    /// Skills used within the current turn only — snapshotted into TurnActivity.
+    @ObservationIgnored private var turnSkillsUsed: [String] = []
     /// The subagent the orchestrator is currently delegating to (if any).
     var activeSubagent: String?
     /// Every subagent the orchestrator has delegated to this turn, in order (unique).
@@ -304,7 +313,8 @@ final class ChatViewModel {
             turnIndex: turnIndexCounter, prompt: prompt,
             startedAt: turnStartedAt ?? Date(), endedAt: Date(),
             steps: timeline, agentsInvolved: agentsInvolved, commandLog: commandLog,
-            tokensUsed: tokens, costUSD: cost, byModel: byModel, byAgent: tokensByAgent)
+            tokensUsed: tokens, costUSD: cost, byModel: byModel, byAgent: tokensByAgent,
+            skillsUsed: turnSkillsUsed)
         turnIndexCounter += 1
         history.append(turn)
         if history.count > 50 { history = Array(history.suffix(50)) }
@@ -418,6 +428,7 @@ final class ChatViewModel {
         timeline = []
         todos = []
         commandLog = []
+        turnSkillsUsed = []
         tokensByModel = [:]
         tokensByAgent = [:]
         roleModels = [:]
@@ -575,6 +586,13 @@ final class ChatViewModel {
                 todos = items
             case .fileEdited(let path):
                 if !editedFiles.contains(path) { editedFiles.append(path) }
+            case .skillUsed(let slug):
+                if !turnSkillsUsed.contains(slug) { turnSkillsUsed.append(slug) }
+                if !skillsUsed.contains(slug) { skillsUsed.append(slug) }
+                activity.append("skill: \(slug)")
+                timeline.append(ActivityStep(title: "Skill", detail: slug, at: Date(),
+                                             isDelegation: false, agent: activeSubagent))
+                separatorPending = true
             case .denied(let items):
                 deniedTools = items
             case .usage(let tokens, let cost):
@@ -701,6 +719,7 @@ final class ChatViewModel {
         let repo = workingDirectory()
         deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
+        turnSkillsUsed = []
         commandLog = []; pendingCommands = [:]; tokensByModel = [:]; tokensByAgent = [:]; roleModels = [:]
         lastStreamPersist = .distantPast
         runTask?.cancel()   // don't orphan a prior run

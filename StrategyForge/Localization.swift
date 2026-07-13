@@ -758,6 +758,8 @@ enum L10n {
         "skills.noResults": ("No skills match.", "Ninguna skill coincide."),
         "skills.discover.noKnowledge": ("The curated set ships code-bearing skills. Paste a GitHub ref for knowledge-only skills.",
                                         "El set curado trae skills con código. Pega una ref de GitHub para skills solo de conocimiento."),
+        "skills.useInTeam": ("Use in a team", "Usar en un equipo"),
+        "skills.usedInTeams": ("In teams: %@", "En equipos: %@"),
 
         // Context-window breakdown
         "context.title": ("Context window", "Ventana de contexto"),
@@ -919,6 +921,7 @@ enum L10n {
         "activity.history": ("History", "Historial"),
         "activity.history.turn": ("Turn %lld", "Turno %lld"),
         "activity.files.title": ("Files created", "Archivos creados"),
+        "activity.skills.title": ("Skills used", "Skills usadas"),
         "activity.files.reveal": ("Show in Finder", "Mostrar en Finder"),
         "activity.usage.block": ("5-hour window", "Ventana de 5 h"),
         "activity.running": ("Working", "Trabajando"),
