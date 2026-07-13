@@ -46,6 +46,32 @@ enum GitHubCLI {
         }.value
     }
 
+    /// A pull request's headline status for the working branch.
+    struct PRInfo: Sendable, Equatable {
+        var number: Int
+        var state: String   // OPEN · MERGED · CLOSED
+        var url: String
+        var title: String
+        var isDraft: Bool
+    }
+
+    /// The PR (if any) for `branch`, with its state — for the composer branch bar.
+    /// Returns nil when gh is missing, unauthenticated, or no PR exists.
+    nonisolated static func prInfo(repo: String, branch: String) async -> PRInfo? {
+        await Task.detached(priority: .userInitiated) {
+            guard let gh = ghPath() else { return nil }
+            let r = run(gh, ["pr", "view", branch, "--json", "number,state,url,title,isDraft"], cwd: repo)
+            guard r.ok, let data = r.out.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let number = obj["number"] as? Int else { return nil }
+            return PRInfo(number: number,
+                          state: (obj["state"] as? String) ?? "OPEN",
+                          url: (obj["url"] as? String) ?? "",
+                          title: (obj["title"] as? String) ?? "",
+                          isDraft: (obj["isDraft"] as? Bool) ?? false)
+        }.value
+    }
+
     /// Run a subprocess in `cwd`, returning success + combined output.
     private static func run(_ path: String, _ args: [String], cwd: String?) -> (ok: Bool, out: String) {
         let p = Process()

@@ -71,6 +71,52 @@ enum CodeGit {
         }.value
     }
 
+    /// The working branch plus its +insertions / −deletions against the repo's
+    /// default branch — what a PR would show — including uncommitted work.
+    struct BranchStat: Sendable, Equatable {
+        var branch: String
+        var base: String
+        var insertions: Int
+        var deletions: Int
+        var isOnBase: Bool { branch == base }
+    }
+
+    nonisolated static func branchStat(repo: String) async -> BranchStat? {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return nil }
+            let branchR = runResult(git, ["-C", repo, "rev-parse", "--abbrev-ref", "HEAD"])
+            let branch = branchR.out.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard branchR.ok, !branch.isEmpty else { return nil }
+            // Resolve the default branch from origin/HEAD (fallback: main).
+            var base = "main"
+            let headR = runResult(git, ["-C", repo, "symbolic-ref", "--quiet", "--short",
+                                        "refs/remotes/origin/HEAD"])
+            if headR.ok {
+                let ref = headR.out.trimmingCharacters(in: .whitespacesAndNewlines) // "origin/main"
+                if let slash = ref.lastIndex(of: "/") { base = String(ref[ref.index(after: slash)...]) }
+            }
+            var ins = 0, del = 0
+            // Committed diff of the branch vs its merge-base with the default branch.
+            if branch != base {
+                let (ok, out) = runResult(git, ["-C", repo, "diff", "--shortstat", "\(base)...HEAD"])
+                if ok { (ins, del) = parseShortstat(out) }
+            }
+            // Plus uncommitted working-tree changes, so it reflects live work.
+            let wt = runResult(git, ["-C", repo, "diff", "--shortstat"])
+            if wt.ok { let (i, d) = parseShortstat(wt.out); ins += i; del += d }
+            return BranchStat(branch: branch, base: base, insertions: ins, deletions: del)
+        }.value
+    }
+
+    /// Parse `git diff --shortstat` ("… 42 insertions(+), 9 deletions(-)").
+    private static func parseShortstat(_ s: String) -> (Int, Int) {
+        func num(_ keyword: String) -> Int {
+            guard let r = s.range(of: "([0-9]+) \(keyword)", options: .regularExpression) else { return 0 }
+            return Int(s[r].prefix(while: { $0.isNumber })) ?? 0
+        }
+        return (num("insertion"), num("deletion"))
+    }
+
     /// Discard an agent's changes to one file (git checkout -- file).
     nonisolated static func revert(repo: String, file: String) async -> Bool {
         await runGit(repo, ["checkout", "--", file])

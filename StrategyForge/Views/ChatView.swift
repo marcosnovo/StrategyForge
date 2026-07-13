@@ -58,6 +58,9 @@ struct ChatView: View {
     @State private var mentionMatches: [String] = []
     /// Effort popover (Faster ↔ Smarter) visibility.
     @State private var showEffort = false
+    /// Working-branch context bar: the branch + its ±diff, and any open PR.
+    @State private var branchStat: CodeGit.BranchStat?
+    @State private var prInfo: GitHubCLI.PRInfo?
     /// Persisted, user-resizable width of the agent-activity panel.
     @AppStorage("col.activity") private var activityW = 320.0
     private let rename: (String) -> Void
@@ -1042,6 +1045,7 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: Space.s) {
+            if branchStat != nil { branchBar }
             if !mentionMatches.isEmpty { mentionPopover }
             if !vm.attachments.isEmpty { attachmentChips }
             HStack(spacing: Space.s) {
@@ -1104,6 +1108,12 @@ struct ChatView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: sendPulse)
         // Load the repo's file list once (and when the repo changes) for @-mentions.
         .task(id: config.repoPath) { await loadRepoFiles() }
+        // Branch/PR context bar: load on repo change, refresh when a turn finishes
+        // (edits/commits may have moved the branch or its diff).
+        .task(id: config.repoPath) { await refreshBranch() }
+        .onChange(of: vm.isRunning) { _, running in
+            if !running { Task { await refreshBranch() } }
+        }
     }
 
     // MARK: - @-mention autocomplete
@@ -1190,6 +1200,70 @@ struct ChatView: View {
             return out
         }.value
         allRepoFiles = files
+    }
+
+    // MARK: - Working-branch context bar
+
+    /// The branch being worked on, its ±line diff vs the default branch, and any PR
+    /// with its state — mirrors Claude's branch/PR bar above the composer.
+    @ViewBuilder
+    private var branchBar: some View {
+        if let stat = branchStat {
+            HStack(spacing: Space.s) {
+                Image(systemName: "arrow.triangle.branch").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                if let pr = prInfo {
+                    Text("#\(pr.number)").font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
+                }
+                Text(CodeGit.repoName(from: config.repoPath ?? ""))
+                    .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+                Text(stat.branch)
+                    .font(.sfCaption2.weight(.medium)).lineLimit(1).truncationMode(.middle)
+                if stat.insertions > 0 || stat.deletions > 0 {
+                    HStack(spacing: 5) {
+                        Text("+\(stat.insertions)").foregroundStyle(Theme.success)
+                        Text("−\(stat.deletions)").foregroundStyle(Theme.danger)
+                    }
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                }
+                Spacer(minLength: 0)
+                if let pr = prInfo { prStateBadge(pr) }
+            }
+            .padding(.horizontal, Space.m).padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.accentSoft.opacity(0.5)))
+            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if let pr = prInfo, let u = URL(string: pr.url) { NSWorkspace.shared.open(u) }
+            }
+            .help(prInfo?.title ?? stat.branch)
+        }
+    }
+
+    private func prStateBadge(_ pr: GitHubCLI.PRInfo) -> some View {
+        let (labelKey, color): (String, Color) = {
+            if pr.isDraft { return ("pr.state.draft", Theme.inkDim) }
+            switch pr.state.uppercased() {
+            case "MERGED": return ("pr.state.merged", Color(red: 0.55, green: 0.36, blue: 0.96))
+            case "CLOSED": return ("pr.state.closed", Theme.danger)
+            default: return ("pr.state.open", Theme.success)
+            }
+        }()
+        return Text(model.t(labelKey))
+            .font(.sfCaption2.weight(.semibold)).foregroundStyle(color)
+            .padding(.horizontal, 8).padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.16)))
+    }
+
+    /// Refresh the branch stat + PR status off-main (cheap git/gh calls).
+    private func refreshBranch() async {
+        guard let repo = config.repoPath, !repo.isEmpty else { branchStat = nil; prInfo = nil; return }
+        let stat = await CodeGit.branchStat(repo: repo)
+        branchStat = stat
+        if let branch = stat?.branch, !(stat?.isOnBase ?? true) {
+            prInfo = await GitHubCLI.prInfo(repo: repo, branch: branch)
+        } else {
+            prInfo = nil
+        }
     }
 
     // MARK: - Composer footer (permission mode + model · effort)

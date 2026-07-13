@@ -656,6 +656,12 @@ enum L10n {
         "chat.send": ("Send", "Enviar"),
         "chat.stop": ("Stop", "Parar"),
 
+        // Composer — working-branch / PR bar
+        "pr.state.open": ("Open", "Abierto"),
+        "pr.state.merged": ("Merged", "Fusionado"),
+        "pr.state.closed": ("Closed", "Cerrado"),
+        "pr.state.draft": ("Draft", "Borrador"),
+
         // Composer — permission mode (Accept edits / Plan / Automatic)
         "mode.acceptEdits": ("Accept edits", "Aceptar ediciones"),
         "mode.plan": ("Plan", "Plan"),
