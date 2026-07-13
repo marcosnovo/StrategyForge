@@ -1096,12 +1096,27 @@ struct ChatView: View {
     }
 
     private func errorBanner(_ error: String) -> some View {
-        Label(error, systemImage: "exclamationmark.triangle.fill")
-            .font(.sfCaption2).foregroundStyle(Theme.danger)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(Space.m)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.danger.opacity(0.10))
+        VStack(alignment: .leading, spacing: Space.s) {
+            Label(error, systemImage: "exclamationmark.triangle.fill")
+                .font(.sfCaption2).foregroundStyle(Theme.danger)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            // The failure is actionable: open Connected Services (the usual fix for a
+            // provider run), export the log, or copy the message.
+            HStack(spacing: Space.s) {
+                Button(model.t("banner.fix")) { model.navSection = .services }
+                    .controlSize(.small)
+                Button(model.t("banner.exportLog")) { model.exportDiagnostics() }
+                    .controlSize(.small)
+                CopyButton(text: error, help: model.t("chat.copy"))
+                Spacer()
+                Button { vm.errorText = nil } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+            }
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.danger.opacity(0.10))
     }
 
     private var inputBar: some View {

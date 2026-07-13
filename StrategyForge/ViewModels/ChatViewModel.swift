@@ -614,6 +614,7 @@ final class ChatViewModel {
                 if resume, message.localizedCaseInsensitiveContains("No conversation found") {
                     sessionMissing = true   // retry fresh, don't surface
                 } else {
+                    DiagnosticsLog.record(message)
                     errorText = message
                 }
             }
@@ -687,6 +688,7 @@ final class ChatViewModel {
             totalCostUSD += cost
             persistUsage(totalTokens, totalCostUSD)
         case .failed(let message):
+            DiagnosticsLog.record(message)
             errorText = message
         case .finished:
             break
