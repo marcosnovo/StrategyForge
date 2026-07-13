@@ -45,6 +45,7 @@ struct RunCompareView: View {
         .frame(width: 620, height: 560)
         .background(.regularMaterial)
         .bannerOverlay()
+        .task { Analytics.log(.testbenchComparisonRun) }
     }
 
     // MARK: Metrics

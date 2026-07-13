@@ -1324,6 +1324,7 @@ final class AppModel {
         )
         liveRepoURLs[id] = url
         save()
+        Analytics.log(.repoSelected(sample: false))
         // The chat VM caches the repo path at construction — rebuild it.
         invalidateChatVM(id)
         if configurations[i].repoBookmark == nil {
@@ -1433,6 +1434,9 @@ final class AppModel {
                 configurations[i].lastGeneratedAt = Date()
                 save()
             }
+            // The activation aha — .claude/agents + CLAUDE.md written into a repo.
+            Analytics.log(.filesGenerated(provider: config.provider.rawValue,
+                                          agents: config.strategy.roles.count))
             show(.success(t("banner.wrote", written.count, url.lastPathComponent)))
             return true
         } catch {
