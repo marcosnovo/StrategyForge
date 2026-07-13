@@ -746,10 +746,10 @@ struct ChatView: View {
                 // density/opacity) instead of going to zero once messages arrive.
                 // Always mounted to avoid the documented TimelineView-insert hang.
                 ZStack {
-                    AuroraBackground(intensity: vm.messages.isEmpty ? 0.5 : 0.22)
+                    AuroraBackground(intensity: vm.messages.isEmpty ? 0.65 : 0.36)
                     if !reduceMotion {
-                        ParticleField(density: vm.messages.isEmpty ? 120 : 64, reactive: vm.messages.isEmpty)
-                            .opacity(vm.messages.isEmpty ? 0.5 : 0.28)
+                        ParticleField(density: vm.messages.isEmpty ? 120 : 84, reactive: vm.messages.isEmpty)
+                            .opacity(vm.messages.isEmpty ? 0.55 : 0.42)
                             .allowsHitTesting(false)
                     }
                 }

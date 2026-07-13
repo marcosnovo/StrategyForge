@@ -19,8 +19,10 @@ struct ChatAvatar: View {
 
     var body: some View {
         let hue = Self.seededHue(config.id) / 360
-        let hi = Color(hue: hue, saturation: 0.55, brightness: scheme == .dark ? 0.62 : 0.82)
-        let lo = Color(hue: hue, saturation: 0.78, brightness: scheme == .dark ? 0.42 : 0.58)
+        // Desaturated so the list reads calm and the coral brand/selection stays the
+        // loudest thing (the seeded-hue identity system is kept, just muted).
+        let hi = Color(hue: hue, saturation: 0.30, brightness: scheme == .dark ? 0.52 : 0.82)
+        let lo = Color(hue: hue, saturation: 0.40, brightness: scheme == .dark ? 0.38 : 0.58)
         RoundedRectangle(cornerRadius: 10, style: .continuous)
             .fill(LinearGradient(colors: [hi, lo], startPoint: .topLeading, endPoint: .bottomTrailing))
             .overlay { mark }

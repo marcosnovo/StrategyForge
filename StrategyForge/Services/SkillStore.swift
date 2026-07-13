@@ -241,16 +241,41 @@ final class SkillStore {
 
     // MARK: - Curated marketplace (bundled; a registry API can replace this later)
 
+    // Paths track the live anthropics/skills layout (now `skills/<slug>`, previously
+    // `document-skills/…` — which 404'd here and caused "No SKILL.md found there").
     let curated: [CuratedSkill] = [
+        // Documents
         .init(slug: "pdf", name: "PDF toolkit", description: "Read, fill and generate PDF files reliably.",
-              category: "Documents", owner: "anthropics", repo: "skills", ref: "main", path: "document-skills/pdf"),
+              category: "Documents", owner: "anthropics", repo: "skills", ref: "main", path: "skills/pdf"),
         .init(slug: "docx", name: "Word documents", description: "Create and edit .docx documents with proper structure.",
-              category: "Documents", owner: "anthropics", repo: "skills", ref: "main", path: "document-skills/docx"),
+              category: "Documents", owner: "anthropics", repo: "skills", ref: "main", path: "skills/docx"),
         .init(slug: "xlsx", name: "Spreadsheets", description: "Build and analyze Excel spreadsheets and formulas.",
-              category: "Documents", owner: "anthropics", repo: "skills", ref: "main", path: "document-skills/xlsx"),
+              category: "Documents", owner: "anthropics", repo: "skills", ref: "main", path: "skills/xlsx"),
         .init(slug: "pptx", name: "Presentations", description: "Generate polished PowerPoint decks.",
-              category: "Documents", owner: "anthropics", repo: "skills", ref: "main", path: "document-skills/pptx"),
-        .init(slug: "artifacts-builder", name: "Artifacts builder", description: "Best practices for building web artifacts.",
-              category: "Web", owner: "anthropics", repo: "skills", ref: "main", path: "artifacts-builder"),
+              category: "Documents", owner: "anthropics", repo: "skills", ref: "main", path: "skills/pptx"),
+        .init(slug: "doc-coauthoring", name: "Doc co-authoring", description: "Collaborate on long documents with tracked structure.",
+              category: "Documents", owner: "anthropics", repo: "skills", ref: "main", path: "skills/doc-coauthoring"),
+        // Design & web
+        .init(slug: "web-artifacts-builder", name: "Web artifacts builder", description: "Best practices for building web artifacts.",
+              category: "Design & web", owner: "anthropics", repo: "skills", ref: "main", path: "skills/web-artifacts-builder"),
+        .init(slug: "frontend-design", name: "Frontend design", description: "Craft polished, modern frontend UI.",
+              category: "Design & web", owner: "anthropics", repo: "skills", ref: "main", path: "skills/frontend-design"),
+        .init(slug: "canvas-design", name: "Canvas design", description: "Design rich canvas / graphic compositions.",
+              category: "Design & web", owner: "anthropics", repo: "skills", ref: "main", path: "skills/canvas-design"),
+        .init(slug: "brand-guidelines", name: "Brand guidelines", description: "Apply a brand's voice, color and type consistently.",
+              category: "Design & web", owner: "anthropics", repo: "skills", ref: "main", path: "skills/brand-guidelines"),
+        .init(slug: "theme-factory", name: "Theme factory", description: "Generate cohesive UI themes and design tokens.",
+              category: "Design & web", owner: "anthropics", repo: "skills", ref: "main", path: "skills/theme-factory"),
+        .init(slug: "algorithmic-art", name: "Algorithmic art", description: "Create generative / algorithmic artwork.",
+              category: "Design & web", owner: "anthropics", repo: "skills", ref: "main", path: "skills/algorithmic-art"),
+        // Developer
+        .init(slug: "mcp-builder", name: "MCP builder", description: "Scaffold and build Model Context Protocol servers.",
+              category: "Developer", owner: "anthropics", repo: "skills", ref: "main", path: "skills/mcp-builder"),
+        .init(slug: "webapp-testing", name: "Web app testing", description: "Write and run tests for web applications.",
+              category: "Developer", owner: "anthropics", repo: "skills", ref: "main", path: "skills/webapp-testing"),
+        .init(slug: "claude-api", name: "Claude API", description: "Build correctly against the Claude API.",
+              category: "Developer", owner: "anthropics", repo: "skills", ref: "main", path: "skills/claude-api"),
+        .init(slug: "skill-creator", name: "Skill creator", description: "Author new Agent Skills the right way.",
+              category: "Developer", owner: "anthropics", repo: "skills", ref: "main", path: "skills/skill-creator"),
     ]
 }

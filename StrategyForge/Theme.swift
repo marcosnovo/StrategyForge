@@ -52,12 +52,12 @@ enum Theme {
     /// Soft coral wash for a selected list row / card. Pale enough to read as a
     /// background state, not a solid block. Pair with `selectionBorder` + the bar.
     static let selectionFill = Color(
-        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.10),
-        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.14))
+        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.16),
+        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.20))
     /// Hairline border for a selected row/card (1 pt).
     static let selectionBorder = Color(
-        light: Color(red: 0.862, green: 0.290, blue: 0.180).opacity(0.28),
-        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.34))
+        light: Color(red: 0.862, green: 0.290, blue: 0.180).opacity(0.40),
+        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.44))
     /// Focus ring stroke for text fields / focusable controls (visible only when focused).
     static let focusRing = Theme.accent.opacity(0.55)
     /// Focus glow shadow color for focused inputs.

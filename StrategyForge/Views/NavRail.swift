@@ -18,7 +18,7 @@ struct NavRail: View {
     @Namespace private var navDotNS
 
     var body: some View {
-        VStack(spacing: Space.l) {
+        VStack(spacing: Space.m) {
             // Brand — the coral mark (matches the app icon), breathing slowly.
             CoralMark(size: 26, color: Theme.coral)
                 .breathingGlow(color: Theme.coral)
@@ -108,7 +108,7 @@ struct NavRail: View {
                 Circle()
                     .fill(Theme.coral)
                     .matchedGeometryEffect(id: "navdot", in: navDotNS)
-                    .frame(width: 2.5, height: 2.5)
+                    .frame(width: 3, height: 3)
             } else if running {
                 RunningPulseDot()
             }
@@ -125,16 +125,14 @@ struct NavRail: View {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 16))
-                    .foregroundStyle(active ? Color.white : Color.white.opacity(0.72))
+                    .foregroundStyle(active ? Theme.onAccent : Color.white.opacity(0.55))
                     .frame(width: 40, height: 34)
                     .background(RoundedRectangle(cornerRadius: 12)
-                        .fill(active ? Color.white.opacity(0.18) : .clear))
-                    .overlay(RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(Color.white.opacity(active ? 0.25 : 0), lineWidth: 1))
+                        .fill(active ? Theme.coral : .clear))
                 navDot(active, running: running)
                 Text(model.t(labelKey))
-                    .font(.system(size: 9, weight: active ? .semibold : .medium))
-                    .foregroundStyle(active ? Color.white : Color.white.opacity(0.55))
+                    .font(.system(size: 10, weight: active ? .semibold : .regular))
+                    .foregroundStyle(active ? Color.white : Color.white.opacity(0.45))
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
@@ -154,16 +152,14 @@ struct NavRail: View {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 16))
-                    .foregroundStyle(active ? Color.white : Color.white.opacity(0.72))
+                    .foregroundStyle(active ? Theme.onAccent : Color.white.opacity(0.55))
                     .frame(width: 40, height: 34)
                     .background(RoundedRectangle(cornerRadius: 12)
-                        .fill(active ? Color.white.opacity(0.18) : .clear))
-                    .overlay(RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(Color.white.opacity(active ? 0.25 : 0), lineWidth: 1))
+                        .fill(active ? Theme.coral : .clear))
                 navDot(active)
                 Text(label)
-                    .font(.system(size: 9, weight: active ? .semibold : .medium))
-                    .foregroundStyle(active ? Color.white : Color.white.opacity(0.55))
+                    .font(.system(size: 10, weight: active ? .semibold : .regular))
+                    .foregroundStyle(active ? Color.white : Color.white.opacity(0.45))
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
@@ -185,7 +181,7 @@ private struct RunningPulseDot: View {
     var body: some View {
         Circle()
             .fill(Theme.coral)
-            .frame(width: 4, height: 4)
+            .frame(width: 3, height: 3)
             .opacity(reduceMotion ? 1 : (dim ? 0.35 : 1))
             .onAppear {
                 guard !reduceMotion else { return }
