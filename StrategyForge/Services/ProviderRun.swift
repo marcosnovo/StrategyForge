@@ -99,7 +99,9 @@ struct CLIOneShotRunner: OneShotRunner {
             return (a, .claudeJSON)
         case .openai:
             // Codex CLI, non-interactive: `codex exec --model <id> "<prompt>"`.
-            var a = ["exec"]
+            // --skip-git-repo-check lets it run outside a git repo (Codex refuses
+            // otherwise: "Not inside a trusted directory…"). Flags precede the prompt.
+            var a = ["exec", "--skip-git-repo-check"]
             if !model.isEmpty { a.append(contentsOf: ["--model", model]) }
             a.append(prompt)
             return (a, .plainText)
