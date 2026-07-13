@@ -63,13 +63,24 @@ enum CostEffort: String, CaseIterable, Identifiable, Hashable {
 
 enum CostEstimator {
 
-    /// Rough tokens a role consumes/produces on one medium task. The orchestrator
-    /// (main session) emits comparatively few tokens while deciding; workers do the
+    /// Rough tokens a role consumes/produces on one medium task. Workers do the
     /// heavy lifting; advisory roles read a lot and write little.
+    ///
+    /// The orchestrator's own load is dominated by *what it decides not to do
+    /// itself*. With a team to delegate to, it mostly plans, briefs and reviews —
+    /// a light load. With NO subagents (a solo config), it reads, implements and
+    /// verifies everything itself, so it carries a full worker load. Pricing the
+    /// solo lead as if it delegated understates its cost — the whole point of the
+    /// delegation economics is that the lead's token bill tracks how much it hands
+    /// off, not just its per-token price.
     private struct Workload { let input: Double; let output: Double }
 
-    private static func workload(isOrchestrator: Bool, role: RoleKind) -> Workload {
-        if isOrchestrator { return Workload(input: 40_000, output: 15_000) }
+    private static func workload(isOrchestrator: Bool, role: RoleKind, canDelegate: Bool) -> Workload {
+        if isOrchestrator {
+            return canDelegate
+                ? Workload(input: 40_000, output: 15_000)   // delegates → light
+                : Workload(input: 90_000, output: 45_000)   // solo → does the work itself
+        }
         switch role {
         case .advisor, .reviewer, .researcher:
             return Workload(input: 60_000, output: 20_000)
@@ -90,10 +101,13 @@ enum CostEstimator {
         var tokens = 0.0
         var byModel: [ClaudeModel: Double] = [:]
         let m = effort.multiplier
+        // Whether the orchestrator has anyone to delegate to. Drives how much of the
+        // work the lead does itself (see `workload`).
+        let canDelegate = strategy.roles.contains { !$0.isOrchestrator }
 
         for role in strategy.roles {
             guard let price = Constants.pricing[role.model.rawValue] else { continue }
-            let load = workload(isOrchestrator: role.isOrchestrator, role: role.role)
+            let load = workload(isOrchestrator: role.isOrchestrator, role: role.role, canDelegate: canDelegate)
             let count = Double(max(role.count, 1))
             let cost = count * (load.input * m / 1_000_000 * price.inputPerM
                               + load.output * m / 1_000_000 * price.outputPerM)
