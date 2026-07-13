@@ -59,6 +59,11 @@ struct OnboardingView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .staggeredAppear(index: 4)
 
+            // Readiness before value: surface what the app needs to actually run
+            // (a connected CLI) up front, not after the user has built a team — the
+            // #1 activation gate for a tool that drives external CLIs.
+            readinessStrip.staggeredAppear(index: 5)
+
             HStack {
                 Button(model.t("onboard.skip")) {
                     Analytics.log(.onboardingPathSelected(path: "skip"))
@@ -92,6 +97,46 @@ struct OnboardingView: View {
         // animation; see the TimelineView-over-material note in ChatView).
         .background(AuroraBackground(intensity: 0.9))
         .task { Analytics.log(.onboardingStarted) }
+    }
+
+    /// Environment-readiness spine: a Gatekeeper pre-empt + a per-provider status
+    /// row, so the user knows what's needed to run before they invest in a team.
+    private var readinessStrip: some View {
+        let ready = model.connectedProviders.contains(.claude)
+        return VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: Space.s) {
+                Image(systemName: ready ? "checkmark.seal.fill" : "wrench.and.screwdriver.fill")
+                    .foregroundStyle(ready ? Theme.success : Theme.warning)
+                Text(model.t(ready ? "onboard.ready.title" : "onboard.ready.setup"))
+                    .font(.sfCardTitle)
+                Spacer()
+                Button(model.t("onboard.ready.connect")) {
+                    dismiss()
+                    model.navSection = .services
+                }
+                .font(.sfCaption2)
+            }
+            // Per-provider status (Claude is the default engine; the others are
+            // optional and unlock cross-provider teams).
+            HStack(spacing: Space.m) {
+                ForEach(AIProvider.allCases) { p in
+                    let on = model.isConnected(p)
+                    HStack(spacing: 5) {
+                        Image(systemName: on ? "circle.fill" : "circle")
+                            .font(.system(size: 8))
+                            .foregroundStyle(on ? Theme.success : Theme.secondaryOnMaterial)
+                        Text(p.displayName).font(.sfCaption2)
+                            .foregroundStyle(on ? .primary : .secondary)
+                    }
+                }
+            }
+            Label(model.t("onboard.gatekeeper"), systemImage: "lock.shield")
+                .font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
     }
 
     private func step(_ number: Int, _ titleKey: String, _ descKey: String) -> some View {

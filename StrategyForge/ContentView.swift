@@ -232,6 +232,12 @@ struct ContentView: View {
             OnboardingView(onCreate: { model.addConfiguration() },
                            onDescribeTask: { startFromTask() })
         }
+        // Review the first-run onboarding on demand (from the Lab) without touching
+        // the didOnboard flag — so it can be seen without reinstalling.
+        .sheet(isPresented: $model.showOnboardingPreview) {
+            OnboardingView(onCreate: { model.addConfiguration() },
+                           onDescribeTask: { startFromTask() })
+        }
         // The onboarding gate + empty-state CTA: describe a task → AI builds the team.
         .sheet(isPresented: $showTaskGen) {
             if let id = model.selectedConfigID {

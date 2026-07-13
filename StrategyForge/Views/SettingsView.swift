@@ -88,6 +88,23 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Section(model.t("settings.updates")) {
+                LabeledContent(model.t("settings.updates.current"), value: UpdateChecker.currentVersion())
+                Button(model.t("settings.updates.check")) {
+                    Task {
+                        if let update = await UpdateChecker.check() {
+                            model.flashSuccess(model.t("settings.updates.available", update.version))
+                            NSWorkspace.shared.open(update.url)
+                        } else {
+                            model.flashSuccess(model.t("settings.updates.upToDate"))
+                        }
+                    }
+                }
+                Text(model.t("settings.updates.caption"))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .formStyle(.grouped)
         .frame(width: 520, height: 620)

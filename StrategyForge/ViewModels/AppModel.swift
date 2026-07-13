@@ -41,6 +41,10 @@ final class AppModel {
     /// selectable state in the model/provider pickers.
     var connectedProviders: Set<AIProvider> = [.claude]
 
+    /// Re-show the first-run onboarding on demand (from the Lab), so it can be
+    /// reviewed without wiping the `didOnboard` flag / reinstalling.
+    var showOnboardingPreview = false
+
     /// Re-detect which provider CLIs are installed (off the main thread).
     func refreshConnectedProviders() async {
         var found: Set<AIProvider> = []
