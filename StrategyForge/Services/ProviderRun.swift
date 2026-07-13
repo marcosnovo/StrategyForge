@@ -59,6 +59,15 @@ struct CLIOneShotRunner: OneShotRunner {
         let (out, err, status) = try await Self.launch(bin: bin, args: args, cwd: cwd)
         if status != 0 {
             let msg = err.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Record the full invocation + output so an exported log pinpoints the cause
+            // (the CLI's stderr is otherwise lost once the one-line banner is dismissed).
+            DiagnosticsLog.record("""
+                \(provider.displayName) CLI exited \(status)
+                cmd: \(bin) \(args.joined(separator: " "))
+                cwd: \(cwd ?? "(none)")
+                stderr: \(msg.isEmpty ? "(empty)" : msg)
+                stdout: \(out.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
+                """)
             throw OneShotError.failed(msg.isEmpty ? "\(provider.displayName) exited with code \(status)" : msg)
         }
         switch mode {
@@ -152,10 +161,18 @@ struct CLIOneShotRunner: OneShotRunner {
                     let outPipe = Pipe(), errPipe = Pipe()
                     p.standardOutput = outPipe
                     p.standardError = errPipe
+                    // Redirect stdin to /dev/null. `codex exec` (and other CLIs) can
+                    // hang or misbehave when stdin is a non-TTY pipe with no writer —
+                    // openai/codex#20919 — so give them an immediate EOF.
+                    p.standardInput = FileHandle.nullDevice
                     box.adopt(p)
                     do { try p.run() } catch {
                         cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return
                     }
+                    // Watchdog: a stuck CLI shouldn't hang the turn forever. Terminate
+                    // after a generous timeout; the non-zero exit surfaces as a failure.
+                    let watchdog = DispatchWorkItem { box.terminate() }
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 300, execute: watchdog)
                     // Read both pipes concurrently: sequential reads deadlock when
                     // the CLI fills one pipe's ~64KB buffer while we block on the
                     // other (codex and gemini stream progress/spinners to stderr).
@@ -169,6 +186,7 @@ struct CLIOneShotRunner: OneShotRunner {
                     let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
                     errRead.wait()
                     p.waitUntilExit()
+                    watchdog.cancel()
                     cont.resume(returning: (String(data: outData, encoding: .utf8) ?? "",
                                             String(data: errData, encoding: .utf8) ?? "",
                                             p.terminationStatus))

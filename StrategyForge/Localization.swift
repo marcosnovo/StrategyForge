@@ -48,6 +48,8 @@ enum L10n {
         "settings.telemetry": ("Share anonymous usage locally", "Registrar uso anónimo en local"),
         "settings.telemetry.caption": ("Records key events (runs, cost, shares) to a local file only — nothing is sent anywhere. Off by default.",
                                        "Registra eventos clave (ejecuciones, coste, compartidos) solo en un archivo local — no se envía nada a ningún sitio. Desactivado por defecto."),
+        "banner.fix": ("Fix…", "Resolver…"),
+        "banner.exportLog": ("Export log", "Exportar log"),
         "settings.diagnostics": ("Diagnostics", "Diagnóstico"),
         "settings.diagnostics.log": ("Error log", "Registro de errores"),
         "settings.diagnostics.export": ("Export…", "Exportar…"),

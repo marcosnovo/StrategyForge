@@ -589,6 +589,21 @@ struct BannerCapsule: View {
             HStack(spacing: Space.s) {
                 Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 Text(text).font(.sfCallout.weight(.medium)).fixedSize(horizontal: false, vertical: true)
+                // Failures are actionable: fix (Connected Services) + export the log.
+                if !isSuccess {
+                    Button { model.openConnectedServices() } label: {
+                        Text(model.t("banner.fix")).font(.sfCaption2.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(.white.opacity(0.22)))
+                    Button { model.exportDiagnostics() } label: {
+                        Text(model.t("banner.exportLog")).font(.sfCaption2.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(.white.opacity(0.22)))
+                }
                 Button { model.dismissBanner() } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
                     .buttonStyle(.plain)
             }
@@ -597,6 +612,7 @@ struct BannerCapsule: View {
             .background(Capsule().fill(isSuccess ? Theme.success : Theme.danger)
                 .shadow(color: .black.opacity(0.25), radius: 10, y: 4))
             .padding(.top, Space.m)
+            .frame(maxWidth: 720)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }

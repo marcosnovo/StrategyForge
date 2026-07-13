@@ -350,6 +350,34 @@ final class AppModel {
         show(.failure(message))
     }
 
+    /// True while the current banner is a failure — the capsule then offers the
+    /// "Export log" / "Fix" actions.
+    var bannerIsFailure: Bool { if case .failure = banner { return true } else { return false } }
+
+    /// Save the diagnostics log to a user-chosen file (for sharing when something
+    /// went wrong). Shared by Settings and the failure banner.
+    func exportDiagnostics() {
+        let contents = DiagnosticsLog.contents()
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "coral-diagnostics.txt"
+        panel.allowedContentTypes = [.plainText]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try (contents.isEmpty ? t("settings.diagnostics.empty") : contents)
+                .write(to: url, atomically: true, encoding: .utf8)
+            flashSuccess(t("settings.diagnostics.exported"))
+        } catch {
+            show(.failure(t("settings.diagnostics.exportFailed")))
+        }
+    }
+
+    /// Jump to Connected Services (the usual fix for a provider run failure).
+    func openConnectedServices() {
+        dismissBanner()
+        navSection = .services
+    }
+
     /// Dismiss the current banner (the capsule's close button).
     func dismissBanner() {
         withAnimation {
