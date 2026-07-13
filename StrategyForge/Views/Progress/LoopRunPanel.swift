@@ -17,6 +17,7 @@ struct LoopRunPanel: View {
     let store: LoopStore
     @Environment(AppModel.self) private var model
     @State private var confirmRestore: LoopCheckpoint?
+    @State private var scheduled = false
 
     /// The store-owned controller for this plan. Lazy creation mutates only an
     /// @ObservationIgnored dict on the store — safe in body.
@@ -57,6 +58,7 @@ struct LoopRunPanel: View {
             }
             Button(model.t("common.cancel"), role: .cancel) { confirmRestore = nil }
         }
+        .onAppear { scheduled = LoopScheduler.isScheduled(plan.id) }
     }
 
     /// Non-destructive rewind points captured after each iteration's work.
@@ -123,9 +125,51 @@ struct LoopRunPanel: View {
                 hint("exclamationmark.triangle", model.t("progress.run.singlePass"),
                      color: Theme.warning)
             }
+            scheduleRow
             if let last = plan.lastRun {
                 lastRunBlock(last)
             }
+        }
+    }
+
+    /// Run this loop unattended on a cadence via a LaunchAgent (survives app close).
+    @ViewBuilder
+    private var scheduleRow: some View {
+        if LoopScheduler.canSchedule(plan), repoURL != nil {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Toggle(isOn: Binding(get: { scheduled }, set: { setSchedule($0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.t("loop.schedule")).font(.sfCallout.weight(.medium))
+                        Text(model.t("loop.schedule.every", plan.intervalMinutes))
+                            .font(.sfCaption2).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .toggleStyle(.switch)
+                if scheduled {
+                    hint("clock.badge.checkmark", model.t("loop.schedule.on"), color: Theme.success)
+                }
+            }
+            .padding(.top, Space.xs)
+        }
+    }
+
+    private func setSchedule(_ on: Bool) {
+        if on {
+            guard let repoURL else { return }
+            let didAccess = repoURL.startAccessingSecurityScopedResource()
+            defer { if didAccess { repoURL.stopAccessingSecurityScopedResource() } }
+            if let err = LoopScheduler.enable(plan: plan, repoURL: repoURL,
+                                              binary: binary, intervalMinutes: plan.intervalMinutes) {
+                model.flashFailure(err); scheduled = false
+            } else {
+                scheduled = true
+                model.flashSuccess(model.t("loop.schedule.enabled", plan.intervalMinutes))
+            }
+        } else {
+            LoopScheduler.disable(plan.id)
+            scheduled = false
+            model.flashSuccess(model.t("loop.schedule.disabled"))
         }
     }
 

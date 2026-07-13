@@ -27,6 +27,14 @@ extension L10n {
         "loop.empty.create": ("Create a loop", "Crear un bucle"),
         "loop.lastRun": ("Last run", "Última ejecución"),
 
+        // Scheduling (background LaunchAgent)
+        "loop.schedule": ("Run on a schedule", "Ejecutar según horario"),
+        "loop.schedule.every": ("Runs every %lld min in the background — keeps going after Coral is closed.",
+                                "Se ejecuta cada %lld min en segundo plano — sigue tras cerrar Coral."),
+        "loop.schedule.on": ("Scheduled — running in the background.", "Programado — ejecutándose en segundo plano."),
+        "loop.schedule.enabled": ("Scheduled to run every %lld min.", "Programado para ejecutarse cada %lld min."),
+        "loop.schedule.disabled": ("Schedule turned off.", "Horario desactivado."),
+
         // Checkpoints (non-destructive rewind of a run)
         "loop.checkpoints": ("Checkpoints", "Puntos de control"),
         "loop.checkpoint.iteration": ("Iteration %lld", "Iteración %lld"),
