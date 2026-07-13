@@ -83,15 +83,15 @@ enum Theme {
                  Color(red: 0.941, green: 0.243, blue: 0.153)],  // #F03E27 coral-hi
         startPoint: .topLeading, endPoint: .bottomTrailing)
 
-    // MARK: Surfaces — warm paper in light, "reef ink" (teal-tinted) in dark
+    // MARK: Surfaces — near-white (a whisper of warmth) in light, "reef ink" in dark
     static let appBg = Color(
-        light: Color(red: 0.968, green: 0.953, blue: 0.933),   // #F7F3EE warm paper
+        light: Color(red: 0.980, green: 0.978, blue: 0.973),   // #FAF9F6 soft white
         dark:  Color(red: 0.047, green: 0.075, blue: 0.082))   // #0C1315 reef ink
     static let cardBg = Color(
         light: .white,                                          // #FFFFFF
         dark:  Color(red: 0.071, green: 0.118, blue: 0.129))   // #121E21 reef surface
     static let insetBg = Color(
-        light: Color(red: 0.984, green: 0.969, blue: 0.945),   // #FBF7F1 surface-2
+        light: Color(red: 0.957, green: 0.953, blue: 0.949),   // #F4F3F2 neutral well
         dark:  Color(red: 0.086, green: 0.149, blue: 0.165))   // #16262A
     /// Warm near-black surface for the left navigation rail.
     static let railBg = Color(
@@ -278,6 +278,44 @@ private struct MoonButtonBody: View {
 extension ButtonStyle where Self == MoonButtonStyle {
     /// Primary living-coral button.
     static var moon: MoonButtonStyle { MoonButtonStyle() }
+}
+
+// MARK: - Secondary "Reef outline" button style
+
+/// The secondary action next to `.moon`: a flat, hairline-outlined button (neutral at
+/// rest so the coral primary leads) that warms to coral on hover. Same height/padding
+/// as `.moon` so the pair aligns. This is the reference's outline-secondary look.
+struct OutlineButtonStyle: ButtonStyle {
+    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
+        OutlineButtonBody(configuration: configuration)
+    }
+}
+
+private struct OutlineButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var hovering = false
+    var body: some View {
+        configuration.label
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(hovering ? Theme.accent : Theme.ink)
+            .padding(.horizontal, Space.m)
+            .padding(.vertical, Space.s)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(hovering ? Theme.accentSoft : .clear))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(hovering ? Theme.accent.opacity(0.35) : Theme.hairline, lineWidth: 1))
+            .opacity(isEnabled ? 1 : 0.45)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.easeOut(duration: 0.18), value: hovering)
+            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: configuration.isPressed)
+            .onHover { hovering = isEnabled && $0 }
+            .contentShape(Rectangle())
+    }
+}
+extension ButtonStyle where Self == OutlineButtonStyle {
+    /// Secondary hairline-outline button (warms to coral on hover).
+    static var reefOutline: OutlineButtonStyle { OutlineButtonStyle() }
 }
 
 /// 4-based spacing scale.

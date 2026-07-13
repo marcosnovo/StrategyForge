@@ -186,8 +186,18 @@ enum ClaudeStreamParser {
                 let cost = (obj["total_cost_usd"] as? Double) ?? 0
                 if tokens > 0 || cost > 0 { events.append(.usage(tokens: tokens, costUSD: cost)) }
             }
-            if let subtype = obj["subtype"] as? String, subtype != "success" {
-                events.append(.failed((obj["result"] as? String) ?? subtype))
+            // A run can carry `is_error: true` while still reporting subtype "success"
+            // (notably a 401 auth failure), so check both — otherwise it reads as a
+            // silent empty finish.
+            let subtype = obj["subtype"] as? String
+            let isError = (obj["is_error"] as? Bool) == true
+            if isError || (subtype != nil && subtype != "success") {
+                let raw = (obj["result"] as? String) ?? subtype ?? "The run failed."
+                if (obj["api_error_status"] as? Int) == 401 || raw.lowercased().contains("authenticate") {
+                    events.append(.failed("Claude couldn't authenticate (401). Your saved Claude login looks expired — open Terminal, run `claude`, sign in to your plan, then retry."))
+                } else {
+                    events.append(.failed(raw))
+                }
             } else {
                 events.append(.finished)
             }
@@ -271,6 +281,7 @@ enum ClaudeRunner {
             let home = FileManager.default.homeDirectoryForCurrentUser.path
             let binDir = (resolved as NSString).deletingLastPathComponent
             env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+            sanitizeClaudeAuth(&env)
             process.environment = env
 
             let stdout = Pipe()
@@ -371,6 +382,7 @@ enum ClaudeRunner {
                 let home = FileManager.default.homeDirectoryForCurrentUser.path
                 let binDir = (resolved as NSString).deletingLastPathComponent
                 env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+                sanitizeClaudeAuth(&env)
                 process.environment = env
 
                 let stdin = Pipe(), stdout = Pipe(), stderr = Pipe()
@@ -462,6 +474,16 @@ enum ClaudeRunner {
             detail = s
         }
         return (id, tool, input, detail)
+    }
+
+    /// Coral runs on the user's own Claude *subscription* (the OAuth login that
+    /// `claude` stores after an interactive sign-in). But `claude` prefers an
+    /// `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` from its environment over that
+    /// stored login. A GUI app launched from a shell (or Xcode) that exports such a
+    /// key inherits it and fails with `401 Invalid authentication credentials` even
+    /// though the plan is connected. Strip them so the stored login is always used.
+    nonisolated static func sanitizeClaudeAuth(_ env: inout [String: String]) {
+        for key in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"] { env[key] = nil }
     }
 
     /// Resolve the `claude` binary to an absolute executable path.

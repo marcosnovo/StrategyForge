@@ -87,6 +87,12 @@ struct CLIOneShotRunner: OneShotRunner {
                 stderr: \(msg.isEmpty ? "(empty)" : msg)
                 stdout: \(out.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
                 """)
+            // A CLI can exit non-zero while printing a structured auth error to STDOUT
+            // (Claude prints a 401 result JSON with an empty stderr). Turn that into a
+            // message the user can act on instead of a bare "exited with code N".
+            if let friendly = Self.authFailureMessage(provider: provider, stdout: out, stderr: msg) {
+                throw OneShotError.failed(friendly)
+            }
             throw OneShotError.failed(msg.isEmpty ? "\(provider.displayName) exited with code \(status)" : msg)
         }
         switch mode {
@@ -140,6 +146,26 @@ struct CLIOneShotRunner: OneShotRunner {
         }
     }
 
+    /// If the CLI output smells like an authentication failure (401 / "failed to
+    /// authenticate"), return a per-provider, actionable message; else nil. Coral runs
+    /// on each provider's own stored subscription login, so the fix is a re-sign-in.
+    static func authFailureMessage(provider: AIProvider, stdout: String, stderr: String) -> String? {
+        let hay = (stdout + "\n" + stderr).lowercased()
+        let looksAuth = hay.contains("401")
+            || hay.contains("invalid authentication")
+            || hay.contains("failed to authenticate")
+            || hay.contains("please set an auth method")
+        guard looksAuth else { return nil }
+        switch provider {
+        case .claude:
+            return "Claude couldn't authenticate (401). Coral uses your Claude Code login from its default location — your saved login looks expired. Open Terminal, run `claude`, sign in to your plan, then retry."
+        case .openai:
+            return "Codex couldn't authenticate. Open Terminal and run `codex login` to sign in to your ChatGPT plan (or add an API key in Connect), then retry."
+        case .gemini:
+            return "Gemini couldn't authenticate. Open Terminal and run `gemini` to sign in to your Google account (or add an API key in Connect), then retry."
+        }
+    }
+
     /// Parse `claude -p --output-format json`'s single result object.
     static func parseClaudeJSON(_ text: String, provider: AIProvider, model: String) -> OneShotResult? {
         guard let data = text.data(using: .utf8),
@@ -186,6 +212,13 @@ struct CLIOneShotRunner: OneShotRunner {
                     let home = FileManager.default.homeDirectoryForCurrentUser.path
                     let binDir = (bin as NSString).deletingLastPathComponent
                     env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+                    // Only credentials the user configured IN Coral should take effect.
+                    // An inherited key from the launching shell/Xcode would silently
+                    // override the subscription login — Claude 401s, Codex is forced into
+                    // API mode. Strip them all, then re-add the user's own via extraEnv.
+                    for k in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY",
+                              "GEMINI_API_KEY", "GOOGLE_API_KEY",
+                              "GOOGLE_GENAI_USE_GCA", "GOOGLE_GENAI_USE_VERTEXAI"] { env[k] = nil }
                     for (k, v) in extraEnv { env[k] = v }
                     p.environment = env
                     let outPipe = Pipe(), errPipe = Pipe()

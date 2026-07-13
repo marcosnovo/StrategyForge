@@ -2,11 +2,12 @@
 //  ChatAvatar.swift
 //  StrategyForge
 //
-//  A per-chat identity avatar so chats are distinguishable at a glance in the list
-//  (the old shared strategy mini-topology looked identical everywhere). Each chat
-//  gets a deterministic gradient seeded from its id (stable across launches), a bold
-//  monogram from its name — or the team-shape glyph while still untitled — and a
-//  small provider corner badge. Cheap SwiftUI composition; no per-scroll animation.
+//  A per-chat leading tile. It used to be a gradient seeded from a random hue of the
+//  chat's UUID — decorative noise that competed with the coral selection state and
+//  encoded nothing. Now it's a calm, MEANINGFUL tile: a neutral inset surface, the
+//  team-shape glyph (what kind of team this is), a small provider corner dot (which
+//  AI), and a state restyle — teal edge/glyph while running, coral while it needs you.
+//  Color in the list now means exactly two things: provider (the dot) and state.
 //
 
 import SwiftUI
@@ -14,76 +15,49 @@ import SwiftUI
 struct ChatAvatar: View {
     let config: Configuration
     var size: CGFloat = 38
+    /// The chat is working right now (teal accent), or finished/awaiting a decision
+    /// while you were away (coral accent). Both restyle the same neutral tile.
+    var running: Bool = false
+    var attention: Bool = false
+    /// Whether to show the provider corner dot. Only meaningful when the list mixes
+    /// providers — for a single-provider user it's noise (and a coral Claude dot reads
+    /// as a false "needs you" alert), so the list hides it.
+    var showProvider: Bool = true
     @Environment(\.colorScheme) private var scheme
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let hue = Self.seededHue(config.id) / 360
-        // Desaturated so the list reads calm and the coral brand/selection stays the
-        // loudest thing (the seeded-hue identity system is kept, just muted).
-        let hi = Color(hue: hue, saturation: 0.30, brightness: scheme == .dark ? 0.52 : 0.82)
-        let lo = Color(hue: hue, saturation: 0.40, brightness: scheme == .dark ? 0.38 : 0.58)
+        // State restyle — coral (needs you) outranks teal (running) outranks rest.
+        let glyphColor: Color = attention ? Theme.accent : (running ? Theme.teal : Theme.secondaryOnMaterial)
+        let stroke: Color = attention ? Theme.selectionBorder : (running ? Theme.tealEdge : Theme.hairline)
         RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(LinearGradient(colors: [hi, lo], startPoint: .topLeading, endPoint: .bottomTrailing))
-            .overlay { mark }
+            .fill(Theme.insetBg)
+            .overlay {
+                Image(systemName: Self.strategyGlyph(config.strategy))
+                    .font(.system(size: size * 0.44, weight: .medium))
+                    .foregroundStyle(glyphColor)
+            }
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Theme.hairline, lineWidth: 0.5))
-            .overlay(alignment: .bottomTrailing) { providerBadge }
+                .strokeBorder(stroke, lineWidth: 1))
+            .overlay(alignment: .bottomTrailing) { if showProvider { providerDot } }
             .frame(width: size, height: size)
             .help(config.name.isEmpty ? model.strategyDisplayName(config.strategy) : config.name)
             .accessibilityLabel(config.name.isEmpty ? model.strategyDisplayName(config.strategy) : config.name)
     }
 
-    /// Monogram from the name, or the team-shape glyph when still untitled — so even
-    /// three brand-new chats differ (by shape + seeded color).
-    @ViewBuilder private var mark: some View {
-        if let mono = monogram {
-            Text(mono)
-                .font(.system(size: size * 0.42, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-        } else {
-            Image(systemName: Self.strategyGlyph(config.strategy))
-                .font(.system(size: size * 0.40, weight: .semibold))
-                .foregroundStyle(.white)
-        }
-    }
-
-    private var providerBadge: some View {
+    /// Provider identity as a small solid dot (not a glyph badge — an 8pt dot is more
+    /// legible than a tiny SF Symbol and reads instantly as an identity pip). The exact
+    /// provider name is available on hover via the tile's `.help`.
+    private var providerDot: some View {
         Circle()
             .fill(config.provider.tint)
-            .frame(width: size * 0.32, height: size * 0.32)
-            .overlay(Image(systemName: config.provider.icon)
-                .font(.system(size: size * 0.15, weight: .bold)).foregroundStyle(.white))
-            .overlay(Circle().strokeBorder(.white.opacity(0.85), lineWidth: 1))
-            .shadow(color: .black.opacity(0.22), radius: 1, y: 0.5)
-            .offset(x: 3, y: 3)
+            .frame(width: size * 0.24, height: size * 0.24)
+            .overlay(Circle().strokeBorder(Theme.insetBg, lineWidth: 1.5))
+            .help(config.provider.displayName)
+            .offset(x: 2, y: 2)
     }
 
-    private var monogram: String? {
-        let name = config.name.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return nil }
-        let words = name.split(separator: " ")
-        if words.count >= 2 {
-            return (String(words[0].prefix(1)) + String(words[1].prefix(1))).uppercased()
-        }
-        return String(name.prefix(2)).uppercased()
-    }
-
-    // MARK: Deterministic seeding (shared)
-
-    /// Stable hue for a chat, folded from the raw UUID bytes (NOT `hashValue`, which
-    /// Swift salts per launch). Discrete coral-anchored stops so a list reads as
-    /// clearly different colors, not near-neighbors.
-    static func seededHue(_ id: UUID) -> Double {
-        let b = id.uuid
-        var h: UInt64 = 0xcbf29ce484222325
-        for byte in [b.0, b.1, b.2, b.3, b.4, b.5, b.6, b.7,
-                     b.8, b.9, b.10, b.11, b.12, b.13, b.14, b.15] {
-            h = (h ^ UInt64(byte)) &* 0x100000001b3
-        }
-        let stops: [Double] = [8, 20, 200, 210, 158, 172, 262, 275, 330, 342, 130, 44]
-        return stops[Int(h % UInt64(stops.count))]
-    }
+    // MARK: Shape mapping (shared)
 
     /// SF Symbol for a team's shape (derived from roles, so custom teams work too).
     static func strategyGlyph(_ s: Strategy) -> String {

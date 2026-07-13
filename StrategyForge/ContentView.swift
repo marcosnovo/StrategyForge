@@ -283,38 +283,53 @@ struct ContentView: View {
 /// Shown in the center column when nothing is selected.
 private struct EmptyEditorState: View {
     @Environment(AppModel.self) private var model
+    @Environment(AuthModel.self) private var auth
     var onDescribeTask: () -> Void = {}
 
     var body: some View {
-        ContentUnavailableView {
-            Label(model.t("empty.editor.title"), systemImage: "square.stack.3d.up")
-        } description: {
-            Text(model.t("empty.editor.desc"))
-        } actions: {
-            VStack(spacing: Space.m) {
-                // The primary path: describe a task and let AI assemble the team.
-                Button {
-                    onDescribeTask()
-                } label: {
+        // Reference-style landing: a personal greeting header (top-left) + subtitle,
+        // then the primary/secondary actions — instead of a centered placeholder.
+        VStack(alignment: .leading, spacing: Space.xl) {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text(greeting).font(.sfDisplay).foregroundStyle(Theme.ink)
+                Text(model.t("empty.editor.desc"))
+                    .font(.sfBodyM).foregroundStyle(Theme.secondaryOnMaterial)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: Space.m) {
+                // Primary: describe a task and let AI assemble the team.
+                Button { onDescribeTask() } label: {
                     Label(model.t("onboard.describeTask"), systemImage: "sparkles")
-                        .frame(maxWidth: 320)
                 }
                 .buttonStyle(.moon)
-                .controlSize(.large)
-
-                // Beginner: proven setup in one click.
-                Button {
-                    model.setUpForMe()
-                } label: {
-                    Label(model.t("setup.oneClick"), systemImage: "wand.and.stars")
+                // Secondary: a blank chat.
+                Button { model.addConfiguration() } label: {
+                    Label(model.t("sidebar.new"), systemImage: "square.and.pencil")
                 }
-                .buttonStyle(.link)
-                .help(model.t("setup.oneClick.sub"))
-
-                Button(model.t("sidebar.new")) { model.addConfiguration() }
-                    .buttonStyle(.link)
+                .buttonStyle(.reefOutline)
             }
+
+            // Beginner: proven setup in one click.
+            Button { model.setUpForMe() } label: {
+                Label(model.t("setup.oneClick"), systemImage: "wand.and.stars")
+            }
+            .buttonStyle(.link)
+            .help(model.t("setup.oneClick.sub"))
+
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, Space.xl + Space.s)
+        .padding(.top, Theme.titlebarInset + Space.l)
+    }
+
+    /// A personal greeting when signed in ("Hi, {first name}"), else a neutral welcome.
+    private var greeting: String {
+        if let first = auth.account?.displayName?.split(separator: " ").first {
+            return model.t("empty.greeting.name", String(first))
+        }
+        return model.t("empty.greeting")
     }
 }
 

@@ -113,11 +113,16 @@ struct ProviderConfigView: View {
     @Environment(AppModel.self) private var model
     let provider: AIProvider
     @State private var connecting = false
-    @State private var test: TestState = .idle
+    @State private var diag: DiagState = .idle
+    @State private var showDetails = false
     /// Draft for the OpenAI API-key field (loaded from the Keychain on appear).
     @State private var apiKeyDraft = ""
 
-    private enum TestState: Equatable { case idle, running, ok(String), fail(String) }
+    private enum DiagState: Equatable {
+        case idle, running
+        case healthy(String)                    // the live greeting reply
+        case issue(ProviderDiagnostics.Finding) // a classified failure + its fix
+    }
 
     private var connected: Bool { model.isConnected(provider) }
 
@@ -130,7 +135,7 @@ struct ProviderConfigView: View {
                 if provider == .openai { codexModelCard }
                 if provider.supportsReasoningEffort { reasoningEffortCard }
                 binaryCard
-                if connected { testCard }
+                if connected { diagnoseCard }
                 if !provider.isExecutable { soonNote }
             }
             .padding(Space.xl)
@@ -216,39 +221,94 @@ struct ProviderConfigView: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
     }
 
-    /// Runs one real one-shot through the provider's CLI so you can verify it
-    /// end-to-end (works today for Claude; validates Codex/Gemini once installed).
-    private var testCard: some View {
+    /// Diagnose & fix: runs the full end-to-end check (resolve the CLI → one real
+    /// one-shot), classifies any failure into a concrete cause, and offers a one-click
+    /// remedy — so a user never has to read a log or open a Terminal to recover.
+    private var diagnoseCard: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack {
-                Text(model.t("provider.test")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Text(model.t("provider.diagnose")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
                 Spacer()
                 Button {
-                    runTest()
+                    runDiagnose()
                 } label: {
-                    if test == .running { WorkingLogo(size: 16) }
-                    else { Text(model.t("provider.test.run")) }
+                    if diag == .running { WorkingLogo(size: 16) }
+                    else { Text(model.t("provider.diagnose.run")) }
                 }
                 .buttonStyle(.bordered).controlSize(.small)
-                .disabled(test == .running)
+                .disabled(diag == .running)
             }
-            switch test {
-            case .ok(let snippet):
-                Label(snippet.isEmpty ? model.t("provider.test.ok") : snippet, systemImage: "checkmark.circle.fill")
+            switch diag {
+            case .healthy(let snippet):
+                Label(snippet.isEmpty ? model.t("provider.diagnose.healthy") : snippet,
+                      systemImage: "checkmark.circle.fill")
                     .font(.sfCaption2).foregroundStyle(Theme.success)
                     .fixedSize(horizontal: false, vertical: true)
-            case .fail(let msg):
-                Label(msg, systemImage: "exclamationmark.triangle.fill")
-                    .font(.sfCaption2).foregroundStyle(Theme.danger)
+            case .issue(let finding):
+                issueView(finding)
+            case .running:
+                Text(model.t("provider.diagnose.running")).font(.sfCaption2).foregroundStyle(.secondary)
+            case .idle:
+                Text(model.t("provider.diagnose.hint")).font(.sfCaption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            default:
-                Text(model.t("provider.test.hint")).font(.sfCaption2).foregroundStyle(.secondary)
             }
         }
         .padding(Space.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
         .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    /// A classified failure: title + plain explanation + a one-click fix (and the raw
+    /// CLI output tucked behind a "Details" disclosure).
+    @ViewBuilder
+    private func issueView(_ finding: ProviderDiagnostics.Finding) -> some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Label(model.t("provider.issue.\(finding.issue.rawValue).title"),
+                  systemImage: "exclamationmark.triangle.fill")
+                .font(.sfBodyM.weight(.semibold)).foregroundStyle(Theme.danger)
+            Text(model.t("provider.issue.\(finding.issue.rawValue).detail", provider.displayName))
+                .font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Space.s) {
+                fixButton(finding.fix)
+                Button(model.t("provider.diagnose.retest")) { runDiagnose() }
+                    .buttonStyle(.bordered).controlSize(.small)
+            }
+            if !finding.raw.isEmpty {
+                DisclosureGroup(isExpanded: $showDetails) {
+                    Text(finding.raw)
+                        .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(Space.s)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.insetBg))
+                } label: {
+                    Text(model.t("provider.diagnose.details")).font(.sfCaption2).foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
+    /// The primary remedy button for a finding, wired to the existing recovery flows.
+    @ViewBuilder
+    private func fixButton(_ fix: ProviderDiagnostics.Fix) -> some View {
+        switch fix {
+        case .connect:
+            Button(model.t("provider.fix.connect")) { connecting = true }
+                .buttonStyle(.moon).controlSize(.small)
+        case .useAPIKey:
+            Button(model.t("provider.fix.useKey")) {
+                model.settings.openaiUseAPIKey = true; model.save()
+                model.flashSuccess(model.t("provider.fix.useKey.done"))
+            }
+            .buttonStyle(.bordered).controlSize(.small)
+        case .exportLog:
+            Button(model.t("provider.fix.exportLog")) { model.exportDiagnostics() }
+                .buttonStyle(.bordered).controlSize(.small)
+        case .none:
+            EmptyView()
+        }
     }
 
     /// OpenAI/Codex model control: honest note about the subscription constraint, plus
@@ -312,20 +372,23 @@ struct ProviderConfigView: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
     }
 
-    private func runTest() {
-        test = .running
-        let runner = CLIOneShotRunner(binaries: [provider: model.settings.binary(for: provider)],
-                                      apiKeys: model.providerAPIKeys(),
-                                      reasoningEffort: model.settings.codexReasoningEffort)
+    private func runDiagnose() {
+        diag = .running
+        showDetails = false
+        let binary = model.settings.binary(for: provider)
         let modelID = provider.models.first?.id ?? ""
+        let keys = model.providerAPIKeys()
+        let effort = model.settings.codexReasoningEffort
         Task {
-            do {
-                let r = try await runner.run(prompt: "Reply with a short one-line greeting.",
-                                             provider: provider, model: modelID, cwd: nil)
-                test = .ok(String(r.text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(140)))
-            } catch {
-                test = .fail((error as? OneShotError)?.errorDescription ?? error.localizedDescription)
+            let (finding, greeting) = await ProviderDiagnostics.check(
+                provider: provider, binary: binary, modelID: modelID,
+                apiKeys: keys, reasoningEffort: effort)
+            if let finding {
+                diag = .issue(finding)
+            } else {
+                diag = .healthy(String(greeting.prefix(140)))
             }
+            await model.refreshConnectedProviders()
         }
     }
 

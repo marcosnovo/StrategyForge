@@ -35,6 +35,13 @@ struct SidebarView: View {
         }
     }
 
+    /// True only when the chat list actually spans more than one AI provider — then a
+    /// per-row provider dot informs; otherwise it's noise (and a coral Claude dot looks
+    /// like a false "needs you" alert), so it's hidden.
+    private var mixedProviders: Bool {
+        Set(model.configurations.map { $0.provider }).count > 1
+    }
+
     var body: some View {
         @Bindable var model = model
         VStack(spacing: 0) {
@@ -136,7 +143,9 @@ struct SidebarView: View {
         let running = model.runningChatIDs.contains(config.id)
         let selected = model.selectedConfigID == config.id
         return HStack(spacing: Space.s) {
-            ChatAvatar(config: config, size: 38)
+            ChatAvatar(config: config, size: 38, running: running,
+                       attention: model.attentionChatIDs.contains(config.id),
+                       showProvider: mixedProviders)
             VStack(alignment: .leading, spacing: 2) {
                 // Title line: name + (on hover) quick rename / delete actions.
                 HStack(spacing: 4) {
@@ -169,29 +178,34 @@ struct SidebarView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                // Meta line: team shape · repo (code cue) · state. When a search
-                // matched the conversation body, show that snippet instead so it's
-                // clear why the chat surfaced.
+                // Meta line, driven by what you need to KNOW at a glance, in priority
+                // order: a search hit → why it surfaced; needs-you → the actionable
+                // state (coral); running → live (teal); otherwise the last message
+                // (messenger style), prefixed with a code cue when bound to a repo.
                 HStack(spacing: Space.xs) {
                     let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-                    if !q.isEmpty, !config.name.lowercased().contains(q),
-                       config.transcript.contains(where: { $0.text.lowercased().contains(q) }) {
+                    let searchHit = !q.isEmpty && !config.name.lowercased().contains(q)
+                        && config.transcript.contains(where: { $0.text.lowercased().contains(q) })
+                    if searchHit {
                         Text(previewLine(config))
                             .font(.sfCaption2).foregroundStyle(.secondary)
                             .lineLimit(1).truncationMode(.tail)
+                    } else if model.attentionChatIDs.contains(config.id) {
+                        Text(model.t("sidebar.needsAttention"))
+                            .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+                            .lineLimit(1).truncationMode(.tail)
+                    } else if running {
+                        Text(model.t("sidebar.working"))
+                            .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.teal)
+                            .lineLimit(1).truncationMode(.tail)
                     } else {
-                        Image(systemName: ChatAvatar.strategyGlyph(config.strategy))
-                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
-                        Text(model.t(ChatAvatar.shortShapeKey(config.strategy)))
-                            .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1).layoutPriority(1)
                         if let repo = config.repoPath, !repo.isEmpty {
-                            Text("·").font(.sfCaption2).foregroundStyle(.tertiary)
                             Image(systemName: "chevron.left.forwardslash.chevron.right")
                                 .font(.system(size: 8, weight: .semibold)).foregroundStyle(.tertiary)
-                            Text((repo as NSString).lastPathComponent)
-                                .font(.sfCaption2).foregroundStyle(.tertiary)
-                                .lineLimit(1).truncationMode(.tail)
                         }
+                        Text(subtitleLine(config))
+                            .font(.sfCaption2).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.tail)
                     }
                     Spacer(minLength: Space.xs)
                     // The 3D spinner in the list only earns its place for a chat that's
@@ -222,6 +236,18 @@ struct SidebarView: View {
     /// The most recent non-empty message, if any (for the row preview).
     private func lastMessage(_ config: Configuration) -> String? {
         config.transcript.last(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?.text
+    }
+
+    /// The idle-state subtitle: the last message (messenger style), or — for a chat
+    /// with no conversation yet — its repo name, else the team-shape name.
+    private func subtitleLine(_ config: Configuration) -> String {
+        if let msg = lastMessage(config) {
+            return msg.replacingOccurrences(of: "\n", with: " ")
+        }
+        if let repo = config.repoPath, !repo.isEmpty {
+            return (repo as NSString).lastPathComponent
+        }
+        return model.t(ChatAvatar.shortShapeKey(config.strategy))
     }
 
     private func previewLine(_ config: Configuration) -> String {
@@ -279,45 +305,4 @@ struct SidebarView: View {
         .zoomWindowOnDoubleClick()
     }
 
-}
-
-/// The minimized sidebar: a thin full-height rail with expand + new-chat + settings.
-struct CollapsedSidebarRail: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Binding var showSidebar: Bool
-
-    var body: some View {
-        VStack(spacing: Space.l) {
-            Button {
-                if reduceMotion { showSidebar = true }
-                else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
-            } label: {
-                Image(systemName: "sidebar.left")
-            }
-            .buttonStyle(.borderless)
-            .help(model.t("sidebar.toggle"))
-            .accessibilityLabel(model.t("sidebar.toggle"))
-
-            Button {
-                model.addConfiguration()
-            } label: {
-                Image(systemName: "square.and.pencil").foregroundStyle(Theme.teal)   // secondary (primary lives in NavRail)
-            }
-            .buttonStyle(.borderless)
-            .help(model.t("sidebar.new"))
-            .accessibilityLabel(model.t("sidebar.new"))
-
-            Spacer()
-
-            SettingsLink { Image(systemName: "gearshape") }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(model.t("sidebar.settings"))
-        }
-        .font(.title3)
-        .padding(.vertical, Space.l)
-        .frame(width: 48)
-        .frame(maxHeight: .infinity)
-        .background(.regularMaterial)
-    }
 }
