@@ -56,13 +56,16 @@ enum ClaudeMdGenerator {
             out += "## Available subagents\n\n"
             out += "| Subagent | Role | Model | When to use |\n"
             out += "|---|---|---|---|\n"
+            var subagentTypes: [String] = []
             for role in subagents {
                 let count = max(role.count, 1)
                 let nameCell: String
                 if count == 1 {
                     nameCell = "`\(role.name)`"
+                    subagentTypes.append(role.name)
                 } else {
                     nameCell = "`\(role.name)-1`…`\(role.name)-\(count)`"
+                    subagentTypes.append(contentsOf: (1...count).map { "\(role.name)-\($0)" })
                 }
                 let when = role.description
                     .replacingOccurrences(of: "\n", with: " ")
@@ -70,6 +73,23 @@ enum ClaudeMdGenerator {
                 out += "| \(nameCell) | \(role.role.displayName) | \(role.model.displayName) | \(when) |\n"
             }
             out += "\n"
+
+            // The delegation is the whole point — and the model will NOT delegate
+            // unless told to use the Task tool explicitly. Make it a hard rule and
+            // name the exact `subagent_type` values it may call.
+            let names = subagentTypes.map { "`\($0)`" }.joined(separator: ", ")
+            out += "## Delegate with the Task tool (required)\n\n"
+            out += "You are the orchestrator. **Do the work by DELEGATING, not by doing it all yourself.** "
+            out += "For anything that fits a subagent above, you MUST call the **Task tool**:\n\n"
+            out += "```\nTask(subagent_type: \"\(subagentTypes.first ?? "worker")\", "
+            out += "description: \"a precise, self-contained brief with scope + acceptance criteria\")\n```\n\n"
+            out += "- Available `subagent_type` values: \(names).\n"
+            out += "- When work is parallelizable, launch several subagents **in the same turn** "
+            out += "(multiple Task calls at once) so they run concurrently.\n"
+            out += "- Give each a complete brief — subagents can't see the conversation, each other, "
+            out += "or delegate further.\n"
+            out += "- Then collect their reports, integrate, resolve conflicts, and verify.\n"
+            out += "- Only skip delegation for trivial one-line answers that need no real work.\n\n"
         }
 
         // Working agreement — Anthropic's tested prompt guidance for Fable 5.
