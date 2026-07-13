@@ -742,7 +742,12 @@ struct ChatView: View {
                     .textSelection(.enabled)
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                     .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.accent))
-                    .contextMenu { copyButton(message.text) }
+                    .contextMenu {
+                        copyButton(message.text)
+                        Button { editMessage(message) } label: {
+                            Label(model.t("chat.edit"), systemImage: "pencil")
+                        }.disabled(vm.isRunning)
+                    }
             }
         } else {
             // Assistant: a soft rounded bubble (reference-style), with an avatar.
@@ -770,7 +775,12 @@ struct ChatView: View {
                         // While tokens stream in, a soft highlight sweeps the text
                         // so the reply visibly feels alive. Off under Reduce Motion.
                         .shimmer(isStreaming && !reduceMotion)
-                        .contextMenu { copyButton(message.text) }
+                        .contextMenu {
+                            copyButton(message.text)
+                            Button { regenerate(message) } label: {
+                                Label(model.t("chat.regenerate"), systemImage: "arrow.clockwise")
+                            }.disabled(vm.isRunning)
+                        }
                     if !message.text.isEmpty {
                         let copied = copiedMessageID == message.id
                         Button { copy(message) } label: {
@@ -1464,6 +1474,29 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    /// Edit a user message: rewind the conversation to before it, drop it, and load
+    /// its text back into the composer to change and resend (a fresh session).
+    private func editMessage(_ message: ChatMessage) {
+        guard !vm.isRunning, let idx = vm.messages.firstIndex(where: { $0.id == message.id }) else { return }
+        let text = message.text
+        vm.truncate(from: idx)
+        vm.input = text
+        inputFocused = true
+    }
+
+    /// Regenerate an assistant reply: rewind to the user turn that produced it and
+    /// re-run that same prompt (fresh session), so a different answer can come out.
+    private func regenerate(_ message: ChatMessage) {
+        guard !vm.isRunning, let idx = vm.messages.firstIndex(where: { $0.id == message.id }) else { return }
+        // The user prompt is the message just before this assistant reply.
+        let userIdx = idx - 1
+        guard vm.messages.indices.contains(userIdx), vm.messages[userIdx].role == .user else { return }
+        let prompt = vm.messages[userIdx].text
+        vm.truncate(from: userIdx)
+        vm.input = prompt
+        send()
     }
 
     private func send() {

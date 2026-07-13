@@ -656,6 +656,9 @@ enum L10n {
         "chat.send": ("Send", "Enviar"),
         "chat.stop": ("Stop", "Parar"),
 
+        "chat.edit": ("Edit & resend", "Editar y reenviar"),
+        "chat.regenerate": ("Regenerate", "Regenerar"),
+
         // Composer — slash commands
         "slash.accept": ("Accept edits mode", "Modo aceptar ediciones"),
         "slash.plan": ("Plan mode (no edits)", "Modo plan (sin ediciones)"),

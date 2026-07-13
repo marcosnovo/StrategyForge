@@ -222,6 +222,16 @@ final class ChatViewModel {
         return !(FileManager.default.fileExists(atPath: repo, isDirectory: &isDir) && isDir.boolValue)
     }
 
+    /// Truncate the transcript to *before* `index` (dropping that message and every
+    /// later one) and start a fresh CLI session, so the next send re-runs the
+    /// conversation from that point — the basis for edit & regenerate.
+    func truncate(from index: Int) {
+        guard !isRunning, messages.indices.contains(index) else { return }
+        messages.removeSubrange(index...)
+        hasSession = false
+        persist(messages)
+    }
+
     /// Clear the visible conversation and start a fresh CLI session next turn (/clear).
     func clearTranscript() {
         guard !isRunning else { return }
