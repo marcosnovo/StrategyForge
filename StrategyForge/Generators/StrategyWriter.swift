@@ -36,6 +36,47 @@ struct StrategyWriter {
         return files
     }
 
+    /// A pre-write diff for every file that would be written: created vs. modified
+    /// vs. unchanged, with the line-by-line changes, WITHOUT touching disk (reads
+    /// existing contents only). The CLAUDE.md diff reflects the managed-section merge.
+    func previewDiffs(for strategy: Strategy) -> [FileDiff] {
+        var diffs = previewFiles(for: strategy).map { file in
+            let existing = try? String(contentsOf: repoURL.appendingPathComponent(file.relativePath),
+                                       encoding: .utf8)
+            return FileDiff.make(file: file, existing: existing)
+        }
+        // Deletions: write() prunes managed agent files that dropped out of the
+        // strategy (renamed/removed roles). Surface them so the diff the user
+        // approves matches exactly what write() does.
+        for rel in prunedAgentPaths(for: strategy) {
+            let existing = try? String(contentsOf: repoURL.appendingPathComponent(rel), encoding: .utf8)
+            diffs.append(FileDiff.deleted(relativePath: rel, existing: existing))
+        }
+        return diffs
+    }
+
+    /// Managed agent files we previously generated that are no longer part of the
+    /// strategy. `write()` deletes exactly these; the preview uses the same list so
+    /// the two never diverge. Only files bearing our managed signature qualify —
+    /// hand-written agent files are never included.
+    func prunedAgentPaths(for strategy: Strategy) -> [String] {
+        let agentsDir = repoURL.appendingPathComponent(AgentFileGenerator.agentsDirectory, isDirectory: true)
+        let newPaths = Set(AgentFileGenerator.generate(for: strategy).map(\.relativePath))
+        guard let entries = try? fm.contentsOfDirectory(at: agentsDir, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        var pruned: [String] = []
+        for entry in entries where entry.pathExtension == "md" {
+            let rel = "\(AgentFileGenerator.agentsDirectory)/\(entry.lastPathComponent)"
+            guard !newPaths.contains(rel),
+                  let content = try? String(contentsOf: entry, encoding: .utf8),
+                  content.contains(AgentFileGenerator.managedSignature)
+                    || content.contains(AgentFileGenerator.legacyManagedSignature) else { continue }
+            pruned.append(rel)
+        }
+        return pruned
+    }
+
     /// Relative paths of files that already exist on disk and would be overwritten.
     /// (CLAUDE.md is always merged rather than clobbered, so it is not a conflict.)
     func existingAgentConflicts(for strategy: Strategy) -> [String] {
@@ -56,20 +97,13 @@ struct StrategyWriter {
         let agentsDir = repoURL.appendingPathComponent(AgentFileGenerator.agentsDirectory, isDirectory: true)
         try fm.createDirectory(at: agentsDir, withIntermediateDirectories: true)
         let generated = AgentFileGenerator.generate(for: strategy)
-        let newPaths = Set(generated.map(\.relativePath))
 
         // Prune stale agents WE previously generated (renamed/removed roles) so they
-        // don't linger as active subagents. Only deletes files bearing our managed
-        // signature — hand-written agent files are never touched.
-        if let entries = try? fm.contentsOfDirectory(at: agentsDir, includingPropertiesForKeys: nil) {
-            for entry in entries where entry.pathExtension == "md" {
-                let rel = "\(AgentFileGenerator.agentsDirectory)/\(entry.lastPathComponent)"
-                guard !newPaths.contains(rel),
-                      let content = try? String(contentsOf: entry, encoding: .utf8),
-                      content.contains(AgentFileGenerator.managedSignature)
-                        || content.contains(AgentFileGenerator.legacyManagedSignature) else { continue }
-                try? fm.removeItem(at: entry)
-            }
+        // don't linger as active subagents. Uses the SAME list the preview diff
+        // surfaces (prunedAgentPaths), so what the user approved is what happens.
+        // Only files bearing our managed signature are ever removed.
+        for rel in prunedAgentPaths(for: strategy) {
+            try? fm.removeItem(at: repoURL.appendingPathComponent(rel))
         }
 
         for file in generated {

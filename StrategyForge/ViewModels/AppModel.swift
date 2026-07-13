@@ -1456,6 +1456,18 @@ final class AppModel {
         return files
     }
 
+    /// A pre-write diff of every file that would be written — what changes on disk
+    /// before anything is written. When no repo is chosen yet, everything is "created".
+    func previewDiffs(for config: Configuration) -> [FileDiff] {
+        if let url = repoURL(for: config) {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            return StrategyWriter(repoURL: url, binary: settings.claudeBinary)
+                .previewDiffs(for: config.strategy)
+        }
+        return previewFiles(for: config).map { FileDiff.make(file: $0, existing: nil) }
+    }
+
     func launchCommand(for config: Configuration) -> String {
         LaunchCommandGenerator.command(for: config.strategy, binary: settings.claudeBinary)
     }
@@ -1485,8 +1497,10 @@ final class AppModel {
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
         do {
-            let written = try StrategyWriter(repoURL: url, binary: settings.claudeBinary)
-                .write(strategy: config.strategy)
+            let writer = StrategyWriter(repoURL: url, binary: settings.claudeBinary)
+            // Classify what's about to change (before the write) for the funnel.
+            let diffs = writer.previewDiffs(for: config.strategy)
+            let written = try writer.write(strategy: config.strategy)
             if let i = configurations.firstIndex(where: { $0.id == config.id }) {
                 configurations[i].lastGeneratedAt = Date()
                 save()
@@ -1494,6 +1508,9 @@ final class AppModel {
             // The activation aha — .claude/agents + CLAUDE.md written into a repo.
             Analytics.log(.filesGenerated(provider: config.provider.rawValue,
                                           agents: config.strategy.roles.count))
+            Analytics.log(.diffApplied(created: diffs.filter { $0.change == .created }.count,
+                                       modified: diffs.filter { $0.change == .modified }.count,
+                                       deleted: diffs.filter { $0.change == .deleted }.count))
             show(.success(t("banner.wrote", written.count, url.lastPathComponent)))
             return true
         } catch {
