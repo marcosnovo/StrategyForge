@@ -130,6 +130,20 @@ struct MetaOrchestrator {
 
     /// Execute the loop. Returns the final synthesized text (nil on failure). Emits
     /// progress via `onEvent`. `runner` performs each single model call.
+    /// Run one leg, re-labelling any failure with the role, provider and model so a
+    /// cross-provider failure says exactly which agent broke and why (the raw CLI
+    /// stderr is otherwise anonymous — the #1 confusion with mixed-provider runs).
+    private static func runStep(_ runner: OneShotRunner, role: String, provider: AIProvider,
+                                model: String, prompt: String, cwd: String?) async throws -> OneShotResult {
+        do {
+            return try await runner.run(prompt: prompt, provider: provider, model: model, cwd: cwd)
+        } catch let e as OneShotError {
+            if case .notInstalled = e { throw e }   // already actionable
+            let modelLabel = model.isEmpty ? "default model" : model
+            throw OneShotError.failed("“\(role)” (\(provider.displayName) · \(modelLabel)) failed — \(e.errorDescription ?? "unknown error")")
+        }
+    }
+
     @discardableResult
     static func run(strategy: Strategy,
                     task: String,
@@ -152,7 +166,7 @@ struct MetaOrchestrator {
             if workers.isEmpty {
                 onEvent(.phase("plan"))
                 onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
-                let r = try await runner.run(prompt: task, provider: orchestrator.provider, model: orchModel, cwd: cwd)
+                let r = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider, model: orchModel, prompt: task, cwd: cwd)
                 account(r)
                 onEvent(.roleFinished(role: orchestrator.name, tokens: r.tokens))
                 onEvent(.assistantText(r.text))
@@ -164,8 +178,8 @@ struct MetaOrchestrator {
             // 1) PLAN.
             onEvent(.phase("plan"))
             onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
-            let planRes = try await runner.run(prompt: planPrompt(task: task, workers: workers),
-                                               provider: orchestrator.provider, model: orchModel, cwd: cwd)
+            let planRes = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider,
+                                            model: orchModel, prompt: planPrompt(task: task, workers: workers), cwd: cwd)
             account(planRes)
             onEvent(.roleFinished(role: orchestrator.name, tokens: planRes.tokens))
             let subtasks = parsePlan(planRes.text, workers: workers, task: task)
@@ -187,7 +201,7 @@ struct MetaOrchestrator {
                         let prompt = workerPrompt(role: role, task: sub.task, instance: inst, of: instances)
                         group.addTask {
                             onEvent(.roleStarted(role: role.name, provider: role.provider, model: m))
-                            let r = try await runner.run(prompt: prompt, provider: role.provider, model: m, cwd: cwd)
+                            let r = try await runStep(runner, role: role.name, provider: role.provider, model: m, prompt: prompt, cwd: cwd)
                             onEvent(.roleFinished(role: role.name, tokens: r.tokens))
                             return WorkerResult(order: thisOrder, role: role.name, text: r.text, tokens: r.tokens, cost: r.costUSD)
                         }
@@ -204,8 +218,8 @@ struct MetaOrchestrator {
             // 3) SYNTHESIZE — the orchestrator combines everything.
             onEvent(.phase("synthesize"))
             onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
-            let synth = try await runner.run(prompt: synthesisPrompt(task: task, results: results),
-                                             provider: orchestrator.provider, model: orchModel, cwd: cwd)
+            let synth = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider,
+                                          model: orchModel, prompt: synthesisPrompt(task: task, results: results), cwd: cwd)
             account(synth)
             onEvent(.roleFinished(role: orchestrator.name, tokens: synth.tokens))
 
