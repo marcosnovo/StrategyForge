@@ -54,6 +54,10 @@ struct NavRail: View {
                  running: !LoopStore.shared.runningLoopIDs.isEmpty) {
                 model.guardedLeave { model.navSection = .loops }
             }
+            item("puzzlepiece.extension.fill", "rail.skills",
+                 active: model.navSection == .skills) {
+                model.guardedLeave { model.navSection = .skills }
+            }
             // Advisor is integrated as the inline recommendation card while composing
             // the first message — not a standalone section.
             item("point.3.connected.trianglepath.dotted", "rail.connected",

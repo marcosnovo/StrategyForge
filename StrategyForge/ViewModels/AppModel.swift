@@ -60,7 +60,7 @@ final class AppModel {
     /// `particleLab` is a DEBUG-only gallery for previewing the dot/particle motion
     /// system (spinners + waiting states) — its nav entry only appears in Debug builds.
     /// `code` is the repo-first door: connect a repo → work → PR (single-agent Claude).
-    enum NavSection { case chats, services, team, usage, loops, advisor, particleLab, code }
+    enum NavSection { case chats, services, team, usage, loops, advisor, particleLab, code, skills }
     var navSection: NavSection = .chats
 
     /// The chat that should open directly in Code Mode (set by the Code launcher;

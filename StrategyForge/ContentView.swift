@@ -157,6 +157,9 @@ struct ContentView: View {
             } else if model.navSection == .code {
                 CodeLauncherView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.navSection == .skills {
+                SkillsView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let id = model.selectedConfigID, let chat = model.selectedConfiguration,
                       let vm = model.chatViewModel(for: id) {
                 // Center: the chat — the protagonist, full width. The VM is owned
