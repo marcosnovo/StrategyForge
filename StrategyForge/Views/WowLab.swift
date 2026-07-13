@@ -145,51 +145,73 @@ struct WowSphereResolve: View {
         return (CGPoint(x: center.x + CGFloat(px) * persp * R, y: center.y - CGFloat(py) * persp * R), (pz + 1.5) / 3.0)
     }
 
+    private static let reef = Color(red: 0.078, green: 0.102, blue: 0.118)
+
     private func draw(_ ctx: inout GraphicsContext, _ size: CGSize, _ e: Double) {
         let p = min(e / duration, 1)
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let R = min(size.width, size.height) * 0.20
-        let alpha = p < 0.72 ? 1.0 : max(0, 1 - (p - 0.72) / 0.28)
+        let alpha = p < 0.74 ? 1.0 : max(0, 1 - (p - 0.74) / 0.26)
         let converging = p < gatherEnd
+        let gathered = min(max((p - 0.35) / 0.35, 0), 1)      // how "formed" the gem is
 
-        // Land beat: bright flash + expanding shock-ring + gem glow the instant the
-        // cloud snaps together.
-        var pulse = 1.0, glow = 0.0
-        if p >= gatherEnd { let tau = p - gatherEnd; pulse = 1 + 0.18 * sin(.pi * tau / 0.2) * exp(-4 * tau); glow = 0.55 * exp(-3.5 * tau) }
-        if glow > 0.01 {
-            let gr = R * 2.8
+        // Land beat.
+        var pulse = 1.0
+        if p >= gatherEnd { let tau = p - gatherEnd; pulse = 1 + 0.16 * sin(.pi * tau / 0.22) * exp(-4 * tau) }
+
+        // Luminous CORE glow — grows as the cloud forms and stays, so the centre reads
+        // as a glowing gem, not an empty ring of dots. Brief flare on land.
+        let flare = p >= gatherEnd ? 0.5 * exp(-4 * (p - gatherEnd)) : 0
+        let coreOp = (0.22 * gathered + flare) * alpha
+        if coreOp > 0.01 {
+            let gr = R * (1.7 + flare)
             ctx.fill(Path(ellipseIn: CGRect(x: center.x - gr, y: center.y - gr, width: gr*2, height: gr*2)),
-                     with: .radialGradient(Gradient(colors: [Theme.coral.opacity(glow * alpha), .clear]), center: center, startRadius: 0, endRadius: gr))
-            // expanding ring
-            let rt = min((p - gatherEnd) / 0.35, 1)
+                     with: .radialGradient(Gradient(colors: [Theme.coral.opacity(coreOp), Theme.coral.opacity(0)]),
+                                           center: center, startRadius: 0, endRadius: gr))
+        }
+        // A single quick, soft expanding ring right at the snap (subtle).
+        if p >= gatherEnd {
+            let rt = min((p - gatherEnd) / 0.3, 1)
             if rt < 1 {
-                let rr = R * (0.8 + rt * 2.2)
+                let rr = R * (1.0 + rt * 1.6)
                 ctx.stroke(Path(ellipseIn: CGRect(x: center.x - rr, y: center.y - rr, width: rr*2, height: rr*2)),
-                           with: .color(Theme.coral.opacity((1 - rt) * 0.6 * alpha)), lineWidth: 2.5 * (1 - rt) + 0.5)
+                           with: .color(Theme.coral.opacity((1 - rt) * 0.35 * alpha)), lineWidth: 1.5 * (1 - rt) + 0.4)
             }
         }
 
-        // Particles with motion-blur streaks while converging.
-        var dots: [(CGPoint, Double)] = []
-        for i in 0..<Self.n {
-            let (cur, depth) = particle(i, e, center, R)
-            if converging {
-                let (prev, _) = particle(i, max(0, e - 0.045), center, R)
-                var streak = Path(); streak.move(to: prev); streak.addLine(to: cur)
+        // Streaks while converging.
+        if converging {
+            for i in 0..<Self.n {
+                let (cur, depth) = particle(i, e, center, R)
+                let (prev, _) = particle(i, max(0, e - 0.05), center, R)
+                var s = Path(); s.move(to: prev); s.addLine(to: cur)
                 let col = Color.blend(Theme.teal, Theme.coral, min(1, depth + 0.15))
-                ctx.stroke(streak, with: .color(col.opacity(0.35 * (1 - p / gatherEnd) * alpha)),
-                           style: StrokeStyle(lineWidth: (0.8 + 2.0 * depth), lineCap: .round))
+                ctx.stroke(s, with: .color(col.opacity(0.4 * (1 - p / gatherEnd) * alpha)),
+                           style: StrokeStyle(lineWidth: 0.8 + 2.2 * depth, lineCap: .round))
             }
-            dots.append((cur, depth))
         }
+
+        // Dots with real DEPTH: back = small/dim/sunk into reef; front = big/bright with
+        // a bloom halo + a hot specular pip. Painted back-to-front.
+        var dots: [(CGPoint, Double)] = []
+        for i in 0..<Self.n { dots.append(particle(i, e, center, R)) }
         for (scr, depth) in dots.sorted(by: { $0.1 < $1.1 }) {
-            let col = Color.blend(Theme.teal, Theme.coral, min(1, depth + 0.15))
-            let r = (1.6 + 3.2 * depth) * pulse
-            // soft halo + core
-            ctx.fill(Path(ellipseIn: CGRect(x: scr.x - r*2, y: scr.y - r*2, width: r*4, height: r*4)),
-                     with: .color(col.opacity(0.12 * depth * alpha)))
+            let dd = pow(depth, 1.4)
+            let base = Color.blend(Theme.teal, Theme.coral, min(1, depth + 0.1))
+            let col = Color.blend(Self.reef, base, 0.35 + 0.65 * dd)   // back dots sink into the dark
+            let r = (0.9 + 4.2 * dd) * pulse
+            // bloom halo (front dots glow)
+            ctx.fill(Path(ellipseIn: CGRect(x: scr.x - r*2.2, y: scr.y - r*2.2, width: r*4.4, height: r*4.4)),
+                     with: .color(base.opacity(0.14 * dd * alpha)))
+            // body
             ctx.fill(Path(ellipseIn: CGRect(x: scr.x - r, y: scr.y - r, width: r*2, height: r*2)),
-                     with: .color(col.opacity((0.45 + 0.55 * depth) * alpha)))
+                     with: .color(col.opacity((0.35 + 0.65 * dd) * alpha)))
+            // specular highlight on the brightest front dots
+            if dd > 0.6 {
+                let hr = r * 0.4
+                ctx.fill(Path(ellipseIn: CGRect(x: scr.x - r*0.3 - hr, y: scr.y - r*0.3 - hr, width: hr*2, height: hr*2)),
+                         with: .color(Color.white.opacity((dd - 0.6) * 1.6 * alpha)))
+            }
         }
     }
 }
