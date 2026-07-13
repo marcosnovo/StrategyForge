@@ -128,9 +128,9 @@ struct SidebarView: View {
     private func chatRow(_ config: Configuration) -> some View {
         let hovering = hoveredID == config.id
         let running = model.runningChatIDs.contains(config.id)
+        let selected = model.selectedConfigID == config.id
         return HStack(spacing: Space.s) {
             ChatAvatar(config: config, size: 38)
-                .breathingGlow(color: config.provider.tint, enabled: running && !reduceMotion)
             VStack(alignment: .leading, spacing: 2) {
                 // Title line: name + (on hover) quick rename / delete actions.
                 HStack(spacing: 4) {
@@ -183,7 +183,10 @@ struct SidebarView: View {
                         }
                     }
                     Spacer(minLength: Space.xs)
-                    if running {
+                    // The 3D spinner in the list only earns its place for a chat that's
+                    // working while you're NOT looking at it; the selected chat shows
+                    // its own activity, so there it's just the time.
+                    if running && !selected {
                         WorkingLogo(size: 12)
                     } else {
                         Text(config.recency.formatted(.relative(presentation: .named)))

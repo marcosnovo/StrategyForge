@@ -427,11 +427,17 @@ final class AppModel {
         save()
     }
 
-    /// A short, theme-style title for a chat: a category ("Research", "Review",
-    /// "Design"…) when the message clearly maps to one, else a cleaned-up topic.
+    /// A descriptive title for a chat — the SUBJECT of the first message, not just a
+    /// bare category. "Research" alone can't tell two research chats apart, so we
+    /// title with the cleaned-up topic ("Competitive app market research") and only
+    /// fall back to a category word for very terse prompts that carry no subject.
     func titleFromMessage(_ text: String) -> String {
+        let inferred = Self.inferredTitle(from: text)
+        // Descriptive enough to distinguish chats → use it.
+        if inferred.count >= 14 { return inferred }
+        // Very short prompt → a category word beats a 2-word fragment.
         if let key = Self.topicCategoryKey(for: text) { return t(key) }
-        return Self.inferredTitle(from: text)
+        return inferred
     }
 
     /// Map a message to a topic-category key ("topic.*"), or nil. Strategy: the

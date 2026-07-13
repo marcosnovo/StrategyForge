@@ -216,7 +216,10 @@ struct ChatView: View {
     private var chatColumn: some View {
         VStack(spacing: 0) {
             header
-            if vm.isRunning { runningProgressBar }
+            // Only the MEANINGFUL determinate progress (the agent's own task list)
+            // sits under the header; the old indeterminate "thinking" line was noise
+            // and duplicated the activity panel, so it's gone.
+            if vm.isRunning, let p = vm.taskProgress, p.total > 0 { runningProgressBar }
             if codeMode { CodeModeView(vm: vm) } else { messagesList }
             if engineMissing { engineMissingCard }
             if vm.mixedProvidersNote { mixedProvidersStrip }

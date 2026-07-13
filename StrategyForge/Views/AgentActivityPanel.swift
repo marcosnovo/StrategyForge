@@ -181,8 +181,10 @@ struct AgentActivityPanel: View {
                     .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
                 Spacer()
                 if vm.isRunning {
+                    // A calm "live" badge — the working 3D mark already lives in the
+                    // agent header above, so here it's just a small green dot + label.
                     HStack(spacing: 4) {
-                        WorkingLogo(size: 12, color: Theme.success)
+                        Circle().fill(Theme.success).frame(width: 6, height: 6)
                         Text(model.t("activity.usage.live")).font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(Theme.success)
                     }
