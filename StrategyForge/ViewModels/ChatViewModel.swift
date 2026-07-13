@@ -18,6 +18,31 @@ struct ChatMessage: Identifiable, Hashable, Codable {
     var text: String
 }
 
+/// Reasoning effort for a turn — from fastest to most thorough. Steers how hard the
+/// model thinks by appending the corresponding "think"/"ultrathink" keyword (which
+/// Claude Code recognizes) to the real prompt.
+enum Effort: String, CaseIterable, Identifiable, Codable {
+    case fast, medium, high, ultra
+    var id: String { rawValue }
+    var labelKey: String { "effort.\(rawValue)" }
+    var blurbKey: String { "effort.\(rawValue).blurb" }
+    /// Position on the Faster ↔ Smarter slider (0…3).
+    var sliderValue: Double { Double(Self.allCases.firstIndex(of: self) ?? 2) }
+    static func at(_ v: Double) -> Effort {
+        let i = min(max(Int(v.rounded()), 0), allCases.count - 1)
+        return allCases[i]
+    }
+    /// Appended to the real prompt (never the transcript display text).
+    var promptDirective: String {
+        switch self {
+        case .fast:   return ""
+        case .medium: return "\n\nThink about this before answering."
+        case .high:   return "\n\nThink hard about this before you answer."
+        case .ultra:  return "\n\nUltrathink: reason very carefully and thoroughly before answering."
+        }
+    }
+}
+
 /// One entry in the live agent-activity timeline.
 struct ActivityStep: Identifiable, Hashable {
     let id = UUID()
@@ -113,7 +138,13 @@ final class ChatViewModel {
     /// Writes the strategy's .claude files into the repo so the run actually uses
     /// the configured team. Called right before each run (idempotent).
     @ObservationIgnored private let ensureStrategyFiles: () -> Void
-    private let permissionMode: String
+    /// The permission mode for runs — now user-switchable per chat (Accept edits /
+    /// Plan / Automatic), so the composer's Mode menu can change it live.
+    var permissionMode: String
+    /// Reasoning effort for the next turn — steers how hard the model thinks by
+    /// appending a "think"/"ultrathink" directive to the real prompt (Claude Code
+    /// honors these keywords). User-picked in the composer's effort control.
+    var effort: Effort = .high
     /// Persists cumulative usage (tokens, cost).
     @ObservationIgnored private let persistUsage: (Int, Double) -> Void
     /// Last time we flushed the transcript mid-stream (throttles disk writes).
@@ -214,8 +245,11 @@ final class ChatViewModel {
         attachments = []
         let extraDirs = Array(Set(atts.map { $0.url.deletingLastPathComponent().path }))
         lastExtraDirs = extraDirs
-        let promptText: String = atts.isEmpty ? text
+        let promptBody: String = atts.isEmpty ? text
             : text + "\n\nAttached files to review:\n" + atts.map { "- \($0.name): \($0.url.path)" }.joined(separator: "\n")
+        // Steer reasoning depth by appending the effort directive to the REAL prompt
+        // only (never the display text the user sees in the transcript).
+        let promptText = promptBody + effort.promptDirective
         lastPromptText = promptText   // real prompt for allow-and-retry
         let displayText: String = atts.isEmpty ? text
             : text + "\n\n📎 " + atts.map { $0.name }.joined(separator: ", ")

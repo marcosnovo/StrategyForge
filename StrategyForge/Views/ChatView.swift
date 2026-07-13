@@ -56,6 +56,8 @@ struct ChatView: View {
     /// current matches for the `@token` being typed.
     @State private var allRepoFiles: [String] = []
     @State private var mentionMatches: [String] = []
+    /// Effort popover (Faster ↔ Smarter) visibility.
+    @State private var showEffort = false
     /// Persisted, user-resizable width of the agent-activity panel.
     @AppStorage("col.activity") private var activityW = 320.0
     private let rename: (String) -> Void
@@ -704,19 +706,19 @@ struct ChatView: View {
             // then renders no TimelineView at all — free) while the outer
             // opacity fades the last frame out. Static under Reduce Motion.
             .background {
+                // Softer gradient, more living dots — the ambient stays visible even
+                // mid-conversation (the user wanted less gradient, more ambience). The
+                // aurora is dialled DOWN and the dot field is kept ON (at a calmer
+                // density/opacity) instead of going to zero once messages arrive.
+                // Always mounted to avoid the documented TimelineView-insert hang.
                 ZStack {
-                    AuroraBackground(intensity: vm.messages.isEmpty ? 0.8 : 0)
-                    // The Lab's dot field as a full ambient backdrop on the empty
-                    // canvas (fades out when the conversation starts; stilled under
-                    // Reduce Motion). Always mounted to avoid the TimelineView-insert
-                    // hang, gated to zero work by density/opacity when there are messages.
+                    AuroraBackground(intensity: vm.messages.isEmpty ? 0.5 : 0.22)
                     if !reduceMotion {
-                        ParticleField(density: vm.messages.isEmpty ? 120 : 0, reactive: vm.messages.isEmpty)
-                            .opacity(vm.messages.isEmpty ? 0.5 : 0)
+                        ParticleField(density: vm.messages.isEmpty ? 120 : 64, reactive: vm.messages.isEmpty)
+                            .opacity(vm.messages.isEmpty ? 0.5 : 0.28)
                             .allowsHitTesting(false)
                     }
                 }
-                .opacity(vm.messages.isEmpty ? 1 : 0)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.45), value: vm.messages.isEmpty)
             }
         }
@@ -754,12 +756,13 @@ struct ChatView: View {
                 .frame(width: 28, height: 28)
                 .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 4) {
+                    // No bubble for the assistant — it writes directly on the ambient
+                    // background (only the user's messages are boxed). Keeps replies
+                    // feeling like the app is thinking onto the page, not into a card.
                     MarkdownView(text: message.text)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-                        .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
-                            .fill(Theme.insetBg))
-                        // While tokens stream in, a soft highlight sweeps the bubble
+                        .padding(.vertical, 2)
+                        // While tokens stream in, a soft highlight sweeps the text
                         // so the reply visibly feels alive. Off under Reduce Motion.
                         .shimmer(isStreaming && !reduceMotion)
                         .contextMenu { copyButton(message.text) }
@@ -1094,6 +1097,7 @@ struct ChatView: View {
                 .keyboardShortcut(.return, modifiers: .command)
             }
             }
+            composerFooter
         }
         .padding(Space.m)
         .background(.bar)
@@ -1186,6 +1190,92 @@ struct ChatView: View {
             return out
         }.value
         allRepoFiles = files
+    }
+
+    // MARK: - Composer footer (permission mode + model · effort)
+
+    private struct ModeOption { let raw: String; let labelKey: String; let icon: String; let key: Character }
+    private var modeOptions: [ModeOption] {
+        [.init(raw: "acceptEdits", labelKey: "mode.acceptEdits", icon: "pencil.circle", key: "1"),
+         .init(raw: "plan", labelKey: "mode.plan", icon: "list.bullet.clipboard", key: "2"),
+         .init(raw: "bypassPermissions", labelKey: "mode.auto", icon: "bolt.circle", key: "3")]
+    }
+    private var currentMode: ModeOption { modeOptions.first { $0.raw == vm.permissionMode } ?? modeOptions[0] }
+
+    private var composerFooter: some View {
+        HStack(spacing: Space.s) {
+            modeMenu
+            Spacer(minLength: Space.s)
+            modelEffortChip
+        }
+        .padding(.horizontal, 2)
+    }
+
+    /// Aceptar ediciones / Plan / Automático — the CLI permission mode, switchable
+    /// per chat (like Claude Code's mode cycle), with 1·2·3 shortcuts.
+    private var modeMenu: some View {
+        Menu {
+            ForEach(modeOptions, id: \.raw) { opt in
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { vm.permissionMode = opt.raw }
+                } label: {
+                    Label(model.t(opt.labelKey),
+                          systemImage: vm.permissionMode == opt.raw ? "checkmark" : opt.icon)
+                }
+                .keyboardShortcut(KeyEquivalent(opt.key), modifiers: [])
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: currentMode.icon).font(.system(size: 10))
+                Text(model.t(currentMode.labelKey)).font(.sfCaption2.weight(.medium))
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 7)).foregroundStyle(.tertiary)
+            }
+            .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .help(model.t("mode.help"))
+    }
+
+    private var modelDisplayName: String { ClaudeModel(rawValue: vm.model)?.displayName ?? "Claude" }
+
+    /// "Opus 4.8 · Alto" — tapping opens the effort slider (Faster ↔ Smarter).
+    private var modelEffortChip: some View {
+        Button { showEffort = true } label: {
+            HStack(spacing: 6) {
+                Text(modelDisplayName).font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
+                Text(model.t(vm.effort.labelKey))
+                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.accentSoft))
+            }
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showEffort, arrowEdge: .bottom) { effortPopover }
+        .help(model.t("effort.help"))
+    }
+
+    private var effortPopover: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: 6) {
+                Text(model.t("effort.title")).font(.sfCardTitle)
+                Text(model.t(vm.effort.labelKey)).font(.sfCallout).foregroundStyle(Theme.accent)
+                Spacer()
+                // The "smartest" end gets the app's living dot-grid flourish.
+                if vm.effort == .ultra && !reduceMotion { WaveDotGrid(size: 26, color: Theme.accent) }
+            }
+            HStack {
+                Text(model.t("effort.faster")).font(.sfCaption2).foregroundStyle(.secondary)
+                Spacer()
+                Text(model.t("effort.smarter")).font(.sfCaption2).foregroundStyle(.secondary)
+            }
+            Slider(value: Binding(get: { vm.effort.sliderValue },
+                                  set: { vm.effort = Effort.at($0) }), in: 0...3, step: 1)
+                .tint(Theme.accent)
+            Text(model.t(vm.effort.blurbKey)).font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Space.m)
+        .frame(width: 288)
     }
 
     /// Chips for staged attachments, each removable.
