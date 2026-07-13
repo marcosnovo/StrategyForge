@@ -168,7 +168,7 @@ private struct DiffBody: View {
 }
 
 private struct DiffLineRow: View {
-    let line: DiffLine
+    let line: FileDiffLine
     var body: some View {
         let s = style
         HStack(alignment: .top, spacing: 8) {

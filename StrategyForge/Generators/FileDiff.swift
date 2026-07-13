@@ -11,7 +11,7 @@
 import Foundation
 
 /// One line of a computed diff.
-struct DiffLine: Equatable, Hashable {
+struct FileDiffLine: Equatable, Hashable {
     enum Kind: Equatable { case context, added, removed }
     let kind: Kind
     let text: String
@@ -27,7 +27,7 @@ struct FileDiff: Identifiable {
     let existing: String?
     let change: Change
     /// The full line-by-line diff (context + added + removed), in file order.
-    let lines: [DiffLine]
+    let lines: [FileDiffLine]
 
     var id: String { file.relativePath }
     var relativePath: String { file.relativePath }
@@ -40,11 +40,11 @@ struct FileDiff: Identifiable {
     static func make(file: GeneratedFile, existing: String?) -> FileDiff {
         guard let existing else {
             return FileDiff(file: file, existing: nil, change: .created,
-                            lines: split(file.contents).map { DiffLine(kind: .added, text: $0) })
+                            lines: split(file.contents).map { FileDiffLine(kind: .added, text: $0) })
         }
         if existing == file.contents {
             return FileDiff(file: file, existing: existing, change: .unchanged,
-                            lines: split(existing).map { DiffLine(kind: .context, text: $0) })
+                            lines: split(existing).map { FileDiffLine(kind: .context, text: $0) })
         }
         return FileDiff(file: file, existing: existing, change: .modified,
                         lines: LineDiff.compute(old: existing, new: file.contents))
@@ -56,7 +56,7 @@ struct FileDiff: Identifiable {
     static func deleted(relativePath: String, existing: String?) -> FileDiff {
         FileDiff(file: GeneratedFile(relativePath: relativePath, contents: ""),
                  existing: existing, change: .deleted,
-                 lines: split(existing ?? "").map { DiffLine(kind: .removed, text: $0) })
+                 lines: split(existing ?? "").map { FileDiffLine(kind: .removed, text: $0) })
     }
 
     /// Split into lines without inventing a trailing empty line for empty input.
@@ -68,12 +68,12 @@ struct FileDiff: Identifiable {
 /// A minimal LCS line differ. Config files are small, so the O(n·m) table is fine
 /// and keeps the diff stable and deterministic (good for tests and screenshots).
 enum LineDiff {
-    static func compute(old: String, new: String) -> [DiffLine] {
+    static func compute(old: String, new: String) -> [FileDiffLine] {
         let a = FileDiff.split(old)
         let b = FileDiff.split(new)
         let n = a.count, m = b.count
-        guard n > 0 else { return b.map { DiffLine(kind: .added, text: $0) } }
-        guard m > 0 else { return a.map { DiffLine(kind: .removed, text: $0) } }
+        guard n > 0 else { return b.map { FileDiffLine(kind: .added, text: $0) } }
+        guard m > 0 else { return a.map { FileDiffLine(kind: .removed, text: $0) } }
 
         // dp[i][j] = length of the LCS of a[i...] and b[j...].
         var dp = Array(repeating: Array(repeating: 0, count: m + 1), count: n + 1)
@@ -84,19 +84,19 @@ enum LineDiff {
             }
         }
 
-        var out: [DiffLine] = []
+        var out: [FileDiffLine] = []
         var i = 0, j = 0
         while i < n && j < m {
             if a[i] == b[j] {
-                out.append(DiffLine(kind: .context, text: a[i])); i += 1; j += 1
+                out.append(FileDiffLine(kind: .context, text: a[i])); i += 1; j += 1
             } else if dp[i + 1][j] >= dp[i][j + 1] {
-                out.append(DiffLine(kind: .removed, text: a[i])); i += 1
+                out.append(FileDiffLine(kind: .removed, text: a[i])); i += 1
             } else {
-                out.append(DiffLine(kind: .added, text: b[j])); j += 1
+                out.append(FileDiffLine(kind: .added, text: b[j])); j += 1
             }
         }
-        while i < n { out.append(DiffLine(kind: .removed, text: a[i])); i += 1 }
-        while j < m { out.append(DiffLine(kind: .added, text: b[j])); j += 1 }
+        while i < n { out.append(FileDiffLine(kind: .removed, text: a[i])); i += 1 }
+        while j < m { out.append(FileDiffLine(kind: .added, text: b[j])); j += 1 }
         return out
     }
 }
