@@ -51,8 +51,8 @@ extension L10n {
         // MARK: Banner chrome
         "saver.dismiss": ("Dismiss tip", "Descartar consejo"),
         // Seeded as the first line of the fresh chat's draft on summarize-restart.
-        "saver.summary.header": ("Context from the previous thread:",
-                                 "Contexto del hilo anterior:"),
+        "saver.summary.header": ("Context from the previous chat:",
+                                 "Contexto del chat anterior:"),
 
         // MARK: Context weight pill
         "saver.weight.light": ("Light context", "Contexto ligero"),
