@@ -299,7 +299,11 @@ struct SkillsView: View {
                     Button {
                         model.toggleSkill(s.slug, inTeam: team.id)
                     } label: {
-                        Label(team.name, systemImage: model.team(team.id, hasSkill: s.slug) ? "checkmark" : "")
+                        if model.team(team.id, hasSkill: s.slug) {
+                            Label(team.name, systemImage: "checkmark")
+                        } else {
+                            Text(team.name)
+                        }
                     }
                 }
             } label: {

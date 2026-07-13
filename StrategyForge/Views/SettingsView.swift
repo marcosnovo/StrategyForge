@@ -7,6 +7,8 @@
 //
 
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
@@ -73,10 +75,42 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Section(model.t("settings.diagnostics")) {
+                LabeledContent(model.t("settings.diagnostics.log")) {
+                    HStack(spacing: Space.s) {
+                        Button(model.t("settings.diagnostics.export")) { exportDiagnostics() }
+                        Button(model.t("settings.diagnostics.reveal")) {
+                            NSWorkspace.shared.activateFileViewerSelecting([DiagnosticsLog.fileURL])
+                        }
+                    }
+                }
+                Text(model.t("settings.diagnostics.caption"))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .formStyle(.grouped)
         .frame(width: 520, height: 620)
         .onDisappear { model.save() }
+    }
+
+    /// Save the diagnostics log to a file the user picks (for sharing when something
+    /// went wrong). Falls back to a friendly message if there's nothing logged yet.
+    private func exportDiagnostics() {
+        let contents = DiagnosticsLog.contents()
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "coral-diagnostics.txt"
+        panel.allowedContentTypes = [.plainText]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try (contents.isEmpty ? model.t("settings.diagnostics.empty") : contents)
+                .write(to: url, atomically: true, encoding: .utf8)
+            model.flashSuccess(model.t("settings.diagnostics.exported"))
+        } catch {
+            model.flashFailure(model.t("settings.diagnostics.exportFailed"))
+        }
     }
 
     /// Code / GitHub connection readiness: git, gh, and gh auth.

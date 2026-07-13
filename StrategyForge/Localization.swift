@@ -48,6 +48,15 @@ enum L10n {
         "settings.telemetry": ("Share anonymous usage locally", "Registrar uso anónimo en local"),
         "settings.telemetry.caption": ("Records key events (runs, cost, shares) to a local file only — nothing is sent anywhere. Off by default.",
                                        "Registra eventos clave (ejecuciones, coste, compartidos) solo en un archivo local — no se envía nada a ningún sitio. Desactivado por defecto."),
+        "settings.diagnostics": ("Diagnostics", "Diagnóstico"),
+        "settings.diagnostics.log": ("Error log", "Registro de errores"),
+        "settings.diagnostics.export": ("Export…", "Exportar…"),
+        "settings.diagnostics.reveal": ("Show in Finder", "Mostrar en Finder"),
+        "settings.diagnostics.caption": ("A local log of failures, so you can export and share it when something goes wrong. Nothing is sent automatically.",
+                                         "Un registro local de fallos, para exportarlo y compartirlo cuando algo va mal. No se envía nada automáticamente."),
+        "settings.diagnostics.empty": ("No issues logged yet.", "Aún no hay incidencias registradas."),
+        "settings.diagnostics.exported": ("Diagnostics exported.", "Diagnóstico exportado."),
+        "settings.diagnostics.exportFailed": ("Couldn't export the log.", "No se pudo exportar el registro."),
 
         // MARK: App / sidebar
         "app.purpose": (

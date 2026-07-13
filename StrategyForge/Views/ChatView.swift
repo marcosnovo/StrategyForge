@@ -281,7 +281,7 @@ struct ChatView: View {
                     .strokeBorder(Theme.accentHover, style: StrokeStyle(lineWidth: 2.5, dash: [9, 6]))
                     .background(Theme.accentHover.opacity(0.10))
                     .overlay(
-                        Label(model.t("chat.dropHint"), systemImage: "paperclip.badge.plus")
+                        Label(model.t("chat.dropHint"), systemImage: "paperclip")
                             .font(.sfCardTitle).foregroundStyle(Theme.accentHover)
                             .symbolEffect(.bounce, value: isDropTargeted)
                             .padding(Space.m)

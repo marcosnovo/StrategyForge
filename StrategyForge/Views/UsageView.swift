@@ -240,7 +240,7 @@ struct UsageView: View {
                 Button {
                     model.setProviderPlan(opt, for: p)
                 } label: {
-                    Label(opt, systemImage: current == opt ? "checkmark" : "")
+                    if current == opt { Label(opt, systemImage: "checkmark") } else { Text(opt) }
                 }
             }
             if current != nil {

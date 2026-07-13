@@ -343,8 +343,12 @@ final class AppModel {
     /// Public helper for views to show an auto-dismissing success banner.
     func flashSuccess(_ message: String) { show(.success(message)) }
 
-    /// Public helper for views/services to show a sticky failure banner.
-    func flashFailure(_ message: String) { show(.failure(message)) }
+    /// Public helper for views/services to show a sticky failure banner. Every
+    /// failure is also written to the diagnostics log so it can be exported later.
+    func flashFailure(_ message: String) {
+        DiagnosticsLog.record(message)
+        show(.failure(message))
+    }
 
     /// Dismiss the current banner (the capsule's close button).
     func dismissBanner() {

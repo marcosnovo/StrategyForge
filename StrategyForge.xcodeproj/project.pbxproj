@@ -24,7 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		6A6C46522FFE29F8000F5184 /* StrategyForge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StrategyForge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6A6C46522FFE29F8000F5184 /* StrategyForge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = StrategyForge.app; path = Coral.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A6C465F2FFE29F9000F5184 /* StrategyForgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StrategyForgeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A6C46692FFE29F9000F5184 /* StrategyForgeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StrategyForgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -412,7 +412,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.marcosnovo.StrategyForge;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Coral;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -446,7 +446,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.marcosnovo.StrategyForge;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Coral;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
