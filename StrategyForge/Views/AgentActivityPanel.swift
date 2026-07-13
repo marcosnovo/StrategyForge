@@ -160,6 +160,18 @@ struct AgentActivityPanel: View {
         return name.isEmpty ? nil : name
     }
 
+    /// The distinct models this run's team uses, with counts ("Opus 4.8 · Haiku 4.5 ×3").
+    private func runModelSummary(_ s: Strategy) -> String {
+        var counts: [String: Int] = [:]
+        var order: [String] = []
+        for r in s.roles {
+            let n = r.model.displayName
+            if counts[n] == nil { order.append(n) }
+            counts[n, default: 0] += max(1, r.count)
+        }
+        return order.map { counts[$0]! > 1 ? "\($0) ×\(counts[$0]!)" : $0 }.joined(separator: " · ")
+    }
+
     private func stat(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 3) {
             Image(systemName: icon).font(.system(size: 9))
@@ -206,11 +218,23 @@ struct AgentActivityPanel: View {
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.totalCostUSD)
                 }
             }
+            // The models THIS run uses (from the team), so the live total above is
+            // clearly tied to the agents actually running — not the machine-wide week.
+            if !runModelSummary(shownStrategy).isEmpty {
+                HStack(spacing: 5) {
+                    Image(systemName: "cpu").font(.system(size: 9)).foregroundStyle(Theme.tertiaryOnMaterial)
+                    Text(runModelSummary(shownStrategy))
+                        .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+                        .lineLimit(1).truncationMode(.tail)
+                }
+            }
             Divider().padding(.vertical, 1)
 
             // Account-wide usage from Claude's local logs: this week + the current
-            // 5-hour rate-limit window.
+            // 5-hour rate-limit window. Clearly labelled so it's not read as this run.
             if let u = model.claudeUsage, u.hasData {
+                Text(model.t("activity.usage.account"))
+                    .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
                 usageLine(model.t("activity.usage.week"), formatTokens(u.weekTokens))
                 if u.blockResetAt != nil {
                     usageLine(model.t("activity.usage.block"), fiveHourText(u))

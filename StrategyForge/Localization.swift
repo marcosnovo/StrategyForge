@@ -846,6 +846,7 @@ enum L10n {
         "activity.usage.tokens": ("tokens", "tokens"),
         "activity.usage.live": ("live", "en vivo"),
         "activity.usage.week": ("This week", "Esta semana"),
+        "activity.usage.account": ("All Claude Code · this Mac", "Todo Claude Code · este Mac"),
         "activity.usage.block": ("5-hour window", "Ventana de 5 h"),
         "activity.running": ("Working", "Trabajando"),
         "activity.orchestrator": ("Orchestrator", "Orquestador"),
