@@ -1176,6 +1176,45 @@ struct ChatView: View {
         .sheet(isPresented: $showArtifacts) {
             ArtifactSheet(artifacts: shownArtifacts).environment(model)
         }
+        // Live per-tool permission gate ("Ask" mode) — the run waits on the answer.
+        .sheet(isPresented: Binding(get: { vm.pendingPermission != nil },
+                                    set: { if !$0 { vm.pendingPermission = nil } })) {
+            if let p = vm.pendingPermission { permissionSheet(p) }
+        }
+    }
+
+    private func permissionSheet(_ p: PendingPermission) -> some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack(spacing: Space.s) {
+                Image(systemName: "hand.raised.fill").foregroundStyle(Theme.accent)
+                Text(model.t("perm.title", p.toolName)).font(.sfCardTitle)
+            }
+            if !p.detail.isEmpty {
+                ScrollView {
+                    Text(p.detail).font(.sfCode).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(Space.s)
+                }
+                .frame(maxHeight: 180)
+                .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+            }
+            HStack(spacing: Space.s) {
+                Button(role: .destructive) { vm.respondPermission(p.id, allow: false) } label: {
+                    Text(model.t("perm.deny")).frame(maxWidth: .infinity)
+                }
+                .controlSize(.large)
+                Button { vm.respondPermission(p.id, allow: true) } label: {
+                    Text(model.t("perm.once")).frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.moon).controlSize(.large).keyboardShortcut(.defaultAction)
+            }
+            Button { vm.respondPermission(p.id, allow: true, always: true) } label: {
+                Label(model.t("perm.always"), systemImage: "checkmark.shield")
+                    .font(.sfCaption2)
+            }
+            .buttonStyle(.plain).foregroundStyle(.secondary)
+        }
+        .padding(Space.l)
+        .frame(width: 460)
     }
 
     // MARK: - @-mention autocomplete
@@ -1402,9 +1441,10 @@ struct ChatView: View {
 
     private struct ModeOption { let raw: String; let labelKey: String; let icon: String; let key: Character }
     private var modeOptions: [ModeOption] {
-        [.init(raw: "acceptEdits", labelKey: "mode.acceptEdits", icon: "pencil.circle", key: "1"),
-         .init(raw: "plan", labelKey: "mode.plan", icon: "list.bullet.clipboard", key: "2"),
-         .init(raw: "bypassPermissions", labelKey: "mode.auto", icon: "bolt.circle", key: "3")]
+        [.init(raw: "ask", labelKey: "mode.ask", icon: "hand.raised", key: "1"),
+         .init(raw: "acceptEdits", labelKey: "mode.acceptEdits", icon: "pencil.circle", key: "2"),
+         .init(raw: "plan", labelKey: "mode.plan", icon: "list.bullet.clipboard", key: "3"),
+         .init(raw: "bypassPermissions", labelKey: "mode.auto", icon: "bolt.circle", key: "4")]
     }
     private var currentMode: ModeOption { modeOptions.first { $0.raw == vm.permissionMode } ?? modeOptions[0] }
 

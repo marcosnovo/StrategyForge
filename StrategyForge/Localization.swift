@@ -722,6 +722,11 @@ enum L10n {
         "pr.state.draft": ("Draft", "Borrador"),
 
         // Composer — permission mode (Accept edits / Plan / Automatic)
+        "mode.ask": ("Ask each time", "Preguntar siempre"),
+        "perm.title": ("Allow Claude to use %@?", "¿Permitir que Claude use %@?"),
+        "perm.deny": ("Deny", "Denegar"),
+        "perm.once": ("Allow once", "Permitir una vez"),
+        "perm.always": ("Always allow for this chat", "Permitir siempre en este chat"),
         "mode.acceptEdits": ("Accept edits", "Aceptar ediciones"),
         "mode.plan": ("Plan", "Plan"),
         "mode.auto": ("Automatic", "Automático"),

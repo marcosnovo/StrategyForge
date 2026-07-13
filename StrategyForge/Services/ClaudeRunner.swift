@@ -30,8 +30,39 @@ enum ChatEvent: Sendable, Equatable {
     case denied([String])               // tool uses the run wasn't permitted to perform
     case usage(tokens: Int, costUSD: Double)  // authoritative run total (result line)
     case modelUsage(model: String, tokens: Int)  // per-message usage tagged with its model (#8)
+    case permissionRequest(id: String, toolName: String, detail: String)  // live approval gate
     case finished                       // the run completed successfully
     case failed(String)                 // the run could not start / errored
+}
+
+/// Lets the UI answer a live `can_use_tool` permission request by writing a
+/// `control_response` back to the running `claude` process's stdin. Thread-safe;
+/// created per interactive run and attached once the process is launched.
+final class PermissionResponder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stdin: FileHandle?
+    private var pendingInput: [String: [String: Any]] = [:]
+
+    func attach(_ handle: FileHandle) { lock.lock(); stdin = handle; lock.unlock() }
+    func remember(id: String, input: [String: Any]) { lock.lock(); pendingInput[id] = input; lock.unlock() }
+
+    /// Approve or deny the tool use `id`. Approving echoes the original input back
+    /// (the `can_use_tool` contract), denying returns a short reason.
+    func respond(id: String, allow: Bool) {
+        lock.lock()
+        let input = pendingInput.removeValue(forKey: id) ?? [:]
+        let handle = stdin
+        lock.unlock()
+        let inner: [String: Any] = allow
+            ? ["behavior": "allow", "updatedInput": input]
+            : ["behavior": "deny", "message": "Denied by the user."]
+        let msg: [String: Any] = ["type": "control_response",
+                                  "response": ["subtype": "success",
+                                               "request_id": id, "response": inner]]
+        guard var data = try? JSONSerialization.data(withJSONObject: msg) else { return }
+        data.append(0x0A)
+        try? handle?.write(contentsOf: data)
+    }
 }
 
 /// Pure, tolerant parser for Claude Code's `--output-format stream-json` lines.
@@ -299,6 +330,130 @@ enum ClaudeRunner {
             }
             } // DispatchQueue.global
         }
+    }
+
+    /// Like `stream`, but drives the run via `--input-format stream-json` so the CLI
+    /// can ASK for tool permission mid-turn (`control_request`/`can_use_tool`). The
+    /// prompt is written to stdin (kept open), and `responder` writes the user's
+    /// allow/deny back. Used only when the chat's mode is "Ask" — the default `-p`
+    /// path above is untouched. NOTE: the exact control wire-format is validated
+    /// against a live run; parsing here is tolerant of field-name variants.
+    nonisolated static func streamAsking(
+        binary: String, repoPath: String, prompt: String, model: String,
+        sessionID: String, resume: Bool, extraDirs: [String],
+        responder: PermissionResponder
+    ) -> AsyncStream<ChatEvent> {
+        AsyncStream { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let resolved = resolveBinary(binary) else {
+                    continuation.yield(.failed("Couldn't find the `claude` binary.")); continuation.finish(); return
+                }
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: resolved)
+                process.currentDirectoryURL = URL(fileURLWithPath: repoPath)
+                var args = ["--print", "--input-format", "stream-json",
+                            "--output-format", "stream-json", "--verbose",
+                            "--include-partial-messages", "--model", model,
+                            "--permission-mode", "default"]
+                if resume { args += ["--resume", sessionID] } else { args += ["--session-id", sessionID] }
+                for dir in extraDirs { args += ["--add-dir", dir] }
+                process.arguments = args
+
+                var env = ProcessInfo.processInfo.environment
+                let home = FileManager.default.homeDirectoryForCurrentUser.path
+                let binDir = (resolved as NSString).deletingLastPathComponent
+                env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+                process.environment = env
+
+                let stdin = Pipe(), stdout = Pipe(), stderr = Pipe()
+                process.standardInput = stdin
+                process.standardOutput = stdout
+                process.standardError = stderr
+                responder.attach(stdin.fileHandleForWriting)
+
+                let buffer = LineBuffer()
+                stdout.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    guard !data.isEmpty else { handle.readabilityHandler = nil; return }
+                    for line in buffer.append(data) {
+                        // Intercept a live permission request before the generic parser.
+                        if let req = permissionRequest(from: line) {
+                            responder.remember(id: req.id, input: req.input)
+                            continuation.yield(.permissionRequest(id: req.id, toolName: req.tool, detail: req.detail))
+                            continue
+                        }
+                        for event in ClaudeStreamParser.events(from: line) {
+                            continuation.yield(event)
+                            // Print-mode with stream-json input keeps stdin open; once the
+                            // turn's result lands, close it so the CLI exits cleanly.
+                            if case .finished = event { try? stdin.fileHandleForWriting.close() }
+                        }
+                    }
+                }
+                let errBuffer = ByteBuffer()
+                stderr.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    guard !data.isEmpty else { handle.readabilityHandler = nil; return }
+                    errBuffer.append(data)
+                }
+                process.terminationHandler = { proc in
+                    stdout.fileHandleForReading.readabilityHandler = nil
+                    stderr.fileHandleForReading.readabilityHandler = nil
+                    var lines = buffer.append(drainPipe(stdout.fileHandleForReading))
+                    lines += buffer.drain()
+                    for line in lines {
+                        for event in ClaudeStreamParser.events(from: line) { continuation.yield(event) }
+                    }
+                    if proc.terminationStatus != 0 {
+                        errBuffer.append(drainPipe(stderr.fileHandleForReading))
+                        let t = (String(data: errBuffer.contents(), encoding: .utf8) ?? "")
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        continuation.yield(.failed(t.isEmpty ? "claude exited with code \(proc.terminationStatus)" : t))
+                    } else {
+                        continuation.yield(.finished)
+                    }
+                    continuation.finish()
+                }
+                continuation.onTermination = { _ in
+                    stdout.fileHandleForReading.readabilityHandler = nil
+                    stderr.fileHandleForReading.readabilityHandler = nil
+                    if process.isRunning { process.terminate() }
+                }
+                do {
+                    try process.run()
+                    // Send the user's turn as one stream-json message, then leave stdin
+                    // open so control_responses can be written during the turn.
+                    let userMsg: [String: Any] = ["type": "user",
+                        "message": ["role": "user", "content": [["type": "text", "text": prompt]]]]
+                    if var data = try? JSONSerialization.data(withJSONObject: userMsg) {
+                        data.append(0x0A)
+                        try? stdin.fileHandleForWriting.write(contentsOf: data)
+                    }
+                } catch {
+                    continuation.yield(.failed(error.localizedDescription)); continuation.finish()
+                }
+            }
+        }
+    }
+
+    /// Parse a `control_request` / `can_use_tool` line (tolerant of field variants),
+    /// or nil if the line isn't one.
+    private static func permissionRequest(from line: String) -> (id: String, tool: String, input: [String: Any], detail: String)? {
+        guard let data = line.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              (obj["type"] as? String) == "control_request" else { return nil }
+        let req = (obj["request"] as? [String: Any]) ?? obj
+        guard (req["subtype"] as? String) == "can_use_tool" else { return nil }
+        let id = (obj["request_id"] as? String) ?? (req["request_id"] as? String) ?? UUID().uuidString
+        let tool = (req["tool_name"] as? String) ?? (req["tool"] as? String) ?? "tool"
+        let input = (req["input"] as? [String: Any]) ?? [:]
+        // Pretty-print the tool input so the modal shows exactly what's being asked.
+        var detail = ""
+        if let data = try? JSONSerialization.data(withJSONObject: input, options: [.prettyPrinted, .sortedKeys]),
+           let s = String(data: data, encoding: .utf8) {
+            detail = s
+        }
+        return (id, tool, input, detail)
     }
 
     /// Resolve the `claude` binary to an absolute executable path.

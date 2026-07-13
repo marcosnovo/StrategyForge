@@ -91,6 +91,13 @@ struct CommandRun: Identifiable, Hashable, Codable {
     }
 }
 
+/// A live tool-permission request from the CLI ("Ask" mode), awaiting a decision.
+struct PendingPermission: Identifiable, Equatable {
+    let id: String
+    let toolName: String
+    let detail: String
+}
+
 /// Tokens (and prorated cost) spent by one model during a run — the #8 breakdown.
 struct ModelSpend: Codable, Hashable, Identifiable {
     var id: String { model }
@@ -189,6 +196,10 @@ final class ChatViewModel {
     var tokensByAgent: [String: Int] = [:]
     /// The chat's persisted turn-by-turn agent history (device-local), for review.
     var history: [TurnActivity] = []
+    /// A live tool-permission request awaiting the user's decision ("Ask" mode).
+    var pendingPermission: PendingPermission?
+    /// Writes the allow/deny back to the running process (set per interactive turn).
+    @ObservationIgnored private var permissionResponder: PermissionResponder?
     /// Bash tool_use id → command, to pair output (tool_result) back to its command.
     @ObservationIgnored private var pendingCommands: [String: String] = [:]
     /// Meta path: remember each role's model within a turn, to attribute its tokens.
@@ -501,10 +512,21 @@ final class ChatViewModel {
         var gotDelta = false          // did live streaming deliver text this turn?
         var separatorPending = false  // insert a blank line before the next text
         var sessionMissing = false
-        for await event in ClaudeRunner.stream(binary: binary, repoPath: repo,
-                                               prompt: text, model: model,
-                                               sessionID: sessionID, resume: resume,
-                                               permissionMode: permissionMode, extraDirs: extraDirs) {
+        // "Ask" mode drives the run via stream-json input so the CLI can request
+        // per-tool permission live; every other mode uses the proven -p path.
+        let stream: AsyncStream<ChatEvent>
+        if permissionMode == "ask" {
+            let responder = PermissionResponder()
+            permissionResponder = responder
+            stream = ClaudeRunner.streamAsking(binary: binary, repoPath: repo, prompt: text,
+                                               model: model, sessionID: sessionID, resume: resume,
+                                               extraDirs: extraDirs, responder: responder)
+        } else {
+            stream = ClaudeRunner.stream(binary: binary, repoPath: repo, prompt: text, model: model,
+                                         sessionID: sessionID, resume: resume,
+                                         permissionMode: permissionMode, extraDirs: extraDirs)
+        }
+        for await event in stream {
             guard messages.indices.contains(assistantIndex) else { continue }
             switch event {
             case .assistantDelta(let chunk):
@@ -558,7 +580,11 @@ final class ChatViewModel {
                 // best-effort — subagent messages carry their own model when inlined).
                 tokensByModel[model, default: 0] += tokens
                 if let sub = activeSubagent { tokensByAgent[sub, default: 0] += tokens }
+            case .permissionRequest(let id, let tool, let detail):
+                // Surface the live approval gate — the run pauses until the user answers.
+                pendingPermission = PendingPermission(id: id, toolName: tool, detail: detail)
             case .finished:
+                pendingPermission = nil
                 break
             case .failed(let message):
                 if resume, message.localizedCaseInsensitiveContains("No conversation found") {
@@ -703,10 +729,19 @@ final class ChatViewModel {
         }
     }
 
+    /// Answer the live permission gate ("Ask" mode); the run resumes or the tool is
+    /// skipped. `always` marks the whole rest of this chat as auto-allowed.
+    func respondPermission(_ id: String, allow: Bool, always: Bool = false) {
+        permissionResponder?.respond(id: id, allow: allow)
+        if always { elevatedPermissions = true }
+        pendingPermission = nil
+    }
+
     func stop() {
         runTask?.cancel()
         runTask = nil
         isRunning = false
+        pendingPermission = nil
         Analytics.log(.runCancelled)
     }
 }
