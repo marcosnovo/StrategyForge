@@ -101,6 +101,8 @@ enum ClaudeMdGenerator {
             out += "or delegate further.\n"
             out += "- Then collect their reports, integrate, resolve conflicts, and verify.\n"
             out += "- Only skip delegation for trivial one-line answers that need no real work.\n\n"
+
+            out += delegationPlaybook + "\n"
         }
 
         // Working agreement — Anthropic's tested prompt guidance for Fable 5.
@@ -117,6 +119,38 @@ enum ClaudeMdGenerator {
 
         return out
     }
+
+    /// How to delegate *well* — not just that you must. The Task-tool rule above
+    /// makes the orchestrator hand work off; this makes it hand off like a manager
+    /// with a capable engineer instead of a micromanager with an intern. The cost of
+    /// an agent is dominated by how many turns the lead takes, how much context it
+    /// drags along, and what it decides NOT to do itself — so these habits cut cost
+    /// and raise quality at the same time.
+    static let delegationPlaybook = """
+    ## Delegate like a manager, not a micromanager
+
+    The lead's job is judgment — what to build, what to constrain, who writes it —
+    not typing the implementation. These habits keep the expensive lead cheap:
+
+    - **Delegate early, not late.** Hand off after a few reconnaissance actions, \
+    *before* you pull the important files into your own context and make the design \
+    decisions yourself. A late handoff for only the mechanical tail wastes the lead \
+    on the expensive work. In practice the lead often never needs to edit code at all.
+    - **Brief with constraints, not keystrokes.** Write a spec-quality handoff: \
+    enumerate the constraints, edge cases, and an explicit definition of "done" \
+    (e.g. "`operator()` must be O(1) in pointer length — NO full token scan"). A \
+    constraint you write down can't be forgotten mid-implementation; dictating the \
+    implementation line by line can. Specify outcomes, let the subagent choose the how.
+    - **Review the diff; don't rewrite it.** When work comes back, a cheap \
+    `git diff` / `git show` is usually enough. If you find a bug, prefer another \
+    small handoff over pulling the files back and fixing them yourself at lead \
+    prices — distrust doesn't increase correctness, it just moves cost up-tier.
+    - **Know what NOT to delegate.** Short tasks with nothing between deciding and \
+    shipping, and serial debugging where the accumulated context *is* the work, \
+    don't decompose — do those yourself. Good delegation is a judgment call, not a \
+    quota: the same judgment that writes a good brief also knows when not to write one.
+
+    """
 
     /// Anthropic's tested prompt guidelines for Fable 5, applied repo-wide. These
     /// are widely-recommended best practices; kept verbatim so they aren't watered
