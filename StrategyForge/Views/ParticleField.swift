@@ -543,6 +543,10 @@ struct ParticleLabView: View {
                         .font(.sfCallout).foregroundStyle(.secondary)
                 }
 
+                // Logo & identity proposals (review-only).
+                IdentityLabSection()
+                Divider()
+
                 Text("Brand — thinking").font(.sfCardTitle)
                 LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
                     demo("CoralThinkingSpinner", "The coral mark builds from dots · alive") {
