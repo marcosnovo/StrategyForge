@@ -40,6 +40,33 @@ struct WowLiquidLight: View {
     }
 }
 
+// MARK: - 4) Coral Reef (Metal — a growing underwater reef)
+
+struct WowCoralReef: View {
+    var token: Int
+    private let duration: Double = 2.2
+    @State private var startDate: Date?
+    @State private var active = false
+
+    var body: some View {
+        GeometryReader { geo in
+            TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !active)) { tl in
+                let e = startDate.map { tl.date.timeIntervalSince($0) } ?? -1
+                let prog = e >= 0 ? min(e / duration, 1) : -1
+                Rectangle()
+                    .fill(.black)
+                    .colorEffect(ShaderLibrary.coralReef(
+                        .float2(geo.size.width, geo.size.height),
+                        .float(max(0, e)),
+                        .float(max(0, prog))))
+                    .opacity(active && prog >= 0 ? 1 : 0)
+            }
+        }
+        .allowsHitTesting(false).accessibilityHidden(true)
+        .task(id: token) { await play(token, duration: duration) { startDate = $0 } set: { active = $0 } }
+    }
+}
+
 // MARK: - 2) Color Bloom (layered gradient glow — pure SwiftUI, rich)
 
 struct WowColorBloom: View {
@@ -255,16 +282,19 @@ struct WowGalleryLabSection: View {
     @State private var t1 = 0
     @State private var t2 = 0
     @State private var t3 = 0
+    @State private var t4 = 0
+    private let cols = [GridItem(.adaptive(minimum: 240, maximum: 320), spacing: Space.l)]
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.l) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Wow moment — pick one").font(.sfDisplay)
-                Text("Three rich turn-completion candidates. Tap Play on each and tell me which one you love; I'll promote it to the chat and drop the others.")
+                Text("Rich turn-completion candidates. Tap Play and tell me which you love; I'll promote it to the chat and drop the others.")
                     .font(.sfCallout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            HStack(alignment: .top, spacing: Space.l) {
-                candidate("1 · Liquid Light", "Metal caustic light, coral↔teal") { WowLiquidLight(token: t1) } play: { t1 += 1 }
+            LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
+                candidate("4 · Coral Reef", "Metal — a coral reef grows underwater") { WowCoralReef(token: t4) } play: { t4 += 1 }
+                candidate("1 · Liquid Light", "Metal glossy coral↔teal orb") { WowLiquidLight(token: t1) } play: { t1 += 1 }
                 candidate("2 · Color Bloom", "Layered gradient glow, soft depth") { WowColorBloom(token: t2) } play: { t2 += 1 }
                 candidate("3 · Sphere Resolve", "3D cloud condenses into a gem") { WowSphereResolve(token: t3) } play: { t3 += 1 }
             }
