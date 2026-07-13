@@ -167,6 +167,7 @@ struct CLIOneShotRunner: OneShotRunner {
                     p.standardInput = FileHandle.nullDevice
                     box.adopt(p)
                     do { try p.run() } catch {
+                        DiagnosticsLog.record("Couldn't launch \(bin) \(args.joined(separator: " ")) — \(error.localizedDescription)")
                         cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return
                     }
                     // Watchdog: a stuck CLI shouldn't hang the turn forever. Terminate
@@ -197,24 +198,15 @@ struct CLIOneShotRunner: OneShotRunner {
         }
     }
 
-    /// Resolve a provider's binary to an absolute path. Reuses Claude's richer
-    /// lookup; for others, an interactive-login-shell `command -v`.
+    /// Resolve a provider's binary to an absolute path. Uses the SAME robust resolver
+    /// that connection detection uses (`ClaudeRunner.resolveBinary`, generic over any
+    /// binary name), so a provider that shows "Connected" always launches from the
+    /// same path. That resolver validates the result with `isExecutableFile`, so shell
+    /// noise (e.g. an interactive `.zshrc` dumping env, yielding junk like "null")
+    /// can never be mistaken for a binary — which was the cause of the run launching
+    /// a non-existent "null" executable.
     static func resolveBinary(_ configured: String, provider: AIProvider) -> String? {
-        if provider == .claude { return ClaudeRunner.resolveBinary(configured) }
-        let fm = FileManager.default
         let name = configured.isEmpty ? provider.binaryName : configured
-        if name.hasPrefix("/"), fm.isExecutableFile(atPath: name) { return name }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        p.arguments = ["-ilc", "command -v \"$SF_PROVIDER_BIN\""]
-        var env = ProcessInfo.processInfo.environment
-        env["SF_PROVIDER_BIN"] = name
-        p.environment = env
-        let out = Pipe(); p.standardOutput = out; p.standardError = Pipe()
-        do { try p.run() } catch { return nil }
-        p.waitUntilExit()
-        let path = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-            .split(separator: "\n").last.map(String.init)?.trimmingCharacters(in: .whitespaces)
-        return (path?.isEmpty == false) ? path : nil
+        return ClaudeRunner.resolveBinary(name)
     }
 }
