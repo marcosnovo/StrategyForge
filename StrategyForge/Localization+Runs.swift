@@ -59,5 +59,24 @@ extension L10n {
         "catalog.source": ("Source", "Fuente"),
         "catalog.preview.subtitle": ("Preview before it lands in your library.",
                                      "Vista previa antes de guardarlo en tu biblioteca."),
+
+        // MARK: Onboarding readiness (first-run)
+        "onboard.ready.title": ("Your tools are ready", "Tus herramientas están listas"),
+        "onboard.ready.setup": ("Connect a tool to run", "Conecta una herramienta para ejecutar"),
+        "onboard.ready.connect": ("Set up tools", "Configurar herramientas"),
+        "onboard.gatekeeper": (
+            "First launch: macOS may say the app is from an unidentified developer — it's notarized. Right-click → Open, or allow it in System Settings ▸ Privacy & Security.",
+            "Primer arranque: macOS puede decir que la app es de un desarrollador no identificado — está notarizada. Clic derecho → Abrir, o permítela en Ajustes del Sistema ▸ Privacidad y seguridad."),
+
+        // MARK: Updates (Settings)
+        "settings.updates": ("Updates", "Actualizaciones"),
+        "settings.updates.current": ("Current version", "Versión actual"),
+        "settings.updates.check": ("Check for updates", "Buscar actualizaciones"),
+        "settings.updates.available": ("Update available: %@ — opening the download.",
+                                       "Actualización disponible: %@ — abriendo la descarga."),
+        "settings.updates.upToDate": ("You're on the latest version.", "Tienes la última versión."),
+        "settings.updates.caption": (
+            "Coral is distributed directly (notarized), so updates are downloaded from the web, not the App Store.",
+            "Coral se distribuye directamente (notarizada), así que las actualizaciones se descargan de la web, no del App Store."),
     ]
 }

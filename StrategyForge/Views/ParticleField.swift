@@ -532,6 +532,7 @@ struct CoralThinkingSpinner: View {
 /// A gallery for previewing every spinner / waiting element and the ambient
 /// particle field, at a few sizes and tints. Reached from a DEBUG-only nav entry.
 struct ParticleLabView: View {
+    @Environment(AppModel.self) private var model
     private let cols = [GridItem(.adaptive(minimum: 240, maximum: 320), spacing: Space.l)]
 
     var body: some View {
@@ -542,6 +543,26 @@ struct ParticleLabView: View {
                     Text("Dot & sparkle motion system — spinners, waiting states and ambient identity.")
                         .font(.sfCallout).foregroundStyle(.secondary)
                 }
+
+                // Preview the first-run onboarding without reinstalling / clearing the
+                // didOnboard flag — so the first-open experience can be reviewed here.
+                HStack(spacing: Space.m) {
+                    Image(systemName: "sparkles.rectangle.stack")
+                        .font(.title2).foregroundStyle(Theme.accent)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("First-run onboarding").font(.sfCardTitle)
+                        Text("See exactly what a new user sees the first time the app opens.")
+                            .font(.sfCallout).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Preview onboarding") { model.showOnboardingPreview = true }
+                        .buttonStyle(.moon)
+                }
+                .padding(Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.cardBg))
+                .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1))
+                Divider()
 
                 // Variations of the CURRENT mark (the preferred direction). Top billing.
                 CoralMarkLabSection()
