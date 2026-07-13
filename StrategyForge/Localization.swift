@@ -670,6 +670,12 @@ enum L10n {
         "chat.edit": ("Edit & resend", "Editar y reenviar"),
         "chat.regenerate": ("Regenerate", "Regenerar"),
 
+        // Artifacts (live preview of code/HTML/SVG blocks)
+        "artifact.open": ("Open artifact", "Abrir artefacto"),
+        "artifact.title": ("Artifact", "Artefacto"),
+        "artifact.rendered": ("Rendered", "Vista"),
+        "artifact.source": ("Source", "Código"),
+
         // Composer — slash commands
         "slash.accept": ("Accept edits mode", "Modo aceptar ediciones"),
         "slash.plan": ("Plan mode (no edits)", "Modo plan (sin ediciones)"),

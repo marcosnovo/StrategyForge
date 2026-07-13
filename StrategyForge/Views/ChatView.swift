@@ -63,6 +63,9 @@ struct ChatView: View {
     @State private var prInfo: GitHubCLI.PRInfo?
     /// Slash-command palette matches for the current `/token`.
     @State private var slashMatches: [SlashCommand] = []
+    /// Artifact viewer: the blocks to show and whether the sheet is open.
+    @State private var shownArtifacts: [Artifact] = []
+    @State private var showArtifacts = false
     /// Persisted, user-resizable width of the agent-activity panel.
     @AppStorage("col.activity") private var activityW = 320.0
     private let rename: (String) -> Void
@@ -783,15 +786,29 @@ struct ChatView: View {
                         }
                     if !message.text.isEmpty {
                         let copied = copiedMessageID == message.id
-                        Button { copy(message) } label: {
-                            Label(copied ? model.t("chat.copied") : model.t("chat.copy"),
-                                  systemImage: copied ? "checkmark" : "doc.on.doc")
-                                .font(.sfCaption2)
+                        HStack(spacing: Space.m) {
+                            Button { copy(message) } label: {
+                                Label(copied ? model.t("chat.copied") : model.t("chat.copy"),
+                                      systemImage: copied ? "checkmark" : "doc.on.doc")
+                                    .font(.sfCaption2)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(isStreaming ? AnyShapeStyle(.quaternary)
+                                             : (copied ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.secondary)))
+                            .disabled(isStreaming)
+                            // Substantial code / HTML / SVG blocks open in a focused
+                            // artifact viewer instead of scrolling inline.
+                            if !isStreaming {
+                                let arts = Artifact.extract(from: message.text)
+                                if !arts.isEmpty {
+                                    Button { shownArtifacts = arts; showArtifacts = true } label: {
+                                        Label(model.t("artifact.open"), systemImage: "rectangle.on.rectangle.angled")
+                                            .font(.sfCaption2)
+                                    }
+                                    .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                                }
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(isStreaming ? AnyShapeStyle(.quaternary)
-                                         : (copied ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.secondary)))
-                        .disabled(isStreaming)
                         .padding(.leading, Space.xs)
                     }
                 }
@@ -1126,6 +1143,9 @@ struct ChatView: View {
         .task(id: config.repoPath) { await refreshBranch() }
         .onChange(of: vm.isRunning) { _, running in
             if !running { Task { await refreshBranch() } }
+        }
+        .sheet(isPresented: $showArtifacts) {
+            ArtifactSheet(artifacts: shownArtifacts).environment(model)
         }
     }
 
