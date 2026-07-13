@@ -46,7 +46,7 @@ struct SidebarView: View {
                 ForEach(visibleConfigs) { config in
                     chatRow(config)
                         .hoverTint(cornerRadius: 8)
-                        .padding(.vertical, 3)
+                        .padding(.vertical, Space.xs)
                         .tag(config.id)
                         .contextMenu {
                             Button(model.t("sidebar.rename")) { beginRename(config) }
@@ -127,11 +127,10 @@ struct SidebarView: View {
     /// preview of the last message, and the time — like a modern messenger.
     private func chatRow(_ config: Configuration) -> some View {
         let hovering = hoveredID == config.id
+        let running = model.runningChatIDs.contains(config.id)
         return HStack(spacing: Space.s) {
-            StrategyThumbnail(strategy: config.strategy)
-                .frame(width: 38, height: 38)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .help(model.strategyDisplayName(config.strategy))
+            ChatAvatar(config: config, size: 38)
+                .breathingGlow(color: config.provider.tint, enabled: running && !reduceMotion)
             VStack(alignment: .leading, spacing: 2) {
                 // Title line: name + (on hover) quick rename / delete actions.
                 HStack(spacing: 4) {
@@ -159,13 +158,32 @@ struct SidebarView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // Meta line: team shape · repo (code cue) · state. When a search
+                // matched the conversation body, show that snippet instead so it's
+                // clear why the chat surfaced.
                 HStack(spacing: Space.xs) {
-                    Text(previewLine(config))
-                        .font(.sfCaption2)
-                        .foregroundStyle(config.repoPath == nil && lastMessage(config) == nil ? Theme.warning : .secondary)
-                        .lineLimit(1).truncationMode(.tail)
+                    let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+                    if !q.isEmpty, !config.name.lowercased().contains(q),
+                       config.transcript.contains(where: { $0.text.lowercased().contains(q) }) {
+                        Text(previewLine(config))
+                            .font(.sfCaption2).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.tail)
+                    } else {
+                        Image(systemName: ChatAvatar.strategyGlyph(config.strategy))
+                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                        Text(model.t(ChatAvatar.shortShapeKey(config.strategy)))
+                            .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1).layoutPriority(1)
+                        if let repo = config.repoPath, !repo.isEmpty {
+                            Text("·").font(.sfCaption2).foregroundStyle(.tertiary)
+                            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                .font(.system(size: 8, weight: .semibold)).foregroundStyle(.tertiary)
+                            Text((repo as NSString).lastPathComponent)
+                                .font(.sfCaption2).foregroundStyle(.tertiary)
+                                .lineLimit(1).truncationMode(.tail)
+                        }
+                    }
                     Spacer(minLength: Space.xs)
-                    if model.runningChatIDs.contains(config.id) {
+                    if running {
                         WorkingLogo(size: 12)
                     } else {
                         Text(config.recency.formatted(.relative(presentation: .named)))

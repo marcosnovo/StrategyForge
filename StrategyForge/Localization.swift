@@ -109,6 +109,14 @@ enum L10n {
                                "Elige una carpeta de proyecto local en tu Mac."),
         "code.pick.action": ("Choose…", "Elegir…"),
         "code.resume.title": ("Resume last repo", "Reanudar último repo"),
+        // Team-shape short names (chat list meta line)
+        "shape.solo": ("Solo", "Solo"),
+        "shape.advisor": ("Advisor", "Asesor"),
+        "shape.planner": ("Planner", "Planificador"),
+        "shape.specialists": ("Specialists", "Especialistas"),
+        "shape.debate": ("Debate", "Debate"),
+        "shape.fanout": ("Fan-out", "Fan-out"),
+
         "code.recent.title": ("Recent repos", "Repos recientes"),
         "code.recent.subtitle": ("Pick up a folder you worked on before.",
                                  "Retoma una carpeta en la que ya trabajaste."),
