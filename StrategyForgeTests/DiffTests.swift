@@ -47,6 +47,16 @@ struct FileDiffTests {
         #expect(diff.change == .created)
         #expect(diff.lines.isEmpty)
     }
+
+    @Test func deletedShowsEveryLineRemoved() {
+        let diff = FileDiff.deleted(relativePath: ".claude/agents/old-worker.md",
+                                    existing: "line 1\nline 2")
+        #expect(diff.change == .deleted)
+        #expect(diff.relativePath == ".claude/agents/old-worker.md")
+        #expect(diff.removed == 2)
+        #expect(diff.added == 0)
+        #expect(diff.lines.allSatisfy { $0.kind == .removed })
+    }
 }
 
 struct LineDiffTests {

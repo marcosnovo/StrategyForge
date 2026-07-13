@@ -36,7 +36,7 @@ enum Analytics {
         case filesGenerated(provider: String, agents: Int)
         // Pre-write diff (dry-run) trust feature.
         case diffPreviewed(files: Int, changed: Int)
-        case diffApplied(created: Int, modified: Int)
+        case diffApplied(created: Int, modified: Int, deleted: Int)
         // Monetization funnel (wired once the paywall exists; defined now so the
         // dashboard schema is stable).
         case proTeaserShown(surface: String)      // "post_run" | "test_bench" | …
@@ -94,8 +94,8 @@ enum Analytics {
                 return ["provider": p, "agents": "\(a)"]
             case .diffPreviewed(let files, let changed):
                 return ["files": "\(files)", "changed": "\(changed)"]
-            case .diffApplied(let created, let modified):
-                return ["created": "\(created)", "modified": "\(modified)"]
+            case .diffApplied(let created, let modified, let deleted):
+                return ["created": "\(created)", "modified": "\(modified)", "deleted": "\(deleted)"]
             case .proTeaserShown(let s), .proTeaserClicked(let s):
                 return ["surface": s]
             case .checkoutStarted(let p):

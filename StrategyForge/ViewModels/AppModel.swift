@@ -1484,7 +1484,8 @@ final class AppModel {
             Analytics.log(.filesGenerated(provider: config.provider.rawValue,
                                           agents: config.strategy.roles.count))
             Analytics.log(.diffApplied(created: diffs.filter { $0.change == .created }.count,
-                                       modified: diffs.filter { $0.change == .modified }.count))
+                                       modified: diffs.filter { $0.change == .modified }.count,
+                                       deleted: diffs.filter { $0.change == .deleted }.count))
             show(.success(t("banner.wrote", written.count, url.lastPathComponent)))
             return true
         } catch {

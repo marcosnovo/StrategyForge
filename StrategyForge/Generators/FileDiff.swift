@@ -19,7 +19,7 @@ struct DiffLine: Equatable, Hashable {
 
 /// The change a single generated file represents against what's on disk.
 struct FileDiff: Identifiable {
-    enum Change: Equatable { case created, modified, unchanged }
+    enum Change: Equatable { case created, modified, unchanged, deleted }
 
     /// The intended new state of the file.
     let file: GeneratedFile
@@ -48,6 +48,15 @@ struct FileDiff: Identifiable {
         }
         return FileDiff(file: file, existing: existing, change: .modified,
                         lines: LineDiff.compute(old: existing, new: file.contents))
+    }
+
+    /// A file that will be removed on write (a pruned managed agent file). There is
+    /// no intended new state, so `file` carries the path with empty contents and
+    /// every existing line shows as removed.
+    static func deleted(relativePath: String, existing: String?) -> FileDiff {
+        FileDiff(file: GeneratedFile(relativePath: relativePath, contents: ""),
+                 existing: existing, change: .deleted,
+                 lines: split(existing ?? "").map { DiffLine(kind: .removed, text: $0) })
     }
 
     /// Split into lines without inventing a trailing empty line for empty input.

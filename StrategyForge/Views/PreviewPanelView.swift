@@ -142,6 +142,14 @@ struct FilePreviewSheet: View {
             Label(model.t("preview.diff.unchanged"), systemImage: "checkmark.circle")
                 .foregroundStyle(.secondary)
                 .font(.sfCaption2.weight(.semibold))
+        case .deleted:
+            HStack(spacing: 12) {
+                Label(model.t("preview.diff.deleted"), systemImage: "trash.circle.fill")
+                    .foregroundStyle(Theme.danger)
+                Text("−\(diff.removed)").foregroundStyle(Theme.danger)
+            }
+            .font(.sfCaption2.weight(.semibold))
+            .monospacedDigit()
         }
     }
 }

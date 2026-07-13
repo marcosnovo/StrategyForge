@@ -401,6 +401,7 @@ enum L10n {
         "preview.diff.new": ("New file", "Archivo nuevo"),
         "preview.diff.modified": ("Modified", "Modificado"),
         "preview.diff.unchanged": ("No changes", "Sin cambios"),
+        "preview.diff.deleted": ("Will be deleted", "Se eliminará"),
 
         // MARK: Banners
         "banner.needRepo": ("Choose a target folder first (step 3 in the editor).",
