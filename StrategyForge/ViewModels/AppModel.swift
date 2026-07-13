@@ -68,6 +68,29 @@ final class AppModel {
         settings.setPlan(plan, for: p); _ = save(stamp: false)
     }
 
+    // MARK: OpenAI API key (Keychain) + runner config
+
+    private static let openAIKeyItem = "openai.apiKey"
+
+    /// The stored OpenAI API key (nil if none). Kept in the Keychain, never on disk.
+    var openAIAPIKey: String? {
+        KeychainStore.data(for: Self.openAIKeyItem).flatMap { String(data: $0, encoding: .utf8) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
+    var hasOpenAIAPIKey: Bool { openAIAPIKey != nil }
+    func setOpenAIAPIKey(_ key: String?) {
+        let trimmed = key?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmed.isEmpty { KeychainStore.delete(Self.openAIKeyItem) }
+        else { KeychainStore.set(Data(trimmed.utf8), for: Self.openAIKeyItem) }
+    }
+
+    /// API keys to hand the provider runner — only OpenAI's, and only when the user
+    /// opted into API-key mode (which re-enables explicit model selection for Codex).
+    func providerAPIKeys() -> [AIProvider: String] {
+        guard settings.openaiUseAPIKey, let key = openAIAPIKey else { return [:] }
+        return [.openai: key]
+    }
+
     /// Per-provider spend rolled up from persisted chats. Claude carries real dollar
     /// cost + tokens (from Claude Code's result JSON); Codex/Gemini CLIs report no
     /// usage, so their tokens/cost are ~0 and only the chat count is meaningful.
@@ -1199,6 +1222,8 @@ final class AppModel {
             binary: settings.claudeBinary,
             providerBinaries: Dictionary(uniqueKeysWithValues:
                 AIProvider.allCases.map { ($0, settings.binary(for: $0)) }),
+            providerAPIKeys: providerAPIKeys(),
+            codexReasoningEffort: settings.codexReasoningEffort,
             permissionMode: settings.chatAutonomy.permissionMode,
             persist: { [weak self] messages in self?.updateTranscript(id, messages) },
             onFirstUserMessage: { [weak self] text in self?.autoTitleIfNeeded(id, fromFirstMessage: text) },

@@ -49,14 +49,26 @@ struct CLIOneShotRunner: OneShotRunner {
     var binaries: [AIProvider: String] = [:]
     /// Permission mode for the CLIs that support it (Claude). Default read-mostly.
     var permissionMode: String = "acceptEdits"
+    /// Optional API keys per provider (from the Keychain). When set for OpenAI, Codex
+    /// runs against the API (which re-enables explicit model selection) instead of the
+    /// ChatGPT-account default.
+    var apiKeys: [AIProvider: String] = [:]
+    /// Codex reasoning effort ("" = leave to the account/CLI default).
+    var reasoningEffort: String = ""
 
     func run(prompt: String, provider: AIProvider, model: String, cwd: String?) async throws -> OneShotResult {
         let configured = binaries[provider] ?? provider.binaryName
         guard let bin = Self.resolveBinary(configured, provider: provider) else {
             throw OneShotError.notInstalled(provider)
         }
-        let (args, mode) = Self.command(for: provider, prompt: prompt, model: model, permissionMode: permissionMode)
-        let (out, err, status) = try await Self.launch(bin: bin, args: args, cwd: cwd)
+        let apiKey = apiKeys[provider].flatMap { $0.isEmpty ? nil : $0 }
+        let (args, mode) = Self.command(for: provider, prompt: prompt, model: model,
+                                        permissionMode: permissionMode, reasoningEffort: reasoningEffort,
+                                        hasAPIKey: apiKey != nil)
+        // OpenAI API key travels via the environment, never the argv.
+        var extraEnv: [String: String] = [:]
+        if provider == .openai, let apiKey { extraEnv["OPENAI_API_KEY"] = apiKey }
+        let (out, err, status) = try await Self.launch(bin: bin, args: args, cwd: cwd, extraEnv: extraEnv)
         if status != 0 {
             let msg = err.trimmingCharacters(in: .whitespacesAndNewlines)
             // Record the full invocation + output so an exported log pinpoints the cause
@@ -89,7 +101,8 @@ struct CLIOneShotRunner: OneShotRunner {
     /// The argv (after the binary) and how to read its output, per provider. Flags
     /// go BEFORE the positional prompt (robust across arg parsers).
     static func command(for provider: AIProvider, prompt: String, model: String,
-                        permissionMode: String) -> (args: [String], mode: OutputMode) {
+                        permissionMode: String, reasoningEffort: String = "",
+                        hasAPIKey: Bool = false) -> (args: [String], mode: OutputMode) {
         switch provider {
         case .claude:
             // Claude uses real, full model ids (e.g. claude-opus-4-8).
@@ -99,12 +112,18 @@ struct CLIOneShotRunner: OneShotRunner {
             return (a, .claudeJSON)
         case .openai:
             // Codex CLI, non-interactive: `codex exec --skip-git-repo-check "<prompt>"`.
-            // We deliberately DON'T pass --model: with a ChatGPT (subscription) login
-            // Codex rejects an explicit model ("… not supported when using Codex with
-            // a ChatGPT account", for gpt-5-codex AND gpt-5) — the account is tied to
-            // its own default model, which the CLI selects when --model is omitted.
-            // --skip-git-repo-check lets it run outside a git repo. Flags precede prompt.
-            return (["exec", "--skip-git-repo-check", prompt], .plainText)
+            var a = ["exec", "--skip-git-repo-check"]
+            // Reasoning effort works even on a ChatGPT-account login (unlike --model),
+            // via a `-c` config override.
+            if !reasoningEffort.isEmpty {
+                a.append(contentsOf: ["-c", "model_reasoning_effort=\"\(reasoningEffort)\""])
+            }
+            // Model selection is only accepted with an API key. With a ChatGPT-account
+            // login Codex rejects an explicit model ("… not supported when using Codex
+            // with a ChatGPT account"), so we omit --model unless a key is configured.
+            if hasAPIKey, !model.isEmpty { a.append(contentsOf: ["--model", model]) }
+            a.append(prompt)   // --skip-git-repo-check lets it run outside a git repo.
+            return (a, .plainText)
         case .gemini:
             // Gemini CLI, non-interactive: `gemini -m <id> -p "<prompt>"`.
             var a: [String] = []
@@ -146,7 +165,8 @@ struct CLIOneShotRunner: OneShotRunner {
             cancelled = true; if let p = process, p.isRunning { p.terminate() } }
     }
 
-    private static func launch(bin: String, args: [String], cwd: String?) async throws -> (String, String, Int32) {
+    private static func launch(bin: String, args: [String], cwd: String?,
+                               extraEnv: [String: String] = [:]) async throws -> (String, String, Int32) {
         let box = ProcessBox()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { cont in
@@ -159,6 +179,7 @@ struct CLIOneShotRunner: OneShotRunner {
                     let home = FileManager.default.homeDirectoryForCurrentUser.path
                     let binDir = (bin as NSString).deletingLastPathComponent
                     env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+                    for (k, v) in extraEnv { env[k] = v }
                     p.environment = env
                     let outPipe = Pipe(), errPipe = Pipe()
                     p.standardOutput = outPipe

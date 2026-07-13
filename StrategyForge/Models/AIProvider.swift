@@ -105,6 +105,14 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
     /// Localization keys for the "how to connect" help.
     var connectHelpKey: String { "provider.\(rawValue).connect" }
 
+    /// Whether the provider's CLI accepts a reasoning-effort override. Codex does
+    /// (`-c model_reasoning_effort=…`) and it works even with a ChatGPT-account login.
+    var supportsReasoningEffort: Bool { self == .openai }
+
+    /// Reasoning-effort levels offered for `supportsReasoningEffort` providers.
+    /// "" = leave it to the account/CLI default.
+    static let reasoningEffortOptions = ["", "minimal", "low", "medium", "high"]
+
     /// Common subscription tiers per provider, for the manual plan picker (the CLIs
     /// don't expose the plan, so the user declares it). Kept current-ish; free text
     /// is always allowed via the picker's "Other".

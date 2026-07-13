@@ -68,6 +68,8 @@ struct ProviderConfigView: View {
     let provider: AIProvider
     @State private var connecting = false
     @State private var test: TestState = .idle
+    /// Draft for the OpenAI API-key field (loaded from the Keychain on appear).
+    @State private var apiKeyDraft = ""
 
     private enum TestState: Equatable { case idle, running, ok(String), fail(String) }
 
@@ -79,6 +81,8 @@ struct ProviderConfigView: View {
                 header
                 statusCard
                 planCard
+                if provider == .openai { codexModelCard }
+                if provider.supportsReasoningEffort { reasoningEffortCard }
                 binaryCard
                 if connected { testCard }
                 if !provider.isExecutable { soonNote }
@@ -201,9 +205,72 @@ struct ProviderConfigView: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
     }
 
+    /// OpenAI/Codex model control: honest note about the subscription constraint, plus
+    /// an optional API key that re-enables explicit model selection.
+    private var codexModelCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text(model.t("provider.codex.model")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+            Text(model.t("provider.codex.model.note")).font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Toggle(model.t("provider.codex.useKey"), isOn: Binding(
+                get: { model.settings.openaiUseAPIKey },
+                set: { model.settings.openaiUseAPIKey = $0; model.save() }))
+                .toggleStyle(.switch)
+            if model.settings.openaiUseAPIKey {
+                HStack(spacing: Space.s) {
+                    SecureField("sk-…", text: $apiKeyDraft)
+                        .textFieldStyle(.roundedBorder).font(.sfCode)
+                    Button(model.t("common.save")) {
+                        model.setOpenAIAPIKey(apiKeyDraft)
+                        model.flashSuccess(model.t("provider.codex.keySaved"))
+                    }
+                    .disabled(apiKeyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    if model.hasOpenAIAPIKey {
+                        Button(role: .destructive) { model.setOpenAIAPIKey(nil); apiKeyDraft = "" } label: {
+                            Image(systemName: "trash")
+                        }
+                    }
+                }
+                Text(model.t(model.hasOpenAIAPIKey ? "provider.codex.keyPresent" : "provider.codex.keyHint"))
+                    .font(.sfCaption2).foregroundStyle(model.hasOpenAIAPIKey ? Theme.success : .secondary)
+            }
+        }
+        .padding(Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+        .onAppear { if model.hasOpenAIAPIKey, apiKeyDraft.isEmpty { apiKeyDraft = model.openAIAPIKey ?? "" } }
+    }
+
+    /// Reasoning-effort picker (works with a ChatGPT-account login, unlike model choice).
+    private var reasoningEffortCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack {
+                Text(model.t("provider.codex.effort")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Spacer()
+                Picker("", selection: Binding(
+                    get: { model.settings.codexReasoningEffort },
+                    set: { model.settings.codexReasoningEffort = $0; model.save() })) {
+                    ForEach(AIProvider.reasoningEffortOptions, id: \.self) { opt in
+                        Text(opt.isEmpty ? model.t("provider.codex.effort.default") : opt.capitalized).tag(opt)
+                    }
+                }
+                .labelsHidden().fixedSize()
+            }
+            Text(model.t("provider.codex.effort.hint")).font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
     private func runTest() {
         test = .running
-        let runner = CLIOneShotRunner(binaries: [provider: model.settings.binary(for: provider)])
+        let runner = CLIOneShotRunner(binaries: [provider: model.settings.binary(for: provider)],
+                                      apiKeys: model.providerAPIKeys(),
+                                      reasoningEffort: model.settings.codexReasoningEffort)
         let modelID = provider.models.first?.id ?? ""
         Task {
             do {

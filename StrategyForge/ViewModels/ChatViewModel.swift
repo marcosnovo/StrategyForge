@@ -175,6 +175,11 @@ final class ChatViewModel {
     /// meta run can resolve Codex/Gemini via the same paths that marked them
     /// connected. Empty in previews → the meta run uses just the Claude binary.
     private let providerBinaries: [AIProvider: String]
+    /// Optional per-provider API keys (OpenAI) so a cross-provider meta run can use
+    /// the API (which re-enables model selection) instead of the subscription default.
+    private let providerAPIKeys: [AIProvider: String]
+    /// Codex reasoning effort ("" = account default), passed to the meta runner.
+    private let codexReasoningEffort: String
 
     var messages: [ChatMessage] = []
     /// Tools the agent used during the current turn (shown as a status line).
@@ -272,6 +277,8 @@ final class ChatViewModel {
     init(config: Configuration,
          binary: String,
          providerBinaries: [AIProvider: String] = [:],
+         providerAPIKeys: [AIProvider: String] = [:],
+         codexReasoningEffort: String = "",
          permissionMode: String = "acceptEdits",
          persist: @escaping ([ChatMessage]) -> Void = { _ in },
          onFirstUserMessage: @escaping (String) -> Void = { _ in },
@@ -283,6 +290,8 @@ final class ChatViewModel {
         self.config = config
         self.binary = binary
         self.providerBinaries = providerBinaries
+        self.providerAPIKeys = providerAPIKeys
+        self.codexReasoningEffort = codexReasoningEffort
         self.permissionMode = permissionMode
         self.persist = persist
         self.onFirstUserMessage = onFirstUserMessage
@@ -632,7 +641,8 @@ final class ChatViewModel {
         // otherwise the first mixed-provider turn fails with "CLI isn't installed".
         var binaries = providerBinaries
         binaries[.claude] = binary
-        let runner = CLIOneShotRunner(binaries: binaries, permissionMode: permissionMode)
+        let runner = CLIOneShotRunner(binaries: binaries, permissionMode: permissionMode,
+                                      apiKeys: providerAPIKeys, reasoningEffort: codexReasoningEffort)
         let strategy = config.strategy
         let stream = AsyncStream<MetaEvent> { cont in
             let task = Task.detached {

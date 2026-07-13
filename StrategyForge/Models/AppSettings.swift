@@ -50,6 +50,13 @@ struct AppSettings: Codable, Hashable {
     /// No CLI exposes the plan, so this is entered by the user and shown in Usage /
     /// Connected Services for at-a-glance context.
     var providerPlans: [String: String]
+    /// Codex reasoning effort ("" = account default; else minimal/low/medium/high).
+    /// Works with a ChatGPT-account login (unlike model selection), passed to the
+    /// CLI as `-c model_reasoning_effort`.
+    var codexReasoningEffort: String
+    /// When true, Codex runs via an OpenAI API key (stored in the Keychain, not here)
+    /// which re-enables explicit model selection. Default false = subscription login.
+    var openaiUseAPIKey: Bool
 
     init(
         defaultReposPath: String? = nil,
@@ -62,7 +69,9 @@ struct AppSettings: Codable, Hashable {
         lastSelectedConfigID: String? = nil,
         lastSelectedTeamID: String? = nil,
         showActivity: Bool = false,
-        providerPlans: [String: String] = [:]
+        providerPlans: [String: String] = [:],
+        codexReasoningEffort: String = "",
+        openaiUseAPIKey: Bool = false
     ) {
         self.defaultReposPath = defaultReposPath
         self.defaultReposBookmark = defaultReposBookmark
@@ -75,12 +84,15 @@ struct AppSettings: Codable, Hashable {
         self.lastSelectedTeamID = lastSelectedTeamID
         self.showActivity = showActivity
         self.providerPlans = providerPlans
+        self.codexReasoningEffort = codexReasoningEffort
+        self.openaiUseAPIKey = openaiUseAPIKey
     }
 
     // Tolerant decoding so older saved data (without newer keys) still loads.
     private enum CodingKeys: String, CodingKey {
         case defaultReposPath, defaultReposBookmark, claudeBinary, codexBinary, geminiBinary
         case language, chatAutonomy, lastSelectedConfigID, lastSelectedTeamID, showActivity, providerPlans
+        case codexReasoningEffort, openaiUseAPIKey
     }
 
     init(from decoder: Decoder) throws {
@@ -96,6 +108,8 @@ struct AppSettings: Codable, Hashable {
         lastSelectedTeamID = try c.decodeIfPresent(String.self, forKey: .lastSelectedTeamID)
         showActivity = try c.decodeIfPresent(Bool.self, forKey: .showActivity) ?? false
         providerPlans = try c.decodeIfPresent([String: String].self, forKey: .providerPlans) ?? [:]
+        codexReasoningEffort = try c.decodeIfPresent(String.self, forKey: .codexReasoningEffort) ?? ""
+        openaiUseAPIKey = try c.decodeIfPresent(Bool.self, forKey: .openaiUseAPIKey) ?? false
     }
 
     /// The configured binary name/path for a provider.
