@@ -88,8 +88,9 @@ struct ContentView: View {
                 LoopSelectorColumn(store: LoopStore.shared)
                 Divider()
             } else if model.navSection == .usage || model.navSection == .advisor
-                        || model.navSection == .particleLab || model.navSection == .code {
-                // Single full-width surfaces — no second column.
+                        || model.navSection == .particleLab || model.navSection == .code
+                        || model.navSection == .skills {
+                // Single full-width surfaces — no second column (no chat list here).
                 EmptyView()
             } else if model.showSidebar || model.selectedConfiguration == nil {
                 SidebarView(showSidebar: $model.showSidebar)
@@ -113,10 +114,9 @@ struct ContentView: View {
                     TeamView(team: model.teamBinding(tid))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    // No team open → the strategy browser is the "create a team" surface.
-                    // Selecting a strategy opens a DRAFT (not saved until "Create").
-                    StrategyPickerColumn(config: nil, selectedStrategyName: nil,
-                                         onSelect: { model.beginDraftTeam(from: $0) })
+                    // No team open → the browse surface: Templates + Discover (the old
+                    // standalone Team library, now folded in here).
+                    TeamBrowseView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else if model.navSection == .usage {
@@ -159,9 +159,6 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .skills {
                 SkillsView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if model.navSection == .teamLibrary {
-                TeamCatalogView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let id = model.selectedConfigID, let chat = model.selectedConfiguration,
                       let vm = model.chatViewModel(for: id) {
