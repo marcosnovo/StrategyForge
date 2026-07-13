@@ -21,6 +21,9 @@ struct MissionReportView: View {
     let costUSD: Double
     let elapsed: String
     let outcome: String
+    /// What this run says about the team — actionable tuning hints. Empty hides the
+    /// section, so the report is unchanged for callers that don't compute them.
+    var retune: [RunAnalysis.RetuneSuggestion] = []
 
     private var actedCount: Int {
         let acted = agents.filter { $0.steps > 0 }.count
@@ -44,6 +47,7 @@ struct MissionReportView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.l) {
                     reportCard
+                    if !retune.isEmpty { retuneSection }
                     MarkdownView(text: markdown)
                 }
                 .padding(Space.l)
@@ -96,6 +100,54 @@ struct MissionReportView: View {
         .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.cardBg)
             .shadow(color: .black.opacity(0.12), radius: 12, y: 4))
         .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    /// Actionable tuning hints derived from this run (idle agent, cost hog, …).
+    private var retuneSection: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text(model.t("retune.title")).font(.sfCardTitle)
+            Text(model.t("retune.subtitle")).font(.sfCaption2).foregroundStyle(.secondary)
+            ForEach(retune) { s in
+                HStack(alignment: .top, spacing: Space.s) {
+                    Image(systemName: icon(for: s.severity))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(tint(for: s.severity))
+                        .frame(width: 18)
+                    Text(message(for: s))
+                        .font(.sfCallout)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+    }
+
+    private func message(for s: RunAnalysis.RetuneSuggestion) -> String {
+        switch s.kind {
+        case .idleAgent:    return model.t(s.messageKey, s.subject)
+        case .costHog:      return model.t(s.messageKey, s.subject, s.value)
+        case .expensiveRun: return model.t(s.messageKey, s.value)
+        case .noDelegation: return model.t(s.messageKey)
+        }
+    }
+
+    private func icon(for severity: RunAnalysis.Severity) -> String {
+        switch severity {
+        case .warning:    return "exclamationmark.triangle.fill"
+        case .suggestion: return "lightbulb.fill"
+        case .info:       return "info.circle"
+        }
+    }
+
+    private func tint(for severity: RunAnalysis.Severity) -> Color {
+        switch severity {
+        case .warning:    return Theme.warning
+        case .suggestion: return Theme.accent
+        case .info:       return .secondary
+        }
     }
 
     private func stat(_ icon: String, _ value: String, _ label: String) -> some View {

@@ -1050,6 +1050,7 @@ enum L10n {
         merged.merge(advisorStrings) { current, _ in current }
         merged.merge(progressStrings) { current, _ in current }
         merged.merge(saverStrings) { current, _ in current }
+        merged.merge(runStrings) { current, _ in current }
         return merged
     }()
 
