@@ -395,6 +395,12 @@ enum L10n {
         "preview.overwriteMsg": ("These files already exist and will be overwritten:\n%@\n\nCLAUDE.md is merged, not overwritten.",
                                  "Estos archivos ya existen y se sobrescribirán:\n%@\n\nCLAUDE.md se combina, no se sobrescribe."),
         "preview.overwrite": ("Overwrite", "Sobrescribir"),
+        "preview.diff.header": ("Changes to apply", "Cambios a aplicar"),
+        "preview.diff.caption": ("Exactly what will change in %@ before anything is written.",
+                                 "Exactamente qué cambiará en %@ antes de escribir nada."),
+        "preview.diff.new": ("New file", "Archivo nuevo"),
+        "preview.diff.modified": ("Modified", "Modificado"),
+        "preview.diff.unchanged": ("No changes", "Sin cambios"),
 
         // MARK: Banners
         "banner.needRepo": ("Choose a target folder first (step 3 in the editor).",

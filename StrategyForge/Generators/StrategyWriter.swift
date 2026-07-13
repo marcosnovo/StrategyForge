@@ -36,6 +36,17 @@ struct StrategyWriter {
         return files
     }
 
+    /// A pre-write diff for every file that would be written: created vs. modified
+    /// vs. unchanged, with the line-by-line changes, WITHOUT touching disk (reads
+    /// existing contents only). The CLAUDE.md diff reflects the managed-section merge.
+    func previewDiffs(for strategy: Strategy) -> [FileDiff] {
+        previewFiles(for: strategy).map { file in
+            let existing = try? String(contentsOf: repoURL.appendingPathComponent(file.relativePath),
+                                       encoding: .utf8)
+            return FileDiff.make(file: file, existing: existing)
+        }
+    }
+
     /// Relative paths of files that already exist on disk and would be overwritten.
     /// (CLAUDE.md is always merged rather than clobbered, so it is not a conflict.)
     func existingAgentConflicts(for strategy: Strategy) -> [String] {

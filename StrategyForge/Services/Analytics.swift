@@ -34,6 +34,9 @@ enum Analytics {
         case repoSelected(sample: Bool)
         /// The activation aha: .claude/agents + CLAUDE.md written into a repo.
         case filesGenerated(provider: String, agents: Int)
+        // Pre-write diff (dry-run) trust feature.
+        case diffPreviewed(files: Int, changed: Int)
+        case diffApplied(created: Int, modified: Int)
         // Monetization funnel (wired once the paywall exists; defined now so the
         // dashboard schema is stable).
         case proTeaserShown(surface: String)      // "post_run" | "test_bench" | …
@@ -59,6 +62,8 @@ enum Analytics {
             case .onboardingSkipped: return "onboarding_skipped"
             case .repoSelected: return "repo_selected"
             case .filesGenerated: return "files_generated"
+            case .diffPreviewed: return "diff_previewed"
+            case .diffApplied: return "diff_applied"
             case .proTeaserShown: return "pro_teaser_shown"
             case .proTeaserClicked: return "pro_teaser_clicked"
             case .checkoutStarted: return "checkout_started"
@@ -87,6 +92,10 @@ enum Analytics {
                 return ["sample": "\(sample)"]
             case .filesGenerated(let p, let a):
                 return ["provider": p, "agents": "\(a)"]
+            case .diffPreviewed(let files, let changed):
+                return ["files": "\(files)", "changed": "\(changed)"]
+            case .diffApplied(let created, let modified):
+                return ["created": "\(created)", "modified": "\(modified)"]
             case .proTeaserShown(let s), .proTeaserClicked(let s):
                 return ["surface": s]
             case .checkoutStarted(let p):
