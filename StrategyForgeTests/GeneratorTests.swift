@@ -205,6 +205,23 @@ struct CostEstimatorTests {
         #expect(CostEstimator.estimate(s).perRun > base)
     }
 
+    @Test func soloLeadCostsMoreThanTheSameLeadDelegating() {
+        // Per the delegation economics, the lead's own token bill tracks how much it
+        // hands off. A solo lead does the work itself; give it a team and its own
+        // contribution drops. Isolate the LEAD's cost with a different-model worker
+        // (Haiku) so `byModel[.opus48]` is purely the Opus lead's share.
+        let solo = StrategyLibrary.solo()               // single Opus agent, no team
+        let soloLead = CostEstimator.estimate(solo).byModel[.opus48] ?? 0
+
+        var team = solo
+        team.roles.append(AgentRole(name: "worker", role: .worker, model: .haiku45,
+                                    systemPrompt: "implement", description: "do the work"))
+        let delegatingLead = CostEstimator.estimate(team).byModel[.opus48] ?? 0
+
+        #expect(soloLead > 0)
+        #expect(delegatingLead < soloLead)
+    }
+
     @Test func breakdownCoversUsedModels() {
         let cost = CostEstimator.estimate(StrategyLibrary.orchestratorWorkers())
         // Fan-out uses Fable (orchestrator) + Sonnet (workers).
