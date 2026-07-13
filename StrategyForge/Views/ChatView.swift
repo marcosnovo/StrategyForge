@@ -1452,6 +1452,8 @@ struct ChatView: View {
         HStack(spacing: Space.s) {
             modeMenu
             Spacer(minLength: Space.s)
+            ContextWindowChip(breakdown: ContextBreakdown.estimate(
+                transcript: vm.messages, strategy: config.strategy))
             modelEffortChip
         }
         .padding(.horizontal, 2)

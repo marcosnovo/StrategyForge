@@ -722,6 +722,18 @@ enum L10n {
         "pr.state.draft": ("Draft", "Borrador"),
 
         // Composer — permission mode (Accept edits / Plan / Automatic)
+        // Context-window breakdown
+        "context.title": ("Context window", "Ventana de contexto"),
+        "context.estimate": ("Estimated — headless Claude doesn't report exact occupancy.",
+                             "Estimado — Claude en headless no reporta la ocupación exacta."),
+        "context.limits": ("PLAN LIMITS", "LÍMITES DEL PLAN"),
+        "context.seg.messages": ("Messages", "Mensajes"),
+        "context.seg.system": ("System prompt", "Prompt del sistema"),
+        "context.seg.tools": ("Tools", "Herramientas"),
+        "context.seg.mcp": ("MCP tools", "Herramientas MCP"),
+        "context.seg.skills": ("Skills", "Skills"),
+        "context.seg.free": ("Free space", "Espacio libre"),
+
         "mode.ask": ("Ask each time", "Preguntar siempre"),
         "perm.title": ("Allow Claude to use %@?", "¿Permitir que Claude use %@?"),
         "perm.deny": ("Deny", "Denegar"),
