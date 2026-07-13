@@ -105,6 +105,17 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
     /// Localization keys for the "how to connect" help.
     var connectHelpKey: String { "provider.\(rawValue).connect" }
 
+    /// Common subscription tiers per provider, for the manual plan picker (the CLIs
+    /// don't expose the plan, so the user declares it). Kept current-ish; free text
+    /// is always allowed via the picker's "Other".
+    var planOptions: [String] {
+        switch self {
+        case .claude: return ["Free", "Pro", "Max 5×", "Max 20×", "Team", "Enterprise", "API"]
+        case .openai: return ["Free", "Plus", "Pro", "Team", "Enterprise", "API"]
+        case .gemini: return ["Free", "Google AI Pro", "Google AI Ultra", "API"]
+        }
+    }
+
     /// The models this provider exposes (tier-based; exact ids are resolved by the
     /// provider's own CLI/login, so these stay general on purpose).
     var models: [ProviderModel] {

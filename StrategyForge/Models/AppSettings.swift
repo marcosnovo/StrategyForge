@@ -46,6 +46,10 @@ struct AppSettings: Codable, Hashable {
     /// The last team open in the Team section (device-local, like the chat above).
     var lastSelectedTeamID: String?
     var showActivity: Bool
+    /// The user's self-declared subscription plan per provider (rawValue → label).
+    /// No CLI exposes the plan, so this is entered by the user and shown in Usage /
+    /// Connected Services for at-a-glance context.
+    var providerPlans: [String: String]
 
     init(
         defaultReposPath: String? = nil,
@@ -57,7 +61,8 @@ struct AppSettings: Codable, Hashable {
         chatAutonomy: ChatAutonomy = .acceptEdits,
         lastSelectedConfigID: String? = nil,
         lastSelectedTeamID: String? = nil,
-        showActivity: Bool = false
+        showActivity: Bool = false,
+        providerPlans: [String: String] = [:]
     ) {
         self.defaultReposPath = defaultReposPath
         self.defaultReposBookmark = defaultReposBookmark
@@ -69,12 +74,13 @@ struct AppSettings: Codable, Hashable {
         self.lastSelectedConfigID = lastSelectedConfigID
         self.lastSelectedTeamID = lastSelectedTeamID
         self.showActivity = showActivity
+        self.providerPlans = providerPlans
     }
 
     // Tolerant decoding so older saved data (without newer keys) still loads.
     private enum CodingKeys: String, CodingKey {
         case defaultReposPath, defaultReposBookmark, claudeBinary, codexBinary, geminiBinary
-        case language, chatAutonomy, lastSelectedConfigID, lastSelectedTeamID, showActivity
+        case language, chatAutonomy, lastSelectedConfigID, lastSelectedTeamID, showActivity, providerPlans
     }
 
     init(from decoder: Decoder) throws {
@@ -89,6 +95,7 @@ struct AppSettings: Codable, Hashable {
         lastSelectedConfigID = try c.decodeIfPresent(String.self, forKey: .lastSelectedConfigID)
         lastSelectedTeamID = try c.decodeIfPresent(String.self, forKey: .lastSelectedTeamID)
         showActivity = try c.decodeIfPresent(Bool.self, forKey: .showActivity) ?? false
+        providerPlans = try c.decodeIfPresent([String: String].self, forKey: .providerPlans) ?? [:]
     }
 
     /// The configured binary name/path for a provider.
@@ -98,5 +105,15 @@ struct AppSettings: Codable, Hashable {
         case .openai: return codexBinary
         case .gemini: return geminiBinary
         }
+    }
+
+    /// The user's declared plan for a provider (nil if not set).
+    func plan(for provider: AIProvider) -> String? {
+        let v = providerPlans[provider.rawValue]
+        return (v?.isEmpty == false) ? v : nil
+    }
+    mutating func setPlan(_ plan: String?, for provider: AIProvider) {
+        if let plan, !plan.isEmpty { providerPlans[provider.rawValue] = plan }
+        else { providerPlans[provider.rawValue] = nil }
     }
 }

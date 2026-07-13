@@ -56,6 +56,29 @@ final class AppModel {
     /// Whether a provider can be selected right now (its CLI is installed).
     func isConnected(_ provider: AIProvider) -> Bool { connectedProviders.contains(provider) }
 
+    // MARK: Provider plan (manual) + spend aggregation
+
+    /// The user's declared plan for a provider (no CLI exposes it).
+    func providerPlan(_ p: AIProvider) -> String? { settings.plan(for: p) }
+    func setProviderPlan(_ plan: String?, for p: AIProvider) {
+        settings.setPlan(plan, for: p); _ = save(stamp: false)
+    }
+
+    /// Per-provider spend rolled up from persisted chats. Claude carries real dollar
+    /// cost + tokens (from Claude Code's result JSON); Codex/Gemini CLIs report no
+    /// usage, so their tokens/cost are ~0 and only the chat count is meaningful.
+    struct ProviderSpend: Identifiable { var provider: AIProvider; var tokens: Int; var costUSD: Double; var chats: Int
+        var id: String { provider.rawValue } }
+    func spendByProvider() -> [ProviderSpend] {
+        var map: [AIProvider: ProviderSpend] = [:]
+        for c in configurations {
+            var s = map[c.provider] ?? ProviderSpend(provider: c.provider, tokens: 0, costUSD: 0, chats: 0)
+            s.tokens += c.totalTokens; s.costUSD += c.totalCostUSD; s.chats += 1
+            map[c.provider] = s
+        }
+        return AIProvider.allCases.map { map[$0] ?? ProviderSpend(provider: $0, tokens: 0, costUSD: 0, chats: 0) }
+    }
+
     /// Which top-level section the nav rail shows: the chats, or connected services.
     /// `particleLab` is a DEBUG-only gallery for previewing the dot/particle motion
     /// system (spinners + waiting states) — its nav entry only appears in Debug builds.

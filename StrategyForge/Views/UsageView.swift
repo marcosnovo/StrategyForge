@@ -16,8 +16,8 @@ struct UsageView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                 header
+                spendByProviderCard
                 claudeSection
-                otherProvidersSection
                 if model.configurations.contains(where: { $0.totalTokens > 0 }) {
                     topChatsCard
                 }
@@ -59,6 +59,7 @@ struct UsageView: View {
             HStack(spacing: Space.s) {
                 ProviderLogo(provider: .claude, size: 20)
                 Text(AIProvider.claude.displayName).font(.sfCardTitle)
+                planBadge(.claude)
                 Spacer()
                 if let u = model.claudeUsage, let last = u.lastActivity {
                     Text(model.t("usage.lastActivity", relative(last)))
@@ -168,28 +169,94 @@ struct UsageView: View {
         .frame(maxWidth: .infinity, alignment: .center).padding(Space.l)
     }
 
-    // MARK: - Other providers
+    // MARK: - Spend by provider (multi-agent overview)
 
-    private var otherProvidersSection: some View {
-        ForEach([AIProvider.openai, AIProvider.gemini]) { p in
-            HStack(spacing: Space.m) {
-                ProviderLogo(provider: p, size: 26, templateTint: p.tint)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(p.tint.opacity(0.12)))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(p.displayName).font(.sfCallout.weight(.semibold))
-                    Text(model.t("usage.noProviderData"))
-                        .font(.sfCaption2).foregroundStyle(.secondary)
-                }
+    /// A single card comparing spend across every provider — the multi-agent usage
+    /// summary. Tokens/cost are rolled up from this device's chats. Claude's dollars
+    /// are real (from Claude Code); Codex/Gemini CLIs report no usage, so their bars
+    /// reflect chats run, not tokens — flagged honestly.
+    private var spendByProviderCard: some View {
+        let spend = model.spendByProvider()
+        let maxTokens = max(1, spend.map(\.tokens).max() ?? 1)
+        return VStack(alignment: .leading, spacing: Space.m) {
+            HStack(spacing: Space.s) {
+                Image(systemName: "chart.bar.doc.horizontal").foregroundStyle(Theme.accent)
+                Text(model.t("usage.byProvider.title")).font(.sfCardTitle)
                 Spacer()
-                Text(model.t(model.isConnected(p) ? "provider.connected" : "provider.notFound"))
-                    .font(.sfCaption2.weight(.medium))
-                    .foregroundStyle(model.isConnected(p) ? Theme.success : Theme.secondaryOnMaterial)
-                    .padding(.horizontal, Space.s).padding(.vertical, 3)
-                    .background(Capsule().fill((model.isConnected(p) ? Theme.success : Theme.inkDim).opacity(0.12)))
+                let totalCost = spend.reduce(0) { $0 + $1.costUSD }
+                if totalCost > 0 {
+                    Text(formatCost(totalCost)).font(.sfMono).foregroundStyle(Theme.accent)
+                }
             }
-            .card(padding: Space.m)
+            Text(model.t("usage.byProvider.hint")).font(.sfCaption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(spend) { s in providerSpendRow(s, maxTokens: maxTokens) }
         }
+        .card()
+    }
+
+    private func providerSpendRow(_ s: AppModel.ProviderSpend, maxTokens: Int) -> some View {
+        let p = s.provider
+        let frac = Double(s.tokens) / Double(maxTokens)
+        // Codex/Gemini report no token usage via their CLIs → make that explicit.
+        let noTokenData = p != .claude && s.tokens == 0
+        return VStack(spacing: 5) {
+            HStack(spacing: Space.s) {
+                ProviderLogo(provider: p, size: 18, templateTint: p.tint)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(p.tint.opacity(0.12)))
+                Text(p.displayName).font(.sfCallout.weight(.semibold))
+                planBadge(p)
+                Spacer()
+                if s.costUSD > 0 {
+                    Text(formatCost(s.costUSD)).font(.sfCaption2.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                }
+                Text(model.t("usage.byProvider.chats", s.chats))
+                    .font(.sfCaption2).foregroundStyle(.secondary).monospacedDigit()
+            }
+            HStack(spacing: Space.s) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.hairline).frame(height: 7)
+                        Capsule().fill(p.tint)
+                            .frame(width: max(s.tokens > 0 ? 5 : 0, geo.size.width * frac), height: 7)
+                    }
+                }
+                .frame(height: 7)
+                Text(noTokenData ? model.t("usage.byProvider.noTokens") : formatTokens(s.tokens))
+                    .font(.sfCaption2).foregroundStyle(noTokenData ? .tertiary : .secondary)
+                    .monospacedDigit().frame(minWidth: 54, alignment: .trailing)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// A tappable plan pill — the user declares their plan (no CLI exposes it).
+    private func planBadge(_ p: AIProvider) -> some View {
+        let current = model.providerPlan(p)
+        return Menu {
+            ForEach(p.planOptions, id: \.self) { opt in
+                Button {
+                    model.setProviderPlan(opt, for: p)
+                } label: {
+                    Label(opt, systemImage: current == opt ? "checkmark" : "")
+                }
+            }
+            if current != nil {
+                Divider()
+                Button(model.t("usage.plan.clear"), role: .destructive) { model.setProviderPlan(nil, for: p) }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "person.text.rectangle").font(.system(size: 9))
+                Text(current ?? model.t("usage.plan.set")).font(.sfCaption2.weight(.medium))
+            }
+            .foregroundStyle(current == nil ? Theme.secondaryOnMaterial : p.tint)
+            .padding(.horizontal, 8).padding(.vertical, 2)
+            .background(Capsule().fill((current == nil ? Theme.inkDim : p.tint).opacity(0.12)))
+        }
+        .menuStyle(.borderlessButton).fixedSize()
     }
 
     // MARK: - Top chats
@@ -253,6 +320,10 @@ struct UsageView: View {
         if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
         if n >= 1_000 { return String(format: "%.0fk", Double(n) / 1_000) }
         return "\(n)"
+    }
+
+    private func formatCost(_ c: Double) -> String {
+        c >= 10 ? String(format: "$%.0f", c) : String(format: "$%.2f", c)
     }
 }
 

@@ -78,6 +78,7 @@ struct ProviderConfigView: View {
             VStack(alignment: .leading, spacing: Space.l) {
                 header
                 statusCard
+                planCard
                 binaryCard
                 if connected { testCard }
                 if !provider.isExecutable { soonNote }
@@ -120,6 +121,31 @@ struct ProviderConfigView: View {
                 Button(model.t("provider.connect")) { connecting = true }
                     .buttonStyle(.moon)
             }
+        }
+        .padding(Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    /// Your subscription plan (declared manually — no CLI exposes it), surfaced here
+    /// and in Usage so the plan is obvious at a glance.
+    private var planCard: some View {
+        let current = model.providerPlan(provider)
+        return VStack(alignment: .leading, spacing: Space.s) {
+            HStack {
+                Text(model.t("provider.plan")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Spacer()
+                Picker("", selection: Binding(
+                    get: { current ?? "" },
+                    set: { model.setProviderPlan($0.isEmpty ? nil : $0, for: provider) })) {
+                    Text(model.t("provider.plan.none")).tag("")
+                    ForEach(provider.planOptions, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden().fixedSize()
+            }
+            Text(model.t("provider.plan.hint")).font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(Space.l)
         .frame(maxWidth: .infinity, alignment: .leading)

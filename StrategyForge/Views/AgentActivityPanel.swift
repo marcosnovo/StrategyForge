@@ -248,9 +248,12 @@ struct AgentActivityPanel: View {
             if let u = model.claudeUsage, u.hasData {
                 Text(model.t("activity.usage.account"))
                     .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
-                usageLine(model.t("activity.usage.week"), formatTokens(u.weekTokens))
+                // Week: a bar of the per-model split; 5-hour: a teal time-elapsed bar.
+                meterBar(model.t("activity.usage.week"), value: formatTokens(u.weekTokens),
+                         fraction: 1, tint: Theme.accent)
                 if u.blockResetAt != nil {
-                    usageLine(model.t("activity.usage.block"), fiveHourText(u))
+                    meterBar(model.t("activity.usage.block"), value: fiveHourText(u),
+                             fraction: blockElapsedFraction(u), tint: Theme.teal)
                 } else {
                     usageLine(model.t("activity.usage.block"), model.t("usage.noActiveWindow"))
                 }
@@ -261,9 +264,73 @@ struct AgentActivityPanel: View {
                     }
                     .padding(.top, 2)
                 }
+                providerMiniBars
             } else {
                 usageLine(model.t("activity.usage.week"), model.t("usage.noWeek"))
+                providerMiniBars
             }
+        }
+    }
+
+    /// A labelled meter bar (label + value on top, a tinted fill below). Used for the
+    /// week total (coral) and the 5-hour window (teal, elapsed-time fraction).
+    private func meterBar(_ label: String, value: String, fraction: Double, tint: Color) -> some View {
+        VStack(spacing: 2) {
+            HStack {
+                Text(label).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+                Spacer()
+                Text(value).font(.sfCaption2.weight(.semibold)).foregroundStyle(.primary).monospacedDigit()
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.hairline).frame(height: 5)
+                    Capsule().fill(tint).frame(width: max(4, geo.size.width * min(max(fraction, 0), 1)), height: 5)
+                }
+            }
+            .frame(height: 5)
+        }
+    }
+
+    /// Elapsed fraction of the current 5-hour window (time-based, like the ring).
+    private func blockElapsedFraction(_ u: UsageSummary) -> Double {
+        guard let s = u.blockStart, let r = u.blockResetAt else { return 0 }
+        let total = r.timeIntervalSince(s); guard total > 0 else { return 0 }
+        return min(max(Date().timeIntervalSince(s) / total, 0), 1)
+    }
+
+    /// Per-provider spend bars (provider-tinted) so a mixed-provider setup is visible
+    /// at a glance. Only shown once more than one provider has been used on this Mac.
+    @ViewBuilder
+    private var providerMiniBars: some View {
+        let spend = model.spendByProvider().filter { $0.chats > 0 }
+        if spend.count > 1 {
+            let maxT = max(1, spend.map(\.tokens).max() ?? 1)
+            Divider().padding(.vertical, 1)
+            Text(model.t("activity.usage.byProvider"))
+                .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
+            VStack(spacing: 4) {
+                ForEach(spend) { s in
+                    VStack(spacing: 2) {
+                        HStack {
+                            Text(s.provider.displayName).font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(Theme.secondaryOnMaterial)
+                            Spacer()
+                            Text(s.costUSD > 0 ? String(format: "$%.2f", s.costUSD)
+                                 : model.t("usage.byProvider.chats", s.chats))
+                                .font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.tertiaryOnMaterial)
+                        }
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Theme.hairline).frame(height: 5)
+                                Capsule().fill(s.provider.tint)
+                                    .frame(width: max(s.tokens > 0 ? 4 : 0, geo.size.width * Double(s.tokens) / Double(maxT)), height: 5)
+                            }
+                        }
+                        .frame(height: 5)
+                    }
+                }
+            }
+            .padding(.top, 2)
         }
     }
 
