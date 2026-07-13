@@ -151,7 +151,7 @@ struct WowSphereResolve: View {
         let p = min(e / duration, 1)
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let R = min(size.width, size.height) * 0.20
-        let alpha = p < 0.74 ? 1.0 : max(0, 1 - (p - 0.74) / 0.26)
+        let alpha = p < 0.80 ? 1.0 : max(0, 1 - (p - 0.80) / 0.20)
         let converging = p < gatherEnd
         let gathered = min(max((p - 0.35) / 0.35, 0), 1)      // how "formed" the gem is
 
@@ -168,6 +168,17 @@ struct WowSphereResolve: View {
             ctx.fill(Path(ellipseIn: CGRect(x: center.x - gr, y: center.y - gr, width: gr*2, height: gr*2)),
                      with: .radialGradient(Gradient(colors: [Theme.coral.opacity(coreOp), Theme.coral.opacity(0)]),
                                            center: center, startRadius: 0, endRadius: gr))
+        }
+        // Teal rim halo — a lit edge around the gem (coral core + teal rim = the duo).
+        if gathered > 0.15 {
+            let rr = R * 1.5
+            let stops = Gradient(stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: Theme.teal.opacity(0), location: 0.5),
+                .init(color: Theme.teal.opacity(0.30 * gathered * alpha), location: 0.74),
+                .init(color: .clear, location: 1.0)])
+            ctx.fill(Path(ellipseIn: CGRect(x: center.x - rr, y: center.y - rr, width: rr*2, height: rr*2)),
+                     with: .radialGradient(stops, center: center, startRadius: 0, endRadius: rr))
         }
         // A single quick, soft expanding ring right at the snap (subtle).
         if p >= gatherEnd {
