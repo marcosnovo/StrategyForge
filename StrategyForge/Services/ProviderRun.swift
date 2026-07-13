@@ -102,7 +102,10 @@ struct CLIOneShotRunner: OneShotRunner {
             // --skip-git-repo-check lets it run outside a git repo (Codex refuses
             // otherwise: "Not inside a trusted directory…"). Flags precede the prompt.
             var a = ["exec", "--skip-git-repo-check"]
-            if !model.isEmpty { a.append(contentsOf: ["--model", model]) }
+            // `gpt-5-codex` is API-only and errors with a ChatGPT-account login, so
+            // fall back to gpt-5 (covers any strategy still pinned to the old slug).
+            let m = model == "gpt-5-codex" ? "gpt-5" : model
+            if !m.isEmpty { a.append(contentsOf: ["--model", m]) }
             a.append(prompt)
             return (a, .plainText)
         case .gemini:

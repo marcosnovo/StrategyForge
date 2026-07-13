@@ -125,12 +125,13 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
                 ProviderModel(id: $0.rawValue, displayName: $0.displayName, tierKey: $0.tierNameKey)
             }
         case .openai:
-            // Real Codex CLI model slugs (passed as `codex exec --model <id>`).
-            // If a CLI version renames these, adjust here — "Test connection"
-            // surfaces an unknown-model error so it's caught fast.
+            // Codex CLI model slugs (passed as `codex exec --model <id>`). NOTE:
+            // `gpt-5-codex` is API-only — it errors with a ChatGPT (subscription)
+            // login ("not supported when using Codex with a ChatGPT account"), and
+            // this app authenticates via subscription, so the catalog uses the
+            // standard GPT-5 models that a ChatGPT account supports.
             return [
-                ProviderModel(id: "gpt-5-codex", displayName: "GPT-5 Codex", tierKey: "model.tier.expert"),
-                ProviderModel(id: "gpt-5", displayName: "GPT-5", tierKey: "model.tier.generalist"),
+                ProviderModel(id: "gpt-5", displayName: "GPT-5", tierKey: "model.tier.expert"),
                 ProviderModel(id: "gpt-5-mini", displayName: "GPT-5 mini", tierKey: "model.tier.fast"),
             ]
         case .gemini:
