@@ -58,6 +58,10 @@ struct NavRail: View {
                  active: model.navSection == .skills) {
                 model.guardedLeave { model.navSection = .skills }
             }
+            item("square.grid.2x2.fill", "rail.teamLibrary",
+                 active: model.navSection == .teamLibrary) {
+                model.guardedLeave { model.navSection = .teamLibrary }
+            }
             // Advisor is integrated as the inline recommendation card while composing
             // the first message — not a standalone section.
             item("point.3.connected.trianglepath.dotted", "rail.connected",

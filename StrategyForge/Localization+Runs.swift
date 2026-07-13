@@ -44,5 +44,20 @@ extension L10n {
         "compare.cheaper": ("cheaper", "más barato"),
         "compare.dearer": ("dearer", "más caro"),
         "compare.same": ("no change", "sin cambio"),
+
+        // MARK: Team catalog (WS-B)
+        "rail.teamLibrary": ("Teams library", "Biblioteca"),
+        "catalog.title": ("Team library", "Biblioteca de equipos"),
+        "catalog.subtitle": (
+            "Import a proven agent team in one click — or paste a GitHub ref to a shared .sfstrategy. Runs on your own plan, no backend.",
+            "Importa un equipo de agentes probado en un clic — o pega una ref de GitHub a un .sfstrategy compartido. Corre sobre tu plan, sin backend."),
+        "catalog.paste": ("owner/repo[@ref]#path/to/team.sfstrategy",
+                          "owner/repo[@ref]#ruta/al/team.sfstrategy"),
+        "catalog.verified": ("Verified by Coral", "Verificado por Coral"),
+        "catalog.import": ("Import", "Importar"),
+        "catalog.importEdit": ("Import & edit", "Importar y editar"),
+        "catalog.source": ("Source", "Fuente"),
+        "catalog.preview.subtitle": ("Preview before it lands in your library.",
+                                     "Vista previa antes de guardarlo en tu biblioteca."),
     ]
 }
