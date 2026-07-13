@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 /// What the far-right detail column shows: one agent's activity, or all steps.
 enum AgentFocus: Hashable {
@@ -41,6 +42,7 @@ struct AgentActivityPanel: View {
     @State private var showDiagram = true
     /// The team list starts collapsed so the panel reads at a glance.
     @State private var showTeam = false
+    @State private var previewingFiles = false
 
     /// The strategy to show: the recommendation preview when idle, else the live team.
     private var shownStrategy: Strategy {
@@ -92,6 +94,9 @@ struct AgentActivityPanel: View {
                     liveUsageCard.panelCard()
                     orchestratorDiagramCard.panelCard()
                     teamSection.panelCard()
+                    // Always-available list of files the agents produced, so you can
+                    // grab them without scrolling the conversation to find where.
+                    if !vm.editedFiles.isEmpty { filesSection.panelCard() }
                     if !vm.todos.isEmpty { tasksSection.panelCard() }
                     stepsSection.panelCard()
                 }
@@ -424,6 +429,79 @@ struct AgentActivityPanel: View {
     }
 
     // MARK: Steps (recent + "see all" on the right)
+
+    // MARK: Files produced
+
+    private var filesSection: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: Space.xs) {
+                Image(systemName: "doc.on.doc.fill").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                Text(model.t("activity.files.title"))
+                    .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
+                Text("\(vm.editedFiles.count)")
+                    .font(.sfCaption2.weight(.bold)).foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(Capsule().fill(Theme.accentSoft))
+                Spacer()
+                Button { previewingFiles = true } label: {
+                    Image(systemName: "eye").font(.system(size: 12))
+                }
+                .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                .help(model.t("filepreview.title"))
+            }
+            ForEach(vm.editedFiles, id: \.self) { path in fileRow(path) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .sheet(isPresented: $previewingFiles) { DocumentPreviewSheet(files: vm.editedFiles) }
+    }
+
+    private func fileRow(_ path: String) -> some View {
+        let name = (path as NSString).lastPathComponent
+        return HStack(spacing: Space.s) {
+            Image(systemName: fileIcon(name)).font(.system(size: 12))
+                .foregroundStyle(Theme.secondaryOnMaterial).frame(width: 16)
+            Text(name).font(.sfCaption2).lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: Space.xs)
+            Button { downloadFile(path) } label: { Image(systemName: "arrow.down.circle").font(.system(size: 13)) }
+                .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                .help(model.t("chat.download"))
+            Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) } label: {
+                Image(systemName: "arrow.up.forward.app").font(.system(size: 12))
+            }
+            .buttonStyle(.plain).foregroundStyle(Theme.secondaryOnMaterial)
+            .help(model.t("activity.files.reveal"))
+        }
+        .padding(.vertical, 3).padding(.horizontal, Space.xs)
+        .contentShape(Rectangle())
+        .hoverTint(cornerRadius: 6)
+    }
+
+    private func fileIcon(_ name: String) -> String {
+        let ext = (name as NSString).pathExtension.lowercased()
+        switch ext {
+        case "md", "markdown", "txt": return "doc.text"
+        case "json", "yml", "yaml", "toml": return "curlybraces"
+        case "png", "jpg", "jpeg", "gif", "svg", "pdf": return "photo"
+        case "swift", "js", "ts", "py", "rb", "go", "rs", "java", "sh": return "chevron.left.forwardslash.chevron.right"
+        default: return "doc"
+        }
+    }
+
+    /// Save a copy of a produced file wherever the user chooses.
+    private func downloadFile(_ path: String) {
+        let url = URL(fileURLWithPath: path)
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = url.lastPathComponent
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        try? FileManager.default.removeItem(at: dest)
+        do {
+            try FileManager.default.copyItem(at: url, to: dest)
+            model.flashSuccess(model.t("chat.fileSaved", url.lastPathComponent))
+        } catch {
+            model.flashFailure(error.localizedDescription)
+        }
+    }
 
     private var stepsSection: some View {
         VStack(alignment: .leading, spacing: Space.s) {
