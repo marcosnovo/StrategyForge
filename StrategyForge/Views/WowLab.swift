@@ -54,9 +54,20 @@ struct WowColorBloom: View {
             let p = e >= 0 ? min(e / duration, 1) : -1
             ZStack {
                 if p >= 0 {
-                    layer(color: Theme.teal, from: 0.5, to: 1.35, blur: 42, peak: 0.34, p: p, phase: 0.10)
-                    layer(color: .init(red: 1.0, green: 0.42, blue: 0.33), from: 0.35, to: 1.05, blur: 30, peak: 0.5, p: p, phase: 0.0)
-                    layer(color: Theme.coral, from: 0.2, to: 0.7, blur: 14, peak: 0.85, p: p, phase: 0.0)
+                    // Layered depth: teal halo → amber mid → coral core.
+                    layer(color: Theme.teal, from: 0.55, to: 1.5, blur: 46, peak: 0.32, p: p, phase: 0.12)
+                    layer(color: .init(red: 1.0, green: 0.66, blue: 0.30), from: 0.4, to: 1.1, blur: 30, peak: 0.5, p: p, phase: 0.04)
+                    layer(color: Theme.coral, from: 0.22, to: 0.72, blur: 16, peak: 0.85, p: p, phase: 0.0)
+                    // Hot core flash (fast spike then decay) — the "pop of light".
+                    coreFlash(p: p)
+                    // Expanding shockwave ring — a crisp light edge racing outward.
+                    shockwave(p: p, color: Theme.coral, delay: 0.02)
+                    shockwave(p: p, color: Theme.teal, delay: 0.12)
+                    // Slow angular shimmer for a living, glassy sheen.
+                    AngularGradient(colors: [.clear, Theme.coral.opacity(0.5), .clear, Theme.teal.opacity(0.4), .clear],
+                                    center: .center, angle: .degrees(e * 90))
+                        .frame(width: 230, height: 230).mask(Circle().stroke(lineWidth: 26)).blur(radius: 12)
+                        .scaleEffect(0.6 + p * 0.9).opacity(sin(.pi * p) * 0.5)
                 }
             }
             .compositingGroup()
@@ -67,16 +78,28 @@ struct WowColorBloom: View {
     }
 
     private func layer(color: Color, from: CGFloat, to: CGFloat, blur: CGFloat, peak: Double, p: Double, phase: Double) -> some View {
-        // Ease the scale out; opacity rises then falls (a soft breath).
         let t = min(max((p - phase) / (1 - phase), 0), 1)
         let scale = from + (to - from) * (1 - pow(1 - t, 3))
         let op = sin(.pi * t) * peak
         return Circle()
-            .fill(RadialGradient(colors: [color, color.opacity(0)], center: .center, startRadius: 0, endRadius: 90))
-            .frame(width: 180, height: 180)
-            .scaleEffect(scale)
-            .opacity(op)
+            .fill(RadialGradient(colors: [color, color.opacity(0)], center: .center, startRadius: 0, endRadius: 95))
+            .frame(width: 190, height: 190).scaleEffect(scale).opacity(op)
             .blur(radius: blur * CGFloat(1 - t * 0.4))
+    }
+
+    private func coreFlash(p: Double) -> some View {
+        let t = min(p / 0.28, 1)                              // spikes in first 0.28
+        let op = (1 - t) * (t < 0.06 ? t / 0.06 : 1)          // quick in, decay out
+        return Circle()
+            .fill(RadialGradient(colors: [.white, Theme.coral.opacity(0.6), .clear], center: .center, startRadius: 0, endRadius: 60))
+            .frame(width: 120, height: 120).scaleEffect(0.4 + t * 0.9).opacity(op).blur(radius: 6)
+    }
+
+    private func shockwave(p: Double, color: Color, delay: Double) -> some View {
+        let t = min(max((p - delay) / 0.7, 0), 1)
+        let op = (1 - t) * 0.7 * (t > 0 ? 1 : 0)
+        return Circle().stroke(color, lineWidth: 3 * CGFloat(1 - t) + 0.5)
+            .frame(width: 90, height: 90).scaleEffect(0.4 + t * 2.4).opacity(op).blur(radius: 1.5)
     }
 }
 
@@ -101,51 +124,70 @@ struct WowSphereResolve: View {
         .task(id: token) { await play(token, duration: duration) { startDate = $0 } set: { active = $0 } }
     }
 
+    private let gatherEnd = 0.6
+    /// Screen position + depth of particle `i` at time `e`.
+    private func particle(_ i: Int, _ e: Double, _ center: CGPoint, _ R: CGFloat) -> (CGPoint, Double) {
+        let p = min(e / duration, 1)
+        let gather = min(max(p / gatherEnd, 0), 1)
+        let ease = 1 - pow(1 - gather, 3)
+        let ga = 2.399963, rot = e * 1.1
+        let y = 1 - 2 * (Double(i) + 0.5) / Double(Self.n)
+        let rr = (1 - y*y).squareRoot()
+        let th = ga * Double(i)
+        var vx = cos(th) * rr, vz = sin(th) * rr
+        let x1 = vx * cos(rot) + vz * sin(rot), z1 = -vx * sin(rot) + vz * cos(rot)
+        vx = x1; vz = z1
+        let seed = Double((i &* 2654435761) % 997) / 997.0
+        let sr = 3.2 + seed * 3.2
+        let sx = cos(th * 1.7 + seed * 6) * sr, sy = (seed - 0.5) * 6.5, sz = sin(th * 1.3 + seed * 4) * sr
+        let px = sx + (vx - sx) * ease, py = sy + (y - sy) * ease, pz = sz + (vz - sz) * ease
+        let persp = 1.7 / (1.7 - min(pz, 1.5))
+        return (CGPoint(x: center.x + CGFloat(px) * persp * R, y: center.y - CGFloat(py) * persp * R), (pz + 1.5) / 3.0)
+    }
+
     private func draw(_ ctx: inout GraphicsContext, _ size: CGSize, _ e: Double) {
         let p = min(e / duration, 1)
-        let gather = min(max(p / 0.62, 0), 1)                 // scatter → sphere
-        let ease = 1 - pow(1 - gather, 3)
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let R = min(size.width, size.height) * 0.20
-        let ga = 2.399963
-        let rot = e * 1.1
         let alpha = p < 0.72 ? 1.0 : max(0, 1 - (p - 0.72) / 0.28)
+        let converging = p < gatherEnd
 
-        // Land pulse when the cloud has gathered.
+        // Land beat: bright flash + expanding shock-ring + gem glow the instant the
+        // cloud snaps together.
         var pulse = 1.0, glow = 0.0
-        if p >= 0.62 { let tau = p - 0.62; pulse = 1 + 0.16 * sin(.pi * tau / 0.2) * exp(-4 * tau); glow = 0.5 * exp(-4 * tau) }
+        if p >= gatherEnd { let tau = p - gatherEnd; pulse = 1 + 0.18 * sin(.pi * tau / 0.2) * exp(-4 * tau); glow = 0.55 * exp(-3.5 * tau) }
         if glow > 0.01 {
-            let gr = R * 2.6
+            let gr = R * 2.8
             ctx.fill(Path(ellipseIn: CGRect(x: center.x - gr, y: center.y - gr, width: gr*2, height: gr*2)),
                      with: .radialGradient(Gradient(colors: [Theme.coral.opacity(glow * alpha), .clear]), center: center, startRadius: 0, endRadius: gr))
+            // expanding ring
+            let rt = min((p - gatherEnd) / 0.35, 1)
+            if rt < 1 {
+                let rr = R * (0.8 + rt * 2.2)
+                ctx.stroke(Path(ellipseIn: CGRect(x: center.x - rr, y: center.y - rr, width: rr*2, height: rr*2)),
+                           with: .color(Theme.coral.opacity((1 - rt) * 0.6 * alpha)), lineWidth: 2.5 * (1 - rt) + 0.5)
+            }
         }
 
-        struct P { let x, y, z: Double }
-        var dots: [(CGPoint, Double, Color, Double)] = []   // point, depth, color, size
+        // Particles with motion-blur streaks while converging.
+        var dots: [(CGPoint, Double)] = []
         for i in 0..<Self.n {
-            let y = 1 - 2 * (Double(i) + 0.5) / Double(Self.n)
-            let r = (1 - y*y).squareRoot()
-            let th = ga * Double(i)
-            // sphere target
-            var vx = cos(th) * r, vy = y, vz = sin(th) * r
-            // rotate Y
-            let x1 = vx * cos(rot) + vz * sin(rot), z1 = -vx * sin(rot) + vz * cos(rot)
-            vx = x1; vz = z1
-            // scattered start: push far out along a seeded direction
-            let seed = Double((i &* 2654435761) % 997) / 997.0
-            let sr = 3.0 + seed * 3.0
-            let sx = cos(th * 1.7 + seed * 6) * sr, sy = (seed - 0.5) * 6, sz = sin(th * 1.3 + seed * 4) * sr
-            let px = sx + (vx - sx) * ease
-            let py = sy + (vy - sy) * ease
-            let pz = sz + (vz - sz) * ease
-            let persp = 1.7 / (1.7 - min(pz, 1.5))
-            let scr = CGPoint(x: center.x + CGFloat(px) * persp * R, y: center.y - CGFloat(py) * persp * R)
-            let depth = (pz + 1.5) / 3.0
-            let col = Color.blend(Theme.teal, Theme.coral, min(1, depth + 0.15))
-            dots.append((scr, depth, col, (1.6 + 3.0 * depth) * pulse))
+            let (cur, depth) = particle(i, e, center, R)
+            if converging {
+                let (prev, _) = particle(i, max(0, e - 0.045), center, R)
+                var streak = Path(); streak.move(to: prev); streak.addLine(to: cur)
+                let col = Color.blend(Theme.teal, Theme.coral, min(1, depth + 0.15))
+                ctx.stroke(streak, with: .color(col.opacity(0.35 * (1 - p / gatherEnd) * alpha)),
+                           style: StrokeStyle(lineWidth: (0.8 + 2.0 * depth), lineCap: .round))
+            }
+            dots.append((cur, depth))
         }
-        for (scr, depth, col, sz) in dots.sorted(by: { $0.1 < $1.1 }) {
-            let r = sz
+        for (scr, depth) in dots.sorted(by: { $0.1 < $1.1 }) {
+            let col = Color.blend(Theme.teal, Theme.coral, min(1, depth + 0.15))
+            let r = (1.6 + 3.2 * depth) * pulse
+            // soft halo + core
+            ctx.fill(Path(ellipseIn: CGRect(x: scr.x - r*2, y: scr.y - r*2, width: r*4, height: r*4)),
+                     with: .color(col.opacity(0.12 * depth * alpha)))
             ctx.fill(Path(ellipseIn: CGRect(x: scr.x - r, y: scr.y - r, width: r*2, height: r*2)),
                      with: .color(col.opacity((0.45 + 0.55 * depth) * alpha)))
         }
