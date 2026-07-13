@@ -87,7 +87,7 @@ struct SidebarView: View {
             .scrollContentBackground(.hidden)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
+        .background(Theme.appBg)   // match the Skills list surface (client preference)
         .confirmationDialog(
             model.t("sidebar.deleteTitle"),
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
@@ -275,7 +275,7 @@ struct SidebarView: View {
         .padding(.horizontal, Space.m)
         .padding(.top, Theme.titlebarInset).padding(.bottom, Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial)
+        .background(Theme.appBg)
         .zoomWindowOnDoubleClick()
     }
 

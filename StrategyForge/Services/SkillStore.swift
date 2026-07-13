@@ -239,6 +239,26 @@ final class SkillStore {
         installed.removeAll { $0.id == skill.id }
     }
 
+    /// True if a skill with this slug is installed (any scope) — for install badges.
+    func isInstalled(slug: String) -> Bool { installed.contains { $0.slug == slug } }
+
+    /// The live official Anthropic skills catalog (every folder under
+    /// anthropics/skills/skills), so the "Top" tab is always current. Names are
+    /// prettified from the slug; full metadata loads when a skill is opened.
+    func officialCatalog() async throws -> [CuratedSkill] {
+        let entries = try await ghList(owner: "anthropics", repo: "skills", ref: "main", path: "skills")
+        return entries.filter { $0.type == "dir" }
+            .sorted { $0.name < $1.name }
+            .map { e in
+                CuratedSkill(slug: e.name, name: Self.prettify(e.name),
+                             description: "Official Anthropic skill.", category: "Official",
+                             owner: "anthropics", repo: "skills", ref: "main", path: "skills/\(e.name)")
+            }
+    }
+    private static func prettify(_ slug: String) -> String {
+        slug.split(separator: "-").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+    }
+
     // MARK: - Curated marketplace (bundled; a registry API can replace this later)
 
     // Paths track the live anthropics/skills layout (now `skills/<slug>`, previously

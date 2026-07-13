@@ -14,12 +14,15 @@ struct SkillsView: View {
     @Environment(AppModel.self) private var model
     private var store: SkillStore { .shared }
 
-    enum Tab: String, CaseIterable { case discover, installed }
-    @State private var tab: Tab = .discover
+    enum Tab: String, CaseIterable { case top, discover, installed }
+    @State private var tab: Tab = .top
     @State private var selected: AgentSkill?
     @State private var pasteRef = ""
     @State private var fetching = false
     @State private var errorText: String?
+    /// The live official catalog for the Top tab (fetched once).
+    @State private var topSkills: [CuratedSkill] = []
+    @State private var loadingTop = false
     /// A fetched, not-yet-installed skill awaiting the trust/confirm sheet.
     @State private var pending: AgentSkill?
     @State private var installing = false
@@ -50,7 +53,15 @@ struct SkillsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
-        .task(id: tab) { store.scan(projectRepo: projectRepo) }
+        .task(id: tab) {
+            store.scan(projectRepo: projectRepo)
+            if tab == .top, topSkills.isEmpty, !loadingTop {
+                loadingTop = true; errorText = nil
+                do { topSkills = try await store.officialCatalog() }
+                catch { errorText = error.localizedDescription }
+                loadingTop = false
+            }
+        }
     }
 
     // MARK: - Left column
@@ -62,6 +73,7 @@ struct SkillsView: View {
                 Text(model.t("skills.subtitle")).font(.sfCaption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Picker("", selection: $tab) {
+                    Text(model.t("skills.tab.top")).tag(Tab.top)
                     Text(model.t("skills.tab.discover")).tag(Tab.discover)
                     Text(model.t("skills.tab.installed")).tag(Tab.installed)
                 }
@@ -72,7 +84,11 @@ struct SkillsView: View {
             filterBar
             Divider()
             ScrollView {
-                if tab == .discover { discoverList } else { installedList }
+                switch tab {
+                case .top: topList
+                case .discover: discoverList
+                case .installed: installedList
+                }
             }
             .background(Theme.appBg)
         }
@@ -119,6 +135,27 @@ struct SkillsView: View {
         return kindFilter.matches(s)
     }
 
+    /// The live official Anthropic skills catalog — always current, with an
+    /// "installed" mark on any you already have.
+    private var topList: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text(model.t("skills.top.note")).font(.sfCaption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            if loadingTop {
+                HStack(spacing: Space.s) { WorkingLogo(size: 14)
+                    Text(model.t("skills.top.loading")).font(.sfCaption2).foregroundStyle(.secondary) }
+                    .padding(.vertical, Space.s)
+            }
+            if let e = errorText, tab == .top {
+                Label(e, systemImage: "exclamationmark.triangle.fill").font(.sfCaption2)
+                    .foregroundStyle(Theme.warning).fixedSize(horizontal: false, vertical: true)
+            }
+            let shown = topSkills.filter(matchesFilters)
+            ForEach(Array(shown.enumerated()), id: \.element.id) { i, c in curatedRow(c, rank: i + 1) }
+        }
+        .padding(Space.s)
+    }
+
     private var discoverList: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             // Paste any GitHub ref (owner/repo[@ref][#path]).
@@ -156,9 +193,14 @@ struct SkillsView: View {
         .padding(Space.s)
     }
 
-    private func curatedRow(_ c: CuratedSkill) -> some View {
-        Button { install(curated: c) } label: {
+    private func curatedRow(_ c: CuratedSkill, rank: Int? = nil) -> some View {
+        let installed = store.isInstalled(slug: c.slug)
+        return Button { install(curated: c) } label: {
             HStack(spacing: Space.s) {
+                if let rank {
+                    Text("\(rank)").font(.sfCaption2.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.tertiary).frame(width: 18, alignment: .trailing)
+                }
                 Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 13))
                     .foregroundStyle(Theme.accent).frame(width: 22)
                 VStack(alignment: .leading, spacing: 1) {
@@ -171,7 +213,13 @@ struct SkillsView: View {
                     Text(c.description).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(2)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.system(size: 11)).foregroundStyle(.tertiary)
+                if installed {
+                    Label(model.t("skills.installedMark"), systemImage: "checkmark.circle.fill")
+                        .labelStyle(.iconOnly).font(.system(size: 13)).foregroundStyle(Theme.success)
+                        .help(model.t("skills.installedMark"))
+                } else {
+                    Image(systemName: "chevron.right").font(.system(size: 11)).foregroundStyle(.tertiary)
+                }
             }
             .padding(.vertical, 6).padding(.horizontal, Space.s)
             .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
