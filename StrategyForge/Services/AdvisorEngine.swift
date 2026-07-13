@@ -48,6 +48,10 @@ enum AdvisorEngine {
         /// True when Apple Intelligence shaped this recommendation (vs the local
         /// deterministic engine) — so the UI can label the source honestly.
         var usedAI: Bool = false
+        /// Cross-provider assignments made on top of the base advice. Empty on the
+        /// Claude-only path; populated when >1 provider is connected and the engine
+        /// mixed providers per role (see `AdvisorEngine+Providers`).
+        var providerPicks: [ProviderPick] = []
 
         static func == (lhs: Advice, rhs: Advice) -> Bool {
             lhs.model == rhs.model
@@ -59,6 +63,7 @@ enum AdvisorEngine {
                 && lhs.decisionPath == rhs.decisionPath
                 && lhs.goalSuggestion == rhs.goalSuggestion
                 && lhs.estimatedCost.perRun == rhs.estimatedCost.perRun
+                && lhs.providerPicks == rhs.providerPicks
         }
 
         func hash(into hasher: inout Hasher) {
@@ -70,11 +75,14 @@ enum AdvisorEngine {
             hasher.combine(effort)
             hasher.combine(decisionPath)
             hasher.combine(goalSuggestion)
+            hasher.combine(providerPicks)
         }
 
-        /// Identity-free fingerprint of a role (ids are minted per build).
+        /// Identity-free fingerprint of a role (ids are minted per build). Includes
+        /// the provider + provider-model so a cross-provider reassignment is a real,
+        /// observable difference (not folded away by equality/hash).
         private static func roleSignature(_ role: AgentRole) -> String {
-            "\(role.name)|\(role.model.rawValue)|\(role.count)"
+            "\(role.name)|\(role.model.rawValue)|\(role.count)|\(role.provider.rawValue)|\(role.providerModelID ?? "")"
         }
     }
 
@@ -298,7 +306,7 @@ enum AdvisorEngine {
     /// recommendation (AI-shaped when available), and a max-quality one that spends
     /// more for better results. Same shape/loop/goal — they differ in model tier and
     /// team size, so the estimated cost tells the tradeoff honestly.
-    static func adviseTiers(task: String) async -> [Tier] {
+    static func adviseTiers(task: String, connected: Set<AIProvider> = [.claude]) async -> [Tier] {
         let balanced = await adviseWithAI(task: task)
         let saver = variant(of: balanced, shift: -1, countDelta: -1,
                             effort: lower(balanced.effort),
@@ -310,10 +318,21 @@ enum AdvisorEngine {
                        noteKey: "advisor.tier.balanced.note", advice: balanced)
         // Drop a tier that collapses to the same model AND team as the balanced one
         // (e.g. already at Haiku → no cheaper tier), so we never show duplicates.
+        // Dedup on the CLAUDE-only shapes (before any cross-provider reassignment)
+        // so the "no cheaper option" collapse still fires as it did originally.
         var tiers = [saver, mid, max]
         tiers = tiers.enumerated().filter { i, t in
             i == 1 || !sameShape(t.advice, as: balanced)
         }.map { $0.element }
+        // Cross-provider: reassign providers per tier with its matching bias, so the
+        // Economy tier leans on fast/cheap models and Max on top capability — each
+        // still explained by its own provider picks. No-op when <2 providers connected.
+        if Set(connected).count > 1 {
+            tiers = tiers.map { t in
+                let advice = applyingProviders(t.advice, connected: connected, bias: TierBias.from(tierID: t.id))
+                return Tier(id: t.id, labelKey: t.labelKey, noteKey: t.noteKey, advice: advice)
+            }
+        }
         return tiers
     }
 

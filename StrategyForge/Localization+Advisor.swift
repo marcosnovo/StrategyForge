@@ -120,6 +120,24 @@ extension L10n {
         "advisor.ev.eventWords": ("reacts to something happening (a failure, new work arriving)",
                                   "reacciona a algo que ocurre (un fallo, trabajo nuevo que llega)"),
 
+        // MARK: Cross-provider picks
+        "advisor.providers.title": ("Provider mix", "Mezcla de proveedores"),
+        "advisor.providers.subtitle": (
+            "Each role runs on the best model you've connected — something no single vendor's CLI can do.",
+            "Cada rol corre en el mejor modelo que tengas conectado — algo que ningún CLI de un solo proveedor puede hacer."),
+        "advisor.provider.reason.reasoning": ("strongest reasoning to lead",
+                                              "mejor razonamiento para liderar"),
+        "advisor.provider.reason.coding": ("specialist at writing code",
+                                           "especialista en escribir código"),
+        "advisor.provider.reason.breadth": ("widest context to read & research",
+                                            "mayor contexto para leer e investigar"),
+        "advisor.provider.reason.speed": ("fast & cheap for parallel work",
+                                          "rápido y barato para trabajo en paralelo"),
+        "advisor.provider.reason.diversity": ("a second opinion from a different model family",
+                                              "un segundo par de ojos de otra familia de modelos"),
+        "advisor.provider.reason.onlyOne": ("the only capable provider connected for this role",
+                                            "el único proveedor capaz conectado para este rol"),
+
         // MARK: Model card
         "advisor.model.title": ("Recommended model", "Modelo recomendado"),
         "advisor.model.pricing": ("$%.0f in / $%.0f out per million tokens",
