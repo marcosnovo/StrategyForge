@@ -564,6 +564,10 @@ struct ParticleLabView: View {
                 .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1))
                 Divider()
 
+                // Wow-moment candidates to choose from (rich, in motion).
+                WowGalleryLabSection()
+                Divider()
+
                 // The Coral Assemble wow beat — replayable here.
                 CoralAssembleLabSection()
                 Divider()
