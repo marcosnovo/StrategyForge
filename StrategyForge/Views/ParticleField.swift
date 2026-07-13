@@ -564,6 +564,10 @@ struct ParticleLabView: View {
                 .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1))
                 Divider()
 
+                // The Coral Bloom wow beat — replayable here.
+                CoralBloomLabSection()
+                Divider()
+
                 // Variations of the CURRENT mark (the preferred direction). Top billing.
                 CoralMarkLabSection()
                 Divider()

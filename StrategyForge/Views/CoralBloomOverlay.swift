@@ -102,3 +102,41 @@ private enum CoordMath {
     static func cos(_ a: Double) -> CGFloat { CGFloat(Foundation.cos(a)) }
     static func sin(_ a: Double) -> CGFloat { CGFloat(Foundation.sin(a)) }
 }
+
+// MARK: - Labs preview
+
+/// LABS-ONLY: replay the Coral Bloom on demand so it's easy to review without
+/// finishing a real turn. Mounted in ParticleLabView.
+struct CoralBloomLabSection: View {
+    @State private var token = 0
+    @State private var milestone = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.l) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Coral Bloom — turn-completion wow").font(.sfDisplay)
+                Text("The ~1.8s coral-particle bloom that fires when an agent turn finishes. Milestone (every 25th turn) adds more dots + a teal accent. Honors Reduce Motion. Tap to replay.")
+                    .font(.sfCallout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: Space.l) {
+                stage(dark: false)
+                stage(dark: true)
+            }
+            HStack(spacing: Space.s) {
+                Button("Play bloom") { milestone = false; token += 1 }.buttonStyle(.moon)
+                Button("Play milestone") { milestone = true; token += 1 }.buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private func stage(dark: Bool) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: Theme.corner)
+                .fill(dark ? Color(red: 0.078, green: 0.102, blue: 0.118) : Theme.appBg)   // reef-ink / paper
+            CoralBloomOverlay(token: token, milestone: milestone)
+        }
+        .frame(width: 260, height: 200)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
+        .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+}
