@@ -116,6 +116,65 @@ enum GitHubCLI {
         }.value
     }
 
+    /// A skill discovered across public GitHub repos (community catalog).
+    struct RemoteSkill: Sendable, Hashable, Identifiable {
+        var owner: String, repo: String, path: String, slug: String
+        var stars: Int, pushedAt: String, defaultBranch: String
+        var id: String { "\(owner)/\(repo)/\(path)" }
+    }
+
+    /// Discover skills across public repos by CODE-searching for `SKILL.md` files
+    /// (needs auth — `gh` provides it), then ranking by the source repo's stars.
+    /// Code search naturally excludes "awesome-list" repos (they have no SKILL.md).
+    /// Returns [] when gh is missing/unauthenticated so the caller can fall back.
+    nonisolated static func searchCommunitySkills(limit: Int = 60) async -> [RemoteSkill] {
+        await Task.detached(priority: .userInitiated) {
+            guard let gh = ghPath() else { return [] }
+            let r = run(gh, ["api", "-X", "GET", "search/code",
+                             "-f", "q=filename:SKILL.md", "-F", "per_page=100"], cwd: nil)
+            guard r.ok, let data = r.out.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let items = obj["items"] as? [[String: Any]] else { return [] }
+            struct Hit { let owner: String, repo: String, path: String, slug: String }
+            var hits: [Hit] = []; var seen = Set<String>()
+            for it in items {
+                guard let path = it["path"] as? String, path.lowercased().hasSuffix("skill.md"),
+                      let repoObj = it["repository"] as? [String: Any],
+                      let full = repoObj["full_name"] as? String else { continue }
+                let parts = full.split(separator: "/"); guard parts.count == 2 else { continue }
+                let dir = (path as NSString).deletingLastPathComponent
+                // Skip the repo-root SKILL.md (spec/template), keep real skill folders.
+                guard !dir.isEmpty else { continue }
+                let slug = dir.split(separator: "/").last.map(String.init) ?? String(parts[1])
+                let key = "\(full)/\(dir)"
+                if seen.contains(key) { continue }; seen.insert(key)
+                hits.append(Hit(owner: String(parts[0]), repo: String(parts[1]), path: dir, slug: slug))
+            }
+            // Fetch stars + default branch per unique repo. Bounded to ~30 (each is a
+            // subprocess round-trip) to keep the one-time load snappy; repos beyond
+            // that are dropped rather than shown without a rank.
+            var meta: [String: (Int, String, String)] = [:]
+            // Preserve first-seen (search-relevance) order for the repo cap.
+            var repoOrder: [String] = []
+            for h in hits { let f = "\(h.owner)/\(h.repo)"; if !repoOrder.contains(f) { repoOrder.append(f) } }
+            for full in repoOrder.prefix(30) {
+                let rr = run(gh, ["api", "repos/\(full)"], cwd: nil)
+                if rr.ok, let d = rr.out.data(using: .utf8),
+                   let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] {
+                    meta[full] = ((o["stargazers_count"] as? Int) ?? 0,
+                                  (o["pushed_at"] as? String) ?? "",
+                                  (o["default_branch"] as? String) ?? "main")
+                }
+            }
+            let out = hits.compactMap { h -> RemoteSkill? in
+                guard let m = meta["\(h.owner)/\(h.repo)"] else { return nil }
+                return RemoteSkill(owner: h.owner, repo: h.repo, path: h.path, slug: h.slug,
+                                   stars: m.0, pushedAt: m.1, defaultBranch: m.2)
+            }.sorted { $0.stars > $1.stars }
+            return Array(out.prefix(limit))
+        }.value
+    }
+
     /// Run a subprocess in `cwd`, returning success + combined output.
     private static func run(_ path: String, _ args: [String], cwd: String?) -> (ok: Bool, out: String) {
         let p = Process()

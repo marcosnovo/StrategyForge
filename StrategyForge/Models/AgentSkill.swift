@@ -74,6 +74,9 @@ struct CuratedSkill: Identifiable, Hashable {
     let ref: String
     let path: String           // repo-relative folder holding SKILL.md
     var verified: Bool = true  // curated = vetted by Coral
+    /// GitHub stars of the source repo (community discovery) — an honest popularity
+    /// proxy; nil for the official/curated entries. NOT downloads (those don't exist).
+    var stars: Int? = nil
 
     /// Raw URL of the skill's SKILL.md.
     var skillMdURL: URL? {
