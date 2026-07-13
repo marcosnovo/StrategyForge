@@ -685,10 +685,14 @@ struct ChatView: View {
                 LazyVStack(alignment: .leading, spacing: Theme.messageSpacing) {
                     if vm.messages.isEmpty { emptyState }
                     ForEach(vm.messages) { message in
-                        bubble(message,
-                               isStreaming: vm.isRunning
-                                   && message.role == .assistant
-                                   && message.id == vm.messages.last?.id)
+                        // While a turn is starting, the assistant message is still
+                        // empty — the activityRow below is the single "working"
+                        // indicator, so don't also render an empty bubble with its
+                        // own spinner (that was the redundant top sphere).
+                        let streaming = vm.isRunning && message.role == .assistant
+                            && message.id == vm.messages.last?.id
+                        if !(streaming && message.text.isEmpty) {
+                        bubble(message, isStreaming: streaming)
                             .id(message.id)
                             // Extra breathing room above each new turn (user message),
                             // so a turn reads as a unit distinct from the previous reply.
@@ -698,6 +702,7 @@ struct ChatView: View {
                                 insertion: .opacity.combined(with: .offset(
                                     x: message.role == .user ? 20 : -12, y: 8)),
                                 removal: .opacity))
+                        }
                     }
                     if vm.isRunning {
                         activityRow.id("activity")
@@ -711,6 +716,12 @@ struct ChatView: View {
             }
             .onChange(of: vm.messages.last?.text) { scrollToBottom(proxy) }
             .onChange(of: vm.messages.count) { scrollToBottom(proxy) }
+            // Open a chat at its LAST message, not the top.
+            .onAppear {
+                if let last = vm.messages.last?.id {
+                    DispatchQueue.main.async { proxy.scrollTo(last, anchor: .bottom) }
+                }
+            }
             // Ambient aurora behind the empty canvas. ALWAYS mounted (never
             // structurally inserted/removed — the documented hang pattern);
             // once the conversation starts, intensity drops to 0 (the component
@@ -773,14 +784,20 @@ struct ChatView: View {
                 .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 4) {
                     // No bubble for the assistant — it writes directly on the ambient
-                    // background (only the user's messages are boxed). Keeps replies
-                    // feeling like the app is thinking onto the page, not into a card.
-                    MarkdownView(text: message.text)
+                    // background (only the user's messages are boxed). While streaming
+                    // we render PLAIN text (re-parsing Markdown on every token is what
+                    // made it feel choppy); the full Markdown renders once it settles.
+                    Group {
+                        if isStreaming {
+                            Text(message.text)
+                                .font(.sfBodyM).lineSpacing(Theme.bodyLineSpacing)
+                                .textSelection(.enabled)
+                        } else {
+                            MarkdownView(text: message.text)
+                        }
+                    }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 2)
-                        // While tokens stream in, a soft highlight sweeps the text
-                        // so the reply visibly feels alive. Off under Reduce Motion.
-                        .shimmer(isStreaming && !reduceMotion)
                         .contextMenu {
                             copyButton(message.text)
                             Button { regenerate(message) } label: {
@@ -1544,7 +1561,9 @@ struct ChatView: View {
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         let target: (any Hashable)? = vm.isRunning ? "activity" : vm.messages.last?.id
         guard let target else { return }
-        if reduceMotion {
+        // Animating the scroll on every streamed token stutters — follow instantly
+        // while streaming, animate only when a turn settles.
+        if reduceMotion || vm.isRunning {
             proxy.scrollTo(AnyHashable(target), anchor: .bottom)
         } else {
             withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(AnyHashable(target), anchor: .bottom) }
