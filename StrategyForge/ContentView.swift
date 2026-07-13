@@ -102,8 +102,13 @@ struct ContentView: View {
             // Main area: a provider's config in Services, the visual Team canvas in
             // Team, else the chat.
             if model.navSection == .services {
-                ProviderConfigView(provider: model.selectedService)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if let tool = model.selectedTool {
+                    ToolConfigView(tool: tool)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ProviderConfigView(provider: model.selectedService)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             } else if model.navSection == .team {
                 if let draft = model.draftTeamBinding {
                     // A draft is being configured → edit it, commit only on "Create".

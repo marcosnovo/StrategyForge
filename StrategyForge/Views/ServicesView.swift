@@ -28,8 +28,11 @@ struct ServicesListColumn: View {
             // ScrollView + LazyVStack (not List(selection:)) so the macOS system
             // selection block never paints over our soft .selectedRow treatment.
             ScrollView {
-                LazyVStack(spacing: 2) {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    groupHeader(model.t("services.group.ai"))
                     ForEach(AIProvider.allCases) { p in row(p) }
+                    groupHeader(model.t("services.group.tools")).padding(.top, Space.s)
+                    ForEach(AppModel.DevTool.allCases) { t in toolRow(t) }
                 }
                 .padding(.horizontal, Space.s).padding(.top, Space.xs)
             }
@@ -53,9 +56,44 @@ struct ServicesListColumn: View {
         }
         .padding(.vertical, 5).padding(.horizontal, Space.xs)
         .contentShape(Rectangle())
-        .onTapGesture { model.selectedService = p }
+        .onTapGesture { model.selectedService = p; model.selectedTool = nil }
+        .selectedRow(selected && model.selectedTool == nil, cornerRadius: 8)
+        .hoverTint(cornerRadius: 8)
+    }
+
+    private func groupHeader(_ title: String) -> some View {
+        Text(title).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
+            .padding(.horizontal, Space.xs).padding(.bottom, 2)
+    }
+
+    /// A developer-tool row (GitHub / Git) — status is resolved live.
+    private func toolRow(_ t: AppModel.DevTool) -> some View {
+        let selected = model.selectedTool == t
+        return HStack(spacing: Space.s) {
+            Group {
+                if t == .github { GitHubMark(size: 16) }
+                else { Image(systemName: "arrow.triangle.branch").font(.system(size: 15)) }
+            }
+            .foregroundStyle(.secondary).frame(width: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(t.displayName).font(.sfBodyM.weight(selected ? .semibold : .medium)).lineLimit(1)
+                toolStatus(t)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 5).padding(.horizontal, Space.xs)
+        .contentShape(Rectangle())
+        .onTapGesture { model.selectedTool = t }
         .selectedRow(selected, cornerRadius: 8)
         .hoverTint(cornerRadius: 8)
+    }
+
+    @ViewBuilder
+    private func toolStatus(_ t: AppModel.DevTool) -> some View {
+        let ok = t == .github ? GitHubCLI.isInstalled : CodeGit.isAvailable
+        Label(model.t(ok ? "provider.connected" : "provider.notFound"),
+              systemImage: ok ? "checkmark.circle.fill" : "xmark.circle")
+            .font(.sfCaption2).foregroundStyle(ok ? Theme.success : .secondary)
     }
 
     @ViewBuilder
@@ -303,5 +341,99 @@ struct ProviderConfigView: View {
         case .openai: return Binding(get: { model.settings.codexBinary }, set: { model.settings.codexBinary = $0 })
         case .gemini: return Binding(get: { model.settings.geminiBinary }, set: { model.settings.geminiBinary = $0 })
         }
+    }
+}
+
+/// Status + connect guidance for a developer TOOL (GitHub CLI / Git). These use the
+/// user's own CLI login (bring-your-own-auth), so we can't sign in for them — we
+/// surface status and the exact commands, mirroring the AI-provider panels.
+struct ToolConfigView: View {
+    @Environment(AppModel.self) private var model
+    let tool: AppModel.DevTool
+    @State private var authed: Bool? = nil
+    @State private var repoCount: Int? = nil
+
+    private var installed: Bool { tool == .github ? GitHubCLI.isInstalled : CodeGit.isAvailable }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.l) {
+                header
+                statusCard
+                connectCard
+            }
+            .padding(Space.xl).frame(maxWidth: 640, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: tool) { await refresh() }
+    }
+
+    private var header: some View {
+        HStack(spacing: Space.m) {
+            Group {
+                if tool == .github { GitHubMark(size: 34) }
+                else { Image(systemName: "arrow.triangle.branch").font(.system(size: 30)) }
+            }
+            .foregroundStyle(.primary).frame(width: 40, height: 40)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tool.displayName).font(.sfDisplay)
+                Text(model.t("tool.\(tool.rawValue).sub")).font(.sfCallout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var statusCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            toolStatusRow(model.t("tool.installed"), ok: installed)
+            if tool == .github, installed {
+                toolStatusRow(model.t("tool.authenticated"), ok: authed ?? false, pending: authed == nil)
+                if let n = repoCount {
+                    Text(model.t("tool.github.repos", n)).font(.sfCaption2).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(Space.l).frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    private func toolStatusRow(_ label: String, ok: Bool, pending: Bool = false) -> some View {
+        HStack {
+            Text(label).font(.sfCallout)
+            Spacer()
+            if pending { WorkingLogo(size: 14) }
+            else {
+                Label(model.t(ok ? "provider.connected" : "provider.notFound"),
+                      systemImage: ok ? "checkmark.circle.fill" : "xmark.circle")
+                    .font(.sfCaption2.weight(.medium)).foregroundStyle(ok ? Theme.success : .secondary)
+            }
+        }
+    }
+
+    private var connectCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text(model.t("tool.connect.title")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+            Text(model.t("tool.\(tool.rawValue).connect")).font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            HStack(spacing: Space.s) {
+                Button(model.t("tool.recheck")) { Task { await refresh() } }.controlSize(.small)
+                if let url = URL(string: tool == .github ? "https://cli.github.com" : "https://git-scm.com/downloads") {
+                    Link(model.t("tool.docs"), destination: url).controlSize(.small)
+                }
+            }
+        }
+        .padding(Space.l).frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    private func refresh() async {
+        guard tool == .github, GitHubCLI.isInstalled else { authed = installed ? true : false; return }
+        authed = nil; repoCount = nil
+        let ok = await GitHubCLI.isAuthenticated()
+        authed = ok
+        if ok { repoCount = await GitHubCLI.listRepos(limit: 100).count }
     }
 }

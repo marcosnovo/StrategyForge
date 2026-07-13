@@ -132,6 +132,17 @@ final class AppModel {
     }
     /// The service shown in the main area while in the Services section.
     var selectedService: AIProvider = .claude
+    /// A developer TOOL (GitHub/Git) selected in the Services section — when set, the
+    /// main area shows the tool's status/connect panel instead of an AI provider.
+    var selectedTool: DevTool? = nil
+
+    /// External developer tools the app relies on (bring-your-own-login CLIs), shown
+    /// alongside the AI providers in Connected Services so their status isn't buried.
+    enum DevTool: String, CaseIterable, Identifiable {
+        case github, git
+        var id: String { rawValue }
+        var displayName: String { self == .github ? "GitHub" : "Git" }
+    }
 
     // MARK: - UI layout state (restored across launches; see settings)
     var showSidebar = true
