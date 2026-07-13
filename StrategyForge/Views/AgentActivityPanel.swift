@@ -37,6 +37,9 @@ struct AgentActivityPanel: View {
     var previewStrategy: Strategy? = nil
     /// The name of the previewed option (Economy / Recommended / Max), for the label.
     var previewLabel: String? = nil
+    /// A one-line reason the recommendation is worth considering (the tier's tradeoff
+    /// note), shown in the selected-vs-recommended comparison.
+    var previewReason: String? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hoveredAgent: AgentFocus?
     @State private var showDiagram = true
@@ -91,6 +94,12 @@ struct AgentActivityPanel: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.m) {
+                    // When a recommendation is on screen over a team the user chose,
+                    // make the choice explicit: selected vs recommended, and why.
+                    if isPreviewing, !vm.config.strategyIsAuto,
+                       let rec = previewStrategy, rec.name != vm.config.strategy.name {
+                        selectedVsRecommendedCard(recommended: rec).panelCard()
+                    }
                     // Order per request: live usage, then orchestrator+diagram merged,
                     // then the (collapsed-by-default) team.
                     liveUsageCard.panelCard()
@@ -112,6 +121,44 @@ struct AgentActivityPanel: View {
         .background(.regularMaterial)
         // Weekly / 5-hour usage figures for the live meter (Claude local logs).
         .task { if model.claudeUsage == nil { await model.refreshUsage() } }
+    }
+
+    /// Selected (what the user picked) vs Recommended (what the advisor suggests),
+    /// side by side, with the one-line reason the recommendation may be better.
+    private func selectedVsRecommendedCard(recommended: Strategy) -> some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: Space.xs) {
+                Image(systemName: "arrow.triangle.swap").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                Text(model.t("activity.compare.title"))
+                    .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
+            }
+            HStack(alignment: .top, spacing: Space.s) {
+                compareColumn(tag: model.t("activity.compare.selected"), tint: Theme.teal,
+                              name: model.strategyDisplayName(vm.config.strategy),
+                              detail: model.t("activity.compare.roles", vm.config.strategy.roles.count))
+                Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(.secondary)
+                    .padding(.top, 14)
+                compareColumn(tag: (previewLabel ?? model.t("activity.compare.recommended")), tint: Theme.accent,
+                              name: model.strategyDisplayName(recommended),
+                              detail: model.t("activity.compare.roles", recommended.roles.count))
+            }
+            if let why = previewReason, !why.isEmpty {
+                Text(model.t("activity.compare.why", why)).font(.sfCaption2)
+                    .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func compareColumn(tag: String, tint: Color, name: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(tag.uppercased()).font(.system(size: 9, weight: .bold)).foregroundStyle(tint).tracking(0.5)
+            Text(name).font(.sfCaption2.weight(.semibold)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+            Text(detail).font(.sfCaption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Space.s)
+        .background(RoundedRectangle(cornerRadius: 8).fill(tint.opacity(0.08)))
     }
 
     // MARK: Orchestrator + diagram (merged card)

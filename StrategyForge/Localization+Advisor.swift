@@ -191,9 +191,17 @@ extension L10n {
         // MARK: Inline card (Advisor inside the chat)
         "advisor.inline.caption": ("Advisor", "Asesor"),
         "advisor.inline.applyTeam": ("Apply team", "Aplicar equipo"),
+        "advisor.inline.switchTeam": ("Switch to this", "Cambiar a este"),
+        "advisor.inline.youChose": ("You chose “%@” — here's what I'd recommend for this task:",
+                                    "Elegiste «%@» — esto es lo que recomendaría para esta tarea:"),
         "advisor.inline.createLoop": ("Create loop", "Crear bucle"),
         "advisor.inline.why": ("Why this?", "¿Por qué?"),
         "advisor.inline.dismiss": ("Dismiss", "Descartar"),
+        "activity.compare.title": ("Your choice vs recommended", "Tu elección vs recomendado"),
+        "activity.compare.selected": ("Selected", "Seleccionado"),
+        "activity.compare.recommended": ("Recommended", "Recomendado"),
+        "activity.compare.roles": ("%d roles", "%d roles"),
+        "activity.compare.why": ("Why the recommendation: %@.", "Por qué la recomendación: %@."),
         "chat.createLoop": ("Create a loop from this chat…", "Crear un bucle desde este chat…"),
     ]
 }

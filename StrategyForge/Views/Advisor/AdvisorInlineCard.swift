@@ -22,6 +22,10 @@ struct AdvisorInlineCard: View {
     let onDismiss: () -> Void
     /// Open System Settings so the user can turn on Apple Intelligence.
     var onEnableAI: () -> Void = {}
+    /// When the chat already has a team the user deliberately chose, its name — so the
+    /// card frames itself as "you chose X, here's what I'd recommend" instead of a
+    /// blank suggestion. nil when the team is still auto.
+    var currentTeamName: String? = nil
 
     @Environment(AppModel.self) private var model
     @State private var showWhy = false
@@ -33,6 +37,7 @@ struct AdvisorInlineCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             headerRow
+            if let team = currentTeamName { chosenTeamRow(team) }
             tierRow
             if let sel = selected { selectionRow(sel) }
         }
@@ -90,6 +95,18 @@ struct AdvisorInlineCard: View {
         }
     }
 
+    /// "You chose {team} — here's what I'd recommend for this task." Frames the card
+    /// as a comparison when the user already picked a team, rather than a blank pitch.
+    private func chosenTeamRow(_ team: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.teal)
+            Text(model.t("advisor.inline.youChose", team))
+                .font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     /// The three cost/quality options as selectable chips (label + per-run cost).
     private var tierRow: some View {
         HStack(spacing: Space.xs) {
@@ -128,7 +145,7 @@ struct AdvisorInlineCard: View {
             }
             .help(summary(sel))
             Spacer(minLength: Space.s)
-            Button(model.t("advisor.inline.applyTeam"), action: onApplyTeam)
+            Button(model.t(currentTeamName == nil ? "advisor.inline.applyTeam" : "advisor.inline.switchTeam"), action: onApplyTeam)
                 .buttonStyle(.moon).controlSize(.small)
             Button(model.t("advisor.inline.createLoop"), action: onCreateLoop)
                 .buttonStyle(.bordered).controlSize(.small)

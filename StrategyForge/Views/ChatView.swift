@@ -106,7 +106,8 @@ struct ChatView: View {
                     width: Binding(get: { CGFloat(activityW) }, set: { activityW = Double($0) }),
                     range: 260...560, sign: -1)
                 AgentActivityPanel(vm: vm, focus: $agentFocus,
-                                   previewStrategy: advisorPreviewStrategy, previewLabel: advisorPreviewLabel)
+                                   previewStrategy: advisorPreviewStrategy, previewLabel: advisorPreviewLabel,
+                                   previewReason: advisorPreviewReason)
                     .frame(width: CGFloat(activityW))
             }
             if showActivity, let focus = agentFocus {
@@ -306,7 +307,8 @@ struct ChatView: View {
             },
             onCreateLoop: { if let a = selectedTier?.advice { createLoop(from: a) } },
             onDismiss: { withAnimation { advisorDismissed = true } },
-            onEnableAI: { openAppleIntelligenceSettings() })
+            onEnableAI: { openAppleIntelligenceSettings() },
+            currentTeamName: config.strategyIsAuto ? nil : model.strategyDisplayName(config.strategy))
             .padding(.horizontal, Space.m)
             .padding(.top, Space.s)
     }
@@ -337,6 +339,13 @@ struct ChatView: View {
     private var advisorPreviewLabel: String? {
         guard advisorPreviewStrategy != nil, let tier = selectedTier else { return nil }
         return model.t(tier.labelKey)
+    }
+
+    /// The one-line tradeoff note for the recommendation, for the selected-vs-recommended
+    /// comparison in the activity panel.
+    private var advisorPreviewReason: String? {
+        guard advisorPreviewStrategy != nil, let tier = selectedTier else { return nil }
+        return model.t(tier.noteKey)
     }
 
     /// Open System Settings so the user can turn on Apple Intelligence (for smarter,
