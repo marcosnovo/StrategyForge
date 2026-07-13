@@ -27,6 +27,15 @@ extension L10n {
         "loop.empty.create": ("Create a loop", "Crear un bucle"),
         "loop.lastRun": ("Last run", "Última ejecución"),
 
+        // Checkpoints (non-destructive rewind of a run)
+        "loop.checkpoints": ("Checkpoints", "Puntos de control"),
+        "loop.checkpoint.iteration": ("Iteration %lld", "Iteración %lld"),
+        "loop.checkpoint.restore": ("Restore", "Restaurar"),
+        "loop.checkpoint.restore.confirm": ("Restore the project files to this checkpoint? Uncommitted work after it will be overwritten.",
+                                            "¿Restaurar los archivos del proyecto a este punto? El trabajo sin confirmar posterior se sobrescribirá."),
+        "loop.checkpoint.restored": ("Restored to iteration %lld.", "Restaurado a la iteración %lld."),
+        "loop.checkpoint.restoreFailed": ("Couldn't restore the checkpoint.", "No se pudo restaurar el punto de control."),
+
         // MARK: Run notifications / banners
         "banner.loopsCorrupt": ("Your saved loops couldn't be read. A backup was kept as “%@” in Application Support/Coral.",
                                 "No se pudieron leer tus bucles guardados. Se conservó una copia como «%@» en Application Support/Coral."),

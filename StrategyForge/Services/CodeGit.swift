@@ -117,6 +117,25 @@ enum CodeGit {
         return (num("insertion"), num("deletion"))
     }
 
+    /// A NON-destructive snapshot of the current working tree: `git stash create`
+    /// makes a dangling commit of all changes WITHOUT touching HEAD, the index or
+    /// the working tree. Returns its SHA, or nil if the tree is clean / it failed.
+    /// Used by loop checkpoints so a run can be rewound to any iteration.
+    nonisolated static func snapshot(repo: String) async -> String? {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return nil }
+            let r = runResult(git, ["-C", repo, "stash", "create"])
+            let sha = r.out.trimmingCharacters(in: .whitespacesAndNewlines)
+            return r.ok && !sha.isEmpty ? sha : nil
+        }.value
+    }
+
+    /// Restore tracked files to a snapshot SHA (`git checkout <sha> -- .`). Safe on
+    /// history (only overwrites working-tree files; never deletes or rewrites refs).
+    nonisolated static func restore(repo: String, sha: String) async -> Bool {
+        await runGit(repo, ["checkout", sha, "--", "."])
+    }
+
     /// Discard an agent's changes to one file (git checkout -- file).
     nonisolated static func revert(repo: String, file: String) async -> Bool {
         await runGit(repo, ["checkout", "--", file])

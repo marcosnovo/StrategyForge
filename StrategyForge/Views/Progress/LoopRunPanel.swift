@@ -16,6 +16,7 @@ struct LoopRunPanel: View {
     let binary: String
     let store: LoopStore
     @Environment(AppModel.self) private var model
+    @State private var confirmRestore: LoopCheckpoint?
 
     /// The store-owned controller for this plan. Lazy creation mutates only an
     /// @ObservationIgnored dict on the store — safe in body.
@@ -46,6 +47,52 @@ struct LoopRunPanel: View {
             .fill(Theme.cardBg))
         .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
             .strokeBorder(Theme.hairline.opacity(0.6), lineWidth: 1))
+        .confirmationDialog(model.t("loop.checkpoint.restore.confirm"),
+                            isPresented: Binding(get: { confirmRestore != nil },
+                                                 set: { if !$0 { confirmRestore = nil } }),
+                            titleVisibility: .visible) {
+            Button(model.t("loop.checkpoint.restore"), role: .destructive) {
+                if let cp = confirmRestore { restore(cp) }
+                confirmRestore = nil
+            }
+            Button(model.t("common.cancel"), role: .cancel) { confirmRestore = nil }
+        }
+    }
+
+    /// Non-destructive rewind points captured after each iteration's work.
+    @ViewBuilder
+    private var checkpointsBlock: some View {
+        if !controller.checkpoints.isEmpty {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                FieldLabel(text: model.t("loop.checkpoints"))
+                ForEach(controller.checkpoints.reversed()) { cp in
+                    HStack(spacing: Space.s) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 10)).foregroundStyle(Theme.accent)
+                        Text(model.t("loop.checkpoint.iteration", cp.iteration))
+                            .font(.sfCaption2.weight(.medium))
+                        Text(cp.at, format: .relative(presentation: .named))
+                            .font(.sfCaption2).foregroundStyle(.tertiary)
+                        Spacer(minLength: 0)
+                        Button(model.t("loop.checkpoint.restore")) { confirmRestore = cp }
+                            .buttonStyle(.bordered).controlSize(.small)
+                            .disabled(controller.isRunning || repoURL == nil)
+                    }
+                }
+            }
+            .padding(.top, Space.xs)
+        }
+    }
+
+    private func restore(_ cp: LoopCheckpoint) {
+        guard let repoURL else { return }
+        Task {
+            let didAccess = repoURL.startAccessingSecurityScopedResource()
+            defer { if didAccess { repoURL.stopAccessingSecurityScopedResource() } }
+            let ok = await CodeGit.restore(repo: repoURL.path, sha: cp.sha)
+            if ok { model.flashSuccess(model.t("loop.checkpoint.restored", cp.iteration)) }
+            else { model.flashFailure(model.t("loop.checkpoint.restoreFailed")) }
+        }
     }
 
     private var header: some View {
@@ -164,6 +211,7 @@ struct LoopRunPanel: View {
                 }
                 .buttonStyle(.bordered).controlSize(.small)
             }
+            checkpointsBlock
         }
     }
 
@@ -189,6 +237,7 @@ struct LoopRunPanel: View {
                 .buttonStyle(.moon).controlSize(.small)
                 .disabled(!canRun)
             }
+            checkpointsBlock
         }
     }
 

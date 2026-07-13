@@ -34,6 +34,9 @@ final class LoopRunController {
     var stage: LoopStage = .idle
     /// One entry per completed (verified) iteration: true = PASS, false = FAIL.
     var verdicts: [Bool] = []
+    /// Non-destructive git snapshots taken after each iteration's work, so a run can
+    /// be rewound to any point (see LoopRunPanel). Live for the current/last run.
+    var checkpoints: [LoopCheckpoint] = []
     /// The verifier's one-line reason for the last verdict (or the run's error).
     var lastVerdictReason: String?
     /// Localization key for the one-line status shown under the dots.
@@ -72,6 +75,7 @@ final class LoopRunController {
         iteration = 0
         stage = .act
         verdicts = []
+        checkpoints = []
         lastVerdictReason = nil
         statusKey = "progress.status.working"
         liveDetail = ""
@@ -121,6 +125,13 @@ final class LoopRunController {
                     return
                 }
                 if Task.isCancelled { break }
+
+                // Non-destructive checkpoint of the repo after this iteration's work,
+                // so the run can be rewound here later (git stash-create SHA).
+                if let sha = await CodeGit.snapshot(repo: repoURL.path) {
+                    checkpoints.append(LoopCheckpoint(iteration: turn, sha: sha,
+                                                      reason: nil, at: Date()))
+                }
 
                 guard plan.verifierEnabled else {
                     // Deliberate choice: with no independent verifier there is no

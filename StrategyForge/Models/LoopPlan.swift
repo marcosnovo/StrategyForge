@@ -71,6 +71,16 @@ struct LoopRunSummary: Codable, Hashable {
     var costUSD: Double
 }
 
+/// A non-destructive snapshot taken after a loop iteration's work (a `git stash
+/// create` SHA), so a run can be rewound to that point.
+struct LoopCheckpoint: Identifiable, Hashable {
+    let id = UUID()
+    let iteration: Int
+    let sha: String
+    let reason: String?
+    let at: Date
+}
+
 /// A saved loop: what "done" means, the guardrails, the worker/verifier pair,
 /// and the repo it targets. Persisted as JSON by `LoopStore`.
 struct LoopPlan: Codable, Identifiable, Hashable {
