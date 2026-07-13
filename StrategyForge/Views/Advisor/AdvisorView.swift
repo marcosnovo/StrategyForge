@@ -143,7 +143,10 @@ struct AdvisorView: View {
         let task = model.advisorTask
         thinking = true
         Task {
-            let advice = await AdvisorEngine.adviseWithAI(task: task)
+            // Provider-aware: when >1 CLI is connected, mix providers per role;
+            // otherwise this returns exactly the Claude-only advice.
+            let advice = await AdvisorEngine.adviseCrossProvider(
+                task: task, connected: model.connectedProviders)
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 model.advisorAdvice = advice
             }
@@ -158,8 +161,54 @@ struct AdvisorView: View {
         decisionCard(advice).staggeredAppear(index: 0)
         modelCard(advice).staggeredAppear(index: 1)
         strategyCard(advice).staggeredAppear(index: 2)
-        loopCard(advice).staggeredAppear(index: 3)
-        actionsRow(advice).staggeredAppear(index: 4)
+        if !advice.providerPicks.isEmpty {
+            providersCard(advice).staggeredAppear(index: 3)
+        }
+        loopCard(advice).staggeredAppear(index: 4)
+        actionsRow(advice).staggeredAppear(index: 5)
+    }
+
+    /// Cross-provider "why": one row per role showing the provider + model chosen and
+    /// the reason (strong reasoning, best coder, widest context, diversity…). Only
+    /// shown when >1 provider is connected and the engine actually mixed them.
+    private func providersCard(_ advice: AdvisorEngine.Advice) -> some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            SectionHeader("square.stack.3d.up.fill", model.t("advisor.providers.title"))
+            Text(model.t("advisor.providers.subtitle"))
+                .font(.sfCallout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: Space.s) {
+                ForEach(Array(advice.providerPicks.enumerated()), id: \.offset) { _, pick in
+                    HStack(alignment: .center, spacing: Space.s) {
+                        Image(systemName: pick.roleKind.icon)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(pick.roleKind.tint)
+                            .frame(width: 22, height: 22)
+                            .background(Circle().fill(pick.roleKind.tint.opacity(0.16)))
+                        Text(pick.roleName)
+                            .font(.sfCallout.weight(.medium))
+                            .frame(width: 96, alignment: .leading)
+                            .lineLimit(1)
+                        ProviderAvatar(provider: pick.provider, size: 20)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(pick.modelDisplayName)
+                                .font(.sfCallout.weight(.semibold))
+                            Text(model.t(pick.reasonKey))
+                                .font(.sfCaption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+        }
+        .card()
     }
 
     private func decisionCard(_ advice: AdvisorEngine.Advice) -> some View {
@@ -322,15 +371,25 @@ struct AdvisorView: View {
 
             Spacer()
 
-            Button {
-                copyLaunchCommand(advice)
-            } label: {
-                Label(model.t(copiedCommand ? "advisor.action.copied" : "advisor.action.copy"),
-                      systemImage: copiedCommand ? "checkmark" : "terminal")
+            // The terminal launch is `claude --model …` — it can only reproduce a
+            // Claude-only team. For a cross-provider recommendation it would silently
+            // run a Claude-only version, so hide it and point to the in-app run.
+            if advice.providerPicks.isEmpty {
+                Button {
+                    copyLaunchCommand(advice)
+                } label: {
+                    Label(model.t(copiedCommand ? "advisor.action.copied" : "advisor.action.copy"),
+                          systemImage: copiedCommand ? "checkmark" : "terminal")
+                }
+                .buttonStyle(.plain)
+                .font(.sfCaption2)
+                .foregroundStyle(.secondary)
+            } else {
+                Label(model.t("advisor.action.crossProviderNote"), systemImage: "sparkles")
+                    .font(.sfCaption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .buttonStyle(.plain)
-            .font(.sfCaption2)
-            .foregroundStyle(.secondary)
         }
     }
 

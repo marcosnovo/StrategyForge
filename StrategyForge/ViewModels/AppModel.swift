@@ -777,9 +777,10 @@ final class AppModel {
               configurations[idx0].strategyIsAuto,
               !task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         // On-device AI reshapes the team when Apple Intelligence is available (free,
-        // private); otherwise the deterministic engine. Re-find the index after the
-        // await in case the array changed while we were thinking.
-        let advice = await AdvisorEngine.adviseWithAI(task: task)
+        // private); otherwise the deterministic engine. When >1 provider CLI is
+        // connected, roles are also mixed across providers (Claude-only otherwise).
+        // Re-find the index after the await in case the array changed while thinking.
+        let advice = await AdvisorEngine.adviseCrossProvider(task: task, connected: connectedProviders)
         guard let i = configurations.firstIndex(where: { $0.id == id }),
               configurations[i].strategyIsAuto else { return nil }
         configurations[i].strategy = advice.strategy
@@ -1117,6 +1118,8 @@ final class AppModel {
         let vm = ChatViewModel(
             config: config,
             binary: settings.claudeBinary,
+            providerBinaries: Dictionary(uniqueKeysWithValues:
+                AIProvider.allCases.map { ($0, settings.binary(for: $0)) }),
             permissionMode: settings.chatAutonomy.permissionMode,
             persist: { [weak self] messages in self?.updateTranscript(id, messages) },
             onFirstUserMessage: { [weak self] text in self?.autoTitleIfNeeded(id, fromFirstMessage: text) },
