@@ -143,7 +143,16 @@ struct SkillsView: View {
                 Text(model.t("skills.noResults")).font(.sfCaption2)
                     .foregroundStyle(.tertiary).padding(.vertical, Space.s)
             }
-            ForEach(shown) { c in curatedRow(c) }
+            // Grouped by category, alphabetized, so it's easy to scan what's on offer.
+            let groups = Dictionary(grouping: shown, by: { $0.category })
+                .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+            ForEach(groups, id: \.key) { category, items in
+                Text(category).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
+                    .padding(.leading, Space.xs).padding(.top, Space.xs)
+                ForEach(items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) { c in
+                    curatedRow(c)
+                }
+            }
         }
         .padding(Space.s)
     }

@@ -756,7 +756,7 @@ enum L10n {
                               "Esta skill pide herramientas que ejecutan código en tu Mac. Coral solo escribe los archivos — el CLI los ejecuta cuando tú lo pidas. Revisa el manual antes de confiar en ella."),
         "skills.installedOk": ("Installed “%@”.", "Instalada «%@»."),
         "skills.installFailed": ("Couldn't install the skill.", "No se pudo instalar la skill."),
-        "skills.search": ("Search skills", "Buscar skills"),
+        "skills.search": ("Search by name or purpose", "Buscar por nombre o propósito"),
         "skills.kind.all": ("All", "Todas"),
         "skills.kind.knowledge": ("Knowledge", "Conocimiento"),
         "skills.kind.code": ("Code", "Código"),
