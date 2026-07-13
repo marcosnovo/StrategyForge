@@ -60,13 +60,21 @@ struct OnboardingView: View {
                 .staggeredAppear(index: 4)
 
             HStack {
-                Button(model.t("onboard.skip")) { dismiss() }
+                Button(model.t("onboard.skip")) {
+                    Analytics.log(.onboardingPathSelected(path: "skip"))
+                    Analytics.log(.onboardingSkipped)
+                    dismiss()
+                }
                 Spacer()
                 Button(model.t("onboard.browse")) {
+                    Analytics.log(.onboardingPathSelected(path: "browse"))
+                    Analytics.log(.onboardingCompleted)
                     dismiss()
                     onCreate()
                 }
                 Button {
+                    Analytics.log(.onboardingPathSelected(path: "describe"))
+                    Analytics.log(.onboardingCompleted)
                     dismiss()
                     onDescribeTask()
                 } label: {
@@ -83,6 +91,7 @@ struct OnboardingView: View {
         // Static ambient wash — always mounted (never inserted/removed with an
         // animation; see the TimelineView-over-material note in ChatView).
         .background(AuroraBackground(intensity: 0.9))
+        .task { Analytics.log(.onboardingStarted) }
     }
 
     private func step(_ number: Int, _ titleKey: String, _ descKey: String) -> some View {

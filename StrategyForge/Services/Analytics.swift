@@ -16,7 +16,7 @@ enum Analytics {
 
     static var isEnabled: Bool { UserDefaults.standard.bool(forKey: enabledKey) }
 
-    /// The events we care about for the H1/H2 funnels.
+    /// The events we care about for the activation / retention / monetization funnels.
     enum Event {
         case appLaunched
         case runStarted(provider: String, agents: Int, meta: Bool)
@@ -26,6 +26,22 @@ enum Analytics {
         case strategyImported(kind: String)    // "file" | "text" | "repo"
         case teamCreated(fromStrategy: String)
         case missionReportExported(kind: String)  // "markdown" | "image"
+        // Onboarding funnel
+        case onboardingStarted
+        case onboardingPathSelected(path: String) // "describe" | "browse" | "skip"
+        case onboardingCompleted
+        case onboardingSkipped
+        case repoSelected(sample: Bool)
+        /// The activation aha: .claude/agents + CLAUDE.md written into a repo.
+        case filesGenerated(provider: String, agents: Int)
+        // Monetization funnel (wired once the paywall exists; defined now so the
+        // dashboard schema is stable).
+        case proTeaserShown(surface: String)      // "post_run" | "test_bench" | …
+        case proTeaserClicked(surface: String)
+        case checkoutStarted(provider: String)    // "lemonsqueezy" | "paddle"
+        case licenseActivated
+        /// Pro-moat engagement: an A/B comparison of two runs.
+        case testbenchComparisonRun
 
         var name: String {
             switch self {
@@ -37,12 +53,25 @@ enum Analytics {
             case .strategyImported: return "strategy_imported"
             case .teamCreated: return "team_created"
             case .missionReportExported: return "mission_report_exported"
+            case .onboardingStarted: return "onboarding_started"
+            case .onboardingPathSelected: return "onboarding_path_selected"
+            case .onboardingCompleted: return "onboarding_completed"
+            case .onboardingSkipped: return "onboarding_skipped"
+            case .repoSelected: return "repo_selected"
+            case .filesGenerated: return "files_generated"
+            case .proTeaserShown: return "pro_teaser_shown"
+            case .proTeaserClicked: return "pro_teaser_clicked"
+            case .checkoutStarted: return "checkout_started"
+            case .licenseActivated: return "license_activated"
+            case .testbenchComparisonRun: return "testbench_comparison_run"
             }
         }
 
         var props: [String: String] {
             switch self {
-            case .appLaunched, .runCancelled:
+            case .appLaunched, .runCancelled, .onboardingStarted,
+                 .onboardingCompleted, .onboardingSkipped, .licenseActivated,
+                 .testbenchComparisonRun:
                 return [:]
             case .runStarted(let p, let a, let m):
                 return ["provider": p, "agents": "\(a)", "meta": "\(m)"]
@@ -52,6 +81,16 @@ enum Analytics {
                 return ["kind": k]
             case .teamCreated(let s):
                 return ["from_strategy": s]
+            case .onboardingPathSelected(let path):
+                return ["path": path]
+            case .repoSelected(let sample):
+                return ["sample": "\(sample)"]
+            case .filesGenerated(let p, let a):
+                return ["provider": p, "agents": "\(a)"]
+            case .proTeaserShown(let s), .proTeaserClicked(let s):
+                return ["surface": s]
+            case .checkoutStarted(let p):
+                return ["provider": p]
             }
         }
     }
