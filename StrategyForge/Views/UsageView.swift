@@ -119,7 +119,7 @@ struct UsageView: View {
                 Text(model.t("usage.noWeek")).font(.sfCaption2).foregroundStyle(.secondary)
             } else {
                 ForEach(Array(usage.weekByModel.enumerated()), id: \.element.id) { index, m in
-                    modelBar(m, total: usage.weekTokens)
+                    modelBar(m, total: usage.weekTokens, index: index)
                         .staggeredAppear(index: index + 1)
                 }
             }
@@ -129,8 +129,10 @@ struct UsageView: View {
         .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
     }
 
-    private func modelBar(_ m: ModelUsage, total: Int) -> some View {
+    private func modelBar(_ m: ModelUsage, total: Int, index: Int = 0) -> some View {
         let frac = total > 0 ? Double(m.tokens) / Double(total) : 0
+        // Top spend = coral (primary); supporting models = teal (secondary series).
+        let fill: Color = index == 0 ? Theme.accent : Theme.teal
         return VStack(spacing: 3) {
             HStack(spacing: Space.s) {
                 Text(m.model).font(.sfCaption2.weight(.medium))
@@ -145,7 +147,7 @@ struct UsageView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.hairline).frame(height: 7)
-                    Capsule().fill(Theme.primaryFill).frame(width: max(5, geo.size.width * frac), height: 7)
+                    Capsule().fill(fill).frame(width: max(5, geo.size.width * frac), height: 7)
                 }
             }
             .frame(height: 7)

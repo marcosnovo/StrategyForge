@@ -93,7 +93,9 @@ struct RoleSummaryChip: View {
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 3)
-        .background(Capsule().fill(Theme.cardBg).overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1)))
+        // Workers get a faint teal team wash (teal = agents); the orchestrator stays neutral.
+        .background(Capsule().fill(role.isOrchestrator ? Theme.cardBg : Theme.tealSoft)
+            .overlay(Capsule().strokeBorder(role.isOrchestrator ? Theme.hairline : Theme.tealEdge, lineWidth: 1)))
     }
 }
 

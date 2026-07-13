@@ -302,7 +302,7 @@ struct CollapsedSidebarRail: View {
             Button {
                 model.addConfiguration()
             } label: {
-                Image(systemName: "square.and.pencil").foregroundStyle(Theme.accent)
+                Image(systemName: "square.and.pencil").foregroundStyle(Theme.teal)   // secondary (primary lives in NavRail)
             }
             .buttonStyle(.borderless)
             .help(model.t("sidebar.new"))

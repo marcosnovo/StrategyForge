@@ -534,7 +534,7 @@ struct ChatView: View {
                             Label(model.t("chat.connectRepo"), systemImage: "folder.badge.plus")
                                 .font(.sfCaption2)
                         }
-                        .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                        .buttonStyle(.plain).foregroundStyle(Theme.teal)   // secondary action → teal
                         .help(model.t("chat.connectRepo.help"))
                     }
                 }
@@ -1012,7 +1012,7 @@ struct ChatView: View {
             Button { downloadFile(path) } label: {
                 Image(systemName: "arrow.down.circle").font(.system(size: 11))
             }
-            .buttonStyle(.plain).foregroundStyle(Theme.accent)
+            .buttonStyle(.plain).foregroundStyle(Theme.teal)   // secondary action → teal
             .help(model.t("chat.download"))
             .accessibilityLabel("\(model.t("chat.download")): \((path as NSString).lastPathComponent)")
         }

@@ -548,10 +548,15 @@ struct StrategyDiagramView: View {
             ctx.stroke(halo, with: .color(green.opacity(0.22 + 0.26 * pulse)), lineWidth: 5)
             ctx.stroke(shape, with: .color(green), lineWidth: 1.6)
         } else if node.isAccent {
-            // The top-tier node: a quiet coral-tinted card with a coral edge — no
-            // pulsing "powered" ring (that read as sci-fi lab UI).
-            ctx.fill(shape, with: .color(Theme.accentSoft))
-            ctx.stroke(shape, with: .color(palette.accent.opacity(0.85)), lineWidth: 1.4)
+            // Coral = the orchestrator (you-driven director); teal = a highlighted
+            // worker/subagent (the system's agents), so the two never read alike.
+            if node.isOrchestrator {
+                ctx.fill(shape, with: .color(Theme.accentSoft))
+                ctx.stroke(shape, with: .color(palette.accent.opacity(0.85)), lineWidth: 1.4)
+            } else {
+                ctx.fill(shape, with: .color(Theme.tealSoft))
+                ctx.stroke(shape, with: .color(Theme.teal.opacity(0.85)), lineWidth: 1.4)
+            }
         } else {
             ctx.fill(shape, with: .color(palette.surface))
             ctx.stroke(shape, with: .color(palette.border), lineWidth: 1)

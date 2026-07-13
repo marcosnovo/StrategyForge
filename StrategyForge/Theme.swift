@@ -33,6 +33,9 @@ enum Theme {
     /// The reef-water secondary: team agents, active/live state, secondary actions.
     static let teal       = Color(red: 0.078, green: 0.761, blue: 0.671)   // #14C2AB
     static let tealDeep   = Color(red: 0.047, green: 0.549, blue: 0.486)   // #0C8C7C
+    // Coral = user/brand/action. Teal = system/agents/secondary.
+    static let tealSoft   = Color(red: 0.078, green: 0.761, blue: 0.671).opacity(0.12)  // chip/worker washes
+    static let tealEdge   = Color(red: 0.078, green: 0.761, blue: 0.671).opacity(0.30)  // faint worker borders
 
     /// Accent = coral. Small text/icon tints resolve a hair deeper on light ground.
     static let accent = Color(
