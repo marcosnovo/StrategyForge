@@ -98,16 +98,13 @@ struct CLIOneShotRunner: OneShotRunner {
             a.append(contentsOf: ["-p", prompt])
             return (a, .claudeJSON)
         case .openai:
-            // Codex CLI, non-interactive: `codex exec --model <id> "<prompt>"`.
-            // --skip-git-repo-check lets it run outside a git repo (Codex refuses
-            // otherwise: "Not inside a trusted directory…"). Flags precede the prompt.
-            var a = ["exec", "--skip-git-repo-check"]
-            // `gpt-5-codex` is API-only and errors with a ChatGPT-account login, so
-            // fall back to gpt-5 (covers any strategy still pinned to the old slug).
-            let m = model == "gpt-5-codex" ? "gpt-5" : model
-            if !m.isEmpty { a.append(contentsOf: ["--model", m]) }
-            a.append(prompt)
-            return (a, .plainText)
+            // Codex CLI, non-interactive: `codex exec --skip-git-repo-check "<prompt>"`.
+            // We deliberately DON'T pass --model: with a ChatGPT (subscription) login
+            // Codex rejects an explicit model ("… not supported when using Codex with
+            // a ChatGPT account", for gpt-5-codex AND gpt-5) — the account is tied to
+            // its own default model, which the CLI selects when --model is omitted.
+            // --skip-git-repo-check lets it run outside a git repo. Flags precede prompt.
+            return (["exec", "--skip-git-repo-check", prompt], .plainText)
         case .gemini:
             // Gemini CLI, non-interactive: `gemini -m <id> -p "<prompt>"`.
             var a: [String] = []
