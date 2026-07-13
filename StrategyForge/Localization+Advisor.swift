@@ -184,6 +184,9 @@ extension L10n {
         "advisor.action.loop": ("Create loop from this", "Crear un bucle con esto"),
         "advisor.action.copy": ("Copy launch command", "Copiar comando de arranque"),
         "advisor.action.copied": ("Copied", "Copiado"),
+        "advisor.action.crossProviderNote": (
+            "Cross-provider teams run in a new chat — the terminal launch is Claude-only.",
+            "Los equipos multi-proveedor se ejecutan en un chat — el lanzamiento en terminal es solo-Claude."),
 
         // MARK: Inline card (Advisor inside the chat)
         "advisor.inline.caption": ("Advisor", "Asesor"),

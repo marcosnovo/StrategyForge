@@ -1079,6 +1079,8 @@ final class AppModel {
         let vm = ChatViewModel(
             config: config,
             binary: settings.claudeBinary,
+            providerBinaries: Dictionary(uniqueKeysWithValues:
+                AIProvider.allCases.map { ($0, settings.binary(for: $0)) }),
             permissionMode: settings.chatAutonomy.permissionMode,
             persist: { [weak self] messages in self?.updateTranscript(id, messages) },
             onFirstUserMessage: { [weak self] text in self?.autoTitleIfNeeded(id, fromFirstMessage: text) },

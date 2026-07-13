@@ -77,6 +77,10 @@ final class ChatViewModel {
     /// AppModel refreshes it on lookup; views must not write.
     var config: Configuration
     private let binary: String
+    /// Configured CLI binaries per provider (from AppSettings), so a cross-provider
+    /// meta run can resolve Codex/Gemini via the same paths that marked them
+    /// connected. Empty in previews → the meta run uses just the Claude binary.
+    private let providerBinaries: [AIProvider: String]
 
     var messages: [ChatMessage] = []
     /// Tools the agent used during the current turn (shown as a status line).
@@ -152,6 +156,7 @@ final class ChatViewModel {
 
     init(config: Configuration,
          binary: String,
+         providerBinaries: [AIProvider: String] = [:],
          permissionMode: String = "acceptEdits",
          persist: @escaping ([ChatMessage]) -> Void = { _ in },
          onFirstUserMessage: @escaping (String) -> Void = { _ in },
@@ -160,6 +165,7 @@ final class ChatViewModel {
          persistUsage: @escaping (Int, Double) -> Void = { _, _ in }) {
         self.config = config
         self.binary = binary
+        self.providerBinaries = providerBinaries
         self.permissionMode = permissionMode
         self.persist = persist
         self.onFirstUserMessage = onFirstUserMessage
@@ -445,7 +451,12 @@ final class ChatViewModel {
     /// and synthesizes a final answer. Events are bridged to an ordered stream so
     /// UI state mutates on the main actor.
     private func runMetaTurn(task: String, repo: String, assistantIndex: Int) async {
-        let runner = CLIOneShotRunner(binaries: [.claude: binary], permissionMode: permissionMode)
+        // Give the runner every configured provider binary (not just Claude), so a
+        // Codex/Gemini role resolves via the same path that marked it connected —
+        // otherwise the first mixed-provider turn fails with "CLI isn't installed".
+        var binaries = providerBinaries
+        binaries[.claude] = binary
+        let runner = CLIOneShotRunner(binaries: binaries, permissionMode: permissionMode)
         let strategy = config.strategy
         let stream = AsyncStream<MetaEvent> { cont in
             let task = Task.detached {

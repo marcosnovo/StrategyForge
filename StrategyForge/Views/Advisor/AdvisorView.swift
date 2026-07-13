@@ -371,15 +371,25 @@ struct AdvisorView: View {
 
             Spacer()
 
-            Button {
-                copyLaunchCommand(advice)
-            } label: {
-                Label(model.t(copiedCommand ? "advisor.action.copied" : "advisor.action.copy"),
-                      systemImage: copiedCommand ? "checkmark" : "terminal")
+            // The terminal launch is `claude --model …` — it can only reproduce a
+            // Claude-only team. For a cross-provider recommendation it would silently
+            // run a Claude-only version, so hide it and point to the in-app run.
+            if advice.providerPicks.isEmpty {
+                Button {
+                    copyLaunchCommand(advice)
+                } label: {
+                    Label(model.t(copiedCommand ? "advisor.action.copied" : "advisor.action.copy"),
+                          systemImage: copiedCommand ? "checkmark" : "terminal")
+                }
+                .buttonStyle(.plain)
+                .font(.sfCaption2)
+                .foregroundStyle(.secondary)
+            } else {
+                Label(model.t("advisor.action.crossProviderNote"), systemImage: "sparkles")
+                    .font(.sfCaption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .buttonStyle(.plain)
-            .font(.sfCaption2)
-            .foregroundStyle(.secondary)
         }
     }
 
