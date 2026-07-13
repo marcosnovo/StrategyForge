@@ -72,6 +72,35 @@ enum GitHubCLI {
         }.value
     }
 
+    /// A GitHub repository the signed-in user can open (for the Code launcher list).
+    struct RepoRef: Sendable, Hashable, Identifiable {
+        var nameWithOwner: String
+        var description: String
+        var isPrivate: Bool
+        var url: String
+        var id: String { nameWithOwner }
+        var name: String { nameWithOwner.split(separator: "/").last.map(String.init) ?? nameWithOwner }
+    }
+
+    /// The signed-in user's repositories (newest first), via `gh repo list`. Empty
+    /// when gh is missing/unauthenticated — the caller shows the manual clone field.
+    nonisolated static func listRepos(limit: Int = 50) async -> [RepoRef] {
+        await Task.detached(priority: .userInitiated) {
+            guard let gh = ghPath() else { return [] }
+            let r = run(gh, ["repo", "list", "--limit", "\(limit)",
+                             "--json", "nameWithOwner,description,isPrivate,url"], cwd: nil)
+            guard r.ok, let data = r.out.data(using: .utf8),
+                  let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+            return arr.compactMap { d -> RepoRef? in
+                guard let nwo = d["nameWithOwner"] as? String, !nwo.isEmpty else { return nil }
+                return RepoRef(nameWithOwner: nwo,
+                               description: (d["description"] as? String) ?? "",
+                               isPrivate: (d["isPrivate"] as? Bool) ?? false,
+                               url: (d["url"] as? String) ?? "https://github.com/\(nwo)")
+            }
+        }.value
+    }
+
     /// Run a subprocess in `cwd`, returning success + combined output.
     private static func run(_ path: String, _ args: [String], cwd: String?) -> (ok: Bool, out: String) {
         let p = Process()

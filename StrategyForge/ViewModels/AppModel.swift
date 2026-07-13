@@ -1151,8 +1151,24 @@ final class AppModel {
         liveRepoURLs[config.id] = repoURL
         openInCodeMode = config.id
         UserDefaults.standard.set(repoURL.path, forKey: "code.lastRepo")
+        recordRecentRepo(repoURL.path)
         navSection = .chats
         save()
+    }
+
+    /// Push a repo path onto the recent-repos list (newest first, deduped, capped).
+    func recordRecentRepo(_ path: String) {
+        var list = (UserDefaults.standard.array(forKey: "code.recentRepos") as? [String]) ?? []
+        list.removeAll { $0 == path }
+        list.insert(path, at: 0)
+        UserDefaults.standard.set(Array(list.prefix(12)), forKey: "code.recentRepos")
+    }
+
+    /// Recently opened repos that still exist on disk (for the Code launcher list).
+    var recentRepoPaths: [String] {
+        let list = (UserDefaults.standard.array(forKey: "code.recentRepos") as? [String]) ?? []
+        var seen = Set<String>()
+        return list.filter { FileManager.default.fileExists(atPath: $0) && seen.insert($0).inserted }
     }
 
     /// Clone `url` into the default repos folder, then open it in Code Mode.

@@ -15,15 +15,22 @@ struct CodeLauncherView: View {
     @AppStorage("code.lastRepo") private var lastRepo = ""
     @State private var cloneURL = ""
     @State private var cloning = false
+    @State private var ghRepos: [GitHubCLI.RepoRef] = []
+    @State private var loadingRepos = false
+
+    private var recentPaths: [String] { model.recentRepoPaths.filter { $0 != lastRepo } }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
                 hero
                 if !lastRepo.isEmpty, FileManager.default.fileExists(atPath: lastRepo) { resumeCard }
-                // Open a LOCAL folder first — that's the Claude-Code habit (work on a
-                // checkout you already have, nothing is cloned). Clone is the shortcut
-                // for when you don't have it locally yet.
+                if !recentPaths.isEmpty { recentCard }
+                // Your GitHub repos, listed to pick from (like Claude Code) — clones on
+                // choose. Falls back to the manual URL field below if gh isn't signed in.
+                if loadingRepos || !ghRepos.isEmpty { githubReposCard }
+                // Open a LOCAL folder — the Claude-Code habit (work on a checkout you
+                // already have, nothing is cloned).
                 pickCard
                 cloneCard
                 credentialsNote
@@ -35,6 +42,89 @@ struct CodeLauncherView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
+        .task { await loadRepos() }
+    }
+
+    // MARK: Recent repos
+
+    private var recentCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            SectionHeader("clock.arrow.circlepath", model.t("code.recent.title"),
+                          subtitle: model.t("code.recent.subtitle"))
+            ForEach(recentPaths, id: \.self) { path in
+                Button { model.openCodeChat(repoURL: URL(fileURLWithPath: path)) } label: {
+                    repoRow(icon: "folder.fill",
+                            title: (path as NSString).lastPathComponent,
+                            subtitle: prettyPath(path), badge: nil)
+                }
+                .buttonStyle(.plain).hoverLift()
+            }
+        }
+        .card()
+    }
+
+    // MARK: My GitHub repos
+
+    private var githubReposCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            SectionHeader("cloud", model.t("code.myRepos.title"), subtitle: model.t("code.myRepos.subtitle"))
+            if loadingRepos {
+                HStack(spacing: Space.s) {
+                    WorkingLogo(size: 16); Text(model.t("code.myRepos.loading")).font(.sfCaption2).foregroundStyle(.secondary)
+                }
+                .padding(.vertical, Space.xs)
+            } else {
+                ForEach(ghRepos) { repo in
+                    Button {
+                        cloning = true
+                        Task { await model.cloneAndOpenCodeChat(url: repo.url); cloning = false }
+                    } label: {
+                        repoRow(icon: repo.isPrivate ? "lock.fill" : "globe",
+                                title: repo.nameWithOwner,
+                                subtitle: repo.description.isEmpty ? nil : repo.description,
+                                badge: repo.isPrivate ? model.t("code.myRepos.private") : nil)
+                    }
+                    .buttonStyle(.plain).hoverLift()
+                    .disabled(cloning)
+                }
+            }
+        }
+        .card()
+    }
+
+    /// One tappable repo row (recent or GitHub): icon + name + subtitle + chevron.
+    private func repoRow(icon: String, title: String, subtitle: String?, badge: String?) -> some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: icon).font(.system(size: 14)).foregroundStyle(Theme.accent).frame(width: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.sfCallout.weight(.medium)).lineLimit(1).truncationMode(.middle)
+                if let subtitle {
+                    Text(subtitle).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                }
+            }
+            Spacer(minLength: Space.s)
+            if let badge {
+                Text(badge).font(.sfCaption2).foregroundStyle(.secondary)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.insetBg))
+            }
+            Image(systemName: "arrow.right").font(.system(size: 11)).foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 6).padding(.horizontal, Space.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private func prettyPath(_ path: String) -> String {
+        let home = NSHomeDirectory()
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+    }
+
+    private func loadRepos() async {
+        guard ghRepos.isEmpty, !loadingRepos else { return }
+        loadingRepos = true
+        ghRepos = await GitHubCLI.listRepos()
+        loadingRepos = false
     }
 
     // MARK: Hero
