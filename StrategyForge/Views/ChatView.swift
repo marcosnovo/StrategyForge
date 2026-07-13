@@ -1074,9 +1074,15 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            if branchStat != nil { branchBar }
-            if !slashMatches.isEmpty { slashPopover }
-            if !mentionMatches.isEmpty { mentionPopover }
+            if branchStat != nil {
+                branchBar.transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            if !slashMatches.isEmpty {
+                slashPopover.transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            if !mentionMatches.isEmpty {
+                mentionPopover.transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
             if !vm.attachments.isEmpty { attachmentChips }
             HStack(spacing: Space.s) {
             // Attach files for Claude to review.
@@ -1133,6 +1139,9 @@ struct ChatView: View {
             }
             composerFooter
         }
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: mentionMatches.count)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: slashMatches.count)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: branchStat)
         .padding(Space.m)
         .background(.bar)
         .sensoryFeedback(.impact(weight: .medium), trigger: sendPulse)
