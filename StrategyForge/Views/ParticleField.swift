@@ -547,6 +547,10 @@ struct ParticleLabView: View {
                 IdentityLabSection()
                 Divider()
 
+                // Sphere-logo variations (art-director workflow, review-only).
+                SphereLogoLabSection()
+                Divider()
+
                 Text("Brand — thinking").font(.sfCardTitle)
                 LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
                     demo("CoralThinkingSpinner", "The coral mark builds from dots · alive") {
