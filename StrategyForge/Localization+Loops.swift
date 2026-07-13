@@ -34,6 +34,13 @@ extension L10n {
         "loop.schedule.on": ("Scheduled — running in the background.", "Programado — ejecutándose en segundo plano."),
         "loop.schedule.enabled": ("Scheduled to run every %lld min.", "Programado para ejecutarse cada %lld min."),
         "loop.schedule.disabled": ("Schedule turned off.", "Horario desactivado."),
+        "loop.schedule.lastError": ("The last background run reported errors — the sign-in may have expired.",
+                                    "La última ejecución en segundo plano dio errores — puede que la sesión haya caducado."),
+        "loop.schedule.viewLog": ("View log", "Ver registro"),
+        "loop.schedule.verify": ("Verify sign-in", "Verificar sesión"),
+        "loop.schedule.verifying": ("Checking…", "Comprobando…"),
+        "loop.schedule.signedIn": ("Sign-in OK", "Sesión OK"),
+        "loop.schedule.signInExpired": ("Sign-in failed — reconnect", "Sesión caducada — reconecta"),
 
         // Checkpoints (non-destructive rewind of a run)
         "loop.checkpoints": ("Checkpoints", "Puntos de control"),

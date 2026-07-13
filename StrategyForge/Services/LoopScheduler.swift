@@ -43,9 +43,15 @@ enum LoopScheduler {
         guard FileManager.default.fileExists(atPath: repoURL.path, isDirectory: &isDir), isDir.boolValue else {
             return "The loop's folder is missing — pick it again before scheduling."
         }
-        // Make sure loop.sh (and the charter files) are present and current.
+        // CRITICAL for unattended runs: bake the CLI's ABSOLUTE path into loop.sh so
+        // the job never depends on launchd's minimal PATH finding `claude`. We resolve
+        // it now (login shell + known install dirs); if it can't be found we refuse to
+        // schedule rather than create a job that would silently no-op.
+        guard let absoluteBinary = ClaudeRunner.resolveBinary(binary) else {
+            return "Couldn't find the \(binary) CLI to schedule. Connect it first, then try again."
+        }
         do {
-            _ = try LoopWriter(repoURL: repoURL, binary: binary).write(plan: plan)
+            _ = try LoopWriter(repoURL: repoURL, binary: absoluteBinary).write(plan: plan)
         } catch {
             return "Couldn't write the loop files: \(error.localizedDescription)"
         }
@@ -96,6 +102,19 @@ enum LoopScheduler {
         _ = launchctl(["bootout", "gui/\(getuid())/\(label)"])
         _ = launchctl(["unload", "-w", url.path])
         try? FileManager.default.removeItem(at: url)
+    }
+
+    // MARK: - Health of the last background run
+
+    static func outLogPath(for id: UUID) -> String { "/tmp/\(label(for: id)).out" }
+    static func errLogPath(for id: UUID) -> String { "/tmp/\(label(for: id)).err" }
+
+    /// Tail of the last scheduled run's stderr, if it wrote anything — so a silent
+    /// background failure (e.g. an expired provider sign-in) becomes visible.
+    static func lastErrorLog(for id: UUID) -> String? {
+        guard let s = try? String(contentsOfFile: errLogPath(for: id), encoding: .utf8) else { return nil }
+        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : String(trimmed.suffix(4000))
     }
 
     // MARK: - Helpers

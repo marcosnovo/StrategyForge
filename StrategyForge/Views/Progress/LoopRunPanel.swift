@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct LoopRunPanel: View {
     let plan: LoopPlan
@@ -18,6 +19,9 @@ struct LoopRunPanel: View {
     @Environment(AppModel.self) private var model
     @State private var confirmRestore: LoopCheckpoint?
     @State private var scheduled = false
+    @State private var lastScheduleError: String?
+    @State private var authCheck: AuthCheck = .idle
+    private enum AuthCheck: Equatable { case idle, checking, ok, failed }
 
     /// The store-owned controller for this plan. Lazy creation mutates only an
     /// @ObservationIgnored dict on the store — safe in body.
@@ -148,28 +152,91 @@ struct LoopRunPanel: View {
                 .toggleStyle(.switch)
                 if scheduled {
                     hint("clock.badge.checkmark", model.t("loop.schedule.on"), color: Theme.success)
+                    // Surface a silent background failure (e.g. an expired sign-in)
+                    // by reading the last run's stderr, and let the user verify auth.
+                    if lastScheduleError != nil {
+                        hint("exclamationmark.triangle.fill", model.t("loop.schedule.lastError"),
+                             color: Theme.warning)
+                    }
+                    HStack(spacing: Space.s) {
+                        verifyButton
+                        if lastScheduleError != nil {
+                            Button(model.t("loop.schedule.viewLog")) {
+                                NSWorkspace.shared.open(URL(fileURLWithPath: LoopScheduler.errLogPath(for: plan.id)))
+                            }
+                            .buttonStyle(.bordered).controlSize(.small)
+                        }
+                    }
                 }
             }
             .padding(.top, Space.xs)
+            .onAppear { lastScheduleError = LoopScheduler.lastErrorLog(for: plan.id) }
+        }
+    }
+
+    /// One-shot auth health check — the honest way to tell if a scheduled run would
+    /// fail because the provider sign-in has expired.
+    @ViewBuilder
+    private var verifyButton: some View {
+        Button { verifySignIn() } label: {
+            switch authCheck {
+            case .checking:
+                HStack(spacing: 6) { WorkingLogo(size: 13); Text(model.t("loop.schedule.verifying")) }
+            case .ok:
+                Label(model.t("loop.schedule.signedIn"), systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(Theme.success)
+            case .failed:
+                Label(model.t("loop.schedule.signInExpired"), systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Theme.warning)
+            case .idle:
+                Text(model.t("loop.schedule.verify"))
+            }
+        }
+        .buttonStyle(.bordered).controlSize(.small)
+        .disabled(authCheck == .checking)
+    }
+
+    private func verifySignIn() {
+        authCheck = .checking
+        let runner = CLIOneShotRunner(binaries: [.claude: binary])
+        let modelID = AIProvider.claude.models.first?.id ?? plan.workerModel.rawValue
+        Task {
+            do {
+                _ = try await runner.run(prompt: "Reply with OK.", provider: .claude,
+                                         model: modelID, cwd: repoURL?.path)
+                authCheck = .ok
+            } catch {
+                authCheck = .failed
+            }
         }
     }
 
     private func setSchedule(_ on: Bool) {
         if on {
             guard let repoURL else { return }
-            let didAccess = repoURL.startAccessingSecurityScopedResource()
-            defer { if didAccess { repoURL.stopAccessingSecurityScopedResource() } }
-            if let err = LoopScheduler.enable(plan: plan, repoURL: repoURL,
-                                              binary: binary, intervalMinutes: plan.intervalMinutes) {
-                model.flashFailure(err); scheduled = false
-            } else {
-                scheduled = true
-                model.flashSuccess(model.t("loop.schedule.enabled", plan.intervalMinutes))
+            Task {
+                let didAccess = repoURL.startAccessingSecurityScopedResource()
+                defer { if didAccess { repoURL.stopAccessingSecurityScopedResource() } }
+                // resolveBinary + launchctl run off the main actor (login shell is slow).
+                let err = LoopScheduler.enable(plan: plan, repoURL: repoURL,
+                                               binary: binary, intervalMinutes: plan.intervalMinutes)
+                await MainActor.run {
+                    if let err { model.flashFailure(err); scheduled = false }
+                    else {
+                        scheduled = true
+                        lastScheduleError = nil
+                        model.flashSuccess(model.t("loop.schedule.enabled", plan.intervalMinutes))
+                    }
+                }
             }
         } else {
-            LoopScheduler.disable(plan.id)
-            scheduled = false
-            model.flashSuccess(model.t("loop.schedule.disabled"))
+            Task {
+                LoopScheduler.disable(plan.id)
+                await MainActor.run {
+                    scheduled = false
+                    model.flashSuccess(model.t("loop.schedule.disabled"))
+                }
+            }
         }
     }
 
