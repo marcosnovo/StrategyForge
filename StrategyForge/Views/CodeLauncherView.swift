@@ -17,8 +17,22 @@ struct CodeLauncherView: View {
     @State private var cloning = false
     @State private var ghRepos: [GitHubCLI.RepoRef] = []
     @State private var loadingRepos = false
+    @State private var repoQuery = ""
+    @State private var newRepoName = ""
+    @State private var newRepoPrivate = true
+    @State private var creatingRepo = false
 
     private var recentPaths: [String] { model.recentRepoPaths.filter { $0 != lastRepo } }
+
+    /// GitHub repos filtered by the search box; capped when not searching so a big
+    /// account doesn't flood the launcher.
+    private var filteredRepos: [GitHubCLI.RepoRef] {
+        let q = repoQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return Array(ghRepos.prefix(8)) }
+        return ghRepos.filter {
+            $0.nameWithOwner.lowercased().contains(q) || $0.description.lowercased().contains(q)
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -29,6 +43,8 @@ struct CodeLauncherView: View {
                 // Your GitHub repos, listed to pick from (like Claude Code) — clones on
                 // choose. Falls back to the manual URL field below if gh isn't signed in.
                 if loadingRepos || !ghRepos.isEmpty { githubReposCard }
+                // Start something brand-new on GitHub without leaving the app.
+                createRepoCard
                 // Open a LOCAL folder — the Claude-Code habit (work on a checkout you
                 // already have, nothing is cloned).
                 pickCard
@@ -74,7 +90,18 @@ struct CodeLauncherView: View {
                 }
                 .padding(.vertical, Space.xs)
             } else {
-                ForEach(ghRepos) { repo in
+                // Search so a large account isn't an endless scroll (only shown when
+                // there's enough to warrant it).
+                if ghRepos.count > 8 {
+                    HStack(spacing: Space.xs) {
+                        Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+                        TextField(model.t("code.myRepos.search"), text: $repoQuery)
+                            .textFieldStyle(.plain)
+                    }
+                    .padding(.horizontal, Space.s).padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+                }
+                ForEach(filteredRepos) { repo in
                     Button {
                         cloning = true
                         Task { await model.cloneAndOpenCodeChat(url: repo.url); cloning = false }
@@ -87,9 +114,49 @@ struct CodeLauncherView: View {
                     .buttonStyle(.plain).hoverLift()
                     .disabled(cloning)
                 }
+                if repoQuery.trimmingCharacters(in: .whitespaces).isEmpty, ghRepos.count > filteredRepos.count {
+                    Text(model.t("code.myRepos.more", ghRepos.count - filteredRepos.count))
+                        .font(.sfCaption2).foregroundStyle(.tertiary).padding(.leading, Space.s)
+                }
             }
         }
         .card()
+    }
+
+    /// Create a brand-new GitHub repo and open it — no trip to github.com.
+    private var createRepoCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            SectionHeader("plus.rectangle.on.folder", model.t("code.newRepo.title"),
+                          subtitle: model.t("code.newRepo.subtitle"))
+            HStack(spacing: Space.s) {
+                TextField(model.t("code.newRepo.name"), text: $newRepoName)
+                    .textFieldStyle(.roundedBorder).font(.sfCode).disabled(creatingRepo)
+                    .onSubmit(createRepo)
+                Toggle(isOn: $newRepoPrivate) { Text(model.t("code.newRepo.private")) }
+                    .toggleStyle(.checkbox).fixedSize()
+                Button(action: createRepo) {
+                    if creatingRepo {
+                        HStack(spacing: Space.s) { WorkingLogo(size: 15, color: Theme.onAccent); Text(model.t("code.newRepo.creating")) }
+                    } else {
+                        Label(model.t("code.newRepo.action"), systemImage: "plus")
+                    }
+                }
+                .buttonStyle(.moon)
+                .disabled(creatingRepo || newRepoName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .card()
+    }
+
+    private func createRepo() {
+        let name = newRepoName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, !creatingRepo else { return }
+        creatingRepo = true
+        Task {
+            await model.createAndOpenGitHubRepo(name: name, isPrivate: newRepoPrivate)
+            newRepoName = ""
+            creatingRepo = false
+        }
     }
 
     /// One tappable repo row (recent or GitHub): icon + name + subtitle + chevron.

@@ -1177,6 +1177,19 @@ final class AppModel {
         return list.filter { FileManager.default.fileExists(atPath: $0) && seen.insert($0).inserted }
     }
 
+    /// Create a brand-new GitHub repo and open it in Code Mode — no trip to
+    /// github.com and back.
+    func createAndOpenGitHubRepo(name: String, isPrivate: Bool) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let parent = resolvedDefaultReposURL()?.path
+            ?? (NSHomeDirectory() as NSString).appendingPathComponent("Coral")
+        let r = await GitHubCLI.createRepo(name: trimmed, isPrivate: isPrivate, into: parent)
+        guard r.ok, let path = r.path else { flashFailure(t("code.createRepoFailed")); return }
+        openCodeChat(repoURL: URL(fileURLWithPath: path))
+        flashSuccess(t("code.repoCreated", (path as NSString).lastPathComponent))
+    }
+
     /// Clone `url` into the default repos folder, then open it in Code Mode.
     func cloneAndOpenCodeChat(url: String) async {
         let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)

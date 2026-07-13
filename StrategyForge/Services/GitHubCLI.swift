@@ -101,6 +101,21 @@ enum GitHubCLI {
         }.value
     }
 
+    /// Create a NEW repo on GitHub under the signed-in account and clone it into
+    /// `parentDir/<name>` — so you never have to leave for github.com to start one.
+    nonisolated static func createRepo(name: String, isPrivate: Bool,
+                                       into parentDir: String) async -> (ok: Bool, path: String?, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let gh = ghPath() else { return (false, nil, "GitHub CLI (gh) not found") }
+            try? FileManager.default.createDirectory(atPath: parentDir, withIntermediateDirectories: true)
+            let r = run(gh, ["repo", "create", name, isPrivate ? "--private" : "--public",
+                             "--clone", "--add-readme"], cwd: parentDir)
+            let path = (parentDir as NSString).appendingPathComponent(name)
+            let ok = r.ok && FileManager.default.fileExists(atPath: path)
+            return (ok, ok ? path : nil, r.out)
+        }.value
+    }
+
     /// Run a subprocess in `cwd`, returning success + combined output.
     private static func run(_ path: String, _ args: [String], cwd: String?) -> (ok: Bool, out: String) {
         let p = Process()
