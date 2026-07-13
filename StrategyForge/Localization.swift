@@ -695,6 +695,8 @@ enum L10n {
         "mcp.note": ("MCP servers give the agents extra tools (web, GitHub, databases…). Written to .mcp.json, which Claude Code loads automatically.",
                      "Los servidores MCP dan herramientas extra a los agentes (web, GitHub, bases de datos…). Se escriben en .mcp.json, que Claude Code carga automáticamente."),
 
+        "chat.continued": ("%@ (continued)", "%@ (continuación)"),
+        "chat.continuedFrom": ("Continues a previous chat", "Continúa un chat anterior"),
         "chat.edit": ("Edit & resend", "Editar y reenviar"),
         "chat.regenerate": ("Regenerate", "Regenerar"),
 

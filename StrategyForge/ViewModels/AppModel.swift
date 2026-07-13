@@ -393,14 +393,21 @@ final class AppModel {
     /// hundred tokens instead of a full history re-read.
     func startFreshChat(from id: Configuration.ID, summary: String? = nil) {
         guard let source = configurations.first(where: { $0.id == id }) else { return }
+        // Inherit a descriptive name (so it's not titled from the summary preamble)
+        // and mark it a continuation of the source — both the title and the sidebar
+        // link make clear this chat comes from the other.
+        let base = source.name.trimmingCharacters(in: .whitespaces)
+        let inheritedName = base.isEmpty ? "" : t("chat.continued", base)
         let fresh = Configuration(
-            name: "",
+            name: inheritedName,
             strategy: source.strategy,
             provider: source.provider,
             repoPath: source.repoPath,
             repoBookmark: source.repoBookmark,
             lastActiveAt: Date(),
-            draft: summary ?? ""
+            titleWasManuallySet: !inheritedName.isEmpty,
+            draft: summary ?? "",
+            continuedFrom: source.id
         )
         configurations.append(fresh)
         selectedConfigID = fresh.id

@@ -140,6 +140,11 @@ struct SidebarView: View {
                         Circle().fill(Theme.accent).frame(width: 7, height: 7)
                             .help(model.t("sidebar.needsAttention"))
                     }
+                    // Marks a chat that continues a summarized one, so the link reads.
+                    if config.continuedFrom != nil {
+                        Image(systemName: "arrow.turn.down.right").font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(Theme.accent).help(model.t("chat.continuedFrom"))
+                    }
                     Text(config.name.isEmpty ? model.t("chat.untitled") : config.name)
                         .font(.sfBodyM.weight(model.attentionChatIDs.contains(config.id) ? .bold : .semibold))
                         .lineLimit(1).truncationMode(.tail)

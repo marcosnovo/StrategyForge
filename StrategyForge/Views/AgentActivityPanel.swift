@@ -716,6 +716,14 @@ struct ActivityStepRow: View {
                 .font(.sfCaption2.weight(step.isDelegation || isActive ? .semibold : .regular))
                 .foregroundStyle(step.isDelegation ? Theme.accent : (isActive ? .primary : .secondary))
                 .fixedSize(horizontal: false, vertical: true)
+            // Which agent performed this step (subagents only; orchestrator is implicit).
+            if let agent = step.agent, !agent.isEmpty, !step.isDelegation {
+                Text(agent)
+                    .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.accent).lineLimit(1)
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(Capsule().fill(Theme.accentSoft))
+            }
             Spacer(minLength: Space.xs)
             if let start = startedAt {
                 Text(activityElapsed(from: start, to: step.at))

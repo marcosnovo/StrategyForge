@@ -43,6 +43,9 @@ struct Configuration: Codable, Identifiable, Hashable {
     /// Cumulative token usage + cost for this chat. Device-local.
     var totalTokens: Int
     var totalCostUSD: Double
+    /// The chat this one continues from (set when a chat is summarized-and-restarted
+    /// to save tokens), so the list can show the link. Device-local.
+    var continuedFrom: UUID?
 
     init(
         id: UUID = UUID(),
@@ -59,7 +62,8 @@ struct Configuration: Codable, Identifiable, Hashable {
         strategyIsAuto: Bool = false,
         draft: String = "",
         totalTokens: Int = 0,
-        totalCostUSD: Double = 0
+        totalCostUSD: Double = 0,
+        continuedFrom: UUID? = nil
     ) {
         self.id = id
         self.name = name
@@ -76,10 +80,11 @@ struct Configuration: Codable, Identifiable, Hashable {
         self.draft = draft
         self.totalTokens = totalTokens
         self.totalCostUSD = totalCostUSD
+        self.continuedFrom = continuedFrom
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, strategy, provider, repoPath, repoBookmark, updatedAt, lastGeneratedAt, lastActiveAt, transcript, titleWasManuallySet, strategyIsAuto, draft, totalTokens, totalCostUSD
+        case id, name, strategy, provider, repoPath, repoBookmark, updatedAt, lastGeneratedAt, lastActiveAt, transcript, titleWasManuallySet, strategyIsAuto, draft, totalTokens, totalCostUSD, continuedFrom
     }
 
     // Tolerant decode: files written before sync existed have no updatedAt.
@@ -105,6 +110,7 @@ struct Configuration: Codable, Identifiable, Hashable {
         draft = try c.decodeIfPresent(String.self, forKey: .draft) ?? ""
         totalTokens = try c.decodeIfPresent(Int.self, forKey: .totalTokens) ?? 0
         totalCostUSD = try c.decodeIfPresent(Double.self, forKey: .totalCostUSD) ?? 0
+        continuedFrom = try c.decodeIfPresent(UUID.self, forKey: .continuedFrom)
     }
 
     /// True when the portable/user-visible content matches (ignores timestamps),
