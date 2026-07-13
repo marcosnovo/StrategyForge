@@ -35,6 +35,9 @@ struct ChatView: View {
     @State private var engineMissing = false
     @State private var showInstall = false
     @State private var isDropTargeted = false
+    /// The "Coral Bloom" celebration: bumped when a turn finishes; milestone every 25th.
+    @State private var bloomToken = 0
+    @State private var bloomMilestone = false
     /// Confirmation before granting persistent full access.
     @State private var confirmAlwaysAllow = false
     @State private var showReport = false
@@ -288,6 +291,16 @@ struct ChatView: View {
                             .background(.regularMaterial, in: Capsule())
                     )
                     .padding(Space.s).allowsHitTesting(false)
+            }
+        }
+        // The "Coral Bloom" wow beat: a short coral-particle bloom when a turn
+        // finishes (every 25th turn escalates with a teal accent). Self-terminating,
+        // never blocks input, honors Reduce Motion.
+        .overlay { CoralBloomOverlay(token: bloomToken, milestone: bloomMilestone) }
+        .onChange(of: vm.isRunning) { wasRunning, nowRunning in
+            if wasRunning && !nowRunning && vm.hasFinishedActivity {
+                bloomMilestone = vm.history.count > 0 && vm.history.count % 25 == 0
+                bloomToken += 1
             }
         }
     }
