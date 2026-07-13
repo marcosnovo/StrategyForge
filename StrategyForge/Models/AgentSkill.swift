@@ -55,6 +55,11 @@ struct AgentSkill: Identifiable, Hashable {
         let exec: Set<String> = ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit"]
         return (allowedTools ?? []).contains { exec.contains($0) }
     }
+
+    /// Coarse type for filtering: a "code" skill ships/runs scripts; a "knowledge"
+    /// skill is a pure playbook.
+    enum Kind: String, CaseIterable { case knowledge, code }
+    var kind: Kind { canRunCode ? .code : .knowledge }
 }
 
 /// A discoverable skill in the curated marketplace (before install).

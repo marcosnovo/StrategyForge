@@ -751,6 +751,13 @@ enum L10n {
                               "Esta skill pide herramientas que ejecutan código en tu Mac. Coral solo escribe los archivos — el CLI los ejecuta cuando tú lo pidas. Revisa el manual antes de confiar en ella."),
         "skills.installedOk": ("Installed “%@”.", "Instalada «%@»."),
         "skills.installFailed": ("Couldn't install the skill.", "No se pudo instalar la skill."),
+        "skills.search": ("Search skills", "Buscar skills"),
+        "skills.kind.all": ("All", "Todas"),
+        "skills.kind.knowledge": ("Knowledge", "Conocimiento"),
+        "skills.kind.code": ("Code", "Código"),
+        "skills.noResults": ("No skills match.", "Ninguna skill coincide."),
+        "skills.discover.noKnowledge": ("The curated set ships code-bearing skills. Paste a GitHub ref for knowledge-only skills.",
+                                        "El set curado trae skills con código. Pega una ref de GitHub para skills solo de conocimiento."),
 
         // Context-window breakdown
         "context.title": ("Context window", "Ventana de contexto"),

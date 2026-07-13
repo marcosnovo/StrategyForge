@@ -104,16 +104,10 @@ final class SkillStore {
         }
     }
 
-    /// Fetch + parse a curated skill's SKILL.md into a not-yet-installed preview.
+    /// Fetch + parse a curated skill into a not-yet-installed preview.
     func preview(_ c: CuratedSkill) async throws -> AgentSkill {
-        guard let url = c.skillMdURL else { throw FetchError.badRef }
-        let text = try await fetchText(url)
-        let p = Self.parse(text)
-        return AgentSkill(slug: c.slug, name: p.name.isEmpty ? c.name : p.name,
-                          description: p.description.isEmpty ? c.description : p.description,
-                          license: p.license, allowedTools: p.allowedTools, body: p.body,
-                          scope: .personal, localPath: nil, hasScripts: false, coralManaged: true,
-                          source: .github(owner: c.owner, repo: c.repo, ref: c.ref, path: c.path))
+        try await previewGitHub(owner: c.owner, repo: c.repo, ref: c.ref, path: c.path,
+                                slug: c.slug, fallbackName: c.name, fallbackDesc: c.description)
     }
 
     /// Fetch from a pasted "owner/repo[@ref][#path]" reference.
@@ -127,21 +121,66 @@ final class SkillStore {
         guard parts.count >= 2 else { throw FetchError.badRef }
         let owner = parts[0], repo = parts[1]
         if parts.count > 2, path.isEmpty { path = parts[2...].joined(separator: "/") }
-        let mdPath = path.isEmpty ? "SKILL.md" : "\(path)/SKILL.md"
-        guard let url = URL(string: "https://raw.githubusercontent.com/\(owner)/\(repo)/\(gitRef)/\(mdPath)") else { throw FetchError.badRef }
-        let text = try await fetchText(url)
-        let p = Self.parse(text)
         let slug = path.split(separator: "/").last.map(String.init) ?? repo
-        return AgentSkill(slug: slug, name: p.name.isEmpty ? slug : p.name, description: p.description,
+        return try await previewGitHub(owner: owner, repo: repo, ref: gitRef, path: path,
+                                       slug: slug, fallbackName: slug, fallbackDesc: "")
+    }
+
+    /// List the skill's folder on GitHub, read its SKILL.md, and detect scripts —
+    /// enough to preview + gate trust before downloading the whole thing.
+    private func previewGitHub(owner: String, repo: String, ref: String, path: String,
+                               slug: String, fallbackName: String, fallbackDesc: String) async throws -> AgentSkill {
+        let entries = try await ghList(owner: owner, repo: repo, ref: ref, path: path)
+        guard let md = entries.first(where: { $0.name.lowercased() == "skill.md" }), let dl = md.downloadURL
+        else { throw FetchError.empty }
+        let text = try await fetchText(dl)
+        let p = Self.parse(text)
+        let hasScripts = entries.contains { $0.type == "dir" && $0.name.lowercased() == "scripts" }
+        return AgentSkill(slug: slug, name: p.name.isEmpty ? fallbackName : p.name,
+                          description: p.description.isEmpty ? fallbackDesc : p.description,
                           license: p.license, allowedTools: p.allowedTools, body: p.body,
-                          scope: .personal, localPath: nil, hasScripts: false, coralManaged: true,
-                          source: .github(owner: owner, repo: repo, ref: gitRef, path: path))
+                          scope: .personal, localPath: nil, hasScripts: hasScripts, coralManaged: true,
+                          source: .github(owner: owner, repo: repo, ref: ref, path: path))
+    }
+
+    // MARK: - GitHub contents API (full-folder fetch)
+
+    private struct GHEntry { let name: String; let path: String; let type: String; let downloadURL: URL? }
+
+    private func ghList(owner: String, repo: String, ref: String, path: String) async throws -> [GHEntry] {
+        let clean = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let seg = clean.isEmpty ? "" : "/\(clean)"
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/contents\(seg)?ref=\(ref)")
+        else { throw FetchError.badRef }
+        var req = URLRequest(url: url); req.timeoutInterval = 20
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        if let h = resp as? HTTPURLResponse {
+            if h.statusCode == 404 { throw FetchError.empty }
+            if h.statusCode == 403 { throw FetchError.network("GitHub rate limit reached — try again later.") }
+        }
+        guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { throw FetchError.empty }
+        return arr.map { GHEntry(name: $0["name"] as? String ?? "", path: $0["path"] as? String ?? "",
+                                 type: $0["type"] as? String ?? "file",
+                                 downloadURL: ($0["download_url"] as? String).flatMap(URL.init)) }
+    }
+
+    private func downloadTree(owner: String, repo: String, ref: String, remotePath: String, into localDir: URL) async throws {
+        try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
+        for e in try await ghList(owner: owner, repo: repo, ref: ref, path: remotePath) {
+            let dest = localDir.appendingPathComponent(e.name)
+            if e.type == "dir" {
+                try await downloadTree(owner: owner, repo: repo, ref: ref, remotePath: e.path, into: dest)
+            } else if let dl = e.downloadURL {
+                let (data, _) = try await URLSession.shared.data(from: dl)
+                try data.write(to: dest)
+            }
+        }
     }
 
     private func fetchText(_ url: URL) async throws -> String {
         do {
-            var req = URLRequest(url: url)
-            req.timeoutInterval = 20
+            var req = URLRequest(url: url); req.timeoutInterval = 20
             let (data, resp) = try await URLSession.shared.data(for: req)
             if let http = resp as? HTTPURLResponse, http.statusCode == 404 { throw FetchError.empty }
             guard let s = String(data: data, encoding: .utf8), !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -151,22 +190,44 @@ final class SkillStore {
         catch { throw FetchError.network(error.localizedDescription) }
     }
 
-    // MARK: - Install / uninstall (Coral only writes files)
+    // MARK: - Install / uninstall (Coral only writes files, never executes)
 
-    /// Write the previewed skill's SKILL.md into the chosen scope, with the managed
-    /// signature so it can later be safely removed. Returns the folder path.
+    /// Download the WHOLE skill folder (SKILL.md + scripts/references/assets) into the
+    /// chosen scope, stamp SKILL.md with the managed signature, and mark scripts
+    /// executable. Returns the folder path. Refuses to overwrite a hand-authored one.
     @discardableResult
-    func install(_ preview: AgentSkill, into scope: AgentSkill.Scope) throws -> URL {
+    func install(_ preview: AgentSkill, into scope: AgentSkill.Scope) async throws -> URL {
         let root: URL = { switch scope { case .personal: return personalDir; case .project(let r): return projectDir(r) } }()
         let folder = root.appendingPathComponent(preview.slug, isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        // Re-serialize a minimal SKILL.md (frontmatter + body) with our signature.
-        var front = "---\nname: \(preview.name)\ndescription: \(preview.description)\n"
-        if let lic = preview.license { front += "license: \(lic)\n" }
-        if let tools = preview.allowedTools, !tools.isEmpty { front += "allowed-tools: \(tools.joined(separator: ", "))\n" }
-        front += "---\n\n"
-        let contents = front + preview.body + "\n\n\(Self.signature)\n"
-        try contents.write(to: folder.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+        let fm = FileManager.default
+        // Clean reinstall only over a Coral-managed folder; never clobber hand-authored.
+        if fm.fileExists(atPath: folder.path) {
+            let existing = (try? String(contentsOf: folder.appendingPathComponent("SKILL.md"), encoding: .utf8)) ?? ""
+            guard existing.contains(Self.signature) else { throw FetchError.network("A skill named “\(preview.slug)” already exists here (not installed by Coral).") }
+            try? fm.removeItem(at: folder)
+        }
+        if case .github(let o, let r, let ref, let path) = preview.source {
+            try await downloadTree(owner: o, repo: r, ref: ref, remotePath: path, into: folder)
+            // Stamp SKILL.md so uninstall is safe.
+            let md = folder.appendingPathComponent("SKILL.md")
+            if var t = try? String(contentsOf: md, encoding: .utf8), !t.contains(Self.signature) {
+                t += "\n\n\(Self.signature)\n"; try? t.write(to: md, atomically: true, encoding: .utf8)
+            }
+            // Scripts arrive without their +x bit — restore it so the CLI can run them.
+            let scripts = folder.appendingPathComponent("scripts")
+            if let files = try? fm.subpathsOfDirectory(atPath: scripts.path) {
+                for f in files { try? fm.setAttributes([.posixPermissions: 0o755],
+                                                       ofItemAtPath: scripts.appendingPathComponent(f).path) }
+            }
+        } else {
+            try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+            var front = "---\nname: \(preview.name)\ndescription: \(preview.description)\n"
+            if let lic = preview.license { front += "license: \(lic)\n" }
+            if let tools = preview.allowedTools, !tools.isEmpty { front += "allowed-tools: \(tools.joined(separator: ", "))\n" }
+            front += "---\n\n"
+            try (front + preview.body + "\n\n\(Self.signature)\n").write(
+                to: folder.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+        }
         scan(projectRepo: { if case .project(let r) = scope { return r } else { return nil } }())
         return folder
     }

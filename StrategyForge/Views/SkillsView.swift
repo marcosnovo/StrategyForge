@@ -22,6 +22,21 @@ struct SkillsView: View {
     @State private var errorText: String?
     /// A fetched, not-yet-installed skill awaiting the trust/confirm sheet.
     @State private var pending: AgentSkill?
+    @State private var installing = false
+    /// Discover/Installed filters.
+    @State private var query = ""
+    @State private var kindFilter: KindFilter = .all
+
+    enum KindFilter: String, CaseIterable {
+        case all, knowledge, code
+        func matches(_ s: AgentSkill) -> Bool {
+            switch self {
+            case .all: return true
+            case .knowledge: return s.kind == .knowledge
+            case .code: return s.kind == .code
+            }
+        }
+    }
 
     private var projectRepo: URL? {
         model.selectedConfiguration?.repoPath.flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
@@ -55,12 +70,54 @@ struct SkillsView: View {
             }
             .padding(Space.m).background(Theme.appBg).zoomWindowOnDoubleClick()
             Divider()
+            filterBar
+            Divider()
             ScrollView {
                 if tab == .discover { discoverList } else { installedList }
             }
             .background(Theme.appBg)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Search field + knowledge/code type filter — shared by both tabs.
+    private var filterBar: some View {
+        VStack(spacing: Space.xs) {
+            HStack(spacing: Space.xs) {
+                Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+                TextField(model.t("skills.search"), text: $query)
+                    .textFieldStyle(.plain).font(.sfCaption2)
+                if !query.isEmpty {
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain).foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, Space.s).padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+            Picker("", selection: $kindFilter) {
+                Text(model.t("skills.kind.all")).tag(KindFilter.all)
+                Text(model.t("skills.kind.knowledge")).tag(KindFilter.knowledge)
+                Text(model.t("skills.kind.code")).tag(KindFilter.code)
+            }
+            .labelsHidden().pickerStyle(.segmented)
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s).background(Theme.appBg)
+    }
+
+    /// A curated entry's coarse type — code if its known slug ships scripts, else
+    /// knowledge. (The document/artifacts skills are all code-bearing.)
+    private func matchesFilters(_ c: CuratedSkill) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let text = "\(c.name) \(c.description) \(c.category)".lowercased()
+        if !q.isEmpty && !text.contains(q) { return false }
+        if kindFilter == .knowledge { return false }   // curated set is code-bearing today
+        return true
+    }
+    private func matchesFilters(_ s: AgentSkill) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let text = "\(s.name) \(s.description)".lowercased()
+        if !q.isEmpty && !text.contains(q) { return false }
+        return kindFilter.matches(s)
     }
 
     private var discoverList: some View {
@@ -78,7 +135,15 @@ struct SkillsView: View {
                 Label(e, systemImage: "exclamationmark.triangle.fill").font(.sfCaption2)
                     .foregroundStyle(Theme.warning).fixedSize(horizontal: false, vertical: true)
             }
-            ForEach(store.curated) { c in curatedRow(c) }
+            let shown = store.curated.filter(matchesFilters)
+            if shown.isEmpty && kindFilter == .knowledge {
+                Text(model.t("skills.discover.noKnowledge")).font(.sfCaption2)
+                    .foregroundStyle(.tertiary).padding(.vertical, Space.s)
+            } else if shown.isEmpty {
+                Text(model.t("skills.noResults")).font(.sfCaption2)
+                    .foregroundStyle(.tertiary).padding(.vertical, Space.s)
+            }
+            ForEach(shown) { c in curatedRow(c) }
         }
         .padding(Space.s)
     }
@@ -114,9 +179,14 @@ struct SkillsView: View {
             } description: { Text(model.t("skills.installed.emptyDesc")) }
                 .padding(.top, Space.xl)
         } else {
-            let personal = store.installed.filter { if case .personal = $0.scope { return true } else { return false } }
-            let project = store.installed.filter { if case .project = $0.scope { return true } else { return false } }
+            let filtered = store.installed.filter(matchesFilters)
+            let personal = filtered.filter { if case .personal = $0.scope { return true } else { return false } }
+            let project = filtered.filter { if case .project = $0.scope { return true } else { return false } }
             VStack(alignment: .leading, spacing: Space.s) {
+                if filtered.isEmpty {
+                    Text(model.t("skills.noResults")).font(.sfCaption2)
+                        .foregroundStyle(.tertiary).padding(.vertical, Space.s)
+                }
                 if !personal.isEmpty { section(model.t("skills.section.personal"), personal) }
                 if !project.isEmpty { section(model.t("skills.section.project"), project) }
             }
@@ -141,6 +211,7 @@ struct SkillsView: View {
                     Text(skill.description).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                kindTag(skill.kind)
                 if skill.canRunCode {
                     Image(systemName: "exclamationmark.shield.fill").font(.system(size: 10))
                         .foregroundStyle(Theme.warning).help(model.t("skills.trust.title"))
@@ -172,6 +243,7 @@ struct SkillsView: View {
                     }
                     HStack(spacing: Space.s) {
                         scopeBadge(s.scope)
+                        kindTag(s.kind)
                         if s.canRunCode {
                             Label(model.t("skills.trust.badge"), systemImage: "exclamationmark.shield.fill")
                                 .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.warning)
@@ -202,6 +274,17 @@ struct SkillsView: View {
                 Label(model.t("skills.detail.title"), systemImage: "puzzlepiece.extension")
             } description: { Text(model.t("skills.detail.desc")) }
         }
+    }
+
+    /// Small pill showing the coarse type — knowledge (playbook) vs code (ships scripts).
+    private func kindTag(_ kind: AgentSkill.Kind) -> some View {
+        let (label, icon, tint): (String, String, Color) = kind == .code
+            ? (model.t("skills.kind.code"), "terminal", Theme.accent)
+            : (model.t("skills.kind.knowledge"), "book", Theme.teal)
+        return Label(label, systemImage: icon)
+            .font(.system(size: 9, weight: .medium)).foregroundStyle(tint)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(Capsule().fill(tint.opacity(0.12)))
     }
 
     private func scopeBadge(_ scope: AgentSkill.Scope) -> some View {
@@ -265,13 +348,18 @@ struct SkillsView: View {
                 Spacer()
                 Button(model.t("common.cancel")) { pending = nil }
                 Button(model.t("skills.confirm.install")) {
-                    do {
-                        _ = try store.install(preview, into: confirmScope)
-                        model.flashSuccess(model.t("skills.installedOk", preview.name))
-                        pending = nil; tab = .installed
-                    } catch { model.flashFailure(model.t("skills.installFailed")) }
+                    let preview = preview, scope = confirmScope
+                    installing = true
+                    Task {
+                        do {
+                            _ = try await store.install(preview, into: scope)
+                            model.flashSuccess(model.t("skills.installedOk", preview.name))
+                            pending = nil; tab = .installed
+                        } catch { model.flashFailure(model.t("skills.installFailed")) }
+                        installing = false
+                    }
                 }
-                .buttonStyle(.moon).keyboardShortcut(.defaultAction)
+                .buttonStyle(.moon).keyboardShortcut(.defaultAction).disabled(installing)
             }
         }
         .padding(Space.l).frame(width: 520)
