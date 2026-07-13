@@ -1152,10 +1152,10 @@ struct ChatView: View {
                 // outer glow on the glass while composing; quiet when unfocused.
                 .overlay(
                     RoundedRectangle(cornerRadius: Theme.innerCorner)
-                        .strokeBorder(Theme.accent.opacity(0.55), lineWidth: 1.5)
+                        .strokeBorder(Theme.focusRing, lineWidth: 1.5)
                         .opacity(inputFocused ? 1 : 0)
                 )
-                .shadow(color: Theme.accent.opacity(inputFocused ? 0.18 : 0), radius: 8)
+                .shadow(color: inputFocused ? Theme.focusGlow : .clear, radius: 8)
                 .focused($inputFocused)
                 .animation(.easeOut(duration: 0.18), value: inputFocused)
                 // @-mentions + /-commands: refresh both palettes as the draft changes.

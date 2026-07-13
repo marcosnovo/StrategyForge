@@ -45,6 +45,7 @@ struct SidebarView: View {
             List(selection: $model.selectedConfigID) {
                 ForEach(visibleConfigs) { config in
                     chatRow(config)
+                        .selectedRow(model.selectedConfigID == config.id, cornerRadius: 8)
                         .hoverTint(cornerRadius: 8)
                         .padding(.vertical, Space.xs)
                         .tag(config.id)
@@ -77,6 +78,7 @@ struct SidebarView: View {
                     .padding(.vertical, Space.xs)
                 }
             }
+            .listStyle(.plain)   // suppress the solid system-accent selection block
             .scrollContentBackground(.hidden)
             .background(.regularMaterial)
         }

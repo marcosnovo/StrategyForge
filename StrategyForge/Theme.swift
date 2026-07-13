@@ -47,6 +47,22 @@ enum Theme {
     static let accentGlow = Color(
         light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.22),
         dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.30))
+
+    // MARK: Selection & Focus
+    /// Soft coral wash for a selected list row / card. Pale enough to read as a
+    /// background state, not a solid block. Pair with `selectionBorder` + the bar.
+    static let selectionFill = Color(
+        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.10),
+        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.14))
+    /// Hairline border for a selected row/card (1 pt).
+    static let selectionBorder = Color(
+        light: Color(red: 0.862, green: 0.290, blue: 0.180).opacity(0.28),
+        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.34))
+    /// Focus ring stroke for text fields / focusable controls (visible only when focused).
+    static let focusRing = Theme.accent.opacity(0.55)
+    /// Focus glow shadow color for focused inputs.
+    static let focusGlow = Theme.accent.opacity(0.18)
+
     /// Readable text/foreground to place ON a solid accent (coral) fill.
     static let onAccent = Color.white
 
@@ -443,7 +459,40 @@ struct StaggeredAppear: ViewModifier {
     }
 }
 
+/// A refined selection treatment for list rows and cards: soft coral tint, 1pt
+/// hairline border, and a 3pt leading coral bar (the non-color shape cue). Selection
+/// ≠ focus: this never draws a glow, and hover stays a separate (neutral) layer.
+struct SelectedRow: ViewModifier {
+    var isSelected: Bool
+    var cornerRadius: CGFloat = 8
+    /// Base fill when unselected (e.g. Theme.cardBg for cards, .clear for list rows).
+    var restingFill: Color = .clear
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(isSelected ? Theme.selectionFill : restingFill))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(isSelected ? Theme.selectionBorder : .clear, lineWidth: 1))
+            .overlay(alignment: .leading) {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                        .fill(Theme.accent)
+                        .frame(width: 3)
+                        .padding(.vertical, 6)
+                }
+            }
+    }
+}
+
 extension View {
+    /// Selection treatment (tint + border + leading bar). Pass `restingFill` for card
+    /// surfaces that need a base color when unselected.
+    func selectedRow(_ isSelected: Bool, cornerRadius: CGFloat = 8,
+                     restingFill: Color = .clear) -> some View {
+        modifier(SelectedRow(isSelected: isSelected, cornerRadius: cornerRadius, restingFill: restingFill))
+    }
     /// Hover lift for tappable cards (scale + shadow; tint-only under Reduce Motion).
     func hoverLift(_ enabled: Bool = true) -> some View {
         modifier(HoverLift(enabled: enabled))

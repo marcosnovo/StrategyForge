@@ -311,11 +311,11 @@ struct RoleEditorForm: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)
             .background(RoundedRectangle(cornerRadius: 9)
-                .fill(selected ? Theme.accentSoft : Theme.cardBg))
+                .fill(selected ? Theme.selectionFill : Theme.cardBg))
             .overlay(RoundedRectangle(cornerRadius: 9)
-                .strokeBorder(selected ? Theme.accent
+                .strokeBorder(selected ? Theme.selectionBorder
                               : (hoveredModel == m ? Theme.accent.opacity(0.5) : Theme.hairline),
-                              lineWidth: selected ? 1.5 : 1))
+                              lineWidth: 1))
             .contentShape(Rectangle())
             .scaleEffect(hoveredModel == m && !selected ? 1.03 : 1)
         }

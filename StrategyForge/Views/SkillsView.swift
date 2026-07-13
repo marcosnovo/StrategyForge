@@ -228,8 +228,7 @@ struct SkillsView: View {
             }
             .padding(.vertical, 5).padding(.horizontal, Space.s)
             .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-            .background(RoundedRectangle(cornerRadius: 8)
-                .fill(selected?.id == skill.id ? Theme.accentSoft : .clear))
+            .selectedRow(selected?.id == skill.id, cornerRadius: 8)
         }
         .buttonStyle(.plain).hoverTint(cornerRadius: 8)
     }

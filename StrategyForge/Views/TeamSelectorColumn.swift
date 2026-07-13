@@ -144,10 +144,7 @@ struct TeamSelectorColumn: View {
             .padding(.vertical, Space.xs).padding(.horizontal, Space.s)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                .fill(selected ? Theme.accentSoft.opacity(0.65) : .clear))
-            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                .strokeBorder(selected ? Theme.accent.opacity(0.5) : .clear, lineWidth: 1))
+            .selectedRow(selected, cornerRadius: Theme.innerCorner)
         }
         .buttonStyle(.plain)
         .hoverTint()

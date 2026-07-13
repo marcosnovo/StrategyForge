@@ -195,10 +195,10 @@ struct StrategyPickerColumn: View {
             .padding(Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                .fill(selected ? Theme.accentSoft : Theme.cardBg))
+            .selectedRow(selected, cornerRadius: Theme.innerCorner, restingFill: Theme.cardBg)
+            // Keep the resting card hairline when unselected; selection draws its own.
             .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                .strokeBorder(Theme.hairline, lineWidth: 1))
+                .strokeBorder(selected ? .clear : Theme.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .hoverLift()

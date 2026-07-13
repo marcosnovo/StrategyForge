@@ -30,6 +30,7 @@ struct ServicesListColumn: View {
                     row(p).tag(p)
                 }
             }
+            .listStyle(.plain)   // suppress the solid system-accent selection block
             .scrollContentBackground(.hidden)
             .background(Theme.appBg)
         }
@@ -39,15 +40,20 @@ struct ServicesListColumn: View {
     }
 
     private func row(_ p: AIProvider) -> some View {
-        HStack(spacing: Space.s) {
+        let selected = model.selectedService == p
+        return HStack(spacing: Space.s) {
             ProviderLogo(provider: p, size: 18, templateTint: p.tint).frame(width: 22)
             VStack(alignment: .leading, spacing: 1) {
-                Text(p.displayName).font(.sfBodyM.weight(.medium)).lineLimit(1)
+                Text(p.displayName).font(.sfBodyM.weight(selected ? .semibold : .medium)).lineLimit(1)
                 statusText(p)
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, 5).padding(.horizontal, Space.xs)
+        .contentShape(Rectangle())
+        .onTapGesture { model.selectedService = p }
+        .selectedRow(selected, cornerRadius: 8)
+        .hoverTint(cornerRadius: 8)
     }
 
     @ViewBuilder
