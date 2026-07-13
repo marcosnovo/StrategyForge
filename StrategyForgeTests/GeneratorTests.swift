@@ -89,6 +89,21 @@ struct ClaudeMdGeneratorTests {
         #expect(out.contains("`worker-1`"))
     }
 
+    @Test func includesDelegationPlaybookForTeams() {
+        let strategy = StrategyLibrary.orchestratorWorkers()
+        let out = ClaudeMdGenerator.merged(existing: nil, strategy: strategy)
+        // The "manager, not micromanager" habits guide HOW the lead delegates.
+        #expect(out.contains("Delegate like a manager, not a micromanager"))
+        #expect(out.contains("Delegate early, not late"))
+        #expect(out.contains("Review the diff; don't rewrite it"))
+    }
+
+    @Test func soloHasNoDelegationPlaybook() {
+        // A solo config has nothing to delegate, so the playbook is omitted.
+        let out = ClaudeMdGenerator.merged(existing: nil, strategy: StrategyLibrary.solo())
+        #expect(!out.contains("Delegate like a manager"))
+    }
+
     @Test func preservesUserContentWhenAppending() {
         let strategy = StrategyLibrary.solo()
         let existing = "# My project\n\nSome important notes.\n"
