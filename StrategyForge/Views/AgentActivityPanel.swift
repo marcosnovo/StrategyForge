@@ -44,6 +44,7 @@ struct AgentActivityPanel: View {
     @State private var showTeam = false
     @State private var previewingFiles = false
     @State private var showHistory = false
+    @State private var showCompare = false
 
     /// The strategy to show: the recommendation preview when idle, else the live team.
     private var shownStrategy: Strategy {
@@ -441,6 +442,17 @@ struct AgentActivityPanel: View {
     private var historySection: some View {
         DisclosureGroup(isExpanded: $showHistory) {
             VStack(alignment: .leading, spacing: Space.s) {
+                // A/B the two most recent runs of this team — the test-bench move.
+                if vm.history.count >= 2 {
+                    Button {
+                        showCompare = true
+                    } label: {
+                        Label(model.t("compare.lastTwo"), systemImage: "arrow.left.arrow.right.square")
+                            .font(.sfCaption2)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.accent)
+                }
                 ForEach(vm.history.reversed()) { turn in historyTurnRow(turn) }
             }
             .padding(.top, Space.xs)
@@ -451,6 +463,14 @@ struct AgentActivityPanel: View {
                     .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
                 Text("\(vm.history.count)").font(.sfCaption2.weight(.bold)).foregroundStyle(Theme.accent)
                     .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Theme.accentSoft))
+            }
+        }
+        .sheet(isPresented: $showCompare) {
+            if vm.history.count >= 2 {
+                RunCompareView(runA: vm.history[vm.history.count - 2],
+                               runB: vm.history[vm.history.count - 1],
+                               strategy: vm.config.strategy)
+                    .environment(model)
             }
         }
     }

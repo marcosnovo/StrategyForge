@@ -149,7 +149,10 @@ struct ChatView: View {
                 tokens: vm.totalTokens,
                 costUSD: vm.totalCostUSD,
                 elapsed: vm.turnStartedAt.map { activityElapsed(from: $0, to: vm.timeline.last?.at ?? Date()) } ?? "",
-                outcome: vm.messages.last(where: { $0.role == .assistant })?.text ?? ""
+                outcome: vm.messages.last(where: { $0.role == .assistant })?.text ?? "",
+                // Actionable tuning hints from the run that just finished (the newest
+                // persisted turn); empty when there's no history yet.
+                retune: vm.history.last.map { RunAnalysis.retune(turn: $0, strategy: config.strategy) } ?? []
             )
             .environment(model)
         }
