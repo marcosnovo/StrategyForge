@@ -212,23 +212,26 @@ struct NavRail: View {
     /// the "usage bars" that make the card feel alive. Teal = agents/usage.
     @ViewBuilder private func usageBars(_ u: UsageSummary) -> some View {
         let top = Array(u.weekByModel.prefix(3))
-        let maxTokens = max(top.map(\.tokens).max() ?? 1, 1)
+        let total = max(u.weekTokens, 1)
         if !top.isEmpty {
             VStack(spacing: 5) {
                 ForEach(top) { m in
+                    let frac = Double(m.tokens) / Double(total)
                     HStack(spacing: Space.s) {
                         Text(m.model).font(.sfCaption2).foregroundStyle(.white.opacity(0.6))
-                            .lineLimit(1).frame(width: 46, alignment: .leading)
+                            .lineLimit(1).frame(width: 52, alignment: .leading)
                         GeometryReader { geo in
                             Capsule().fill(Color.white.opacity(0.10))
                                 .overlay(alignment: .leading) {
                                     Capsule().fill(Theme.teal)
-                                        .frame(width: max(3, geo.size.width * CGFloat(Double(m.tokens) / Double(maxTokens))))
+                                        .frame(width: max(3, geo.size.width * CGFloat(frac)))
                                 }
                         }
                         .frame(height: 5)
-                        Text(fmtTokens(m.tokens)).font(.sfCaption2).foregroundStyle(.white.opacity(0.45))
-                            .frame(width: 42, alignment: .trailing)
+                        // Percentages, not raw token counts — far more compact.
+                        Text("\(Int((frac * 100).rounded()))%")
+                            .font(.sfCaption2).foregroundStyle(.white.opacity(0.45))
+                            .frame(width: 30, alignment: .trailing)
                     }
                 }
             }

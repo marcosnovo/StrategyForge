@@ -39,7 +39,10 @@ struct AdvisorInlineCard: View {
             headerRow
             if let team = currentTeamName { chosenTeamRow(team) }
             tierRow
-            if let sel = selected { selectionRow(sel) }
+            if let sel = selected {
+                selectionRow(sel)
+                providerMixRow(sel)
+            }
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -147,9 +150,61 @@ struct AdvisorInlineCard: View {
             Spacer(minLength: Space.s)
             Button(model.t(currentTeamName == nil ? "advisor.inline.applyTeam" : "advisor.inline.switchTeam"), action: onApplyTeam)
                 .buttonStyle(.moon).controlSize(.small)
-            Button(model.t("advisor.inline.createLoop"), action: onCreateLoop)
-                .buttonStyle(.bordered).controlSize(.small)
+            // A loop is only offered when the engine actually found a repeat/verify
+            // signal — for a plain turn-based chat it would be noise. "Apply team" is
+            // then the single primary action.
+            if sel.advice.loopKind != .turnBased {
+                Button(model.t("advisor.inline.createLoop"), action: onCreateLoop)
+                    .buttonStyle(.reefOutline).controlSize(.small)
+            }
         }
+    }
+
+    /// The cross-provider mix for the selected tier — the flagship "best AI per role".
+    /// Uses the real picks when ≥2 providers are connected; otherwise shows the IDEAL
+    /// mix with the not-yet-connected providers dimmed + a one-tap connect nudge.
+    @ViewBuilder private func providerMixRow(_ sel: AdvisorEngine.Tier) -> some View {
+        let picks = displayPicks(sel)
+        if !picks.isEmpty {
+            let hasLocked = picks.contains { !$0.isConnected }
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: Space.m) {
+                    ForEach(Array(picks.prefix(4)), id: \.self) { pick in
+                        HStack(spacing: 4) {
+                            Circle().fill(pick.provider.tint).frame(width: 7, height: 7)
+                                .opacity(pick.isConnected ? 1 : 0.4)
+                            Text(pick.roleName).font(.sfCaption2)
+                                .foregroundStyle(pick.isConnected ? .primary : .secondary).lineLimit(1)
+                            Text(pick.modelDisplayName).font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.secondary).lineLimit(1)
+                            if !pick.isConnected {
+                                Image(systemName: "lock.fill").font(.system(size: 7)).foregroundStyle(.tertiary)
+                            }
+                        }
+                        .help(model.t(pick.reasonKey))
+                    }
+                    Spacer(minLength: 0)
+                }
+                if hasLocked {
+                    Button { model.openConnectedServices() } label: {
+                        Label(model.t("advisor.provider.connect"), systemImage: "link")
+                            .font(.sfCaption2.weight(.medium))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                }
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    /// Real picks when the run will actually mix providers; otherwise the aspirational
+    /// (display-only) ideal mix, so the claim is visible even on a Claude-only setup.
+    private func displayPicks(_ sel: AdvisorEngine.Tier) -> [AdvisorEngine.ProviderPick] {
+        sel.advice.providerPicks.isEmpty
+            ? AdvisorEngine.aspirationalPicks(for: sel.advice.strategy,
+                                              connected: model.connectedProviders,
+                                              bias: AdvisorEngine.TierBias.from(tierID: sel.id))
+            : sel.advice.providerPicks
     }
 
     // MARK: - Bits

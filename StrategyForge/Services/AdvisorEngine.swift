@@ -361,7 +361,35 @@ enum AdvisorEngine {
                 return Tier(id: t.id, labelKey: t.labelKey, noteKey: t.noteKey, advice: advice)
             }
         }
+        // Guarantee the Economy tier reads as genuinely cheaper: the cross-provider
+        // re-apply can revert the orchestrator to the same top Claude reasoner as the
+        // balanced tier, so if the two heads collapsed, force Economy one Claude tier
+        // down (deterministic; only while on Claude and not already at the floor).
+        if let si = tiers.firstIndex(where: { $0.id == "saver" }),
+           let mi = tiers.firstIndex(where: { $0.id == "balanced" }),
+           tiers[si].advice.model == tiers[mi].advice.model,
+           tiers[si].advice.model != .haiku45 {
+            tiers[si] = forcingHeadDown(tiers[si])
+        }
         return tiers
+    }
+
+    /// Lower the orchestrator (head) model by one Claude tier, re-estimating cost —
+    /// used to keep the Economy tier's headline model distinct from Recommended.
+    private static func forcingHeadDown(_ t: Tier) -> Tier {
+        var s = t.advice.strategy
+        guard let i = s.roles.firstIndex(where: { $0.isOrchestrator }),
+              s.roles[i].provider == .claude else { return t }
+        let lowered = downTier(s.roles[i].model)
+        guard lowered != s.roles[i].model else { return t }
+        s.roles[i].model = lowered
+        let advice = Advice(model: lowered, strategy: s, shapeRationaleKey: t.advice.shapeRationaleKey,
+                            loopKind: t.advice.loopKind, effort: t.advice.effort,
+                            decisionPath: t.advice.decisionPath, goalSuggestion: t.advice.goalSuggestion,
+                            estimatedCost: CostEstimator.estimate(s, effort: t.advice.effort),
+                            aiRationale: t.advice.aiRationale, usedAI: t.advice.usedAI,
+                            providerPicks: t.advice.providerPicks)
+        return Tier(id: t.id, labelKey: t.labelKey, noteKey: t.noteKey, advice: advice)
     }
 
     /// Build a cost/quality variant of an advice: shift EVERY agent's model up/down a

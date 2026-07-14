@@ -200,6 +200,7 @@ extension L10n {
         "advisor.inline.youChose": ("You chose “%@” — here's what I'd recommend for this task:",
                                     "Elegiste «%@» — esto es lo que recomendaría para esta tarea:"),
         "advisor.inline.createLoop": ("Create loop", "Crear bucle"),
+        "advisor.provider.connect": ("Connect to enable the full mix", "Conéctalos para habilitar la mezcla"),
         "advisor.inline.why": ("Why this?", "¿Por qué?"),
         "advisor.inline.dismiss": ("Dismiss", "Descartar"),
         "activity.compare.title": ("Your choice vs recommended", "Tu elección vs recomendado"),

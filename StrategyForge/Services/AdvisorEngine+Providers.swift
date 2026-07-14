@@ -110,6 +110,10 @@ extension AdvisorEngine {
         let provider: AIProvider
         let modelDisplayName: String
         let reasonKey: String
+        /// False when this pick is part of an ASPIRATIONAL (display-only) mix and the
+        /// provider isn't connected yet — the card shows it dimmed with a "connect"
+        /// nudge, and it is NEVER used to actually run anything.
+        var isConnected: Bool = true
     }
 
     // MARK: - Role → axis
@@ -148,24 +152,48 @@ extension AdvisorEngine {
     static func assignProviders(to strategy: Strategy,
                                 connected: Set<AIProvider>,
                                 bias: TierBias = .balanced) -> (strategy: Strategy, picks: [ProviderPick]) {
-        var s = strategy
         let connectedSet = connected.isEmpty ? [AIProvider.claude] : connected
         let available = modelProfiles.filter { connectedSet.contains($0.provider) }
-        guard Set(available.map(\.provider)).count > 1 else { return (s, []) }
+        guard Set(available.map(\.provider)).count > 1 else { return (strategy, []) }
+        return assignCore(to: strategy, available: available, bias: bias, connected: connectedSet)
+    }
 
+    /// The IDEAL cross-provider mix computed against ALL providers (ignoring what's
+    /// connected) — for DISPLAY ONLY. Each pick is flagged `isConnected` so the card
+    /// can dim the not-yet-connected ones and offer a one-tap connect. This never
+    /// mutates the strategy that actually runs (it returns picks, not a strategy), so
+    /// a run can never target a provider the user hasn't connected.
+    static func aspirationalPicks(for strategy: Strategy,
+                                  connected: Set<AIProvider>,
+                                  bias: TierBias = .balanced) -> [ProviderPick] {
+        let available = modelProfiles   // every provider in the catalog
+        guard Set(available.map(\.provider)).count > 1 else { return [] }
+        return assignCore(to: strategy, available: available, bias: bias, connected: connected).picks
+    }
+
+    /// Shared assignment core: pick the best (provider, model) per role from `available`,
+    /// marking each pick `isConnected` against `connected`. Pure/deterministic.
+    private static func assignCore(to strategy: Strategy,
+                                   available: [ModelProfile],
+                                   bias: TierBias,
+                                   connected: Set<AIProvider>) -> (strategy: Strategy, picks: [ProviderPick]) {
+        var s = strategy
         // Collect (roleIndex, pick) so the UI can show picks in role order.
         var ordered: [(index: Int, pick: ProviderPick)] = []
         var coderProvider: AIProvider?
+
+        func pick(_ name: String, _ kind: RoleKind, _ profile: ModelProfile, _ reason: String) -> ProviderPick {
+            ProviderPick(roleName: name, roleKind: kind, provider: profile.provider,
+                         modelDisplayName: profile.displayName, reasonKey: reason,
+                         isConnected: connected.contains(profile.provider))
+        }
 
         // Pass 1 — every non-review role by its primary axis.
         for i in s.roles.indices where !isReviewRole(s.roles[i].role) {
             let axis = primaryAxis(for: s.roles[i].role)
             guard let profile = best(from: available, axis: axis, bias: bias) else { continue }
             apply(profile, to: &s.roles[i])
-            ordered.append((i, ProviderPick(roleName: s.roles[i].name, roleKind: s.roles[i].role,
-                                            provider: profile.provider,
-                                            modelDisplayName: profile.displayName,
-                                            reasonKey: reasonKey(for: axis))))
+            ordered.append((i, pick(s.roles[i].name, s.roles[i].role, profile, reasonKey(for: axis))))
             if (s.roles[i].role == .worker || s.roles[i].role == .specialist), coderProvider == nil {
                 coderProvider = profile.provider
             }
@@ -184,10 +212,7 @@ extension AdvisorEngine {
             let reason = crossFamily.isEmpty
                 ? "advisor.provider.reason.onlyOne"
                 : "advisor.provider.reason.diversity"
-            ordered.append((i, ProviderPick(roleName: s.roles[i].name, roleKind: s.roles[i].role,
-                                            provider: profile.provider,
-                                            modelDisplayName: profile.displayName,
-                                            reasonKey: reason)))
+            ordered.append((i, pick(s.roles[i].name, s.roles[i].role, profile, reason)))
         }
 
         let picks = ordered.sorted { $0.index < $1.index }.map(\.pick)
