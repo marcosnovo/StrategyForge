@@ -229,6 +229,21 @@ struct AgentActivityPanel: View {
         return order.map { counts[$0]! > 1 ? "\($0) ×\(counts[$0]!)" : $0 }.joined(separator: " · ")
     }
 
+    /// The current chat's live tokens as a % of the 5-hour block and the week (from
+    /// Claude's local usage), shown in parentheses next to the live token count.
+    private func livePctSuffix() -> String? {
+        guard let u = model.claudeUsage, vm.totalTokens > 0 else { return nil }
+        var parts: [String] = []
+        if u.blockTokens > 0 { parts.append(model.t("activity.usage.pct5h", pctStr(vm.totalTokens, u.blockTokens))) }
+        if u.weekTokens > 0 { parts.append(model.t("activity.usage.pctWk", pctStr(vm.totalTokens, u.weekTokens))) }
+        return parts.isEmpty ? nil : "(" + parts.joined(separator: " · ") + ")"
+    }
+
+    private func pctStr(_ part: Int, _ total: Int) -> String {
+        let p = total > 0 ? min(100, Double(part) / Double(total) * 100) : 0
+        return String(format: "%.0f%%", p)
+    }
+
     private func stat(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 3) {
             Image(systemName: icon).font(.system(size: 9))
@@ -262,11 +277,16 @@ struct AgentActivityPanel: View {
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                 Text(formatTokens(vm.totalTokens))
                     .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(.primary)
                     .contentTransition(.numericText())
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.totalTokens)
                 Text(model.t("activity.usage.tokens"))
                     .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+                // This chat's live tokens as a % of the 5-hour window and the week.
+                if let pct = livePctSuffix() {
+                    Text(pct).font(.sfCaption2).foregroundStyle(Theme.tertiaryOnMaterial)
+                        .contentTransition(.numericText())
+                }
                 Spacer()
                 if vm.totalCostUSD > 0 {
                     Text(String(format: "$%.2f", vm.totalCostUSD))
@@ -297,7 +317,7 @@ struct AgentActivityPanel: View {
                     .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
                 // Week: a bar of the per-model split; 5-hour: a teal time-elapsed bar.
                 meterBar(model.t("activity.usage.week"), value: formatTokens(u.weekTokens),
-                         fraction: 1, tint: Theme.accent)
+                         fraction: 1, tint: Theme.teal)
                 if u.blockResetAt != nil {
                     meterBar(model.t("activity.usage.block"), value: fiveHourText(u),
                              fraction: blockElapsedFraction(u), tint: Theme.teal)
@@ -403,7 +423,7 @@ struct AgentActivityPanel: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.hairline).frame(height: 5)
-                    Capsule().fill(Theme.primaryFill).frame(width: max(4, geo.size.width * frac), height: 5)
+                    Capsule().fill(Theme.teal).frame(width: max(4, geo.size.width * frac), height: 5)
                 }
             }
             .frame(height: 5)
@@ -670,7 +690,7 @@ struct AgentActivityPanel: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.hairline).frame(height: 4)
-                    Capsule().fill(Theme.accent).frame(width: max(4, geo.size.width * frac), height: 4)
+                    Capsule().fill(Theme.teal).frame(width: max(4, geo.size.width * frac), height: 4)
                 }
             }
             .frame(height: 4)
@@ -937,7 +957,7 @@ struct AgentActivityPanel: View {
         HStack(spacing: 3) {
             ForEach(Array(vm.todos.enumerated()), id: \.offset) { _, todo in
                 let color: Color = todo.status == "completed" ? Theme.success
-                    : (todo.status == "in_progress" ? Theme.accent : Theme.secondaryOnMaterial.opacity(0.3))
+                    : (todo.status == "in_progress" ? Theme.teal : Theme.secondaryOnMaterial.opacity(0.3))
                 RoundedRectangle(cornerRadius: 1.5).fill(color).frame(width: 6, height: 6)
             }
         }
@@ -947,7 +967,7 @@ struct AgentActivityPanel: View {
     private func todoIcon(_ status: String) -> some View {
         switch status {
         case "completed": Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
-        case "in_progress": Image(systemName: "circle.dotted.circle").foregroundStyle(Theme.accent)
+        case "in_progress": Image(systemName: "circle.dotted.circle").foregroundStyle(Theme.teal)
         default: Image(systemName: "circle").foregroundStyle(Theme.tertiaryOnMaterial)
         }
     }
@@ -989,20 +1009,20 @@ struct ActivityStepRow: View {
         HStack(alignment: .top, spacing: Space.s) {
             Image(systemName: step.isDelegation ? "arrow.turn.down.right" : activityToolIcon(step.title))
                 .font(.system(size: step.isDelegation || isActive ? 11 : 10, weight: step.isDelegation ? .semibold : .regular))
-                .foregroundStyle(step.isDelegation ? Theme.accent : (isActive ? Theme.success : .secondary))
+                .foregroundStyle(step.isDelegation ? Theme.teal : (isActive ? Theme.success : .secondary))
                 .frame(width: 16)
                 .symbolEffect(.pulse, options: .repeating, isActive: isActive && !step.isDelegation)
             Text(activityPhrase(step, model))
                 .font(.sfCaption2.weight(step.isDelegation || isActive ? .semibold : .regular))
-                .foregroundStyle(step.isDelegation ? Theme.accent : (isActive ? .primary : .secondary))
+                .foregroundStyle(step.isDelegation ? Theme.teal : (isActive ? .primary : .secondary))
                 .fixedSize(horizontal: false, vertical: true)
             // Which agent performed this step (subagents only; orchestrator is implicit).
             if let agent = step.agent, !agent.isEmpty, !step.isDelegation {
                 Text(agent)
                     .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Theme.accent).lineLimit(1)
+                    .foregroundStyle(Theme.teal).lineLimit(1)
                     .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(Capsule().fill(Theme.accentSoft))
+                    .background(Capsule().fill(Theme.tealSoft))
             }
             Spacer(minLength: Space.xs)
             if let start = startedAt {
@@ -1014,7 +1034,7 @@ struct ActivityStepRow: View {
         .padding(.horizontal, step.isDelegation ? Space.s : 0)
         .background {
             if step.isDelegation {
-                RoundedRectangle(cornerRadius: 8).fill(Theme.accentSoft)
+                RoundedRectangle(cornerRadius: 8).fill(Theme.tealSoft)
             } else if isActive {
                 RoundedRectangle(cornerRadius: 8).fill(Theme.success.opacity(0.10))
             }
@@ -1022,7 +1042,7 @@ struct ActivityStepRow: View {
         .overlay(alignment: .leading) {
             if step.isDelegation || isActive {
                 RoundedRectangle(cornerRadius: 1.5)
-                    .fill(step.isDelegation ? Theme.accent : Theme.success)
+                    .fill(step.isDelegation ? Theme.teal : Theme.success)
                     .frame(width: 2.5)
                     .padding(.vertical, 2)
                     .offset(x: -Space.s)

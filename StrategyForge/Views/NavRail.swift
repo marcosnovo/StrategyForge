@@ -155,10 +155,12 @@ struct NavRail: View {
         }
         .padding(.horizontal, Space.m)
         .frame(height: 34)
+        // Neutral "lit row" fill (not a coral block) — the coral leading bar + icon
+        // are the single accent cue, so coral stays reserved for actions/critical state.
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(active ? Theme.coral.opacity(0.18) : .clear))
+            .fill(active ? Color.white.opacity(0.08) : .clear))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .strokeBorder(active ? Theme.coral.opacity(0.32) : .clear, lineWidth: 1))
+            .strokeBorder(active ? Color.white.opacity(0.12) : .clear, lineWidth: 1))
         .overlay(alignment: .leading) {
             if active {
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
@@ -198,7 +200,7 @@ struct NavRail: View {
                     }
                 } label: {
                     Text(model.t("rail.usage.view")).font(.sfCaption2.weight(.medium))
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(Theme.teal)
                 }
                 .buttonStyle(.plain)
             }
@@ -369,7 +371,7 @@ private struct RunningPulseDot: View {
 
     var body: some View {
         Circle()
-            .fill(Theme.coral)
+            .fill(Theme.teal)
             .frame(width: 6, height: 6)
             .opacity(reduceMotion ? 1 : (dim ? 0.35 : 1))
             .onAppear {

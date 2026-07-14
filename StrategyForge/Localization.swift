@@ -1031,6 +1031,8 @@ enum L10n {
         "activity.preview": ("Preview", "Vista previa"),
         "activity.usage.title": ("LIVE USAGE", "USO EN VIVO"),
         "activity.usage.tokens": ("tokens", "tokens"),
+        "activity.usage.pct5h": ("%@ of 5h", "%@ de 5h"),
+        "activity.usage.pctWk": ("%@ of week", "%@ semana"),
         "activity.usage.live": ("live", "en vivo"),
         "activity.usage.week": ("This week", "Esta semana"),
         "activity.usage.account": ("All Claude Code · this Mac", "Todo Claude Code · este Mac"),
