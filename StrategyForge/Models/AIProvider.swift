@@ -72,11 +72,12 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
     /// Whether the app can actually *run* a chat on this provider today.
     var isExecutable: Bool { self == .claude }
 
-    /// Whether the sign-in genuinely needs a visible Terminal (last resort). Coral runs
-    /// logins in a HIDDEN pseudo-terminal instead (see ProviderInstaller.signIn), so
-    /// Claude (`auth login`, prints a browser URL) and Codex both connect in-app with
-    /// no Terminal. Only Gemini's full-screen TUI login can't be automated that way.
-    var loginNeedsTerminal: Bool { self == .gemini }
+    /// Whether the sign-in must open a visible Terminal up front. Coral now drives ALL
+    /// logins in a HIDDEN pseudo-terminal (Claude's `auth login`, Codex's localhost
+    /// callback, and Gemini's first-run TUI, which it navigates + detects via the creds
+    /// file). Terminal stays available only as the sheet's on-failure fallback, so this
+    /// is false for every provider.
+    var loginNeedsTerminal: Bool { false }
 
     /// Whether this provider's CLI streams structured file-edit / command events that
     /// Code Mode (diffs, terminal, git panel) can render. Only Claude Code does today;

@@ -125,9 +125,11 @@ enum ProviderInstaller {
                     continuation.yield(.failed("Couldn't find the \(provider.binaryName) CLI — install it first."))
                     continuation.finish(); return
                 }
-                // A hidden PTY gives the login a real terminal without showing one.
+                // A hidden PTY gives the login a real terminal without showing one; a
+                // sized window lets a full-screen TUI (Gemini) render + navigate.
                 var master: Int32 = 0, slave: Int32 = 0
-                guard openpty(&master, &slave, nil, nil, nil) == 0 else {
+                var ws = winsize(ws_row: 48, ws_col: 160, ws_xpixel: 0, ws_ypixel: 0)
+                guard openpty(&master, &slave, nil, nil, &ws) == 0 else {
                     continuation.yield(.failed("Couldn't open a login session.")); continuation.finish(); return
                 }
                 let process = Process()
@@ -178,6 +180,36 @@ enum ProviderInstaller {
                 do {
                     try process.run()
                     close(slave)   // the child holds its own copy; the parent doesn't need it
+                    // Never hang forever on a login (esp. an interactive TUI that won't exit).
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 150) {
+                        if process.isRunning { process.terminate() }
+                    }
+                    // Gemini has no login command: it's a first-run TUI that DOESN'T exit on
+                    // success. Nudge past its theme/auth menus (accept the highlighted
+                    // "Login with Google") and detect success by the creds file updating.
+                    if provider == .gemini {
+                        let creds = "\(home)/.gemini/oauth_creds.json"
+                        func credsMtime() -> Date? {
+                            (try? FileManager.default.attributesOfItem(atPath: creds))?[.modificationDate] as? Date
+                        }
+                        let before = credsMtime()
+                        for delay in [1.2, 2.8, 4.4] {
+                            DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
+                                try? masterHandle.write(contentsOf: Data("\r".utf8))
+                            }
+                        }
+                        DispatchQueue.global().async {
+                            let deadline = Date().addingTimeInterval(140)
+                            while Date() < deadline, process.isRunning {
+                                Thread.sleep(forTimeInterval: 1.5)
+                                if let now = credsMtime(), now != before {
+                                    continuation.yield(.finished)
+                                    if process.isRunning { process.terminate() }
+                                    return
+                                }
+                            }
+                        }
+                    }
                 } catch {
                     continuation.yield(.failed(error.localizedDescription)); continuation.finish()
                 }
