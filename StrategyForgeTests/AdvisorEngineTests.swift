@@ -69,6 +69,33 @@ struct AdvisorEngineTests {
         })
     }
 
+    // MARK: - Non-delegable work
+
+    @Test func serialDebuggingCollapsesTeamButKeepsStrongModel() {
+        // "investiga" trips the fan-out heuristic and the depth gate (→ strong model),
+        // but a root-cause hunt is one serial chain of judgments — nothing to hand
+        // off. The engine must collapse to a lean setup, say so in the path, and
+        // (unlike the cheap-model downgrade) keep a capable model leading.
+        let advice = AdvisorEngine.advise(
+            task: "Investiga y depura por qué el checkout falla de forma intermitente en todo el repo; encuentra la causa raíz del fallo")
+        #expect(advice.shapeRationaleKey == "advisor.rationale.nondelegable")
+        #expect(advice.strategy.roles.count <= 2)          // executor + advisor, no fleet
+        #expect(advice.model == .fable5 || advice.model == .opus48)
+        #expect(advice.decisionPath.contains {
+            $0.questionKey == "advisor.q.team" && !$0.answerIsYes
+                && $0.evidenceKeys.contains("advisor.ev.serialDebug")
+        })
+    }
+
+    @Test func delegableMultiFileWorkStillGetsATeam() {
+        // Guard against over-firing: a genuinely splittable migration must NOT be
+        // mistaken for non-delegable work.
+        let advice = AdvisorEngine.advise(
+            task: "Migración multi-archivo de bcrypt a argon2 en todo el repo, serán días de trabajo")
+        #expect(advice.shapeRationaleKey != "advisor.rationale.nondelegable")
+        #expect(!advice.strategy.subagentRoles.isEmpty)
+    }
+
     // MARK: - Decision path shape
 
     @Test func pathIsNonEmptyAndStartsWithDepthQuestion() {
