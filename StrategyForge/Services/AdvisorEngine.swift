@@ -139,6 +139,22 @@ enum AdvisorEngine {
         ]),
     ]
 
+    /// Work with no delegable components: a serial root-cause investigation where
+    /// the accumulated context IS the work — you can't hand off half a debugging
+    /// chain. When the shape heuristic reaches for a team on this kind of task,
+    /// delegation has no leverage over cost, so the shape collapses to one capable
+    /// agent instead. Keywords are high-precision on purpose (diagnosis, not just
+    /// "bug"), to avoid collapsing genuinely splittable work.
+    private static let nonDelegableGroups: [SignalGroup] = [
+        SignalGroup(evidenceKey: "advisor.ev.serialDebug", keywords: [
+            "root cause", "root-cause", "causa raiz", "raiz del",
+            "why is", "why does", "why the", "why it", "why are",
+            "por que falla", "por que se", "por que da", "por que no funciona",
+            "debug", "depura", "trace through", "step through", "stack trace",
+            "flaky", "intermitente", "intermittent", "bisect",
+        ]),
+    ]
+
     /// Loop-kind signals, checked in priority order: goal → time → event.
     private static let goalLoopGroup = SignalGroup(evidenceKey: "advisor.ev.goalWords", keywords: [
         "hasta que", "until", "tests pass", "pasen", "lint", "bug fix", "arregl",
@@ -214,8 +230,20 @@ enum AdvisorEngine {
         var rationaleKey = "advisor.rationale.\(shapeKeySuffix(shape))"
         let isCheapModel = (model == .haiku45 || model == .sonnet5)
         let isHeavyShape = !(shape == .solo || shape == .executorAdvisor)
+        // A serial root-cause hunt has nothing to hand off — the accumulated context
+        // is the work. Forcing a team there buys nothing, so it collapses to a lean
+        // executor+advisor. Unlike the cheap-model downgrade, the model tier is kept:
+        // debugging is judgment-heavy and still wants a capable lead.
+        let nonDelegableEvidence = fired(nonDelegableGroups, in: text)
+        let isNonDelegable = !nonDelegableEvidence.isEmpty
         if isHeavyShape {
-            if isCheapModel {
+            if isNonDelegable {
+                shape = .executorAdvisor
+                teamSize = 1
+                rationaleKey = "advisor.rationale.nondelegable"
+                record("advisor.q.team", yes: false, answer: "advisor.a.team.no",
+                       evidence: nonDelegableEvidence)
+            } else if isCheapModel {
                 shape = (model == .haiku45) ? .solo : .executorAdvisor
                 teamSize = 1
                 rationaleKey = "advisor.rationale.downgraded"

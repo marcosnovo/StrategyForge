@@ -113,6 +113,8 @@ extension L10n {
                                     "trabajo complejo sobre un alcance grande"),
         "advisor.ev.cheapModel": ("a fast, cheap model doesn't need a fleet",
                                   "un modelo rápido y barato no necesita una flota"),
+        "advisor.ev.serialDebug": ("a serial root-cause hunt — the accumulated context is the work",
+                                   "una búsqueda de causa raíz en serie — el contexto acumulado es el trabajo"),
         "advisor.ev.goalWords": ("a verifiable finish line (tests, lint, “until…”)",
                                  "una meta verificable (tests, lint, «hasta que…»)"),
         "advisor.ev.timeWords": ("a recurring schedule (daily, every…)",
@@ -172,6 +174,9 @@ extension L10n {
         "advisor.rationale.downgraded": (
             "Scaled the team down: a quick task on a fast model doesn't need a fleet.",
             "Equipo reducido: una tarea rápida en un modelo veloz no necesita una flota."),
+        "advisor.rationale.nondelegable": (
+            "Nothing to hand off: a serial debugging chain stays with one capable agent.",
+            "Nada que delegar: una cadena de depuración en serie se queda con un solo agente capaz."),
 
         // MARK: Loop card
         "advisor.loop.title": ("Loop", "Bucle"),
