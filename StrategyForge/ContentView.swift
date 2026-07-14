@@ -51,6 +51,7 @@ struct ContentView: View {
         let prefill = LoopPlan(name: name,
                                kind: advice.loopKind,
                                goal: advice.goalSuggestion,
+                               effort: advice.effort,
                                workerModel: advice.model)
         LoopStore.shared.addLoop(prefill: prefill)
         model.navSection = .loops

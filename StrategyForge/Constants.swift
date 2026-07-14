@@ -131,6 +131,25 @@ enum Constants {
         "claude-haiku-4-5": ModelPrice(inputPerM: 1,  outputPerM: 5),
     ]
 
+    /// Adjustments that make the estimate reflect *effective* spend rather than the
+    /// sticker rate. These are deliberate, tunable assumptions (not billing facts):
+    /// the estimate is for comparing shapes, so what matters is that they're applied
+    /// consistently. See `CostEstimator`.
+    enum CostModel {
+        /// Anthropic's newer tokenizer emits ~30% more tokens for the same text, so
+        /// the effective bill sits above the sticker rate. Applied to every model's
+        /// dollar figure (a flat factor never changes the *relative* ordering).
+        static let tokenizerOverhead = 1.3
+
+        /// Agents re-read a large, stable prefix (system prompt, CLAUDE.md, prior
+        /// turns) every call, so a good share of input tokens are cache *reads*, not
+        /// fresh input. Rough fraction of input priced at the cache-read rate.
+        static let cachedInputFraction = 0.5
+
+        /// Cache reads cost about a tenth of fresh input at both labs (~90% off).
+        static let cacheReadMultiplier = 0.1
+    }
+
     // MARK: - Auth & sync
 
     /// Identity / sync configuration. Auth is strictly OPT-IN: the whole app works

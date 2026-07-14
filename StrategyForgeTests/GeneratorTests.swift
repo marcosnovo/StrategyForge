@@ -240,6 +240,15 @@ struct CostEstimatorTests {
         // and per-strategy tier pills stable).
         #expect(CostEstimator.estimate(s).perRun == medium)
     }
+
+    @Test func effectiveCostBreakdownSumsToTotal() {
+        // The effective-cost model (tokenizer overhead + cache-read discount) must
+        // stay internally consistent: the per-model breakdown sums to perRun.
+        let cost = CostEstimator.estimate(StrategyLibrary.domainSpecialists())
+        let sum = cost.byModel.values.reduce(0, +)
+        #expect(cost.perRun > 0)
+        #expect(abs(sum - cost.perRun) < 0.0001)
+    }
 }
 
 struct StrategyValidationTests {
