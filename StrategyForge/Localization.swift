@@ -229,6 +229,7 @@ enum L10n {
         "usage.codex.window.week": ("Weekly limit", "Límite semanal"),
         "usage.codex.noWindows": ("No rate-limit data yet", "Aún sin datos de límite"),
         "usage.gemini.none": ("Gemini's CLI reports no local usage", "El CLI de Gemini no reporta uso local"),
+        "usage.claude.exact": ("Exact % is behind Claude's login — sign in", "El % exacto está tras el login de Claude — inicia sesión"),
         "usage.lastActivity": ("Last activity %@", "Última actividad %@"),
         "usage.loading": ("Reading local logs…", "Leyendo registros locales…"),
         "usage.empty": ("Nothing to show yet — this fills in after your first chat or Claude Code session on this Mac. Come back and press Refresh.",

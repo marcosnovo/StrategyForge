@@ -11,6 +11,9 @@ import SwiftUI
 
 struct UsageView: View {
     @Environment(AppModel.self) private var model
+    /// Presents the Claude re-login flow from the usage card (so the exact rate-limit
+    /// data — which lives behind Claude's own login — can come back after a refresh).
+    @State private var reconnectingClaude = false
 
     var body: some View {
         ScrollView {
@@ -86,6 +89,14 @@ struct UsageView: View {
                 UsageRing(fraction: blockFraction(u), label: fiveHourLabel(u),
                           caption: model.t("usage.fiveHour"))
                     .frame(width: 96, height: 96).frame(maxWidth: .infinity)
+                // We read local logs, but the EXACT rate-limit % lives behind Claude's
+                // own login — offer to sign in (also refreshes the chat's auth).
+                Button { reconnectingClaude = true } label: {
+                    Label(model.t("usage.claude.exact"), systemImage: "arrow.up.forward.app")
+                        .font(.sfCaption2)
+                }
+                .buttonStyle(.plain).foregroundStyle(Theme.teal)
+                .frame(maxWidth: .infinity)
                 Divider()
                 HStack {
                     Text(model.t("usage.sevenDay")).font(.sfFieldLabel).foregroundStyle(.secondary).tracking(0.6)
@@ -100,8 +111,12 @@ struct UsageView: View {
                     }
                 }
             } else if model.isRefreshingUsage { loadingCard } else { emptyCard }
+            Spacer(minLength: 0)
         }
-        .card()
+        .equalCard()
+        .sheet(isPresented: $reconnectingClaude) {
+            ProviderConnectSheet(provider: .claude) { Task { await model.refreshUsage() } }
+        }
     }
 
     private var codexUsageCard: some View {
@@ -124,16 +139,18 @@ struct UsageView: View {
             } else {
                 providerEmpty(model.t("usage.codex.noWindows"))
             }
+            Spacer(minLength: 0)
         }
-        .card()
+        .equalCard()
     }
 
     private var geminiUsageCard: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             providerCardHeader(.gemini, last: nil)
             providerEmpty(model.t("usage.gemini.none"))
+            Spacer(minLength: 0)
         }
-        .card()
+        .equalCard()
     }
 
     /// A centered "no data" placeholder used inside a provider card.

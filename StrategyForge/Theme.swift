@@ -370,6 +370,18 @@ extension View {
     func card(padding: CGFloat = 20) -> some View {
         modifier(CardModifier(padding: padding))
     }
+
+    /// Like `card`, but stretches to fill its container's height — so cards laid out
+    /// side by side in a grid row all share the tallest one's height (uniform boxes).
+    func equalCard(padding: CGFloat = 20) -> some View {
+        self.padding(padding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                    .fill(Theme.cardBg)
+                    .shadow(color: .black.opacity(0.12), radius: 22, x: 0, y: 9)
+            )
+    }
 }
 
 // MARK: - Motion primitives (the "alive" layer)
