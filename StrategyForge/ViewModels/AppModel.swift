@@ -1730,8 +1730,11 @@ final class AppModel {
     /// failure surfaces as a banner.
     @discardableResult
     func save(stamp: Bool = true) -> Bool {
-        if stamp { stampChanges() }
-        snapshotConfigurations()
+        // `snapshotConfigurations` only feeds `stampChanges`' next diff, so it's needed
+        // only when stamping. Keeping it off the streaming persist path (stamp:false,
+        // fired every ~1.5s mid-reply) avoids rebuilding a dictionary of every chat on
+        // each token flush.
+        if stamp { stampChanges(); snapshotConfigurations() }
         let state = PersistedState(configurations: configurations, settings: settings, savedTeams: savedTeams)
         let url = storeURL
         writeTask?.cancel()

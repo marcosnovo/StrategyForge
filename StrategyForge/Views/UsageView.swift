@@ -16,8 +16,7 @@ struct UsageView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                 header
-                claudeSection
-                codexSection
+                providerUsageGrid
                 // The cross-provider spend roll-up sits BELOW the per-provider detail.
                 spendByProviderCard
                 if model.configurations.contains(where: { $0.totalTokens > 0 }) {
@@ -53,132 +52,122 @@ struct UsageView: View {
         .zoomWindowOnDoubleClick()
     }
 
-    // MARK: - Claude
+    // MARK: - Per-provider usage (responsive grid)
 
-    @ViewBuilder
-    private var claudeSection: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            HStack(spacing: Space.s) {
-                ProviderLogo(provider: .claude, size: 20)
-                Text(AIProvider.claude.displayName).font(.sfCardTitle)
-                planBadge(.claude)
-                Spacer()
-                if let u = model.claudeUsage, let last = u.lastActivity {
-                    Text(model.t("usage.lastActivity", relative(last)))
-                        .font(.sfCaption2).foregroundStyle(.secondary)
-                }
+    /// The per-provider usage cards in an adaptive grid: as many across as fit (3 on a
+    /// wide window), wrapping to 2/1 as it narrows — so space is used and no card is
+    /// left wide-and-empty.
+    private var providerUsageGrid: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: .infinity), spacing: Space.l)],
+                  alignment: .leading, spacing: Space.l) {
+            claudeUsageCard
+            codexUsageCard
+            geminiUsageCard
+        }
+    }
+
+    private func providerCardHeader(_ p: AIProvider, last: Date?) -> some View {
+        HStack(spacing: Space.s) {
+            ProviderLogo(provider: p, size: 18, templateTint: p.tint)
+            Text(p.displayName).font(.sfCardTitle).lineLimit(1)
+            planBadge(p)
+            Spacer(minLength: 0)
+            if let last {
+                Text(model.t("usage.lastActivity", relative(last)))
+                    .font(.system(size: 9)).foregroundStyle(.tertiary).lineLimit(1)
             }
+        }
+    }
 
-            if let usage = model.claudeUsage, usage.hasData {
-                HStack(alignment: .top, spacing: Space.l) {
-                    fiveHourCard(usage).frame(width: 230)
-                        .staggeredAppear(index: 0)
-                    weeklyCard(usage).frame(maxWidth: .infinity)
+    private var claudeUsageCard: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            providerCardHeader(.claude, last: model.claudeUsage?.lastActivity)
+            if let u = model.claudeUsage, u.hasData {
+                UsageRing(fraction: blockFraction(u), label: fiveHourLabel(u),
+                          caption: model.t("usage.fiveHour"))
+                    .frame(width: 96, height: 96).frame(maxWidth: .infinity)
+                Divider()
+                HStack {
+                    Text(model.t("usage.sevenDay")).font(.sfFieldLabel).foregroundStyle(.secondary).tracking(0.6)
+                    Spacer()
+                    Text(formatTokens(u.weekTokens)).font(.sfMono).foregroundStyle(.secondary)
                 }
-            } else if model.isRefreshingUsage {
-                loadingCard
+                if u.weekByModel.isEmpty {
+                    Text(model.t("usage.noWeek")).font(.sfCaption2).foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(u.weekByModel.prefix(4).enumerated()), id: \.element.id) { i, m in
+                        modelBar(m, total: u.weekTokens, index: i)
+                    }
+                }
+            } else if model.isRefreshingUsage { loadingCard } else { emptyCard }
+        }
+        .card()
+    }
+
+    private var codexUsageCard: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            providerCardHeader(.openai, last: model.codexUsage?.lastActivity)
+            if let c = model.codexUsage, let w = c.primary ?? c.secondary {
+                UsageRing(fraction: w.usedPercent / 100, label: "\(Int(w.usedPercent.rounded()))%",
+                          caption: model.t(w.kindLabelKey))
+                    .frame(width: 96, height: 96).frame(maxWidth: .infinity)
+                if let reset = w.resetsAt {
+                    TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                        Text(model.t("usage.resetsIn", countdown(to: reset, now: ctx.date)))
+                            .font(.sfCaption2).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                if let s = (c.primary != nil ? c.secondary : nil) {
+                    modelPctBar(model.t(s.kindLabelKey), percent: s.usedPercent)
+                }
             } else {
-                emptyCard
+                providerEmpty(model.t("usage.codex.noWindows"))
             }
         }
         .card()
     }
 
-    // MARK: - Codex (real rate-limit % from ~/.codex logs)
-
-    @ViewBuilder
-    private var codexSection: some View {
-        if let u = model.codexUsage, u.hasData {
-            VStack(alignment: .leading, spacing: Space.m) {
-                HStack(spacing: Space.s) {
-                    ProviderLogo(provider: .openai, size: 20, templateTint: AIProvider.openai.tint)
-                    Text(AIProvider.openai.displayName).font(.sfCardTitle)
-                    if let plan = u.planType, !plan.isEmpty {
-                        Text(plan.capitalized).font(.sfCaption2.weight(.medium))
-                            .foregroundStyle(AIProvider.openai.tint)
-                            .padding(.horizontal, 8).padding(.vertical, 2)
-                            .background(Capsule().fill(AIProvider.openai.tint.opacity(0.12)))
-                    }
-                    Spacer()
-                    if let last = u.lastActivity {
-                        Text(model.t("usage.lastActivity", relative(last)))
-                            .font(.sfCaption2).foregroundStyle(.secondary)
-                    }
-                }
-                HStack(alignment: .top, spacing: Space.l) {
-                    if let p = u.primary { codexWindowCard(p) }
-                    if let s = u.secondary { codexWindowCard(s) }
-                    if u.primary == nil && u.secondary == nil {
-                        Text(model.t("usage.codex.noWindows")).font(.sfCaption2).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .card()
+    private var geminiUsageCard: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            providerCardHeader(.gemini, last: nil)
+            providerEmpty(model.t("usage.gemini.none"))
         }
+        .card()
     }
 
-    private func codexWindowCard(_ w: CodexWindow) -> some View {
+    /// A centered "no data" placeholder used inside a provider card.
+    private func providerEmpty(_ text: String) -> some View {
         VStack(spacing: Space.s) {
-            UsageRing(fraction: w.usedPercent / 100,
-                      label: "\(Int(w.usedPercent.rounded()))%",
-                      caption: model.t(w.kindLabelKey))
-                .frame(width: 120, height: 120)
-            if let reset = w.resetsAt {
-                TimelineView(.periodic(from: .now, by: 30)) { ctx in
-                    Text(model.t("usage.resetsIn", countdown(to: reset, now: ctx.date)))
-                        .font(.sfCaption2).foregroundStyle(.secondary)
-                }
-            }
+            Image(systemName: "chart.bar.xaxis").font(.title3).foregroundStyle(.secondary)
+            Text(text).font(.sfCaption2).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
         }
-        .padding(Space.m).frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+        .frame(maxWidth: .infinity).padding(.vertical, Space.l)
     }
 
-    private func fiveHourCard(_ usage: UsageSummary) -> some View {
-        VStack(spacing: Space.s) {
-            UsageRing(fraction: blockFraction(usage), label: formatTokens(usage.blockTokens),
-                      caption: model.t("usage.ring.tokens"))
-                .frame(width: 130, height: 130)
-            HStack(spacing: Space.xs) {
-                Text(model.t("usage.fiveHour")).font(.sfFieldLabel)
-                    .foregroundStyle(.secondary).tracking(0.6)
-                InfoPopoverButton(text: model.t("usage.fiveHour.help"))
-            }
-            if let reset = usage.blockResetAt {
-                TimelineView(.periodic(from: .now, by: 30)) { ctx in
-                    Text(model.t("usage.resetsIn", countdown(to: reset, now: ctx.date)))
-                        .font(.sfCaption2).foregroundStyle(.secondary)
-                }
-            } else {
-                Text(model.t("usage.noActiveWindow")).font(.sfCaption2).foregroundStyle(.secondary)
-            }
-        }
-        .padding(Space.m)
-        .frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
-    }
-
-    private func weeklyCard(_ usage: UsageSummary) -> some View {
-        VStack(alignment: .leading, spacing: Space.s) {
+    /// A labelled percentage bar (label + "%", teal fill) for a secondary window.
+    private func modelPctBar(_ label: String, percent: Double) -> some View {
+        VStack(spacing: 3) {
             HStack {
-                Text(model.t("usage.sevenDay")).font(.sfFieldLabel)
-                    .foregroundStyle(.secondary).tracking(0.6)
+                Text(label).font(.sfCaption2).foregroundStyle(.secondary)
                 Spacer()
-                Text(formatTokens(usage.weekTokens)).font(.sfMono).foregroundStyle(Theme.accent)
+                Text("\(Int(percent.rounded()))%").font(.sfCaption2.weight(.medium).monospacedDigit())
             }
-            Text(model.t("usage.week.gloss")).font(.sfCaption2).foregroundStyle(.tertiary)
-            if usage.weekByModel.isEmpty {
-                Text(model.t("usage.noWeek")).font(.sfCaption2).foregroundStyle(.secondary)
-            } else {
-                ForEach(Array(usage.weekByModel.enumerated()), id: \.element.id) { index, m in
-                    modelBar(m, total: usage.weekTokens, index: index)
-                        .staggeredAppear(index: index + 1)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.hairline).frame(height: 6)
+                    Capsule().fill(Theme.teal).frame(width: max(5, geo.size.width * min(percent / 100, 1)), height: 6)
                 }
             }
+            .frame(height: 6)
         }
-        .padding(Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+    }
+
+    /// The Claude 5-hour ring's center label: time to reset, or "—" when idle.
+    private func fiveHourLabel(_ u: UsageSummary) -> String {
+        guard let reset = u.blockResetAt else { return "—" }
+        return countdown(to: reset, now: Date())
     }
 
     private func modelBar(_ m: ModelUsage, total: Int, index: Int = 0) -> some View {

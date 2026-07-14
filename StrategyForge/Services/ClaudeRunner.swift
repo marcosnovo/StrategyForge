@@ -605,11 +605,16 @@ private final class LineBuffer: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         data.append(chunk)
         var lines: [String] = []
-        while let nl = data.firstIndex(of: 0x0A) {
-            let lineData = data[data.startIndex..<nl]
-            if let line = String(data: lineData, encoding: .utf8) { lines.append(line) }
-            data.removeSubrange(data.startIndex...nl)
+        // Walk newlines with a moving cursor and remove the consumed prefix ONCE at the
+        // end — front-removing per line is O(n²) over a long turn's thousands of lines.
+        var cursor = data.startIndex
+        var lastNL: Data.Index?
+        while let nl = data[cursor...].firstIndex(of: 0x0A) {
+            if let line = String(data: data[cursor..<nl], encoding: .utf8) { lines.append(line) }
+            lastNL = nl
+            cursor = data.index(after: nl)
         }
+        if let lastNL { data.removeSubrange(data.startIndex...lastNL) }
         return lines
     }
 

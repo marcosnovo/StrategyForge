@@ -38,6 +38,8 @@ struct ChatView: View {
     /// Confirmation before granting persistent full access.
     @State private var confirmAlwaysAllow = false
     @State private var showReport = false
+    /// Drives the "reconnect & retry" sheet when a turn fails with an auth error.
+    @State private var reconnecting = false
     /// Code mode: a developer workspace (files/diffs) instead of plain chat.
     @State private var codeMode = false
     /// Token Saver: tips dismissed in this chat session, plus the transient
@@ -1110,6 +1112,13 @@ struct ChatView: View {
         return model.t(known.contains(name) ? "perm.explain.\(name)" : "perm.explain.default")
     }
 
+    /// Whether an error message is an authentication failure (so we offer reconnect).
+    private func isAuthError(_ error: String) -> Bool {
+        let e = error.lowercased()
+        return e.contains("401") || e.contains("authenticate") || e.contains("credentials")
+            || e.contains("sign in") || e.contains("log in") || e.contains("unauthorized")
+    }
+
     private func errorBanner(_ error: String) -> some View {
         VStack(alignment: .leading, spacing: Space.s) {
             Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -1119,8 +1128,15 @@ struct ChatView: View {
             // The failure is actionable: open Connected Services (the usual fix for a
             // provider run), export the log, or copy the message.
             HStack(spacing: Space.s) {
-                Button(model.t("banner.fix")) { model.navSection = .services }
-                    .controlSize(.small)
+                // Auth failures self-heal: sign in again (browser), then auto-retry the
+                // same turn — the user never has to leave for Terminal or re-type.
+                if isAuthError(error) {
+                    Button(model.t("chat.reconnectRetry")) { reconnecting = true }
+                        .buttonStyle(.moon).controlSize(.small)
+                } else {
+                    Button(model.t("banner.fix")) { model.navSection = .services }
+                        .controlSize(.small)
+                }
                 Button(model.t("banner.exportLog")) { model.exportDiagnostics() }
                     .controlSize(.small)
                 CopyButton(text: error, help: model.t("chat.copy"))
@@ -1132,6 +1148,13 @@ struct ChatView: View {
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.danger.opacity(0.10))
+        // Reconnect flow (install if needed → web sign-in) then auto-retry the turn.
+        .sheet(isPresented: $reconnecting) {
+            ProviderConnectSheet(provider: config.provider) {
+                vm.errorText = nil
+                vm.retryAllowingAll()
+            }
+        }
     }
 
     private var inputBar: some View {
