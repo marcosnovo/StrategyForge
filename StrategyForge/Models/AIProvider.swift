@@ -73,10 +73,11 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
     var isExecutable: Bool { self == .claude }
 
     /// Whether this CLI's sign-in is an interactive terminal flow that needs a real
-    /// TTY (so we can't drive it as a headless subprocess — it would just exit). The
-    /// Gemini CLI's first-run login is a full-screen TUI; Claude and Codex print a
-    /// browser URL we can open ourselves, so they connect without a Terminal.
-    var loginNeedsTerminal: Bool { self == .gemini }
+    /// TTY, so it can't be driven as a headless subprocess (it just errors with
+    /// "Input must be provided…"). Gemini's first-run login is a full-screen TUI, and
+    /// `claude`'s sign-in is its interactive REPL/`/login` — both need Terminal. Only
+    /// Codex prints a browser URL we can open from a background process.
+    var loginNeedsTerminal: Bool { self == .gemini || self == .claude }
 
     /// Whether this provider's CLI streams structured file-edit / command events that
     /// Code Mode (diffs, terminal, git panel) can render. Only Claude Code does today;
