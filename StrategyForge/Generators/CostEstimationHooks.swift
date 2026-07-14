@@ -45,9 +45,14 @@ struct StrategyCost {
 /// scales token usage (higher effort ≈ more reading/verifying/thinking). This is
 /// used ONLY to make the cost estimate more realistic — it is never written to any
 /// generated file. `medium` is the baseline (×1) so estimates are stable by default.
-enum CostEffort: String, CaseIterable, Identifiable, Hashable {
+enum CostEffort: String, CaseIterable, Identifiable, Hashable, Codable {
     case low, medium, high
     var id: String { rawValue }
+
+    /// The value passed to Claude Code's `--effort` flag. The three estimate levels
+    /// map 1:1 onto the CLI's lower three (`low|medium|high`); the CLI also accepts
+    /// `xhigh|max`, which the loop editor doesn't expose.
+    var cliValue: String { rawValue }
 
     /// Token multiplier applied to each role's workload.
     var multiplier: Double {
@@ -109,8 +114,19 @@ enum CostEstimator {
             guard let price = Constants.pricing[role.model.rawValue] else { continue }
             let load = workload(isOrchestrator: role.isOrchestrator, role: role.role, canDelegate: canDelegate)
             let count = Double(max(role.count, 1))
-            let cost = count * (load.input * m / 1_000_000 * price.inputPerM
-                              + load.output * m / 1_000_000 * price.outputPerM)
+
+            // Input dominates an agent's bill (~100:1 read:write), and much of it is
+            // a repeated prefix served from cache — so price the cached share at the
+            // cache-read rate and only the rest at the fresh-input rate.
+            let inputTokens = load.input * m
+            let cachedIn = inputTokens * Constants.CostModel.cachedInputFraction
+            let freshIn = inputTokens - cachedIn
+            let inputCost = (freshIn * price.inputPerM
+                             + cachedIn * price.inputPerM * Constants.CostModel.cacheReadMultiplier) / 1_000_000
+            let outputCost = load.output * m / 1_000_000 * price.outputPerM
+            // Tokenizer overhead lifts the effective spend above the sticker rate.
+            let cost = count * (inputCost + outputCost) * Constants.CostModel.tokenizerOverhead
+
             total += cost
             tokens += count * (load.input + load.output) * m
             byModel[role.model, default: 0] += cost

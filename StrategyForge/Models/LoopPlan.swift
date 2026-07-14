@@ -95,6 +95,13 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     var stopIf: String
     /// Hard emergency brake. Clamped to 1...100 on init/decode.
     var maxTurns: Int
+    /// Optional spend cap in USD for a goal loop's `loop.sh`: it tallies each turn's
+    /// reported cost and stops before this is exceeded. `nil` = no cap (the article's
+    /// "a loop with no dollar abort is a bill"). Only emitted for goal loops.
+    var budgetUSD: Double?
+    /// How hard the worker model thinks — written into `loop.sh`/the launch command
+    /// as `--effort`. Effort is the cheapest routing dial: same model, more thinking.
+    var effort: CostEffort
     /// Cadence for `timeBased` loops, in minutes.
     var intervalMinutes: Int
     /// The model that does the work.
@@ -125,6 +132,8 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         neverTouch: String = "",
         stopIf: String = "",
         maxTurns: Int = 20,
+        budgetUSD: Double? = nil,
+        effort: CostEffort = .medium,
         intervalMinutes: Int = 30,
         workerModel: ClaudeModel = .sonnet5,
         verifierEnabled: Bool = true,
@@ -143,6 +152,8 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         self.neverTouch = neverTouch
         self.stopIf = stopIf
         self.maxTurns = Self.clampTurns(maxTurns)
+        self.budgetUSD = budgetUSD.map { max(0, $0) }
+        self.effort = effort
         self.intervalMinutes = intervalMinutes
         self.workerModel = workerModel
         self.verifierEnabled = verifierEnabled
@@ -156,7 +167,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, goal, neverTouch, stopIf, maxTurns, intervalMinutes
+        case id, name, kind, goal, neverTouch, stopIf, maxTurns, budgetUSD, effort, intervalMinutes
         case workerModel, verifierEnabled, verifierModel, memoryEnabled
         case repoPath, repoBookmark, updatedAt, lastRunAt, lastRun
     }
@@ -174,6 +185,9 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         neverTouch = try c.decodeIfPresent(String.self, forKey: .neverTouch) ?? ""
         stopIf = try c.decodeIfPresent(String.self, forKey: .stopIf) ?? ""
         maxTurns = Self.clampTurns(try c.decodeIfPresent(Int.self, forKey: .maxTurns) ?? 20)
+        budgetUSD = (try? c.decodeIfPresent(Double.self, forKey: .budgetUSD) ?? nil).map { max(0, $0) }
+        let effortRaw = ((try? c.decodeIfPresent(String.self, forKey: .effort)) ?? nil) ?? ""
+        effort = CostEffort(rawValue: effortRaw) ?? .medium
         intervalMinutes = try c.decodeIfPresent(Int.self, forKey: .intervalMinutes) ?? 30
         let workerRaw = ((try? c.decodeIfPresent(String.self, forKey: .workerModel)) ?? nil) ?? ""
         workerModel = ClaudeModel(rawValue: workerRaw) ?? .sonnet5
@@ -195,16 +209,40 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     /// a warning (it would grade its own work).
     func validate() -> [String] {
         var issues: [String] = []
+        let trimmedGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             issues.append("loop.issue.name")
         }
-        if goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if trimmedGoal.isEmpty {
             issues.append("loop.issue.goal")
+        } else if !Self.isVerifiableGoal(trimmedGoal) {
+            // Warning, not an error: a loop closes on "## Done when", so a goal a
+            // shell can't check means the verifier is grading vibes (article law:
+            // "done is a fact about the environment").
+            issues.append("loop.issue.vagueGoal")
         }
         if kind == .goalBased && !verifierEnabled {
             issues.append("loop.issue.noVerifier")
         }
         return issues
+    }
+
+    /// Heuristic: does the goal read as machine-checkable? Lenient on purpose (it
+    /// only drives a soft warning) — a goal that names a test/build/lint signal, a
+    /// pass/exit condition, a number, or an inline `command` counts as verifiable.
+    /// Matches EN + ES markers, diacritics folded.
+    static func isVerifiableGoal(_ goal: String) -> Bool {
+        let text = goal.lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "en_US_POSIX"))
+        if text.contains("`") { return true }                 // an inline command
+        if text.range(of: "[0-9]", options: .regularExpression) != nil { return true }
+        let markers = [
+            "test", "lint", "build", "compil", "pass", "pasa", "green", "verde",
+            "exit", "grep", "coverage", "cobertura", "benchmark", "error", "sin errores",
+            "no errors", "deploy", "assert", "snapshot", "typecheck", "tsc", "xcodebuild",
+            "npm", "cargo", "returns", "devuelve", "%", "until", "hasta",
+        ]
+        return markers.contains { text.contains($0) }
     }
 
     /// True when the loop can actually run: it has a target repo and a goal.

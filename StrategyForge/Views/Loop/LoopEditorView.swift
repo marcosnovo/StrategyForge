@@ -263,6 +263,10 @@ struct LoopEditorView: View {
                 Spacer(minLength: 0)
             }
 
+            // The spend cap is the goal loop's second abort (beside the turn brake);
+            // only that script tallies per-turn cost, so it's shown for goal loops.
+            if plan.kind == .goalBased { budgetControl }
+
             if plan.kind == .timeBased {
                 VStack(alignment: .leading, spacing: Space.xs) {
                     FieldLabel(text: model.t("loop.editor.interval"))
@@ -301,6 +305,40 @@ struct LoopEditorView: View {
             .strokeBorder(Theme.hairline, lineWidth: 1))
     }
 
+    /// Optional USD spend cap for a goal loop: a toggle that defaults to $5 when
+    /// turned on, plus a stepper. `nil` budget = no cap emitted into loop.sh.
+    private var budgetControl: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Toggle(isOn: Binding(
+                get: { plan.budgetUSD != nil },
+                set: { plan.budgetUSD = $0 ? (plan.budgetUSD ?? 5) : nil }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.t("loop.editor.budget")).font(.sfCallout.weight(.medium))
+                    Text(model.t("loop.editor.budget.why"))
+                        .font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .toggleStyle(.switch)
+
+            if plan.budgetUSD != nil {
+                HStack(spacing: Space.s) {
+                    Stepper(value: Binding(get: { plan.budgetUSD ?? 5 },
+                                           set: { plan.budgetUSD = max(1, $0) }),
+                            in: 1...1000, step: 1) {
+                        Text(model.t("loop.editor.budget.amount")).font(.sfCaption2)
+                            .foregroundStyle(.secondary)
+                        Text(String(format: "$%.0f", plan.budgetUSD ?? 5))
+                            .font(.sfCallout).monospacedDigit()
+                    }
+                    .fixedSize()
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
     // MARK: - Card 3 · Team of the loop
 
     private var teamCard: some View {
@@ -310,6 +348,18 @@ struct LoopEditorView: View {
 
             FieldLabel(text: model.t("loop.editor.worker"))
             modelChips($plan.workerModel, enabled: true)
+
+            FieldLabel(text: model.t("loop.editor.effort"))
+            Picker("", selection: $plan.effort) {
+                ForEach(CostEffort.allCases) { e in
+                    Text(model.t(e.labelKey)).tag(e)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            Text(model.t("loop.editor.effort.caption"))
+                .font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Divider()
 
@@ -415,7 +465,7 @@ struct LoopEditorView: View {
         if !issues.isEmpty {
             VStack(alignment: .leading, spacing: Space.s) {
                 ForEach(issues, id: \.self) { key in
-                    let isWarning = key == "loop.issue.noVerifier"
+                    let isWarning = key == "loop.issue.noVerifier" || key == "loop.issue.vagueGoal"
                     Label(model.t(key), systemImage: isWarning
                           ? "exclamationmark.triangle.fill" : "exclamationmark.octagon.fill")
                         .font(.sfCallout)

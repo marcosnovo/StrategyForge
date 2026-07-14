@@ -194,6 +194,17 @@ extension L10n {
         "loop.editor.interval": ("interval", "intervalo"),
         "loop.editor.minutes": ("%lld min", "%lld min"),
 
+        // Effort — the "how hard it thinks" dial, written into loop.sh as --effort.
+        "loop.editor.effort": ("Effort", "Esfuerzo"),
+        "loop.editor.effort.caption": ("How hard the worker thinks each turn — written into loop.sh as --effort. Higher costs more; a better model usually beats a higher dial.",
+                                       "Cuánto piensa el trabajador en cada turno — se escribe en loop.sh como --effort. Más esfuerzo cuesta más; un mejor modelo suele ganarle a subir el dial."),
+
+        // Spend cap (goal loops) — the article's second abort: "a loop with no dollar cap is a bill".
+        "loop.editor.budget": ("Spend cap", "Tope de gasto"),
+        "loop.editor.budget.why": ("Stop the loop once its reported cost passes this amount — a second brake beside the turn limit. Goal loops only.",
+                                   "Detiene el bucle cuando su coste declarado supera esta cantidad — un segundo freno junto al límite de turnos. Solo bucles por objetivo."),
+        "loop.editor.budget.amount": ("Cap (USD)", "Tope (USD)"),
+
         // MARK: Editor — team card
         "loop.editor.team.title": ("Team of the loop", "Equipo del bucle"),
         "loop.editor.team.subtitle": ("Who does the work, who grades it, and what the loop remembers.",
@@ -236,5 +247,7 @@ extension L10n {
                             "Escribe una condición de «terminado cuando» verificable."),
         "loop.issue.noVerifier": ("A goal loop without an independent verifier grades its own work — enable the verifier.",
                                   "Un bucle por objetivo sin verificador independiente califica su propio trabajo — activa el verificador."),
+        "loop.issue.vagueGoal": ("This \"done when\" may not be machine-checkable — name a test, build, or check the verifier can actually run.",
+                                 "Este «terminado cuando» quizá no sea comprobable por una máquina — nombra un test, build o comprobación que el verificador pueda ejecutar de verdad."),
     ]
 }

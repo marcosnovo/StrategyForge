@@ -121,6 +121,69 @@ struct LoopFileGeneratorTests {
         #expect(script.contains("VERDICT: PASS"))
         #expect(script.contains("loop-verifier"))
     }
+
+    // MARK: - Effort (gap #3)
+
+    @Test func everyScriptKindCarriesTheEffortFlag() {
+        for kind in LoopKind.allCases {
+            var plan = makePlan(kind: kind)
+            plan.effort = .high
+            let script = LoopFileGenerator.generate(for: plan)
+                .first { $0.relativePath == "loop.sh" }!.contents
+            #expect(script.contains("EFFORT=\"high\""))
+            #expect(script.contains("--effort \"$EFFORT\""))
+        }
+    }
+
+    @Test func goalLaunchCommandCarriesEffort() {
+        var plan = makePlan(kind: .goalBased)
+        plan.effort = .high
+        let cmd = LoopFileGenerator.launchCommand(for: plan, binary: "claude")
+        #expect(cmd.contains("--effort high"))
+    }
+
+    // MARK: - Circuit breaker (gap #2)
+
+    @Test func goalScriptAlwaysHasCircuitBreaker() {
+        // Present regardless of budget: it's pure safety, not tied to the cap.
+        let script = LoopFileGenerator.generate(for: makePlan(kind: .goalBased))
+            .first { $0.relativePath == "loop.sh" }!.contents
+        #expect(script.contains("MAX_FAILS=3"))
+        #expect(script.contains("Circuit breaker"))
+        #expect(script.contains("exit 2"))
+    }
+
+    // MARK: - Budget cap (gap #1)
+
+    @Test func budgetIsOffByDefault() {
+        let script = LoopFileGenerator.generate(for: makePlan(kind: .goalBased))
+            .first { $0.relativePath == "loop.sh" }!.contents
+        #expect(!script.contains("BUDGET_USD"))
+        #expect(!script.contains("extract_cost"))
+    }
+
+    @Test func budgetWhenSetEmitsCapAndCostReader() {
+        var plan = makePlan(kind: .goalBased)
+        plan.budgetUSD = 5
+        let script = LoopFileGenerator.generate(for: plan)
+            .first { $0.relativePath == "loop.sh" }!.contents
+        #expect(script.contains("BUDGET_USD=5"))
+        #expect(script.contains("--output-format json"))   // needed to read the cost
+        #expect(script.contains("extract_cost"))
+        #expect(script.contains("total_cost_usd"))
+        #expect(script.contains("exit 3"))                  // the budget-stop exit code
+    }
+
+    @Test func budgetIsGoalLoopOnly() {
+        // Other kinds run a single pass, so a post-hoc cap is meaningless there.
+        for kind in [LoopKind.turnBased, .timeBased, .proactive] {
+            var plan = makePlan(kind: kind)
+            plan.budgetUSD = 5
+            let script = LoopFileGenerator.generate(for: plan)
+                .first { $0.relativePath == "loop.sh" }!.contents
+            #expect(!script.contains("BUDGET_USD"))
+        }
+    }
 }
 
 struct LoopPlanCodableTests {
@@ -160,6 +223,41 @@ struct LoopPlanCodableTests {
         #expect(!plan.isRunnable)          // still no repo
         plan.repoPath = "/tmp/repo"
         #expect(plan.isRunnable)
+    }
+
+    // MARK: - Effort + budget defaults / round-trip (gaps #1, #3)
+
+    @Test func decodeDefaultsEffortAndBudget() throws {
+        let plan = try JSONDecoder().decode(LoopPlan.self, from: Data(#"{"name":"x"}"#.utf8))
+        #expect(plan.effort == .medium)
+        #expect(plan.budgetUSD == nil)
+    }
+
+    @Test func decodeReadsEffortAndBudgetAndClampsNegative() throws {
+        let json = #"{"name":"x","effort":"high","budgetUSD":7.5}"#
+        let plan = try JSONDecoder().decode(LoopPlan.self, from: Data(json.utf8))
+        #expect(plan.effort == .high)
+        #expect(plan.budgetUSD == 7.5)
+
+        // Unknown effort falls back; a negative budget clamps to 0.
+        let bad = #"{"name":"x","effort":"turbo","budgetUSD":-3}"#
+        let plan2 = try JSONDecoder().decode(LoopPlan.self, from: Data(bad.utf8))
+        #expect(plan2.effort == .medium)
+        #expect(plan2.budgetUSD == 0)
+    }
+
+    // MARK: - Verifiable-goal warning (gap #5)
+
+    @Test func vagueGoalWarnsButCheckableGoalDoesNot() {
+        var plan = LoopPlan(name: "n", kind: .turnBased, goal: "make auth better")
+        #expect(plan.validate().contains("loop.issue.vagueGoal"))
+
+        // A goal a shell can check (test/pass/lint/number/`cmd`) does not warn.
+        for good in ["all tests in tests/auth pass", "get coverage above 80%",
+                     "`npm run build` succeeds", "the lint is clean"] {
+            plan.goal = good
+            #expect(!plan.validate().contains("loop.issue.vagueGoal"))
+        }
     }
 }
 
