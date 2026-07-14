@@ -281,25 +281,28 @@ struct AgentActivityPanel: View {
                 }
             }
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                // Fixed on one line so a growing count never wraps ("53.2\nk").
                 Text(formatTokens(vm.totalTokens))
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
+                    .lineLimit(1).fixedSize()
                     .contentTransition(.numericText())
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.totalTokens)
                 Text(model.t("activity.usage.tokens"))
                     .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
-                // This chat's live tokens as a % of the 5-hour window and the week.
-                if let pct = livePctSuffix() {
-                    Text(pct).font(.sfCaption2).foregroundStyle(Theme.tertiaryOnMaterial)
-                        .contentTransition(.numericText())
-                }
-                Spacer()
+                Spacer(minLength: Space.xs)
                 if vm.totalCostUSD > 0 {
                     Text(String(format: "$%.2f", vm.totalCostUSD))
                         .font(.sfMono).foregroundStyle(.primary)
                         .contentTransition(.numericText())
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.totalCostUSD)
                 }
+            }
+            // This chat's live tokens as a % of the 5-hour window + week — its own line
+            // (never pushes the count into wrapping).
+            if let pct = livePctSuffix() {
+                Text(pct).font(.sfCaption2).foregroundStyle(Theme.tertiaryOnMaterial)
+                    .contentTransition(.numericText())
             }
             // EXACT per-model / per-agent spend for THIS run (from each message's
             // own model), so e.g. Haiku subagent tokens show up. Falls back to the
@@ -317,106 +320,6 @@ struct AgentActivityPanel: View {
             // The account-wide totals (this week / 5-hour window / per-provider) live
             // in the Usage section — this live card shows ONLY this chat's own spend.
         }
-    }
-
-    /// A labelled meter bar (label + value on top, a tinted fill below). Used for the
-    /// week total (coral) and the 5-hour window (teal, elapsed-time fraction).
-    private func meterBar(_ label: String, value: String, fraction: Double, tint: Color) -> some View {
-        VStack(spacing: 2) {
-            HStack {
-                Text(label).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
-                Spacer()
-                Text(value).font(.sfCaption2.weight(.semibold)).foregroundStyle(.primary).monospacedDigit()
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.hairline).frame(height: 5)
-                    Capsule().fill(tint).frame(width: max(4, geo.size.width * min(max(fraction, 0), 1)), height: 5)
-                }
-            }
-            .frame(height: 5)
-        }
-    }
-
-    /// Elapsed fraction of the current 5-hour window (time-based, like the ring).
-    private func blockElapsedFraction(_ u: UsageSummary) -> Double {
-        guard let s = u.blockStart, let r = u.blockResetAt else { return 0 }
-        let total = r.timeIntervalSince(s); guard total > 0 else { return 0 }
-        return min(max(Date().timeIntervalSince(s) / total, 0), 1)
-    }
-
-    /// Per-provider spend bars (provider-tinted) so a mixed-provider setup is visible
-    /// at a glance. Only shown once more than one provider has been used on this Mac.
-    @ViewBuilder
-    private var providerMiniBars: some View {
-        let spend = model.spendByProvider().filter { $0.chats > 0 }
-        if spend.count > 1 {
-            let maxT = max(1, spend.map(\.tokens).max() ?? 1)
-            Divider().padding(.vertical, 1)
-            Text(model.t("activity.usage.byProvider"))
-                .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
-            VStack(spacing: 4) {
-                ForEach(spend) { s in
-                    VStack(spacing: 2) {
-                        HStack {
-                            Text(s.provider.displayName).font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(Theme.secondaryOnMaterial)
-                            Spacer()
-                            Text(s.costUSD > 0 ? String(format: "$%.2f", s.costUSD)
-                                 : model.t("usage.byProvider.chats", s.chats))
-                                .font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.tertiaryOnMaterial)
-                        }
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Theme.hairline).frame(height: 5)
-                                Capsule().fill(s.provider.tint)
-                                    .frame(width: max(s.tokens > 0 ? 4 : 0, geo.size.width * Double(s.tokens) / Double(maxT)), height: 5)
-                            }
-                        }
-                        .frame(height: 5)
-                    }
-                }
-            }
-            .padding(.top, 2)
-        }
-    }
-
-    /// One "label … value" line in the usage meter.
-    private func usageLine(_ label: String, _ value: String) -> some View {
-        HStack {
-            Text(label).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
-            Spacer()
-            Text(value).font(.sfCaption2.weight(.semibold)).foregroundStyle(.primary)
-                .monospacedDigit()
-        }
-    }
-
-    /// A per-model usage bar (share of the week's tokens), like the Usage screen.
-    private func usageBar(_ m: ModelUsage, total: Int) -> some View {
-        let frac = total > 0 ? Double(m.tokens) / Double(total) : 0
-        return VStack(spacing: 2) {
-            HStack {
-                Text(m.model).font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
-                Spacer()
-                Text(formatTokens(m.tokens)).font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.tertiaryOnMaterial)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.hairline).frame(height: 5)
-                    Capsule().fill(Theme.teal).frame(width: max(4, geo.size.width * frac), height: 5)
-                }
-            }
-            .frame(height: 5)
-        }
-    }
-
-    /// "128k · resets 3h 12m" for the current 5-hour window.
-    private func fiveHourText(_ u: UsageSummary) -> String {
-        guard let reset = u.blockResetAt else { return formatTokens(u.blockTokens) }
-        let s = max(0, Int(reset.timeIntervalSince(Date())))
-        let h = s / 3600, mm = (s % 3600) / 60
-        let left = h > 0 ? "\(h)h \(mm)m" : "\(mm)m"
-        return "\(formatTokens(u.blockTokens)) · \(model.t("usage.resetsIn", left))"
     }
 
     /// The cost tier (low/medium/high) of the shown/selected strategy.
@@ -651,7 +554,7 @@ struct AgentActivityPanel: View {
                         Image(systemName: "person.fill").font(.system(size: 8)).foregroundStyle(Theme.secondaryOnMaterial)
                         Text(a.key).font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
                         Spacer()
-                        Text(formatTokens(a.value)).font(.system(size: 9, design: .monospaced)).foregroundStyle(Theme.tertiaryOnMaterial)
+                        Text(pctOf(a.value, total)).font(.system(size: 9, design: .monospaced)).foregroundStyle(Theme.tertiaryOnMaterial)
                     }
                 }
             }
@@ -665,7 +568,8 @@ struct AgentActivityPanel: View {
             HStack {
                 Text(label).font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
                 Spacer()
-                Text(formatTokens(tokens)).font(.system(size: 9, design: .monospaced)).foregroundStyle(Theme.tertiaryOnMaterial)
+                // Each model's share of THIS chat, as a percentage (not raw tokens).
+                Text(pctOf(tokens, total)).font(.system(size: 9, design: .monospaced)).foregroundStyle(Theme.tertiaryOnMaterial)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -675,6 +579,14 @@ struct AgentActivityPanel: View {
             }
             .frame(height: 4)
         }
+    }
+
+    /// A share as an integer percentage ("41%"), with one decimal for tiny slices.
+    private func pctOf(_ part: Int, _ total: Int) -> String {
+        guard total > 0 else { return "0%" }
+        let p = Double(part) / Double(total) * 100
+        if p >= 1 { return String(format: "%.0f%%", p) }
+        return p > 0 ? String(format: "%.1f%%", p) : "0%"
     }
 
     /// "claude-opus-4-8" → "Opus 4.8" (via ClaudeModel), else a tidied raw id.

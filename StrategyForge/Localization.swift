@@ -92,6 +92,7 @@ enum L10n {
         "rail.usage.week": ("%@ this week", "%@ esta semana"),
         "rail.usage.5h": ("5H", "5H"),
         "rail.usage.wk": ("WEEK", "SEMANA"),
+        "rail.usage.codexCaption": ("PLAN", "PLAN"),
         "meta.narrate.plan": ("Planning the work…", "Planificando el trabajo…"),
         "meta.narrate.delegate": ("Delegating to the team…", "Delegando al equipo…"),
         "meta.narrate.synthesize": ("Bringing it all together…", "Uniéndolo todo…"),

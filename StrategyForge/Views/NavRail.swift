@@ -218,16 +218,23 @@ struct NavRail: View {
             switch provider {
             case .claude:
                 if let u = model.claudeUsage {
-                    miniRing(fraction: blockFraction(u), center: resetLabel(u))
+                    // No published cap → the ring is the 5-hour window's time-to-reset;
+                    // the bars are each model's share of the week (a real %).
+                    miniRing(fraction: blockFraction(u), center: resetLabel(u), caption: model.t("rail.usage.5h"))
                     VStack(alignment: .leading, spacing: 4) {
                         providerLabel(provider, right: model.providerPlan(.claude))
-                        miniBar(model.t("rail.usage.wk"), fraction: 1, value: fmtTokens(u.weekTokens))
-                        miniBar(model.t("rail.usage.5h"), fraction: blockShare(u), value: fmtTokens(u.blockTokens))
+                        let wk = max(u.weekTokens, 1)
+                        ForEach(Array(u.weekByModel.prefix(3))) { m in
+                            let f = Double(m.tokens) / Double(wk)
+                            miniBar(m.model, fraction: f, value: "\(Int((f * 100).rounded()))%")
+                        }
                     }
                 }
             case .openai:
                 if let c = model.codexUsage, let w = c.primary ?? c.secondary {
-                    miniRing(fraction: w.usedPercent / 100, center: "\(Int(w.usedPercent.rounded()))%")
+                    // Codex reports the real plan % server-side.
+                    miniRing(fraction: w.usedPercent / 100, center: "\(Int(w.usedPercent.rounded()))%",
+                             caption: model.t("rail.usage.codexCaption"))
                     VStack(alignment: .leading, spacing: 4) {
                         providerLabel(provider, right: c.planType?.capitalized)
                         miniBar(model.t(w.kindLabelKey), fraction: w.usedPercent / 100,
@@ -251,16 +258,21 @@ struct NavRail: View {
         }
     }
 
-    /// A single-color usage ring (no confusing two-tone gradient) with a centered label.
-    private func miniRing(fraction: Double, center: String) -> some View {
-        ZStack {
-            Circle().stroke(Color.white.opacity(0.12), lineWidth: 3.5)
-            Circle().trim(from: 0, to: max(0.02, min(fraction, 1)))
-                .stroke(Theme.teal, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            Text(center).font(.system(size: 9, weight: .semibold, design: .rounded)).foregroundStyle(.white)
+    /// A single-color usage ring (no confusing two-tone gradient) with a centered label
+    /// and a small caption underneath so it's clear WHAT the ring measures.
+    private func miniRing(fraction: Double, center: String, caption: String) -> some View {
+        VStack(spacing: 2) {
+            ZStack {
+                Circle().stroke(Color.white.opacity(0.12), lineWidth: 3.5)
+                Circle().trim(from: 0, to: max(0.02, min(fraction, 1)))
+                    .stroke(Theme.teal, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Text(center).font(.system(size: 9, weight: .semibold, design: .rounded)).foregroundStyle(.white)
+            }
+            .frame(width: 34, height: 34)
+            Text(caption).font(.system(size: 7, weight: .semibold)).tracking(0.4)
+                .foregroundStyle(.white.opacity(0.4))
         }
-        .frame(width: 34, height: 34)
     }
 
     private func miniBar(_ label: String, fraction: Double, value: String) -> some View {
@@ -286,12 +298,6 @@ struct NavRail: View {
     private func blockFraction(_ u: UsageSummary) -> Double {
         guard let s = u.blockStart, let r = u.blockResetAt, r > s else { return 0 }
         return min(max(Date().timeIntervalSince(s) / r.timeIntervalSince(s), 0), 1)
-    }
-
-    /// This block's tokens as a share of the week (the 5-hour bar, since there's no cap).
-    private func blockShare(_ u: UsageSummary) -> Double {
-        guard u.weekTokens > 0 else { return 0 }
-        return Double(u.blockTokens) / Double(u.weekTokens)
     }
 
     /// Compact time-to-reset for the ring center ("2h" / "45m" / "—").

@@ -16,9 +16,10 @@ struct UsageView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                 header
-                spendByProviderCard
                 claudeSection
                 codexSection
+                // The cross-provider spend roll-up sits BELOW the per-provider detail.
+                spendByProviderCard
                 if model.configurations.contains(where: { $0.totalTokens > 0 }) {
                     topChatsCard
                 }

@@ -91,10 +91,14 @@ enum CodexUsageStore {
 
         // Newest files first (the active session holds the latest account-wide state).
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
-        guard let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys) else { return nil }
+        guard let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys,
+                                                      options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return nil }
+        // Rate-limit state is recent — only recently-touched session files matter.
+        let cutoff = now.addingTimeInterval(-4 * 86_400)
         var files: [(url: URL, mod: Date)] = []
         for case let url as URL in en where url.pathExtension == "jsonl" {
             let mod = (try? url.resourceValues(forKeys: Set(keys)))?.contentModificationDate ?? .distantPast
+            if mod < cutoff { continue }
             files.append((url, mod))
         }
         files.sort { $0.mod > $1.mod }

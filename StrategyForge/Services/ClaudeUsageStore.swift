@@ -89,7 +89,8 @@ enum ClaudeUsageStore {
         var samples: [Sample] = []
 
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
-        guard let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys) else {
+        guard let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys,
+                                                      options: [.skipsHiddenFiles, .skipsPackageDescendants]) else {
             return .empty
         }
         for case let url as URL in en {
@@ -179,8 +180,10 @@ enum ClaudeUsageStore {
     static func friendlyModel(_ raw: String) -> String {
         let r = raw.lowercased()
         func version(_ family: String) -> String {
-            // Pull the trailing "-4-7" / "-4-5" → "4.7".
-            let digits = raw.split(separator: "-").compactMap { Int($0) }
+            // Pull the trailing "-4-7" / "-4-5" → "4.7". Filter to SMALL numbers so a
+            // trailing build date ("claude-haiku-4-5-20251001") doesn't become the
+            // version ("Haiku 5.20251001").
+            let digits = raw.split(separator: "-").compactMap { Int($0) }.filter { $0 < 100 }
             let v = digits.suffix(2).map(String.init).joined(separator: ".")
             return v.isEmpty ? family : "\(family) \(v)"
         }
