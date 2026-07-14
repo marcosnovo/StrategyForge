@@ -33,22 +33,25 @@ enum ClaudeUsageAPI {
     /// stores it keyed by config-dir, so we check the dir the app runs from + the default.
     static func accessToken() -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        var services: Set<String> = ["Claude Code-credentials"]
-        for dir in [ClaudeRunner.resolveClaudeConfigDir() ?? "\(home)/.claude", "\(home)/.claude"] {
+        func service(for dir: String) -> String {
             let hash = SHA256.hash(data: Data(dir.utf8)).map { String(format: "%02x", $0) }.joined()
-            services.insert("Claude Code-credentials-\(hash.prefix(8))")
+            return "Claude Code-credentials-\(hash.prefix(8))"
         }
-        var best: (exp: Date, token: String)?
+        // Ordered, most-likely first, and STOP at the first fresh token — each Keychain
+        // item read triggers its own access prompt, so reading fewer = fewer prompts.
+        var services = [service(for: ClaudeRunner.resolveClaudeConfigDir() ?? "\(home)/.claude"),
+                        "Claude Code-credentials",
+                        service(for: "\(home)/.claude")]
+        var seen = Set<String>(); services = services.filter { seen.insert($0).inserted }
         for svc in services {
             guard let data = keychainData(service: svc),
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let oauth = obj["claudeAiOauth"] as? [String: Any],
                   let token = oauth["accessToken"] as? String else { continue }
             let ms = (oauth["expiresAt"] as? Double) ?? Double((oauth["expiresAt"] as? Int) ?? 0)
-            let exp = Date(timeIntervalSince1970: ms / 1000)
-            if exp > Date(), best == nil || exp > best!.exp { best = (exp, token) }
+            if Date(timeIntervalSince1970: ms / 1000) > Date() { return token }
         }
-        return best?.token
+        return nil
     }
 
     private static func keychainData(service: String) -> Data? {

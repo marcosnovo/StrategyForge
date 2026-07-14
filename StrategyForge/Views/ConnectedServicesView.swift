@@ -3,9 +3,9 @@
 //  StrategyForge
 //
 //  The "Connected services" settings section: each AI provider (Claude, ChatGPT·
-//  Codex, Gemini) shown with live detection of its CLI, a binary-path override, and
-//  how to connect it with the user's own subscription login. Claude runs today; the
-//  others are connectable now and become runnable as their engines land.
+//  Codex, Gemini) with live CLI detection, a binary-path override, a one-tap
+//  connect/reconnect that runs entirely in-app (hidden PTY, no Terminal), and a
+//  connection test that does a real end-to-end round-trip.
 //
 
 import SwiftUI
@@ -15,12 +15,11 @@ struct ConnectedServicesSection: View {
 
     enum DetectStatus: Equatable { case checking, found(String), missing }
     @State private var status: [AIProvider: DetectStatus] = [:]
-
-    // One-tap install/connect flow.
+    /// Presents the in-app connect/reconnect flow (install → hidden-PTY sign-in).
     @State private var connecting: AIProvider?
-    @State private var installLog: [String] = []
-    @State private var installState: InstallUIState = .running
-    enum InstallUIState: Equatable { case running, needsNode, failed(String), done }
+    /// Per-provider connection-test result.
+    enum TestState: Equatable { case idle, running, ok(String), fail(String) }
+    @State private var test: [AIProvider: TestState] = [:]
 
     var body: some View {
         Section(model.t("settings.connected")) {
@@ -32,7 +31,11 @@ struct ConnectedServicesSection: View {
             }
         }
         .task { await detectAll() }
-        .sheet(item: $connecting) { provider in connectSheet(provider) }
+        .sheet(item: $connecting) { provider in
+            ProviderConnectSheet(provider: provider) {
+                Task { await detect(provider); await model.refreshUsage() }
+            }
+        }
     }
 
     @ViewBuilder
@@ -42,16 +45,24 @@ struct ConnectedServicesSection: View {
                 ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
                     .frame(width: 20)
                 Text(provider.displayName).font(.body.weight(.medium))
-                if !provider.isExecutable {
-                    Text(model.t("provider.soon"))
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Capsule().fill(Theme.hairline))
-                }
                 Spacer()
                 statusBadge(provider)
-                actionButton(provider)
+                actionButtons(provider)
+            }
+
+            // The connection-test result (a real round-trip) when present.
+            switch test[provider] ?? .idle {
+            case .running:
+                Label(model.t("provider.diagnose.running"), systemImage: "clock")
+                    .font(.caption).foregroundStyle(.secondary)
+            case .ok(let s):
+                Label(s.isEmpty ? model.t("provider.diagnose.healthy") : s, systemImage: "checkmark.circle.fill")
+                    .font(.caption).foregroundStyle(Theme.success).lineLimit(2)
+            case .fail(let s):
+                Label(s, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption).foregroundStyle(Theme.danger).lineLimit(2)
+            case .idle:
+                EmptyView()
             }
 
             HStack {
@@ -83,94 +94,41 @@ struct ConnectedServicesSection: View {
         }
     }
 
-    /// Primary action per provider: install+connect when missing, or re-sign-in.
+    /// Test + connect/reconnect — all in-app (no Terminal).
     @ViewBuilder
-    private func actionButton(_ provider: AIProvider) -> some View {
+    private func actionButtons(_ provider: AIProvider) -> some View {
         switch status[provider] ?? .checking {
         case .missing:
-            Button(model.t("provider.connect")) { startConnect(provider) }
+            Button(model.t("provider.connect")) { connecting = provider }
                 .controlSize(.small).buttonStyle(.moon)
         case .found:
-            Button(model.t("provider.reconnect")) { ProviderInstaller.launchSignIn(provider) }
+            Button(model.t("provider.test.run")) { runTest(provider) }
+                .controlSize(.small).disabled(test[provider] == .running)
+            Button(model.t("provider.reconnect")) { connecting = provider }
                 .controlSize(.small).buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)
         case .checking:
             EmptyView()
         }
     }
 
-    // MARK: Install / connect flow
-
-    private func startConnect(_ provider: AIProvider) {
-        installLog = []
-        installState = .running
-        connecting = provider
+    /// A real end-to-end check (resolve the CLI + one one-shot), classified.
+    private func runTest(_ provider: AIProvider) {
+        test[provider] = .running
+        let binary = model.settings.binary(for: provider)
+        let modelID = provider.models.first?.id ?? ""
+        let keys = model.providerAPIKeys()
+        let effort = model.settings.codexReasoningEffort
         Task {
-            for await event in ProviderInstaller.install(provider) {
-                switch event {
-                case .log(let line): installLog.append(line)
-                case .needsNode: installState = .needsNode
-                case .failed(let msg): installState = .failed(msg)
-                case .finished:
-                    installState = .done
-                    await detect(provider)
-                case .needsCode: break   // install never asks for a code
-                }
+            let (finding, greeting) = await ProviderDiagnostics.check(
+                provider: provider, binary: binary, modelID: modelID,
+                apiKeys: keys, reasoningEffort: effort)
+            if let finding {
+                test[provider] = .fail(model.t("provider.issue.\(finding.issue.rawValue).title"))
+            } else {
+                test[provider] = .ok(String(greeting.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120)))
             }
+            await detect(provider)
         }
-    }
-
-    @ViewBuilder
-    private func connectSheet(_ provider: AIProvider) -> some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            HStack(spacing: Space.s) {
-                ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
-                Text(model.t("provider.installing", provider.displayName)).font(.sfCardTitle)
-                Spacer()
-                if installState == .running { WorkingLogo(size: 16) }
-            }
-
-            switch installState {
-            case .needsNode:
-                Label(model.t("provider.needsNode"), systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout).foregroundStyle(Theme.warning)
-                    .fixedSize(horizontal: false, vertical: true)
-                Link(model.t("provider.getNode"), destination: URL(string: "https://nodejs.org/en/download")!)
-            case .failed(let msg):
-                Label(msg, systemImage: "xmark.octagon.fill")
-                    .font(.callout).foregroundStyle(Theme.danger)
-                    .fixedSize(horizontal: false, vertical: true)
-            case .done:
-                Label(model.t("provider.installed"), systemImage: "checkmark.circle.fill")
-                    .font(.callout).foregroundStyle(Theme.success)
-            case .running:
-                Text(model.t("provider.installNote")).font(.caption).foregroundStyle(.secondary)
-            }
-
-            // Live installer output.
-            ScrollView {
-                Text(installLog.suffix(200).joined(separator: "\n"))
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-            }
-            .frame(height: 160)
-            .padding(Space.s)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
-
-            HStack {
-                Spacer()
-                if installState == .done {
-                    Button(model.t("provider.signin")) { ProviderInstaller.launchSignIn(provider) }
-                        .buttonStyle(.moon)
-                }
-                Button(model.t("common.done")) { connecting = nil }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(installState == .running)
-            }
-        }
-        .padding(Space.l)
-        .frame(width: 460)
     }
 
     private func binaryBinding(_ provider: AIProvider) -> Binding<String> {

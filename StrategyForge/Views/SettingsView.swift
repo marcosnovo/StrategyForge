@@ -15,6 +15,8 @@ struct SettingsView: View {
     @AppStorage(Analytics.enabledKey) private var telemetryEnabled = false
     /// GitHub CLI auth status for the Code section (nil = still checking).
     @State private var ghAuthed: Bool?
+    /// True when shown as an in-app section (fills the content area) vs the ⌘, window.
+    var embedded = false
 
     var body: some View {
         @Bindable var model = model
@@ -107,7 +109,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 620)
+        .frame(width: embedded ? nil : 520, height: embedded ? nil : 620)
+        .frame(maxWidth: embedded ? .infinity : nil, maxHeight: embedded ? .infinity : nil)
+        .background(embedded ? Theme.appBg : Color.clear)
         .onDisappear { model.save() }
     }
 

@@ -69,8 +69,10 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
     /// starburst and Gemini star are full-color marks shown as-is.
     var logoIsTemplate: Bool { self == .openai }
 
-    /// Whether the app can actually *run* a chat on this provider today.
-    var isExecutable: Bool { self == .claude }
+    /// Whether the app can actually *run* on this provider. All three now execute:
+    /// Claude as the chat session, and Codex/Gemini as one-shot workers in a mixed
+    /// team (and per-chat provider). So none is "coming soon" anymore.
+    var isExecutable: Bool { true }
 
     /// Whether the sign-in must open a visible Terminal up front. Coral now drives ALL
     /// logins in a HIDDEN pseudo-terminal (Claude's `auth login`, Codex's localhost

@@ -89,7 +89,7 @@ struct ContentView: View {
                 Divider()
             } else if model.navSection == .usage || model.navSection == .advisor
                         || model.navSection == .particleLab || model.navSection == .code
-                        || model.navSection == .skills {
+                        || model.navSection == .skills || model.navSection == .settings {
                 // Single full-width surfaces — no second column (no chat list here).
                 EmptyView()
             } else if model.showSidebar || model.selectedConfiguration == nil {
@@ -164,6 +164,9 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .skills {
                 SkillsView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.navSection == .settings {
+                SettingsView(embedded: true)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let id = model.selectedConfigID, let chat = model.selectedConfiguration,
                       let vm = model.chatViewModel(for: id) {

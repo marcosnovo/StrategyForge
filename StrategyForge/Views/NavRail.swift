@@ -15,7 +15,6 @@ import SwiftUI
 struct NavRail: View {
     @Environment(AppModel.self) private var model
     @Environment(AuthModel.self) private var auth
-    @Environment(\.openSettings) private var openSettings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var showSidebar: Bool
 
@@ -82,7 +81,9 @@ struct NavRail: View {
 
             Spacer(minLength: Space.m)
 
-            item("gearshape.fill", "sidebar.settings") { openSettings() }
+            item("gearshape.fill", "sidebar.settings", active: model.navSection == .settings) {
+                model.guardedLeave { model.navSection = .settings }
+            }
             usageCard
             profileRow
         }
@@ -331,7 +332,7 @@ struct NavRail: View {
         Divider().overlay(Color.white.opacity(0.08)).padding(.vertical, Space.xs)
         if let acc = auth.account {
             Menu {
-                Button(model.t("sidebar.settings")) { openSettings() }
+                Button(model.t("sidebar.settings")) { model.navSection = .settings }
                 if auth.canSync {
                     Button(model.t("rail.profile.sync")) { Task { await auth.sync(model) } }
                 }
@@ -355,7 +356,7 @@ struct NavRail: View {
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden)
         } else {
-            Button { openSettings() } label: {
+            Button { model.navSection = .settings } label: {
                 HStack(spacing: Space.s) {
                     Circle().fill(Color.white.opacity(0.08)).frame(width: 30, height: 30)
                         .overlay(Image(systemName: "person.fill")
