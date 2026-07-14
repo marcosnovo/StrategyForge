@@ -84,6 +84,15 @@ struct NavRail: View {
             item("gearshape.fill", "sidebar.settings", active: model.navSection == .settings) {
                 model.guardedLeave { model.navSection = .settings }
             }
+            // A coral dot signals a downloadable update (surfaced fully in Settings).
+            .overlay(alignment: .topTrailing) {
+                if model.availableUpdate != nil {
+                    Circle().fill(Theme.coral)
+                        .frame(width: 7, height: 7)
+                        .offset(x: -6, y: 6)
+                        .accessibilityLabel(model.t("settings.updates.badge"))
+                }
+            }
             usageCard
             profileRow
         }

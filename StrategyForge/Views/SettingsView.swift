@@ -15,6 +15,10 @@ struct SettingsView: View {
     @AppStorage(Analytics.enabledKey) private var telemetryEnabled = false
     /// GitHub CLI auth status for the Code section (nil = still checking).
     @State private var ghAuthed: Bool?
+    /// Presents the full per-version changelog.
+    @State private var showChangelog = false
+    /// True while a manual update check is in flight.
+    @State private var checkingUpdate = false
     /// True when shown as an in-app section (fills the content area) vs the ⌘, window.
     var embedded = false
 
@@ -91,23 +95,9 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Section(model.t("settings.updates")) {
-                LabeledContent(model.t("settings.updates.current"), value: UpdateChecker.currentVersion())
-                Button(model.t("settings.updates.check")) {
-                    Task {
-                        if let update = await UpdateChecker.check() {
-                            model.flashSuccess(model.t("settings.updates.available", update.version))
-                            NSWorkspace.shared.open(update.url)
-                        } else {
-                            model.flashSuccess(model.t("settings.updates.upToDate"))
-                        }
-                    }
-                }
-                Text(model.t("settings.updates.caption"))
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            updatesSection
         }
+        .sheet(isPresented: $showChangelog) { ChangelogSheet() }
         .formStyle(.grouped)
         .frame(width: embedded ? nil : 520, height: embedded ? nil : 620)
         .frame(maxWidth: embedded ? .infinity : nil, maxHeight: embedded ? .infinity : nil)
@@ -115,6 +105,41 @@ struct SettingsView: View {
         .onDisappear { model.save() }
     }
 
+
+    /// App updates: current version, a proactive "download" row when a newer release
+    /// exists, a manual re-check, and the full per-version changelog.
+    private var updatesSection: some View {
+        Section(model.t("settings.updates")) {
+            LabeledContent(model.t("settings.updates.current"), value: UpdateChecker.currentVersion())
+
+            if let update = model.availableUpdate {
+                LabeledContent(model.t("settings.updates.available.row", update.version)) {
+                    Button(model.t("settings.updates.download")) {
+                        NSWorkspace.shared.open(update.url)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .foregroundStyle(Theme.coral)
+            }
+
+            HStack(spacing: Space.s) {
+                Button(model.t("settings.updates.check")) {
+                    checkingUpdate = true
+                    Task { await model.checkForUpdates(manual: true); checkingUpdate = false }
+                }
+                .disabled(checkingUpdate)
+                if checkingUpdate { WorkingLogo(size: 14) }
+                Spacer()
+                Button(model.t("settings.updates.changelog")) { showChangelog = true }
+                    .buttonStyle(.plain).font(.caption).foregroundStyle(Theme.coral)
+            }
+
+            Text(model.t("settings.updates.caption"))
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
 
     /// Code / GitHub connection readiness: git, gh, and gh auth.
     private var codeSection: some View {
@@ -207,6 +232,71 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(Theme.danger)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+}
+
+/// The full per-version changelog, loaded from GitHub Releases. Each release shows its
+/// version, date, and notes (rendered markdown), newest first.
+private struct ChangelogSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var releases: [UpdateChecker.Release] = []
+    @State private var loading = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(model.t("settings.updates.changelog")).font(.title3.weight(.semibold))
+                Spacer()
+                Button(model.t("common.done")) { dismiss() }
+            }
+            .padding(Space.l)
+
+            Divider()
+
+            ScrollView {
+                if loading {
+                    HStack { Spacer(); WorkingLogo(size: 22); Spacer() }
+                        .padding(.vertical, Space.xl)
+                } else if releases.isEmpty {
+                    Text(model.t("settings.updates.changelog.empty"))
+                        .font(.callout).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(Space.l)
+                } else {
+                    VStack(alignment: .leading, spacing: Space.xl) {
+                        ForEach(releases) { release in
+                            VStack(alignment: .leading, spacing: Space.s) {
+                                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                                    Text(model.t("settings.updates.version", release.version))
+                                        .font(.headline)
+                                    if release.version == UpdateChecker.currentVersion() {
+                                        Text(model.t("settings.updates.installed"))
+                                            .font(.caption.weight(.medium))
+                                            .foregroundStyle(Theme.success)
+                                    }
+                                    Spacer()
+                                    if let date = release.date {
+                                        Text(date.formatted(date: .abbreviated, time: .omitted))
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
+                                MarkdownView(text: release.notes.isEmpty
+                                             ? model.t("settings.updates.changelog.none") : release.notes)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(Space.l)
+                }
+            }
+        }
+        .frame(width: 520, height: 560)
+        .background(Theme.appBg)
+        .task {
+            releases = await UpdateChecker.history()
+            loading = false
         }
     }
 }

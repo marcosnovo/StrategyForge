@@ -111,7 +111,17 @@ struct ConnectedServicesSection: View {
         }
     }
 
-    /// A real end-to-end check (resolve the CLI + one one-shot), classified.
+    /// The bounded result of a connection test — carries only Sendable payload so it can
+    /// cross the task-group boundary. `.timedOut` means the CLI never replied in time
+    /// (Gemini's TUI one-shot can hang), which we surface instead of spinning forever.
+    private enum TestOutcome: Sendable {
+        case completed(issueRaw: String?, greeting: String)
+        case timedOut
+    }
+
+    /// A real end-to-end check (resolve the CLI + one one-shot), classified — but bounded
+    /// by a timeout so a hung CLI can't leave the test spinning. Cancelling the check
+    /// terminates its subprocess.
     private func runTest(_ provider: AIProvider) {
         test[provider] = .running
         let binary = model.settings.binary(for: provider)
@@ -119,13 +129,30 @@ struct ConnectedServicesSection: View {
         let keys = model.providerAPIKeys()
         let effort = model.settings.codexReasoningEffort
         Task {
-            let (finding, greeting) = await ProviderDiagnostics.check(
-                provider: provider, binary: binary, modelID: modelID,
-                apiKeys: keys, reasoningEffort: effort)
-            if let finding {
-                test[provider] = .fail(model.t("provider.issue.\(finding.issue.rawValue).title"))
-            } else {
-                test[provider] = .ok(String(greeting.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120)))
+            let outcome = await withTaskGroup(of: TestOutcome.self) { group -> TestOutcome in
+                group.addTask {
+                    let (finding, greeting) = await ProviderDiagnostics.check(
+                        provider: provider, binary: binary, modelID: modelID,
+                        apiKeys: keys, reasoningEffort: effort)
+                    return .completed(issueRaw: finding?.issue.rawValue, greeting: greeting)
+                }
+                group.addTask {
+                    try? await Task.sleep(for: .seconds(45))
+                    return .timedOut
+                }
+                let first = await group.next() ?? .timedOut
+                group.cancelAll()   // cancellation terminates the CLI subprocess
+                return first
+            }
+            switch outcome {
+            case .completed(let issueRaw, let greeting):
+                if let issueRaw {
+                    test[provider] = .fail(model.t("provider.issue.\(issueRaw).title"))
+                } else {
+                    test[provider] = .ok(String(greeting.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120)))
+                }
+            case .timedOut:
+                test[provider] = .fail(model.t("provider.test.timeout"))
             }
             await detect(provider)
         }

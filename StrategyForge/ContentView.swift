@@ -209,6 +209,7 @@ struct ContentView: View {
         .onChange(of: model.selectedConfigID) { model.rememberSelection() }
         .onChange(of: model.selectedTeamID) { model.rememberSelection() }
         .task { await model.refreshConnectedProviders() }
+        .task { await model.checkForUpdates() }
         .onAppear {
             if !didOnboard { showOnboarding = true }
             // Wire the loop store's feedback into the global banner (idempotent).

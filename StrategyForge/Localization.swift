@@ -190,6 +190,8 @@ enum L10n {
         "provider.test.hint": ("Sends a tiny test message through the CLI to check it responds.",
                                "Envía un mensaje mínimo de prueba por la CLI para comprobar que responde."),
         "provider.test.ok": ("Works — the CLI replied.", "Funciona — la CLI respondió."),
+        "provider.test.timeout": ("The CLI didn't reply in time — check your sign-in and try again.",
+                                  "La CLI no respondió a tiempo — revisa tu sesión e inténtalo de nuevo."),
         // Diagnose & fix
         "provider.diagnose": ("Diagnose & fix", "Diagnóstico y reparación"),
         "provider.diagnose.run": ("Check now", "Comprobar ahora"),

@@ -128,6 +128,28 @@ final class AppModel {
     /// True while a usage refresh is in flight.
     var isRefreshingUsage = false
 
+    // MARK: - App updates
+    /// A newer release than this build, when one is available (nil = up to date /
+    /// offline). Drives the Settings "download" row and the nav-rail update dot.
+    var availableUpdate: UpdateChecker.Update?
+
+    /// Check GitHub Releases for a newer build. On automatic checks it flashes a
+    /// one-time banner per new version; a manual check always reports the outcome.
+    func checkForUpdates(manual: Bool = false) async {
+        guard let update = await UpdateChecker.check() else {
+            availableUpdate = nil
+            if manual { flashSuccess(t("settings.updates.upToDate")) }
+            return
+        }
+        availableUpdate = update
+        let key = "update.notifiedVersion"
+        let alreadyNotified = UserDefaults.standard.string(forKey: key) == update.version
+        if manual || !alreadyNotified {
+            UserDefaults.standard.set(update.version, forKey: key)
+            flashSuccess(t("settings.updates.banner", update.version))
+        }
+    }
+
     /// Re-read usage: Claude token counts (local logs) + its authoritative rate-limit
     /// % (endpoint) + Codex's authoritative % (local logs). All off the main thread.
     func refreshUsage() async {
