@@ -243,7 +243,8 @@ enum ClaudeRunner {
         sessionID: String,
         resume: Bool,
         permissionMode: String,
-        extraDirs: [String] = []
+        extraDirs: [String] = [],
+        effort: String? = nil
     ) -> AsyncStream<ChatEvent> {
         AsyncStream { continuation in
             // Resolving the binary spawns an interactive login shell (to source the
@@ -265,6 +266,9 @@ enum ClaudeRunner {
             process.currentDirectoryURL = URL(fileURLWithPath: repoPath)
             var args = ["--model", model, "--output-format", "stream-json", "--verbose",
                         "--include-partial-messages", "--permission-mode", permissionMode]
+            // Reasoning effort, when the caller pins it (loops do; chat leaves it nil
+            // and steers effort via a prompt directive instead).
+            if let effort { args.append(contentsOf: ["--effort", effort]) }
             // A per-chat session id keeps chats on the same repo from mixing.
             if resume {
                 args.append(contentsOf: ["--resume", sessionID])

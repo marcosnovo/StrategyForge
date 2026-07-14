@@ -27,6 +27,7 @@ extension L10n {
         "progress.status.pass": ("Goal met — verified.", "Objetivo cumplido — verificado."),
         "progress.status.retry": ("Not there yet — starting another turn.", "Aún no — empezando otro turno."),
         "progress.status.outOfTurns": ("Ran out of turns before meeting the goal.", "Se acabaron los turnos antes de cumplir el objetivo."),
+        "progress.status.overBudget": ("Stopped at the spend cap before meeting the goal.", "Se detuvo en el tope de gasto antes de cumplir el objetivo."),
         "progress.status.error": ("The run hit an error.", "La ejecución encontró un error."),
         "progress.status.doneUnverified": ("One pass finished (no verifier).", "Una pasada terminada (sin verificador)."),
 

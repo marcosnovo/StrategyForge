@@ -205,11 +205,16 @@ enum LoopFileGenerator {
 
     /// The verify call: through the independent subagent when enabled, else a
     /// weaker self-judgement (still better than nothing for a runnable script).
-    private static func verifyCommand(_ plan: LoopPlan, capture: Bool) -> String {
+    /// The verify call. When `budget` is set (goal loops with a spend cap), the
+    /// verifier invocation carries `--max-budget-usd` too, so a repeated-FAIL loop
+    /// can't run the judge past the cap even though the judge's cost isn't summed
+    /// into the work-turn tally.
+    private static func verifyCommand(_ plan: LoopPlan, capture: Bool, budget: Bool = false) -> String {
         let prompt = plan.verifierEnabled
             ? "Use the loop-verifier subagent to judge this repo against '## Done when' in LOOP.md. Reply with its verdict verbatim."
             : "Judge this repo against '## Done when' in LOOP.md. Reply with exactly VERDICT: PASS or VERDICT: FAIL on the first line, then bullet reasons."
-        let call = "\"$BINARY\" -p \\\n  \"\(prompt)\""
+        let cap = budget ? "--max-budget-usd \"$BUDGET_USD\" " : ""
+        let call = "\"$BINARY\" -p \(cap)\\\n  \"\(prompt)\""
         return capture ? "VERDICT=\"$(\(call))\"" : call
     }
 
@@ -277,6 +282,7 @@ enum LoopFileGenerator {
             // Capture JSON so we can read the cost; a non-zero exit trips the breaker.
             out += [
                 "  if OUT=\"$(\"$BINARY\" -p --output-format json --model \"$MODEL\" --effort \"$EFFORT\" \\",
+                "      --max-budget-usd \"$BUDGET_USD\" \\",
                 "      \"\(work)\" 2>err.log)\"; then",
                 "    fails=0",
                 "  else",
@@ -311,7 +317,7 @@ enum LoopFileGenerator {
         out += [
             "",
             "  \(judgeComment)",
-            "  \(verifyCommand(plan, capture: true))",
+            "  \(verifyCommand(plan, capture: true, budget: hasBudget))",
             "  echo \"$VERDICT\"",
             "",
             "  # DONE — stop as soon as the work passes.",

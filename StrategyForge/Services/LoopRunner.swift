@@ -104,15 +104,16 @@ final class LoopRunController {
                 statusKey = "progress.status.working"
 
                 let prompt = Self.workPrompt(plan: plan)
+                let effort = plan.effort.cliValue
                 var outcome = await runWorkTurn(binary: resolved, repo: repoURL.path,
                                                 prompt: prompt, model: plan.workerModel.rawValue,
-                                                sessionID: sessionID, resume: hasSession)
+                                                sessionID: sessionID, resume: hasSession, effort: effort)
                 // The CLI lost the session (e.g. cleaned ~/.claude) → retry fresh
                 // once, invisibly (same resilience as ChatViewModel.send()).
                 if case .sessionMissing = outcome, hasSession {
                     outcome = await runWorkTurn(binary: resolved, repo: repoURL.path,
                                                 prompt: prompt, model: plan.workerModel.rawValue,
-                                                sessionID: sessionID, resume: false)
+                                                sessionID: sessionID, resume: false, effort: effort)
                 }
                 hasSession = true
                 if case .failed(let message) = outcome {
@@ -131,6 +132,20 @@ final class LoopRunController {
                 if let sha = await CodeGit.snapshot(repo: repoURL.path) {
                     checkpoints.append(LoopCheckpoint(iteration: turn, sha: sha,
                                                       reason: nil, at: Date()))
+                }
+
+                // Spend cap (opt-in): the same second abort the generated loop.sh
+                // enforces, honored here too. totalCostUSD already covers every
+                // turn's work + verify so far, so this bounds the whole run — not
+                // just one call.
+                if let cap = plan.budgetUSD, totalCostUSD > cap {
+                    stage = .failed
+                    statusKey = "progress.status.overBudget"
+                    lastVerdictReason = String(format: "Stopped: $%.2f spent, over the $%.2f cap.",
+                                               totalCostUSD, cap)
+                    finishedSuccessfully = false
+                    emitFinished(pass: false)
+                    return
                 }
 
                 guard plan.verifierEnabled else {
@@ -200,12 +215,13 @@ final class LoopRunController {
 
     /// Stream one Claude Code work turn, updating live detail and usage totals.
     private func runWorkTurn(binary: String, repo: String, prompt: String, model: String,
-                             sessionID: String, resume: Bool) async -> TurnOutcome {
+                             sessionID: String, resume: Bool, effort: String) async -> TurnOutcome {
         var outcome: TurnOutcome = .finished
         for await event in ClaudeRunner.stream(binary: binary, repoPath: repo,
                                                prompt: prompt, model: model,
                                                sessionID: sessionID, resume: resume,
-                                               permissionMode: "acceptEdits", extraDirs: []) {
+                                               permissionMode: "acceptEdits", extraDirs: [],
+                                               effort: effort) {
             switch event {
             case .tool(let name, let detail):
                 liveDetail = detail.map { "\(name) · \($0)" } ?? name

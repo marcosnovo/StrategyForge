@@ -172,6 +172,9 @@ struct LoopFileGeneratorTests {
         #expect(script.contains("extract_cost"))
         #expect(script.contains("total_cost_usd"))
         #expect(script.contains("exit 3"))                  // the budget-stop exit code
+        // Native per-invocation cap too (documented flag) — bounds each call,
+        // including the verifier, even if the cumulative tally can't read the field.
+        #expect(script.contains("--max-budget-usd \"$BUDGET_USD\""))
     }
 
     @Test func budgetIsGoalLoopOnly() {
