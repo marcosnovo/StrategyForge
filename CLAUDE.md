@@ -16,7 +16,10 @@ never call something finished on the strength of a read-through alone.
 
 Requires macOS + Xcode. This suite cannot run in a Linux sandbox (e.g. a
 remote/web Claude Code session) — say so explicitly rather than skipping the
-gate silently, and prefer handing the run to a session on the user's Mac.
+gate silently, and prefer handing the run to a session on the user's Mac. The
+`StrategyForge` scheme is shared (`StrategyForge.xcodeproj/xcshareddata/
+xcschemes/StrategyForge.xcscheme`), so the command above resolves on a fresh
+clone without anyone opening Xcode first to create a private one.
 
 ## Using /loop or /goal in this repo
 
