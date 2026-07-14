@@ -72,12 +72,11 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
     /// Whether the app can actually *run* a chat on this provider today.
     var isExecutable: Bool { self == .claude }
 
-    /// Whether this CLI's sign-in is an interactive terminal flow that needs a real
-    /// TTY, so it can't be driven as a headless subprocess (it just errors with
-    /// "Input must be provided…"). Gemini's first-run login is a full-screen TUI, and
-    /// `claude`'s sign-in is its interactive REPL/`/login` — both need Terminal. Only
-    /// Codex prints a browser URL we can open from a background process.
-    var loginNeedsTerminal: Bool { self == .gemini || self == .claude }
+    /// Whether the sign-in genuinely needs a visible Terminal (last resort). Coral runs
+    /// logins in a HIDDEN pseudo-terminal instead (see ProviderInstaller.signIn), so
+    /// Claude (`auth login`, prints a browser URL) and Codex both connect in-app with
+    /// no Terminal. Only Gemini's full-screen TUI login can't be automated that way.
+    var loginNeedsTerminal: Bool { self == .gemini }
 
     /// Whether this provider's CLI streams structured file-edit / command events that
     /// Code Mode (diffs, terminal, git panel) can render. Only Claude Code does today;
@@ -97,9 +96,9 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
     /// subscription account (run in Terminal so the OAuth flow completes normally).
     var loginCommand: String {
         switch self {
-        case .claude: return "claude"          // first run signs in
+        case .claude: return "claude auth login --claudeai"   // dedicated login; prints a browser URL
         case .openai: return "codex login"
-        case .gemini: return "gemini"          // first run signs in
+        case .gemini: return "gemini"          // first run signs in (full-screen TUI)
         }
     }
 

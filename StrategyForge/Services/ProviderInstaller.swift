@@ -10,6 +10,7 @@
 
 import Foundation
 import AppKit
+import Darwin   // openpty — run CLI logins in a hidden pseudo-terminal (no Terminal window)
 
 enum InstallEvent: Sendable, Equatable {
     case log(String)         // a line of installer output
@@ -95,10 +96,11 @@ enum ProviderInstaller {
         }
     }
 
-    /// Web sign-in WITHOUT a Terminal: run the CLI's login command as a background
-    /// subprocess (it starts a local callback server + opens the browser), stream its
-    /// output, and open the first auth URL it prints ourselves for good measure. The
-    /// process exits when the browser flow completes. Mirrors `install`.
+    /// Web sign-in WITHOUT a visible Terminal: run the CLI's login command attached to
+    /// a HIDDEN pseudo-terminal (so a CLI that insists on a TTY — like `claude auth
+    /// login` — behaves normally), stream its output, open the browser URL it prints,
+    /// and finish when the OAuth callback completes (the process exits 0). No Terminal
+    /// window, no user typing — the app drives the whole thing.
     nonisolated static func signIn(_ provider: AIProvider) -> AsyncStream<InstallEvent> {
         AsyncStream { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -107,6 +109,11 @@ enum ProviderInstaller {
                     continuation.yield(.failed("Couldn't find the \(provider.binaryName) CLI — install it first."))
                     continuation.finish(); return
                 }
+                // A hidden PTY gives the login a real terminal without showing one.
+                var master: Int32 = 0, slave: Int32 = 0
+                guard openpty(&master, &slave, nil, nil, nil) == 0 else {
+                    continuation.yield(.failed("Couldn't open a login session.")); continuation.finish(); return
+                }
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: bin)
                 process.arguments = Array(parts.dropFirst())
@@ -114,15 +121,22 @@ enum ProviderInstaller {
                 let home = FileManager.default.homeDirectoryForCurrentUser.path
                 let binDir = (bin as NSString).deletingLastPathComponent
                 env["PATH"] = "\(binDir):\(home)/.npm-global/bin:\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+                env["TERM"] = "xterm-256color"
+                // Login must write creds to the SAME config dir the app runs from.
+                if provider == .claude { ClaudeRunner.sanitizeClaudeAuth(&env) }
                 process.environment = env
-                let out = Pipe(); process.standardOutput = out; process.standardError = out
-                process.standardInput = Pipe()   // never block on a missing TTY
+
+                let slaveHandle = FileHandle(fileDescriptor: slave, closeOnDealloc: false)
+                process.standardInput = slaveHandle
+                process.standardOutput = slaveHandle
+                process.standardError = slaveHandle
+                let masterHandle = FileHandle(fileDescriptor: master, closeOnDealloc: true)
 
                 let buffer = LineAccumulator()
                 var openedURL = false
-                out.fileHandleForReading.readabilityHandler = { handle in
+                masterHandle.readabilityHandler = { handle in
                     let data = handle.availableData
-                    guard !data.isEmpty else { return }
+                    guard !data.isEmpty else { handle.readabilityHandler = nil; return }
                     for line in buffer.append(data) {
                         continuation.yield(.log(line))
                         if !openedURL, let url = firstURL(in: line) {
@@ -132,18 +146,22 @@ enum ProviderInstaller {
                     }
                 }
                 process.terminationHandler = { proc in
-                    out.fileHandleForReading.readabilityHandler = nil
+                    masterHandle.readabilityHandler = nil
                     for line in buffer.drain() { continuation.yield(.log(line)) }
                     if proc.terminationStatus == 0 { continuation.yield(.finished) }
                     else { continuation.yield(.failed("Sign-in exited with code \(proc.terminationStatus)")) }
                     continuation.finish()
                 }
                 continuation.onTermination = { _ in
-                    out.fileHandleForReading.readabilityHandler = nil
+                    masterHandle.readabilityHandler = nil
                     if process.isRunning { process.terminate() }
                 }
-                do { try process.run() }
-                catch { continuation.yield(.failed(error.localizedDescription)); continuation.finish() }
+                do {
+                    try process.run()
+                    close(slave)   // the child holds its own copy; the parent doesn't need it
+                } catch {
+                    continuation.yield(.failed(error.localizedDescription)); continuation.finish()
+                }
             }
         }
     }
