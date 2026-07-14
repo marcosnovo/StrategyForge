@@ -122,17 +122,22 @@ final class AppModel {
     var claudeUsage: UsageSummary?
     /// Real Codex usage (authoritative % + reset) read from ~/.codex logs.
     var codexUsage: CodexUsage?
+    /// Real Claude rate-limit percentages from Claude's own usage endpoint (needs a
+    /// valid login). nil when signed out or the request fails.
+    var claudeExact: ClaudeUsageAPI.Exact?
     /// True while a usage refresh is in flight.
     var isRefreshingUsage = false
 
-    /// Re-read the providers' local session logs (off the main thread): Claude token
-    /// counts + Codex's authoritative rate-limit percentages.
+    /// Re-read usage: Claude token counts (local logs) + its authoritative rate-limit
+    /// % (endpoint) + Codex's authoritative % (local logs). All off the main thread.
     func refreshUsage() async {
         isRefreshingUsage = true
         async let claude = Task.detached(priority: .utility) { ClaudeUsageStore.load() }.value
         async let codex = Task.detached(priority: .utility) { CodexUsageStore.load() }.value
+        async let exact = Task.detached(priority: .utility) { await ClaudeUsageAPI.fetch() }.value
         claudeUsage = await claude
         codexUsage = await codex
+        claudeExact = await exact
         isRefreshingUsage = false
     }
     /// The service shown in the main area while in the Services section.

@@ -86,17 +86,32 @@ struct UsageView: View {
         VStack(alignment: .leading, spacing: Space.m) {
             providerCardHeader(.claude, last: model.claudeUsage?.lastActivity)
             if let u = model.claudeUsage, u.hasData {
-                UsageRing(fraction: blockFraction(u), label: fiveHourLabel(u),
-                          caption: model.t("usage.fiveHour"))
-                    .frame(width: 96, height: 96).frame(maxWidth: .infinity)
-                // We read local logs, but the EXACT rate-limit % lives behind Claude's
-                // own login — offer to sign in (also refreshes the chat's auth).
-                Button { reconnectingClaude = true } label: {
-                    Label(model.t("usage.claude.exact"), systemImage: "arrow.up.forward.app")
-                        .font(.sfCaption2)
+                if let e = model.claudeExact {
+                    // Real rate-limit % from Claude's own endpoint (the exact numbers).
+                    UsageRing(fraction: e.fiveHourPercent / 100,
+                              label: "\(Int(e.fiveHourPercent.rounded()))%",
+                              caption: model.t("usage.fiveHour"))
+                        .frame(width: 96, height: 96).frame(maxWidth: .infinity)
+                    if let r = e.fiveHourResetsAt {
+                        TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                            Text(model.t("usage.resetsIn", countdown(to: r, now: ctx.date)))
+                                .font(.sfCaption2).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                        }
+                    }
+                    modelPctBar(model.t("usage.sevenDay"), percent: e.weekPercent)
+                } else {
+                    // No exact data yet (signed out / not fetched) — 5h time-to-reset ring
+                    // + a sign-in that unlocks the exact percentages.
+                    UsageRing(fraction: blockFraction(u), label: fiveHourLabel(u),
+                              caption: model.t("usage.fiveHour"))
+                        .frame(width: 96, height: 96).frame(maxWidth: .infinity)
+                    Button { reconnectingClaude = true } label: {
+                        Label(model.t("usage.claude.exact"), systemImage: "arrow.up.forward.app")
+                            .font(.sfCaption2)
+                    }
+                    .buttonStyle(.plain).foregroundStyle(Theme.teal)
+                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain).foregroundStyle(Theme.teal)
-                .frame(maxWidth: .infinity)
                 Divider()
                 HStack {
                     Text(model.t("usage.sevenDay")).font(.sfFieldLabel).foregroundStyle(.secondary).tracking(0.6)

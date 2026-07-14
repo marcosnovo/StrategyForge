@@ -206,7 +206,7 @@ struct NavRail: View {
     private var usageProviders: [AIProvider] {
         AIProvider.allCases.filter { p in
             switch p {
-            case .claude: return model.claudeUsage?.hasData == true
+            case .claude: return model.claudeUsage?.hasData == true || model.claudeExact != nil
             case .openai: return model.codexUsage?.hasData == true
             case .gemini: return false   // Gemini exposes no reliable local usage
             }
@@ -217,9 +217,18 @@ struct NavRail: View {
         HStack(alignment: .top, spacing: Space.s) {
             switch provider {
             case .claude:
-                if let u = model.claudeUsage {
-                    // No published cap → the ring is the 5-hour window's time-to-reset;
-                    // the bars are each model's share of the week (a real %).
+                if let e = model.claudeExact {
+                    // The REAL rate-limit % from Claude's endpoint (5-hour + week).
+                    miniRing(fraction: e.fiveHourPercent / 100,
+                             center: "\(Int(e.fiveHourPercent.rounded()))%", caption: model.t("rail.usage.5h"))
+                    VStack(alignment: .leading, spacing: 4) {
+                        providerLabel(provider, right: model.providerPlan(.claude))
+                        miniBar(model.t("rail.usage.wk"), fraction: e.weekPercent / 100,
+                                value: "\(Int(e.weekPercent.rounded()))%")
+                    }
+                } else if let u = model.claudeUsage {
+                    // Signed out / no exact data yet → ring = 5-hour time-to-reset, bars =
+                    // each model's share of the week (a real %).
                     miniRing(fraction: blockFraction(u), center: resetLabel(u), caption: model.t("rail.usage.5h"))
                     VStack(alignment: .leading, spacing: 4) {
                         providerLabel(provider, right: model.providerPlan(.claude))
