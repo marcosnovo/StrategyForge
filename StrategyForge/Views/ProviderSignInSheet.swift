@@ -87,6 +87,8 @@ struct ProviderSignInSheet: View {
                 phase = .failed(msg)
             case .needsNode:
                 phase = .failed(model.t("provider.needsNode"))
+            case .needsCode:
+                break   // this legacy sheet doesn't collect the code; ProviderConnectSheet does
             }
         }
     }

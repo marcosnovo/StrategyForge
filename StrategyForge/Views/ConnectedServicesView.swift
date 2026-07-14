@@ -113,6 +113,7 @@ struct ConnectedServicesSection: View {
                 case .finished:
                     installState = .done
                     await detect(provider)
+                case .needsCode: break   // install never asks for a code
                 }
             }
         }

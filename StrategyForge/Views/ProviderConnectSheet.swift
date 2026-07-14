@@ -21,6 +21,11 @@ struct ProviderConnectSheet: View {
     @State private var phase: Phase = .installing
     @State private var log: [String] = []
     @State private var url: String?
+    /// Claude's login finishes by pasting a code shown in the browser — we collect it
+    /// here and send it into the (hidden) login process.
+    @State private var awaitingCode = false
+    @State private var code = ""
+    @State private var input = LoginInput()
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
@@ -40,6 +45,22 @@ struct ProviderConnectSheet: View {
                     Label(model.t("provider.signin.openPage"), systemImage: "arrow.up.forward.app")
                 }
                 .buttonStyle(.moon)
+            }
+            // Paste-the-code step (Claude): the browser shows a code to paste back.
+            if awaitingCode {
+                VStack(alignment: .leading, spacing: Space.s) {
+                    Text(model.t("provider.signin.pasteCode"))
+                        .font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: Space.s) {
+                        TextField(model.t("provider.signin.codePlaceholder"), text: $code)
+                            .textFieldStyle(.roundedBorder).font(.sfCode)
+                            .onSubmit(submitCode)
+                        Button(model.t("provider.signin.submitCode"), action: submitCode)
+                            .buttonStyle(.moon)
+                            .disabled(code.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
             }
             if phase == .terminal {
                 Button(model.t("provider.signin.terminal")) { ProviderInstaller.launchSignIn(provider) }
@@ -119,16 +140,27 @@ struct ProviderConnectSheet: View {
     }
 
     private func run() async {
-        for await event in ProviderInstaller.connect(provider) {
+        for await event in ProviderInstaller.connect(provider, input: input) {
             switch event {
             case .phase(let s): phase = (s == .installing ? .installing : .signingIn)
             case .log(let l): log.append(l)
             case .url(let u): url = u
+            case .needsCode: awaitingCode = true
             case .needsNode: phase = .failed(model.t("provider.needsNode"))
             case .needsTerminal: phase = .terminal
             case .failed(let m): phase = .failed(m)
-            case .done: phase = .done; onConnected()
+            case .done: phase = .done; awaitingCode = false; onConnected()
             }
         }
+    }
+
+    /// Send the pasted browser code into the login process; a spinner then shows while
+    /// the CLI validates it and finishes.
+    private func submitCode() {
+        let trimmed = code.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        input.submit(trimmed)
+        code = ""
+        awaitingCode = false   // back to the "signing in" spinner until .done/.failed
     }
 }

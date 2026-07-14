@@ -1131,8 +1131,10 @@ struct ChatView: View {
                 // Auth failures self-heal: sign in again (browser), then auto-retry the
                 // same turn — the user never has to leave for Terminal or re-type.
                 if isAuthError(error) {
-                    Button(model.t("chat.reconnectRetry")) { reconnecting = true }
-                        .buttonStyle(.moon).controlSize(.small)
+                    Button { reconnecting = true } label: {
+                        Label(model.t("chat.reconnectRetry"), systemImage: "person.crop.circle.badge.checkmark")
+                    }
+                    .buttonStyle(.moon).controlSize(.small)
                 } else {
                     Button(model.t("banner.fix")) { model.navSection = .services }
                         .controlSize(.small)

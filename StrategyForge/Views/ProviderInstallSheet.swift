@@ -79,6 +79,7 @@ struct ProviderInstallSheet: View {
             case .needsNode: state = .needsNode
             case .failed(let msg): state = .failed(msg)
             case .finished: state = .done; onConnected()
+            case .needsCode: break   // install never asks for a code
             }
         }
     }
