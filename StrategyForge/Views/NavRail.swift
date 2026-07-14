@@ -172,27 +172,17 @@ struct NavRail: View {
         .contentShape(Rectangle())   // whole row is tappable
     }
 
-    // MARK: Usage card
+    // MARK: Usage card (one row per connected provider)
 
-    /// A compact, honest usage card (the reference's "used space" slot). No cloud quota
-    /// to sell — Coral runs on your own plan — so the ring shows how far the current
-    /// 5-hour Claude block has elapsed toward reset, with the plan + real token totals.
+    /// A compact usage card with ONE row per connected provider — each a single-color
+    /// ring + bars. Claude publishes no token cap, so its ring is the 5-hour window's
+    /// time-to-reset and its two bars are this week's / this block's tokens; Codex
+    /// reports a real plan %, so its ring + bar show that exact percentage.
     @ViewBuilder private var usageCard: some View {
-        if let u = model.claudeUsage, u.hasData {
-            VStack(alignment: .leading, spacing: Space.s) {
-                Text(model.providerPlan(.claude) ?? "Claude")
-                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
-                // The two headline metrics — the 5-hour window (ring = time-to-reset)
-                // and this week's tokens — are what matters most, above the per-model split.
-                HStack(spacing: Space.m) {
-                    ring(fraction: blockFraction(u), center: resetLabel(u))
-                    VStack(alignment: .leading, spacing: 6) {
-                        statLine(model.t("rail.usage.5h"), fmtTokens(u.blockTokens))
-                        statLine(model.t("rail.usage.wk"), fmtTokens(u.weekTokens))
-                    }
-                    Spacer(minLength: 0)
-                }
-                usageBars(u)
+        let rows = usageProviders
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: Space.m) {
+                ForEach(rows, id: \.self) { providerUsageRow($0) }
                 Button {
                     model.guardedLeave {
                         model.navSection = .usage
@@ -212,42 +202,83 @@ struct NavRail: View {
         }
     }
 
-    /// A headline usage stat: a tiny mono label + a bold value, on the dark rail.
-    private func statLine(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(label).font(.system(size: 8, weight: .semibold)).tracking(0.5)
-                .foregroundStyle(.white.opacity(0.4))
-            Text(value).font(.sfCaption2.weight(.semibold)).foregroundStyle(.white)
+    /// Connected providers that actually have usage to show, in catalog order.
+    private var usageProviders: [AIProvider] {
+        AIProvider.allCases.filter { p in
+            switch p {
+            case .claude: return model.claudeUsage?.hasData == true
+            case .openai: return model.codexUsage?.hasData == true
+            case .gemini: return false   // Gemini exposes no reliable local usage
+            }
         }
     }
 
-    /// Per-model usage bars for the week (top 3), normalized to the busiest model —
-    /// the "usage bars" that make the card feel alive. Teal = agents/usage.
-    @ViewBuilder private func usageBars(_ u: UsageSummary) -> some View {
-        let top = Array(u.weekByModel.prefix(3))
-        let total = max(u.weekTokens, 1)
-        if !top.isEmpty {
-            VStack(spacing: 5) {
-                ForEach(top) { m in
-                    let frac = Double(m.tokens) / Double(total)
-                    HStack(spacing: Space.s) {
-                        Text(m.model).font(.sfCaption2).foregroundStyle(.white.opacity(0.6))
-                            .lineLimit(1).frame(width: 52, alignment: .leading)
-                        GeometryReader { geo in
-                            Capsule().fill(Color.white.opacity(0.10))
-                                .overlay(alignment: .leading) {
-                                    Capsule().fill(Theme.teal)
-                                        .frame(width: max(3, geo.size.width * CGFloat(frac)))
-                                }
-                        }
-                        .frame(height: 5)
-                        // Percentages, not raw token counts — far more compact.
-                        Text("\(Int((frac * 100).rounded()))%")
-                            .font(.sfCaption2).foregroundStyle(.white.opacity(0.45))
-                            .frame(width: 30, alignment: .trailing)
+    @ViewBuilder private func providerUsageRow(_ provider: AIProvider) -> some View {
+        HStack(alignment: .top, spacing: Space.s) {
+            switch provider {
+            case .claude:
+                if let u = model.claudeUsage {
+                    miniRing(fraction: blockFraction(u), center: resetLabel(u))
+                    VStack(alignment: .leading, spacing: 4) {
+                        providerLabel(provider, right: model.providerPlan(.claude))
+                        miniBar(model.t("rail.usage.wk"), fraction: 1, value: fmtTokens(u.weekTokens))
+                        miniBar(model.t("rail.usage.5h"), fraction: blockShare(u), value: fmtTokens(u.blockTokens))
                     }
                 }
+            case .openai:
+                if let c = model.codexUsage, let w = c.primary ?? c.secondary {
+                    miniRing(fraction: w.usedPercent / 100, center: "\(Int(w.usedPercent.rounded()))%")
+                    VStack(alignment: .leading, spacing: 4) {
+                        providerLabel(provider, right: c.planType?.capitalized)
+                        miniBar(model.t(w.kindLabelKey), fraction: w.usedPercent / 100,
+                                value: "\(Int(w.usedPercent.rounded()))%")
+                    }
+                }
+            case .gemini:
+                EmptyView()
             }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func providerLabel(_ p: AIProvider, right: String?) -> some View {
+        HStack(spacing: 5) {
+            Text(p.displayName).font(.sfCaption2.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+            Spacer(minLength: 0)
+            if let right, !right.isEmpty {
+                Text(right).font(.system(size: 8, weight: .semibold)).foregroundStyle(.white.opacity(0.45))
+            }
+        }
+    }
+
+    /// A single-color usage ring (no confusing two-tone gradient) with a centered label.
+    private func miniRing(fraction: Double, center: String) -> some View {
+        ZStack {
+            Circle().stroke(Color.white.opacity(0.12), lineWidth: 3.5)
+            Circle().trim(from: 0, to: max(0.02, min(fraction, 1)))
+                .stroke(Theme.teal, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text(center).font(.system(size: 9, weight: .semibold, design: .rounded)).foregroundStyle(.white)
+        }
+        .frame(width: 34, height: 34)
+    }
+
+    private func miniBar(_ label: String, fraction: Double, value: String) -> some View {
+        VStack(spacing: 1) {
+            HStack(spacing: 4) {
+                Text(label).font(.system(size: 8, weight: .semibold)).tracking(0.3)
+                    .foregroundStyle(.white.opacity(0.4))
+                Spacer(minLength: 0)
+                Text(value).font(.system(size: 8, weight: .medium)).foregroundStyle(.white.opacity(0.55))
+            }
+            GeometryReader { geo in
+                Capsule().fill(Color.white.opacity(0.10))
+                    .overlay(alignment: .leading) {
+                        Capsule().fill(Theme.teal)
+                            .frame(width: max(3, geo.size.width * CGFloat(min(max(fraction, 0), 1))))
+                    }
+            }
+            .frame(height: 3)
         }
     }
 
@@ -257,29 +288,18 @@ struct NavRail: View {
         return min(max(Date().timeIntervalSince(s) / r.timeIntervalSince(s), 0), 1)
     }
 
+    /// This block's tokens as a share of the week (the 5-hour bar, since there's no cap).
+    private func blockShare(_ u: UsageSummary) -> Double {
+        guard u.weekTokens > 0 else { return 0 }
+        return Double(u.blockTokens) / Double(u.weekTokens)
+    }
+
     /// Compact time-to-reset for the ring center ("2h" / "45m" / "—").
     private func resetLabel(_ u: UsageSummary) -> String {
         guard let r = u.blockResetAt else { return "—" }
         let secs = Int(r.timeIntervalSince(Date()))
         guard secs > 0 else { return "—" }
         return secs >= 3600 ? "\(secs / 3600)h" : "\(max(1, secs / 60))m"
-    }
-
-    /// A glowing usage ring: a teal→coral arc over a faint track, with a soft glow and
-    /// the block's time-to-reset in the center.
-    private func ring(fraction: Double, center: String) -> some View {
-        ZStack {
-            Circle().stroke(Color.white.opacity(0.12), lineWidth: 4)
-            Circle().trim(from: 0, to: max(0.02, fraction))
-                .stroke(AngularGradient(colors: [Theme.teal, Theme.coral],
-                                        center: .center, startAngle: .degrees(0), endAngle: .degrees(360)),
-                        style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .shadow(color: Theme.teal.opacity(0.55), radius: 4)
-            Text(center).font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
-        }
-        .frame(width: 40, height: 40)
     }
 
     /// Compact token count ("24.5k", "310k", "980").

@@ -240,8 +240,14 @@ struct AgentActivityPanel: View {
     }
 
     private func pctStr(_ part: Int, _ total: Int) -> String {
-        let p = total > 0 ? min(100, Double(part) / Double(total) * 100) : 0
-        return String(format: "%.0f%%", p)
+        guard total > 0 else { return "0%" }
+        let p = Double(part) / Double(total) * 100
+        // A single chat is usually a tiny slice of the window, so show decimals when
+        // it's small (0.013%) and round only once it's a meaningful chunk.
+        if p >= 10 { return String(format: "%.0f%%", p) }
+        if p >= 1 { return String(format: "%.1f%%", p) }
+        if p >= 0.001 { return String(format: "%.3f%%", p) }
+        return p > 0 ? "<0.001%" : "0%"
     }
 
     private func stat(_ icon: String, _ text: String) -> some View {
@@ -308,34 +314,8 @@ struct AgentActivityPanel: View {
                         .lineLimit(1).truncationMode(.tail)
                 }
             }
-            Divider().padding(.vertical, 1)
-
-            // Account-wide usage from Claude's local logs: this week + the current
-            // 5-hour rate-limit window. Clearly labelled so it's not read as this run.
-            if let u = model.claudeUsage, u.hasData {
-                Text(model.t("activity.usage.account"))
-                    .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
-                // Week: a bar of the per-model split; 5-hour: a teal time-elapsed bar.
-                meterBar(model.t("activity.usage.week"), value: formatTokens(u.weekTokens),
-                         fraction: 1, tint: Theme.teal)
-                if u.blockResetAt != nil {
-                    meterBar(model.t("activity.usage.block"), value: fiveHourText(u),
-                             fraction: blockElapsedFraction(u), tint: Theme.teal)
-                } else {
-                    usageLine(model.t("activity.usage.block"), model.t("usage.noActiveWindow"))
-                }
-                // Bars per model (the AIs configured / in use this week).
-                if !u.weekByModel.isEmpty {
-                    VStack(spacing: 4) {
-                        ForEach(u.weekByModel) { m in usageBar(m, total: u.weekTokens) }
-                    }
-                    .padding(.top, 2)
-                }
-                providerMiniBars
-            } else {
-                usageLine(model.t("activity.usage.week"), model.t("usage.noWeek"))
-                providerMiniBars
-            }
+            // The account-wide totals (this week / 5-hour window / per-provider) live
+            // in the Usage section — this live card shows ONLY this chat's own spend.
         }
     }
 
