@@ -89,7 +89,9 @@ enum L10n {
         // Sidebar usage card + profile row (reference-style)
         "rail.usage.tokens": ("%@ this block · %@ / wk", "%@ este bloque · %@ / sem"),
         "rail.usage.view": ("View usage", "Ver uso"),
+        "rail.usage.week": ("%@ this week", "%@ esta semana"),
         "rail.group.workspace": ("Workspace", "Espacio"),
+        "rail.group.account": ("Account", "Cuenta"),
         "rail.profile.sync": ("Sync now", "Sincronizar ahora"),
         "rail.profile.signout": ("Sign out", "Cerrar sesión"),
         "rail.profile.signin": ("Sign in", "Iniciar sesión"),

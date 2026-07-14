@@ -780,10 +780,14 @@ struct ChatView: View {
                 Text(message.text)
                     .font(.sfBodyM)
                     .lineSpacing(Theme.bodyLineSpacing)
-                    .foregroundStyle(Theme.onAccent)
+                    .foregroundStyle(Theme.ink)
                     .textSelection(.enabled)
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-                    .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.accent))
+                    // Soft coral tint (not a solid fill) so the user's own turns read as
+                    // "mine/coral" without shouting — full coral stays for real actions.
+                    .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.accentSoft))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
+                        .strokeBorder(Theme.accentGlow, lineWidth: 1))
                     .contextMenu {
                         copyButton(message.text)
                         Button { editMessage(message) } label: {

@@ -59,6 +59,8 @@ struct NavRail: View {
                  active: model.navSection == .skills) {
                 model.guardedLeave { model.navSection = .skills }
             }
+            groupLabel("rail.group.account")
+
             item("point.3.connected.trianglepath.dotted", "rail.connected",
                  active: model.navSection == .services) {
                 model.guardedLeave { model.navSection = .services }
@@ -175,17 +177,18 @@ struct NavRail: View {
     /// 5-hour Claude block has elapsed toward reset, with the plan + real token totals.
     @ViewBuilder private var usageCard: some View {
         if let u = model.claudeUsage, u.hasData {
-            VStack(alignment: .leading, spacing: Space.s) {
-                HStack(spacing: Space.s) {
-                    ring(fraction: blockFraction(u))
+            VStack(alignment: .leading, spacing: Space.m) {
+                HStack(spacing: Space.m) {
+                    ring(fraction: blockFraction(u), center: resetLabel(u))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(model.providerPlan(.claude) ?? "Claude")
                             .font(.sfCaption2.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
-                        Text(model.t("rail.usage.tokens", fmtTokens(u.blockTokens), fmtTokens(u.weekTokens)))
+                        Text(model.t("rail.usage.week", fmtTokens(u.weekTokens)))
                             .font(.sfCaption2).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
                     }
                     Spacer(minLength: 0)
                 }
+                usageBars(u)
                 Button {
                     model.guardedLeave {
                         model.navSection = .usage
@@ -199,9 +202,36 @@ struct NavRail: View {
             }
             .padding(Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.05)))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+        }
+    }
+
+    /// Per-model usage bars for the week (top 3), normalized to the busiest model —
+    /// the "usage bars" that make the card feel alive. Teal = agents/usage.
+    @ViewBuilder private func usageBars(_ u: UsageSummary) -> some View {
+        let top = Array(u.weekByModel.prefix(3))
+        let maxTokens = max(top.map(\.tokens).max() ?? 1, 1)
+        if !top.isEmpty {
+            VStack(spacing: 5) {
+                ForEach(top) { m in
+                    HStack(spacing: Space.s) {
+                        Text(m.model).font(.sfCaption2).foregroundStyle(.white.opacity(0.6))
+                            .lineLimit(1).frame(width: 46, alignment: .leading)
+                        GeometryReader { geo in
+                            Capsule().fill(Color.white.opacity(0.10))
+                                .overlay(alignment: .leading) {
+                                    Capsule().fill(Theme.teal)
+                                        .frame(width: max(3, geo.size.width * CGFloat(Double(m.tokens) / Double(maxTokens))))
+                                }
+                        }
+                        .frame(height: 5)
+                        Text(fmtTokens(m.tokens)).font(.sfCaption2).foregroundStyle(.white.opacity(0.45))
+                            .frame(width: 42, alignment: .trailing)
+                    }
+                }
+            }
         }
     }
 
@@ -211,14 +241,29 @@ struct NavRail: View {
         return min(max(Date().timeIntervalSince(s) / r.timeIntervalSince(s), 0), 1)
     }
 
-    private func ring(fraction: Double) -> some View {
+    /// Compact time-to-reset for the ring center ("2h" / "45m" / "—").
+    private func resetLabel(_ u: UsageSummary) -> String {
+        guard let r = u.blockResetAt else { return "—" }
+        let secs = Int(r.timeIntervalSince(Date()))
+        guard secs > 0 else { return "—" }
+        return secs >= 3600 ? "\(secs / 3600)h" : "\(max(1, secs / 60))m"
+    }
+
+    /// A glowing usage ring: a teal→coral arc over a faint track, with a soft glow and
+    /// the block's time-to-reset in the center.
+    private func ring(fraction: Double, center: String) -> some View {
         ZStack {
-            Circle().stroke(Color.white.opacity(0.12), lineWidth: 3)
-            Circle().trim(from: 0, to: fraction)
-                .stroke(Theme.teal, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            Circle().stroke(Color.white.opacity(0.12), lineWidth: 4)
+            Circle().trim(from: 0, to: max(0.02, fraction))
+                .stroke(AngularGradient(colors: [Theme.teal, Theme.coral],
+                                        center: .center, startAngle: .degrees(0), endAngle: .degrees(360)),
+                        style: StrokeStyle(lineWidth: 4, lineCap: .round))
                 .rotationEffect(.degrees(-90))
+                .shadow(color: Theme.teal.opacity(0.55), radius: 4)
+            Text(center).font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
         }
-        .frame(width: 30, height: 30)
+        .frame(width: 40, height: 40)
     }
 
     /// Compact token count ("24.5k", "310k", "980").
