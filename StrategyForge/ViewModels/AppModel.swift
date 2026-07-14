@@ -120,14 +120,19 @@ final class AppModel {
     // MARK: - Usage (real Claude token usage from local logs)
     /// Aggregated Claude usage read from ~/.claude logs (nil until first refresh).
     var claudeUsage: UsageSummary?
+    /// Real Codex usage (authoritative % + reset) read from ~/.codex logs.
+    var codexUsage: CodexUsage?
     /// True while a usage refresh is in flight.
     var isRefreshingUsage = false
 
-    /// Re-read and aggregate Claude's local session logs (off the main thread).
+    /// Re-read the providers' local session logs (off the main thread): Claude token
+    /// counts + Codex's authoritative rate-limit percentages.
     func refreshUsage() async {
         isRefreshingUsage = true
-        let summary = await Task.detached(priority: .utility) { ClaudeUsageStore.load() }.value
-        claudeUsage = summary
+        async let claude = Task.detached(priority: .utility) { ClaudeUsageStore.load() }.value
+        async let codex = Task.detached(priority: .utility) { CodexUsageStore.load() }.value
+        claudeUsage = await claude
+        codexUsage = await codex
         isRefreshingUsage = false
     }
     /// The service shown in the main area while in the Services section.

@@ -18,6 +18,7 @@ struct UsageView: View {
                 header
                 spendByProviderCard
                 claudeSection
+                codexSection
                 if model.configurations.contains(where: { $0.totalTokens > 0 }) {
                     topChatsCard
                 }
@@ -80,6 +81,56 @@ struct UsageView: View {
             }
         }
         .card()
+    }
+
+    // MARK: - Codex (real rate-limit % from ~/.codex logs)
+
+    @ViewBuilder
+    private var codexSection: some View {
+        if let u = model.codexUsage, u.hasData {
+            VStack(alignment: .leading, spacing: Space.m) {
+                HStack(spacing: Space.s) {
+                    ProviderLogo(provider: .openai, size: 20, templateTint: AIProvider.openai.tint)
+                    Text(AIProvider.openai.displayName).font(.sfCardTitle)
+                    if let plan = u.planType, !plan.isEmpty {
+                        Text(plan.capitalized).font(.sfCaption2.weight(.medium))
+                            .foregroundStyle(AIProvider.openai.tint)
+                            .padding(.horizontal, 8).padding(.vertical, 2)
+                            .background(Capsule().fill(AIProvider.openai.tint.opacity(0.12)))
+                    }
+                    Spacer()
+                    if let last = u.lastActivity {
+                        Text(model.t("usage.lastActivity", relative(last)))
+                            .font(.sfCaption2).foregroundStyle(.secondary)
+                    }
+                }
+                HStack(alignment: .top, spacing: Space.l) {
+                    if let p = u.primary { codexWindowCard(p) }
+                    if let s = u.secondary { codexWindowCard(s) }
+                    if u.primary == nil && u.secondary == nil {
+                        Text(model.t("usage.codex.noWindows")).font(.sfCaption2).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .card()
+        }
+    }
+
+    private func codexWindowCard(_ w: CodexWindow) -> some View {
+        VStack(spacing: Space.s) {
+            UsageRing(fraction: w.usedPercent / 100,
+                      label: "\(Int(w.usedPercent.rounded()))%",
+                      caption: model.t(w.kindLabelKey))
+                .frame(width: 120, height: 120)
+            if let reset = w.resetsAt {
+                TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                    Text(model.t("usage.resetsIn", countdown(to: reset, now: ctx.date)))
+                        .font(.sfCaption2).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(Space.m).frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
     }
 
     private func fiveHourCard(_ usage: UsageSummary) -> some View {
