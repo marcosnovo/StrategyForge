@@ -59,8 +59,16 @@ struct ConnectedServicesSection: View {
                 Label(s.isEmpty ? model.t("provider.diagnose.healthy") : s, systemImage: "checkmark.circle.fill")
                     .font(.caption).foregroundStyle(Theme.success).lineLimit(2)
             case .fail(let s):
-                Label(s, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption).foregroundStyle(Theme.danger).lineLimit(2)
+                // A failed test is almost always a sign-in problem — offer to review /
+                // reconnect the session right here (in-app, no Terminal) instead of just
+                // telling the user to do it.
+                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                    Label(s, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(Theme.danger).lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(model.t("provider.test.reviewSession")) { connecting = provider }
+                        .controlSize(.small).buttonStyle(.moon)
+                }
             case .idle:
                 EmptyView()
             }
