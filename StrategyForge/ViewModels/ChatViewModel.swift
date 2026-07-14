@@ -123,21 +123,25 @@ struct TurnActivity: Identifiable, Codable, Hashable {
     var byAgent: [String: Int]
     /// Agent Skills the model pulled in during this turn (slugs, de-duplicated).
     var skillsUsed: [String]
+    /// Absolute paths of files the agents wrote/edited during this turn — persisted so
+    /// the produced files survive relaunch and stay recoverable from the activity panel.
+    var files: [String]
 
     init(turnIndex: Int, prompt: String, startedAt: Date, endedAt: Date,
          steps: [ActivityStep], agentsInvolved: [String], commandLog: [CommandRun],
          tokensUsed: Int, costUSD: Double, byModel: [ModelSpend], byAgent: [String: Int],
-         skillsUsed: [String] = []) {
+         skillsUsed: [String] = [], files: [String] = []) {
         self.turnIndex = turnIndex; self.prompt = prompt
         self.startedAt = startedAt; self.endedAt = endedAt
         self.steps = steps; self.agentsInvolved = agentsInvolved; self.commandLog = commandLog
         self.tokensUsed = tokensUsed; self.costUSD = costUSD
         self.byModel = byModel; self.byAgent = byAgent
         self.skillsUsed = skillsUsed
+        self.files = files
     }
     enum CodingKeys: String, CodingKey {
         case id, turnIndex, prompt, startedAt, endedAt, steps, agentsInvolved
-        case commandLog, tokensUsed, costUSD, byModel, byAgent, skillsUsed
+        case commandLog, tokensUsed, costUSD, byModel, byAgent, skillsUsed, files
     }
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
@@ -154,6 +158,7 @@ struct TurnActivity: Identifiable, Codable, Hashable {
         byModel = try c.decodeIfPresent([ModelSpend].self, forKey: .byModel) ?? []
         byAgent = try c.decodeIfPresent([String: Int].self, forKey: .byAgent) ?? [:]
         skillsUsed = try c.decodeIfPresent([String].self, forKey: .skillsUsed) ?? []
+        files = try c.decodeIfPresent([String].self, forKey: .files) ?? []
     }
 }
 
@@ -190,6 +195,9 @@ final class ChatViewModel {
     var skillsUsed: [String] = []
     /// Skills used within the current turn only — snapshotted into TurnActivity.
     @ObservationIgnored private var turnSkillsUsed: [String] = []
+    /// Files written within the current turn only — snapshotted into TurnActivity so
+    /// produced files persist per turn and are recoverable after relaunch.
+    @ObservationIgnored private var turnEditedFiles: [String] = []
     /// The subagent the orchestrator is currently delegating to (if any).
     var activeSubagent: String?
     /// Every subagent the orchestrator has delegated to this turn, in order (unique).
@@ -304,6 +312,10 @@ final class ChatViewModel {
         self.persistUsage = persistUsage
         self.persistActivity = persistActivity
         self.history = initialHistory
+        // Rehydrate the produced-files list from persisted history so files the agents
+        // generated in past turns stay listed (and downloadable) when the chat reopens.
+        var seenFiles = Set<String>()
+        self.editedFiles = initialHistory.flatMap(\.files).filter { seenFiles.insert($0).inserted }
         self.turnIndexCounter = (initialHistory.last?.turnIndex ?? -1) + 1
         self.messages = config.transcript
         self.input = config.draft   // restore unsent text
@@ -317,7 +329,8 @@ final class ChatViewModel {
     /// per-turn activity. Called at turn END (so the last turn survives relaunch) with
     /// the turn's prompt and the tokens/cost it consumed.
     private func snapshotTurn(prompt: String, tokens: Int, cost: Double) {
-        guard !timeline.isEmpty || !commandLog.isEmpty || !tokensByModel.isEmpty else { return }
+        guard !timeline.isEmpty || !commandLog.isEmpty || !tokensByModel.isEmpty
+                || !turnEditedFiles.isEmpty else { return }
         let byModel = tokensByModel
             .map { ModelSpend(model: $0.key, tokens: $0.value,
                               costUSD: tokens > 0 ? cost * Double($0.value) / Double(tokens) : 0) }
@@ -327,7 +340,7 @@ final class ChatViewModel {
             startedAt: turnStartedAt ?? Date(), endedAt: Date(),
             steps: timeline, agentsInvolved: agentsInvolved, commandLog: commandLog,
             tokensUsed: tokens, costUSD: cost, byModel: byModel, byAgent: tokensByAgent,
-            skillsUsed: turnSkillsUsed)
+            skillsUsed: turnSkillsUsed, files: turnEditedFiles)
         turnIndexCounter += 1
         history.append(turn)
         if history.count > 50 { history = Array(history.suffix(50)) }
@@ -442,6 +455,7 @@ final class ChatViewModel {
         todos = []
         commandLog = []
         turnSkillsUsed = []
+        turnEditedFiles = []
         tokensByModel = [:]
         tokensByAgent = [:]
         roleModels = [:]
@@ -599,6 +613,7 @@ final class ChatViewModel {
                 todos = items
             case .fileEdited(let path):
                 if !editedFiles.contains(path) { editedFiles.append(path) }
+                if !turnEditedFiles.contains(path) { turnEditedFiles.append(path) }
             case .skillUsed(let slug):
                 if !turnSkillsUsed.contains(slug) { turnSkillsUsed.append(slug) }
                 if !skillsUsed.contains(slug) { skillsUsed.append(slug) }
@@ -702,6 +717,9 @@ final class ChatViewModel {
             // The final synthesis replaces the live narration.
             metaNarration = []
             if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = text }
+            // A cross-provider turn's deliverable is text, not a disk file — save a
+            // substantial answer as a file so it's listed and recoverable like any other.
+            materializeMetaDeliverable(text)
             persistStreaming()
         case .usage(let tokens, let cost):
             totalTokens += tokens
@@ -713,6 +731,46 @@ final class ChatViewModel {
         case .finished:
             break
         }
+    }
+
+    /// For cross-provider (meta) turns the deliverable is text, never a file on disk —
+    /// so a report/document would otherwise be unrecoverable from the files panel. When
+    /// the answer reads like a document, write it into the chat's artifacts folder and
+    /// list it as a produced file (persisted per turn, downloadable, revealable).
+    private func materializeMetaDeliverable(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Only worth saving when it's a document, not a one-line reply.
+        let looksLikeDoc = trimmed.hasPrefix("# ") || trimmed.contains("\n# ")
+            || trimmed.contains("\n## ") || trimmed.count >= 800
+        guard looksLikeDoc else { return }
+        let dir = AppPaths.supportDirectory()
+            .appendingPathComponent("Artifacts", isDirectory: true)
+            .appendingPathComponent(config.id.uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("\(deliverableSlug(from: trimmed)).md")
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            let path = url.path
+            if !editedFiles.contains(path) { editedFiles.append(path) }
+            if !turnEditedFiles.contains(path) { turnEditedFiles.append(path) }
+        } catch {
+            DiagnosticsLog.record("materialize deliverable failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// A filesystem-safe file base from the answer's first heading (or first line),
+    /// e.g. "# Informe App Oricloud" → "Informe-App-Oricloud".
+    private func deliverableSlug(from text: String) -> String {
+        let firstMeaningful = text
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty } ?? "deliverable"
+        let title = firstMeaningful.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)
+        let allowed = CharacterSet.alphanumerics.union(.whitespaces)
+        let cleaned = String(title.unicodeScalars.filter { allowed.contains($0) })
+            .split(whereSeparator: { $0 == " " }).joined(separator: "-")
+        let base = cleaned.isEmpty ? "deliverable" : cleaned
+        return String(base.prefix(60))
     }
 
     // MARK: - Meta live narration
@@ -773,6 +831,7 @@ final class ChatViewModel {
         deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
         turnSkillsUsed = []
+        turnEditedFiles = []
         commandLog = []; pendingCommands = [:]; tokensByModel = [:]; tokensByAgent = [:]; roleModels = [:]
         lastStreamPersist = .distantPast
         runTask?.cancel()   // don't orphan a prior run
