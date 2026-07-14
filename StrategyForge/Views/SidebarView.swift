@@ -15,6 +15,10 @@ struct SidebarView: View {
     @State private var pendingDelete: Configuration.ID?
     @State private var searchText = ""
     @State private var hoveredID: Configuration.ID?
+    /// Per-chat token bumped when a chat finishes (running → not running), which fires
+    /// a discreet sphere-resolve on its thumbnail — the celebration moved here from the
+    /// center of the screen.
+    @State private var finishToken: [Configuration.ID: Int] = [:]
     /// The chat being renamed (drives the rename dialog) + its editable text.
     @State private var renamingID: Configuration.ID?
     @State private var renameText = ""
@@ -95,6 +99,10 @@ struct SidebarView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)   // match the Skills list surface (client preference)
+        // A chat that just stopped running → fire its thumbnail's sphere-resolve.
+        .onChange(of: model.runningChatIDs) { wasRunning, nowRunning in
+            for id in wasRunning.subtracting(nowRunning) { finishToken[id, default: 0] += 1 }
+        }
         .confirmationDialog(
             model.t("sidebar.deleteTitle"),
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
@@ -146,6 +154,7 @@ struct SidebarView: View {
             ChatAvatar(config: config, size: 38, running: running,
                        attention: model.attentionChatIDs.contains(config.id),
                        showProvider: mixedProviders)
+                .overlay { WowSphereResolve(token: finishToken[config.id] ?? 0).frame(width: 52, height: 52) }
             VStack(alignment: .leading, spacing: 2) {
                 // Title line: name + (on hover) quick rename / delete actions.
                 HStack(spacing: 4) {

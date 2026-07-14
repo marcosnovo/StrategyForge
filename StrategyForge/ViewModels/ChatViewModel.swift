@@ -222,6 +222,10 @@ final class ChatViewModel {
     @ObservationIgnored private var pendingCommands: [String: String] = [:]
     /// Meta path: remember each role's model within a turn, to attribute its tokens.
     @ObservationIgnored private var roleModels: [String: String] = [:]
+    /// Meta path: a live, human-readable narration of what the team is doing, written
+    /// into the assistant bubble as it happens (the one-shot legs don't token-stream,
+    /// so without this the chat looks frozen until the final synthesis lands).
+    @ObservationIgnored private var metaNarration: [String] = []
     /// When the current turn started (for the elapsed timer).
     var turnStartedAt: Date?
     /// Files staged to attach to the next message for Claude to review.
@@ -644,6 +648,7 @@ final class ChatViewModel {
         let runner = CLIOneShotRunner(binaries: binaries, permissionMode: permissionMode,
                                       apiKeys: providerAPIKeys, reasoningEffort: codexReasoningEffort)
         let strategy = config.strategy
+        metaNarration = []
         let stream = AsyncStream<MetaEvent> { cont in
             let task = Task.detached {
                 await MetaOrchestrator.run(strategy: strategy, task: task, cwd: repo, runner: runner) {
@@ -668,6 +673,7 @@ final class ChatViewModel {
         case .phase(let p):
             activity.append(p)
             if p != "delegate" { activeSubagent = nil }   // orchestrator is planning/synthesizing
+            narrate(phaseNarration(p), assistantIndex: assistantIndex)
         case .roleStarted(let role, _, let model):
             if role == orchName {
                 activeSubagent = nil
@@ -678,6 +684,7 @@ final class ChatViewModel {
                 activity.append("→ \(role)")
                 timeline.append(ActivityStep(title: role, detail: model, at: Date(),
                                              isDelegation: true, agent: nil))
+                narrate("▸ \(role) · \(model)…", assistantIndex: assistantIndex)
             }
         case .roleFinished(let role, let tokens):
             // Exact per-agent + per-model attribution on the cross-provider path.
@@ -689,8 +696,11 @@ final class ChatViewModel {
                 // Attribute a completed step to the agent so the panel marks it done.
                 timeline.append(ActivityStep(title: "done", detail: nil, at: Date(),
                                              isDelegation: false, agent: role))
+                markNarrationDone(role, assistantIndex: assistantIndex)
             }
         case .assistantText(let text):
+            // The final synthesis replaces the live narration.
+            metaNarration = []
             if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = text }
             persistStreaming()
         case .usage(let tokens, let cost):
@@ -703,6 +713,37 @@ final class ChatViewModel {
         case .finished:
             break
         }
+    }
+
+    // MARK: - Meta live narration
+
+    private var narrationLang: String { (Locale.preferredLanguages.first?.hasPrefix("es") == true) ? "es" : "en" }
+
+    private func phaseNarration(_ p: String) -> String {
+        switch p {
+        case "plan":      return L10n.string("meta.narrate.plan", langCode: narrationLang)
+        case "delegate":  return L10n.string("meta.narrate.delegate", langCode: narrationLang)
+        default:          return L10n.string("meta.narrate.synthesize", langCode: narrationLang)
+        }
+    }
+
+    /// Append a line to the live narration and render it into the assistant bubble.
+    private func narrate(_ line: String, assistantIndex: Int) {
+        metaNarration.append(line)
+        renderNarration(assistantIndex)
+    }
+
+    /// Flip a role's "▸ … working" line to "✓ done" once it finishes.
+    private func markNarrationDone(_ role: String, assistantIndex: Int) {
+        if let i = metaNarration.lastIndex(where: { $0.contains(role) && $0.hasPrefix("▸") }) {
+            metaNarration[i] = "✓ \(role)"
+            renderNarration(assistantIndex)
+        }
+    }
+
+    private func renderNarration(_ assistantIndex: Int) {
+        guard messages.indices.contains(assistantIndex) else { return }
+        messages[assistantIndex].text = metaNarration.joined(separator: "\n")
     }
 
     /// Flush the transcript to disk at most every ~1.5s during streaming, so a

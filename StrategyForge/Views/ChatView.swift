@@ -35,9 +35,6 @@ struct ChatView: View {
     @State private var engineMissing = false
     @State private var showInstall = false
     @State private var isDropTargeted = false
-    /// The "Coral Bloom" celebration: bumped when a turn finishes; milestone every 25th.
-    @State private var bloomToken = 0
-    @State private var bloomMilestone = false
     /// Confirmation before granting persistent full access.
     @State private var confirmAlwaysAllow = false
     @State private var showReport = false
@@ -293,16 +290,9 @@ struct ChatView: View {
                     .padding(Space.s).allowsHitTesting(false)
             }
         }
-        // The "Coral Bloom" wow beat: a short coral-particle bloom when a turn
-        // finishes (every 25th turn escalates with a teal accent). Self-terminating,
-        // never blocks input, honors Reduce Motion.
-        .overlay { CoralAssembleOverlay(token: bloomToken, milestone: bloomMilestone) }
-        .onChange(of: vm.isRunning) { wasRunning, nowRunning in
-            if wasRunning && !nowRunning && vm.hasFinishedActivity {
-                bloomMilestone = vm.history.count > 0 && vm.history.count % 25 == 0
-                bloomToken += 1
-            }
-        }
+        // The finish celebration was moved out of the center of the screen: it now
+        // plays as a discreet sphere-resolve on the finishing chat's sidebar thumbnail
+        // (see SidebarView), so it never covers the conversation.
     }
 
     // MARK: - Advisor in chat
@@ -493,6 +483,7 @@ struct ChatView: View {
                 TextField(model.t("chat.untitled"), text: $editingTitle)
                     .textFieldStyle(.plain)
                     .font(.sfCardTitle)
+                    .lineLimit(1)
                     .onSubmit { rename(editingTitle) }
 
                 HStack(spacing: Space.s) {
@@ -552,7 +543,11 @@ struct ChatView: View {
                     }
                 }
             }
-            Spacer()
+            .layoutPriority(0)
+            Spacer(minLength: Space.s)
+            // The trailing controls are a fixed cluster: they never get squeezed when
+            // the chat column narrows (e.g. viewing an agent) — the title truncates.
+            HStack(spacing: Space.s) {
             // Persistent full-access indicator — visible and one-tap revocable, so
             // "allow always" is never a silent, irreversible state.
             if vm.elevatedPermissions {
@@ -612,6 +607,9 @@ struct ChatView: View {
             .buttonStyle(.borderless)
             .help(model.t("inspector.toggle"))
             .accessibilityLabel(model.t("chat.settings"))
+            }
+            .fixedSize()
+            .layoutPriority(1)
         }
         .padding(.horizontal, Space.m).padding(.bottom, Space.m).padding(.top, Theme.titlebarInset)
         .background {

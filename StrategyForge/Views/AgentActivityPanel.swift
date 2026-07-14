@@ -175,7 +175,7 @@ struct AgentActivityPanel: View {
 
     private var orchestratorContent: some View {
         let subagent = vm.activeSubagent
-        let modelName = shownStrategy.orchestrator?.model.displayName ?? "—"
+        let modelName = shownStrategy.orchestrator?.modelDisplayName ?? "—"
         return VStack(alignment: .leading, spacing: Space.s) {
             if let goal = goalText {
                 HStack(spacing: 6) {
@@ -222,7 +222,7 @@ struct AgentActivityPanel: View {
         var counts: [String: Int] = [:]
         var order: [String] = []
         for r in s.roles {
-            let n = r.model.displayName
+            let n = r.modelDisplayName
             if counts[n] == nil { order.append(n) }
             counts[n, default: 0] += max(1, r.count)
         }
