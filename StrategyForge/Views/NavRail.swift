@@ -177,14 +177,16 @@ struct NavRail: View {
     /// 5-hour Claude block has elapsed toward reset, with the plan + real token totals.
     @ViewBuilder private var usageCard: some View {
         if let u = model.claudeUsage, u.hasData {
-            VStack(alignment: .leading, spacing: Space.m) {
+            VStack(alignment: .leading, spacing: Space.s) {
+                Text(model.providerPlan(.claude) ?? "Claude")
+                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                // The two headline metrics — the 5-hour window (ring = time-to-reset)
+                // and this week's tokens — are what matters most, above the per-model split.
                 HStack(spacing: Space.m) {
                     ring(fraction: blockFraction(u), center: resetLabel(u))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(model.providerPlan(.claude) ?? "Claude")
-                            .font(.sfCaption2.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
-                        Text(model.t("rail.usage.week", fmtTokens(u.weekTokens)))
-                            .font(.sfCaption2).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 6) {
+                        statLine(model.t("rail.usage.5h"), fmtTokens(u.blockTokens))
+                        statLine(model.t("rail.usage.wk"), fmtTokens(u.weekTokens))
                     }
                     Spacer(minLength: 0)
                 }
@@ -205,6 +207,15 @@ struct NavRail: View {
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.05)))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+        }
+    }
+
+    /// A headline usage stat: a tiny mono label + a bold value, on the dark rail.
+    private func statLine(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(label).font(.system(size: 8, weight: .semibold)).tracking(0.5)
+                .foregroundStyle(.white.opacity(0.4))
+            Text(value).font(.sfCaption2.weight(.semibold)).foregroundStyle(.white)
         }
     }
 

@@ -482,8 +482,36 @@ enum ClaudeRunner {
     /// stored login. A GUI app launched from a shell (or Xcode) that exports such a
     /// key inherits it and fails with `401 Invalid authentication credentials` even
     /// though the plan is connected. Strip them so the stored login is always used.
+    ///
+    /// It ALSO pins `CLAUDE_CONFIG_DIR` deterministically (see `resolveClaudeConfigDir`):
+    /// otherwise the run 401s intermittently depending on how the app was launched —
+    /// from a shell/Xcode that exports a good `CLAUDE_CONFIG_DIR` it works; from Finder
+    /// it silently falls back to a stale `~/.claude`. Pinning a dir that actually holds
+    /// a login makes runs reproducible and matches the login the user's own CLI uses.
     nonisolated static func sanitizeClaudeAuth(_ env: inout [String: String]) {
         for key in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"] { env[key] = nil }
+        if let dir = resolveClaudeConfigDir() { env["CLAUDE_CONFIG_DIR"] = dir }
+    }
+
+    /// The Claude config dir Coral should use, chosen deterministically: an inherited
+    /// `CLAUDE_CONFIG_DIR` that actually holds a login wins; then well-known locations
+    /// that contain a login file; else the default `~/.claude`. This is what fixes the
+    /// "works from Xcode, 401s from Finder" flakiness — the run always targets a dir
+    /// with a real login when one exists on disk.
+    nonisolated static func resolveClaudeConfigDir() -> String? {
+        let fm = FileManager.default
+        let home = fm.homeDirectoryForCurrentUser.path
+        func hasLogin(_ dir: String) -> Bool {
+            fm.fileExists(atPath: dir + "/.credentials.json")
+                || fm.fileExists(atPath: dir + "/.claude.json")
+        }
+        var candidates: [String] = []
+        if let inherited = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"],
+           !inherited.isEmpty { candidates.append(inherited) }
+        candidates.append("\(home)/.claude")
+        // Dev convenience: the Xcode coding-assistant keeps its own working login here.
+        candidates.append("\(home)/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig")
+        return candidates.first(where: hasLogin) ?? candidates.first
     }
 
     /// Resolve the `claude` binary to an absolute executable path.

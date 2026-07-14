@@ -42,6 +42,7 @@ struct AdvisorInlineCard: View {
             if let sel = selected {
                 selectionRow(sel)
                 providerMixRow(sel)
+                if sel.advice.loopKind != .turnBased { loopHintRow(sel) }
             }
         }
         .padding(Space.m)
@@ -150,14 +151,30 @@ struct AdvisorInlineCard: View {
             Spacer(minLength: Space.s)
             Button(model.t(currentTeamName == nil ? "advisor.inline.applyTeam" : "advisor.inline.switchTeam"), action: onApplyTeam)
                 .buttonStyle(.moon).controlSize(.small)
-            // A loop is only offered when the engine actually found a repeat/verify
-            // signal — for a plain turn-based chat it would be noise. "Apply team" is
-            // then the single primary action.
-            if sel.advice.loopKind != .turnBased {
-                Button(model.t("advisor.inline.createLoop"), action: onCreateLoop)
-                    .buttonStyle(.reefOutline).controlSize(.small)
-            }
         }
+    }
+
+    /// A loop RECOMMENDATION — shown only when the engine read a repeat/verify signal
+    /// in the prompt (goal / schedule / event). It explains, in plain words, how this
+    /// task could run as a loop and offers to create it. For a plain turn-based chat it
+    /// isn't shown, so "Apply team" stays the single primary action.
+    @ViewBuilder private func loopHintRow(_ sel: AdvisorEngine.Tier) -> some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.teal)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(model.t("advisor.loop.hint.title")).font(.sfCaption2.weight(.semibold))
+                Text(model.t("advisor.loop.hint.\(sel.advice.loopKind.rawValue)"))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: Space.s)
+            Button(model.t("advisor.inline.createLoop"), action: onCreateLoop)
+                .buttonStyle(.reefOutline).controlSize(.small)
+        }
+        .padding(Space.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.tealSoft))
     }
 
     /// The cross-provider mix for the selected tier — the flagship "best AI per role".

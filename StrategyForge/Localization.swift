@@ -90,6 +90,8 @@ enum L10n {
         "rail.usage.tokens": ("%@ this block · %@ / wk", "%@ este bloque · %@ / sem"),
         "rail.usage.view": ("View usage", "Ver uso"),
         "rail.usage.week": ("%@ this week", "%@ esta semana"),
+        "rail.usage.5h": ("5H", "5H"),
+        "rail.usage.wk": ("WEEK", "SEMANA"),
         "rail.group.workspace": ("Workspace", "Espacio"),
         "rail.group.account": ("Account", "Cuenta"),
         "rail.profile.sync": ("Sync now", "Sincronizar ahora"),

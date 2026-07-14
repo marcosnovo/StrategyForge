@@ -219,6 +219,9 @@ struct CLIOneShotRunner: OneShotRunner {
                     for k in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY",
                               "GEMINI_API_KEY", "GOOGLE_API_KEY",
                               "GOOGLE_GENAI_USE_GCA", "GOOGLE_GENAI_USE_VERTEXAI"] { env[k] = nil }
+                    // Pin the SAME Claude config dir the chat path uses, so diagnostics
+                    // and the real run never disagree about which login they test.
+                    if let dir = ClaudeRunner.resolveClaudeConfigDir() { env["CLAUDE_CONFIG_DIR"] = dir }
                     for (k, v) in extraEnv { env[k] = v }
                     p.environment = env
                     let outPipe = Pipe(), errPipe = Pipe()
