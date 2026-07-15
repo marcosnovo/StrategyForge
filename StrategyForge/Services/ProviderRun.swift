@@ -28,11 +28,16 @@ struct OneShotResult: Sendable, Equatable {
 enum OneShotError: Error, LocalizedError, Equatable {
     case notInstalled(AIProvider)
     case failed(String)
+    /// The watchdog terminated the call after N seconds — reported distinctly so the
+    /// user sees a timeout (and its cause) rather than an opaque "exited with code 143".
+    case timedOut(Int)
 
     var errorDescription: String? {
         switch self {
         case .notInstalled(let p): return "\(p.displayName)'s CLI isn't installed. Connect it in Connect first."
         case .failed(let m): return m
+        case .timedOut(let s):
+            return "The model didn't finish within \(s / 60) minutes — the task or the combined agent output may be too large. Try splitting the task, using fewer agents, or a faster model."
         }
     }
 }
@@ -192,11 +197,23 @@ struct CLIOneShotRunner: OneShotRunner {
         private let lock = NSLock()
         private var process: Process?
         private var cancelled = false
+        private var timedOut = false
         func adopt(_ p: Process) { lock.lock(); defer { lock.unlock() }
             if cancelled { p.terminate() } else { process = p } }
         func terminate() { lock.lock(); defer { lock.unlock() }
             cancelled = true; if let p = process, p.isRunning { p.terminate() } }
+        /// The watchdog fired: mark it (so the SIGTERM reads as a timeout, not an opaque
+        /// "exited 143") and kill the process.
+        func timeOut() { lock.lock(); defer { lock.unlock() }
+            timedOut = true; cancelled = true; if let p = process, p.isRunning { p.terminate() } }
+        func didTimeOut() -> Bool { lock.lock(); defer { lock.unlock() }; return timedOut }
     }
+
+    /// Per-call watchdog. Generous on purpose: a heavy multi-agent synthesis (the
+    /// orchestrator combining many workers' full outputs) legitimately takes minutes —
+    /// the former 5-minute cap was killing real syntheses with a SIGTERM (exit 143).
+    /// Still a backstop against a genuinely hung CLI.
+    static let callTimeout: TimeInterval = 600
 
     private static func launch(bin: String, args: [String], cwd: String?,
                                extraEnv: [String: String] = [:]) async throws -> (String, String, Int32) {
@@ -237,9 +254,9 @@ struct CLIOneShotRunner: OneShotRunner {
                         cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return
                     }
                     // Watchdog: a stuck CLI shouldn't hang the turn forever. Terminate
-                    // after a generous timeout; the non-zero exit surfaces as a failure.
-                    let watchdog = DispatchWorkItem { box.terminate() }
-                    DispatchQueue.global().asyncAfter(deadline: .now() + 300, execute: watchdog)
+                    // after a generous timeout; a timeout is reported distinctly (below).
+                    let watchdog = DispatchWorkItem { box.timeOut() }
+                    DispatchQueue.global().asyncAfter(deadline: .now() + Self.callTimeout, execute: watchdog)
                     // Read both pipes concurrently: sequential reads deadlock when
                     // the CLI fills one pipe's ~64KB buffer while we block on the
                     // other (codex and gemini stream progress/spinners to stderr).
@@ -254,6 +271,12 @@ struct CLIOneShotRunner: OneShotRunner {
                     errRead.wait()
                     p.waitUntilExit()
                     watchdog.cancel()
+                    // A watchdog kill is a SIGTERM (exit 143) — surface it as a clear
+                    // timeout, not the opaque "exited with code 143".
+                    if box.didTimeOut() {
+                        cont.resume(throwing: OneShotError.timedOut(Int(Self.callTimeout)))
+                        return
+                    }
                     cont.resume(returning: (String(data: outData, encoding: .utf8) ?? "",
                                             String(data: errData, encoding: .utf8) ?? "",
                                             p.terminationStatus))

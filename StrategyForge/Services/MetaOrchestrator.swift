@@ -155,10 +155,6 @@ struct MetaOrchestrator {
         }
         let orchModel = modelID(for: orchestrator)
         let workers = strategy.subagentRoles
-        var totalTokens = 0
-        var totalCost = 0.0
-
-        func account(_ r: OneShotResult) { totalTokens += r.tokens; totalCost += r.costUSD }
 
         do {
             if Task.isCancelled { return nil }
@@ -167,10 +163,11 @@ struct MetaOrchestrator {
                 onEvent(.phase("plan"))
                 onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
                 let r = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider, model: orchModel, prompt: task, cwd: cwd)
-                account(r)
                 onEvent(.roleFinished(role: orchestrator.name, tokens: r.tokens))
+                // Usage is emitted as a DELTA per step so the live counter climbs during
+                // the run (not just at the end); ChatViewModel accumulates the deltas.
+                onEvent(.usage(tokens: r.tokens, costUSD: r.costUSD))
                 onEvent(.assistantText(r.text))
-                onEvent(.usage(tokens: totalTokens, costUSD: totalCost))
                 onEvent(.finished)
                 return r.text
             }
@@ -180,8 +177,8 @@ struct MetaOrchestrator {
             onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
             let planRes = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider,
                                             model: orchModel, prompt: planPrompt(task: task, workers: workers), cwd: cwd)
-            account(planRes)
             onEvent(.roleFinished(role: orchestrator.name, tokens: planRes.tokens))
+            onEvent(.usage(tokens: planRes.tokens, costUSD: planRes.costUSD))
             let subtasks = parsePlan(planRes.text, workers: workers, task: task)
 
             // 2) DELEGATE — run subtasks CONCURRENTLY (cheap parallel labor), honoring
@@ -203,6 +200,7 @@ struct MetaOrchestrator {
                             onEvent(.roleStarted(role: role.name, provider: role.provider, model: m))
                             let r = try await runStep(runner, role: role.name, provider: role.provider, model: m, prompt: prompt, cwd: cwd)
                             onEvent(.roleFinished(role: role.name, tokens: r.tokens))
+                            onEvent(.usage(tokens: r.tokens, costUSD: r.costUSD))
                             return WorkerResult(order: thisOrder, role: role.name, text: r.text, tokens: r.tokens, cost: r.costUSD)
                         }
                     }
@@ -211,7 +209,6 @@ struct MetaOrchestrator {
                 for try await r in group { out.append(r) }
                 return out.sorted { $0.order < $1.order }
             }
-            for r in collected { totalTokens += r.tokens; totalCost += r.cost }
             let results: [(role: String, text: String)] = collected.map { ($0.role, $0.text) }
 
             if Task.isCancelled { return nil }
@@ -220,11 +217,9 @@ struct MetaOrchestrator {
             onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
             let synth = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider,
                                           model: orchModel, prompt: synthesisPrompt(task: task, results: results), cwd: cwd)
-            account(synth)
             onEvent(.roleFinished(role: orchestrator.name, tokens: synth.tokens))
-
+            onEvent(.usage(tokens: synth.tokens, costUSD: synth.costUSD))
             onEvent(.assistantText(synth.text))
-            onEvent(.usage(tokens: totalTokens, costUSD: totalCost))
             onEvent(.finished)
             return synth.text
         } catch {

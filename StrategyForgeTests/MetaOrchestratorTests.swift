@@ -96,8 +96,12 @@ struct MetaOrchestratorRunTests {
         #expect(calls.contains(.init(provider: .claude, model: "claude-sonnet-5")))
         #expect(calls.contains(.init(provider: .gemini, model: "gemini-flash")))
 
-        // Usage is summed across all four calls.
-        #expect(box.events.contains(.usage(tokens: 40, costUSD: 0.04)))
+        // Usage is emitted as a per-step DELTA (so the live counter climbs during the
+        // run, not just at the end) — one event per call, summing to the total.
+        let usageDeltas = box.events.compactMap { if case .usage(let t, let c) = $0 { return (t, c) } else { return nil } }
+        #expect(usageDeltas.count == 4)
+        #expect(usageDeltas.reduce(0) { $0 + $1.0 } == 40)
+        #expect(abs(usageDeltas.reduce(0.0) { $0 + $1.1 } - 0.04) < 0.0001)
         // Phases were announced in order.
         let phases = box.events.compactMap { if case .phase(let p) = $0 { return p } else { return nil } }
         #expect(phases == ["plan", "delegate", "synthesize"])
