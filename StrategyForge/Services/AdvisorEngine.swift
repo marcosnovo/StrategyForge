@@ -180,8 +180,11 @@ enum AdvisorEngine {
     // MARK: - Public API
 
     /// Run the decision tree on a task. Pure and deterministic: the same input
-    /// always produces the same (semantically equal) Advice.
-    static func advise(task: String) -> Advice {
+    /// (task + connected set) always produces the same (semantically equal) Advice.
+    /// `connected` lets the SHAPE itself be provider-aware (e.g. a heterogeneous team
+    /// of specialists when several providers are connected); it defaults to Claude-only
+    /// so existing callers keep today's behavior.
+    static func advise(task: String, connected: Set<AIProvider> = [.claude]) -> Advice {
         let trimmed = task.trimmingCharacters(in: .whitespacesAndNewlines)
         let text = normalize(trimmed)
 
@@ -226,10 +229,18 @@ enum AdvisorEngine {
         // Strategy — reuse the generator's shape heuristic, then adjust: a cheap,
         // fast model doesn't need a fleet, so heavy shapes collapse to solo /
         // executor+advisor. The adjustment is an explicit step in the path.
-        var (shape, teamSize) = StrategyGenerator.heuristicShape(for: trimmed)
+        var (shape, teamSize) = StrategyGenerator.heuristicShape(for: trimmed, connected: connected)
         var rationaleKey = "advisor.rationale.\(shapeKeySuffix(shape))"
         let isCheapModel = (model == .haiku45 || model == .sonnet5)
         let isHeavyShape = !(shape == .solo || shape == .executorAdvisor)
+        // Fan-out shapes are PARALLEL LABOR (many near-identical agents); structural
+        // shapes (planner→reviewer, debate, sparring) earn their keep from the SHAPE,
+        // not the fleet size. So a cheap model only collapses a fan-out — the structural
+        // teams survive, which is what restores variety (design/review/debate tasks no
+        // longer all fold into executor+advisor).
+        let isFanoutShape = (shape == .orchestratorWorkers
+                             || shape == .domainSpecialists
+                             || shape == .researchFanout)
         // A serial root-cause hunt has nothing to hand off — the accumulated context
         // is the work. Forcing a team there buys nothing, so it collapses to a lean
         // executor+advisor. Unlike the cheap-model downgrade, the model tier is kept:
@@ -243,7 +254,7 @@ enum AdvisorEngine {
                 rationaleKey = "advisor.rationale.nondelegable"
                 record("advisor.q.team", yes: false, answer: "advisor.a.team.no",
                        evidence: nonDelegableEvidence)
-            } else if isCheapModel {
+            } else if isCheapModel && isFanoutShape {
                 shape = (model == .haiku45) ? .solo : .executorAdvisor
                 teamSize = 1
                 rationaleKey = "advisor.rationale.downgraded"
@@ -299,8 +310,8 @@ enum AdvisorEngine {
     /// still provides the model tier, loop kind, effort, decision path and goal (so
     /// the visual "why" is intact); the AI only reshapes the team and supplies a
     /// one-line rationale. Falls back to `advise` on any error or when AI is off.
-    static func adviseWithAI(task: String) async -> Advice {
-        let base = advise(task: task)
+    static func adviseWithAI(task: String, connected: Set<AIProvider> = [.claude]) async -> Advice {
+        let base = advise(task: task, connected: connected)
         guard StrategyGenerator.isAIAvailable,
               !task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return base }
         let ai = await StrategyGenerator.generate(from: task)
@@ -335,7 +346,7 @@ enum AdvisorEngine {
     /// more for better results. Same shape/loop/goal — they differ in model tier and
     /// team size, so the estimated cost tells the tradeoff honestly.
     static func adviseTiers(task: String, connected: Set<AIProvider> = [.claude]) async -> [Tier] {
-        let balanced = await adviseWithAI(task: task)
+        let balanced = await adviseWithAI(task: task, connected: connected)
         let saver = variant(of: balanced, shift: -1, countDelta: -1,
                             effort: lower(balanced.effort),
                             id: "saver", labelKey: "advisor.tier.saver", noteKey: "advisor.tier.saver.note")

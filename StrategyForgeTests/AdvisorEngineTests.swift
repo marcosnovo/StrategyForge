@@ -96,6 +96,46 @@ struct AdvisorEngineTests {
         #expect(!advice.strategy.subagentRoles.isEmpty)
     }
 
+    // MARK: - Variety: structural teams survive on a mid/cheap model
+
+    @Test func designDebateTeamSurvivesOnAMidModel() {
+        // A "decide / compare trade-offs" task lands on a mid model (Sonnet), which is
+        // "cheap". Previously ANY heavy shape collapsed to executor+advisor there — the
+        // root of "always the same". Structural shapes (debate) must now survive, since
+        // their value is the SHAPE, not the fleet size.
+        let advice = AdvisorEngine.advise(
+            task: "help me decide between Postgres and MySQL and compare the trade-offs")
+        #expect(advice.model == .sonnet5)                          // a "cheap" mid model
+        #expect(advice.shapeRationaleKey != "advisor.rationale.downgraded")
+        #expect(advice.strategy.subagentRoles.count >= 1)          // a real team, not a lone agent
+    }
+
+    @Test func adversarialSparringTeamSurvivesOnAMidModel() {
+        let advice = AdvisorEngine.advise(task: "try to break and attack the auth to harden it")
+        #expect(advice.shapeRationaleKey != "advisor.rationale.downgraded")
+        #expect(advice.strategy.subagentRoles.count >= 1)
+    }
+
+    // MARK: - Provider-aware SHAPE selection
+
+    @Test func broadTaskPrefersSpecialistsWhenSeveralProvidersConnected() {
+        // Single provider → identical worker fan-out (today's behavior).
+        let solo = StrategyGenerator.heuristicShape(for: "process every module exhaustively in parallel")
+        #expect(solo.0 == .orchestratorWorkers)
+        // Several providers → a heterogeneous team of specialists, so each provider has a
+        // distinct seat.
+        let mixed = StrategyGenerator.heuristicShape(
+            for: "process every module exhaustively in parallel",
+            connected: [.claude, .openai, .gemini])
+        #expect(mixed.0 == .domainSpecialists)
+    }
+
+    @Test func adviseWithClaudeOnlyMatchesTheNoArgDefault() {
+        // The default connected set is Claude-only, so passing it explicitly is a no-op.
+        let task = "process every module exhaustively in parallel"
+        #expect(AdvisorEngine.advise(task: task) == AdvisorEngine.advise(task: task, connected: [.claude]))
+    }
+
     // MARK: - Decision path shape
 
     @Test func pathIsNonEmptyAndStartsWithDepthQuestion() {

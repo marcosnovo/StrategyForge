@@ -117,9 +117,17 @@ enum StrategyGenerator {
     }
 
     /// Keyword fallback when the on-device model isn't available. Internal for testing.
-    static func heuristicShape(for task: String) -> (StrategyShape, Int) {
+    /// `connected` makes the SHAPE provider-aware: with several providers connected, a
+    /// broad task prefers a heterogeneous team of specialists (distinct roles that each
+    /// provider can fill) over N identical workers. Defaults to empty (single-provider
+    /// behavior) so existing callers are unaffected.
+    static func heuristicShape(for task: String,
+                               connected: Set<AIProvider> = []) -> (StrategyShape, Int) {
         let t = task.lowercased()
         func has(_ words: [String]) -> Bool { words.contains { t.contains($0) } }
+        // 2+ providers connected → there's a real, heterogeneous team to spread across
+        // distinct roles, so broad work leans to specialists instead of worker clones.
+        let multiProvider = connected.count > 1
 
         // Does the task explicitly ask for BREADTH / parallel coverage ("from several
         // fronts", "exhaustive", "in parallel", "a prioritized backlog", "across N
@@ -162,7 +170,10 @@ enum StrategyGenerator {
             return (.solo, 1)
         }
         // Any remaining breadth signal → a small fan-out beats the solo/exec default.
-        if breadth { return (.orchestratorWorkers, 3) }
+        // With multiple providers connected, a broad multi-angle task is better served
+        // by distinct specialists (each a natural home for a different provider) than by
+        // identical worker clones.
+        if breadth { return multiProvider ? (.domainSpecialists, 4) : (.orchestratorWorkers, 3) }
         return (.executorAdvisor, 1)
     }
 }

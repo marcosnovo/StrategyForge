@@ -330,7 +330,7 @@ extension AdvisorEngine {
     static func adviseCrossProvider(task: String,
                                     connected: Set<AIProvider>,
                                     bias: TierBias = .balanced) async -> Advice {
-        let base = await adviseWithAI(task: task)
+        let base = await adviseWithAI(task: task, connected: connected)
         return applyingProviders(base, connected: connected, bias: bias)
     }
 
