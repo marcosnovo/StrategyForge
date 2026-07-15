@@ -763,6 +763,17 @@ final class ChatViewModel {
                                              isDelegation: false, agent: role))
                 markNarrationDone(role, assistantIndex: assistantIndex)
             }
+        case .roleFailed(let role, let message):
+            // One worker failed but the run continues with the others — record it and
+            // mark this agent's narration line as failed so the UI isn't left "working".
+            DiagnosticsLog.record("meta worker “\(role)” failed — \(message)")
+            if let i = metaNarration.lastIndex(where: { $0.contains(role) && $0.hasPrefix("▸") }) {
+                metaNarration[i] = "⚠ \(role)"
+                narrationStepSince = Date()
+                renderNarration(assistantIndex)
+            }
+            timeline.append(ActivityStep(title: "done", detail: nil, at: Date(),
+                                         isDelegation: false, agent: role))
         case .assistantText(let text):
             // The final synthesis replaces the live narration. The answer stays in the
             // transcript only — it is NOT written to disk as a file (a plain response is

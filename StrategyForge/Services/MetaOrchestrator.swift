@@ -20,6 +20,7 @@ enum MetaEvent: Sendable, Equatable {
     case phase(String)                                   // "plan" | "delegate" | "synthesize"
     case roleStarted(role: String, provider: AIProvider, model: String)
     case roleFinished(role: String, tokens: Int)
+    case roleFailed(role: String, message: String)       // one worker failed; others go on
     case assistantText(String)                           // the final synthesized answer
     case usage(tokens: Int, costUSD: Double)             // totals across every call
     case failed(String)
@@ -187,7 +188,12 @@ struct MetaOrchestrator {
             onEvent(.phase("delegate"))
             if Task.isCancelled { return nil }
             struct WorkerResult: Sendable { let order: Int; let role: String; let text: String; let tokens: Int; let cost: Double }
-            let collected = try await withThrowingTaskGroup(of: WorkerResult.self) { group -> [WorkerResult] in
+            // Fault-tolerant: one worker failing must NOT cancel its siblings or hang the
+            // turn. (A THROWING task group cancels every sibling on the first error and
+            // then awaits them — a stuck/slow subprocess would block the whole run.) Each
+            // worker catches its own error; we synthesize from whatever succeeded and only
+            // fail the turn if EVERY worker failed.
+            let collected = await withTaskGroup(of: WorkerResult?.self) { group -> [WorkerResult] in
                 var order = 0
                 for sub in subtasks {
                     guard let role = workers.first(where: { $0.name == sub.roleName }) else { continue }
@@ -198,20 +204,36 @@ struct MetaOrchestrator {
                         let prompt = workerPrompt(role: role, task: sub.task, instance: inst, of: instances)
                         group.addTask {
                             onEvent(.roleStarted(role: role.name, provider: role.provider, model: m))
-                            let r = try await runStep(runner, role: role.name, provider: role.provider, model: m, prompt: prompt, cwd: cwd)
-                            onEvent(.roleFinished(role: role.name, tokens: r.tokens))
-                            onEvent(.usage(tokens: r.tokens, costUSD: r.costUSD))
-                            return WorkerResult(order: thisOrder, role: role.name, text: r.text, tokens: r.tokens, cost: r.costUSD)
+                            do {
+                                let r = try await runStep(runner, role: role.name, provider: role.provider, model: m, prompt: prompt, cwd: cwd)
+                                onEvent(.roleFinished(role: role.name, tokens: r.tokens))
+                                onEvent(.usage(tokens: r.tokens, costUSD: r.costUSD))
+                                return WorkerResult(order: thisOrder, role: role.name, text: r.text, tokens: r.tokens, cost: r.costUSD)
+                            } catch {
+                                if Task.isCancelled { return nil }
+                                // Report the failure (logged + marked done on the main
+                                // actor via .roleFailed) and keep the other workers going.
+                                // runStep already re-labels the error with role/provider.
+                                let why = (error as? OneShotError)?.errorDescription ?? error.localizedDescription
+                                onEvent(.roleFailed(role: role.name, message: why))
+                                return nil
+                            }
                         }
                     }
                 }
                 var out: [WorkerResult] = []
-                for try await r in group { out.append(r) }
+                for await r in group { if let r { out.append(r) } }
                 return out.sorted { $0.order < $1.order }
             }
-            let results: [(role: String, text: String)] = collected.map { ($0.role, $0.text) }
 
             if Task.isCancelled { return nil }
+            // Every worker failed → nothing to synthesize. Fail with actionable guidance
+            // instead of feeding the orchestrator an empty result set.
+            if collected.isEmpty {
+                onEvent(.failed("Every agent failed to produce a result — check each provider is signed in and supports its model (see the diagnostics log), then retry."))
+                return nil
+            }
+            let results: [(role: String, text: String)] = collected.map { ($0.role, $0.text) }
             // 3) SYNTHESIZE — the orchestrator combines everything.
             onEvent(.phase("synthesize"))
             onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
