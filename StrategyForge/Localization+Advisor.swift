@@ -186,6 +186,11 @@ extension L10n {
         "advisor.action.chat": ("Use in a new chat", "Usar en un chat nuevo"),
         "advisor.usedInChat": ("Your task is ready in a new chat — press Send when you're ready.",
                                "Tu tarea está lista en un chat nuevo — pulsa Enviar cuando quieras."),
+        // Per-prompt (follow-up) assignee suggestion chip.
+        "advisor.followup.suggest": ("For this, %@ might fit better", "Para esto, %@ podría encajar mejor"),
+        "advisor.followup.switch": ("Switch", "Cambiar"),
+        "advisor.followup.switched": ("Switched to %@ for this chat", "Cambiado a %@ en este chat"),
+        "common.dismiss": ("Dismiss", "Descartar"),
         "advisor.action.loop": ("Create loop from this", "Crear un bucle con esto"),
         "advisor.action.copy": ("Copy launch command", "Copiar comando de arranque"),
         "advisor.action.copied": ("Copied", "Copiado"),

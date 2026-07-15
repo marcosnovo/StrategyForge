@@ -54,6 +54,10 @@ struct ChatView: View {
     @State private var inlineTiers: [AdvisorEngine.Tier] = []
     @State private var selectedTierID = "balanced"
     @State private var adviceTask: Task<Void, Never>?
+    /// Follow-up prompts: the per-prompt "maybe switch the assignee" chip was waved away
+    /// for the current draft. Resets when a new turn starts so each prompt gets a fresh,
+    /// non-nagging suggestion.
+    @State private var suggestionDismissed = false
     /// @-mention autocomplete: the repo's file list (loaded once per repo) and the
     /// current matches for the `@token` being typed.
     @State private var allRepoFiles: [String] = []
@@ -247,8 +251,11 @@ struct ChatView: View {
             if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
             if advisorCardVisible { advisorCard }
+            // Follow-up prompts: a quiet one-line chip suggesting a better-fit assignee
+            // for THIS prompt (only when it differs from the current team).
+            if let suggestion = followupSuggestion { strategySuggestionChip(suggestion) }
             // At most one coach banner at a time: the Advisor card wins.
-            if let tip = saverTip, !advisorCardVisible {
+            if let tip = saverTip, !advisorCardVisible, followupSuggestion == nil {
                 TokenSaverBanner(tip: tip,
                                  onAction: { saverAction(tip) },
                                  onDismiss: { dismissedTips.insert(tip.kind) })
@@ -266,12 +273,16 @@ struct ChatView: View {
         .onChange(of: vm.attachments.count) { old, new in
             justAttached = new > old
         }
+        // A new turn gives each prompt a fresh, non-nagging assignee suggestion.
+        .onChange(of: vm.messages.count) { suggestionDismissed = false }
         // Refresh the Advisor's suggestion from the draft, debounced so it never
         // recomputes on every keystroke. Only while composing the FIRST message.
         .onChange(of: vm.input) { _, draft in
             adviceTask?.cancel()
             let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard vm.messages.isEmpty, !advisorDismissed, trimmed.count >= 25 else {
+            // Compute for the FIRST message (full card) AND for follow-up prompts (compact
+            // suggestion chip) — the best-suited strategy can differ per prompt in a chat.
+            guard trimmed.count >= 25, !vm.isRunning else {
                 withAnimation { inlineTiers = [] }
                 return
             }
@@ -330,6 +341,43 @@ struct ChatView: View {
             currentTeamName: config.strategyIsAuto ? nil : model.strategyDisplayName(config.strategy))
             .padding(.horizontal, Space.m)
             .padding(.top, Space.s)
+    }
+
+    /// A follow-up prompt's suggested assignee — the advisor's recommendation for THIS
+    /// prompt, shown only when it differs from the chat's current team (so it's a genuine
+    /// "maybe switch", not noise). nil while running, on the first message, or if dismissed.
+    private var followupSuggestion: AdvisorEngine.Tier? {
+        guard !vm.messages.isEmpty, !vm.isRunning, !suggestionDismissed,
+              !advisorCardVisible, let tier = selectedTier else { return nil }
+        let current = model.strategyDisplayName(config.strategy)
+        let recommended = model.strategyDisplayName(tier.advice.strategy)
+        guard recommended != current else { return nil }
+        return tier
+    }
+
+    /// A quiet one-line chip: "For this, X might fit better — Switch". One tap swaps the
+    /// chat's team; the × waves it away until the next prompt.
+    private func strategySuggestionChip(_ tier: AdvisorEngine.Tier) -> some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: "wand.and.stars").font(.system(size: 11)).foregroundStyle(Theme.accent)
+            Text(model.t("advisor.followup.suggest", model.strategyDisplayName(tier.advice.strategy)))
+                .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+            Spacer(minLength: Space.s)
+            Button(model.t("advisor.followup.switch")) {
+                model.applyTemplate(tier.advice.strategy, to: config.id)
+                withAnimation { suggestionDismissed = true }
+                model.flashSuccess(model.t("advisor.followup.switched", model.strategyDisplayName(tier.advice.strategy)))
+            }
+            .controlSize(.small).buttonStyle(.moon)
+            Button { withAnimation { suggestionDismissed = true } } label: {
+                Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
+            }
+            .buttonStyle(.plain).foregroundStyle(.tertiary)
+            .help(model.t("common.dismiss"))
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.hairline.opacity(0.5))
     }
 
     /// The inline Advisor card shows only while composing the first message of
