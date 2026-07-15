@@ -171,6 +171,18 @@ extension L10n {
         "advisor.rationale.sparring": (
             "One agent builds while another tries to break it.",
             "Un agente construye mientras otro intenta romperlo."),
+        "advisor.rationale.scout": (
+            "A cheap scout maps the terrain first, then an implementer acts on a tight brief.",
+            "Un explorador barato mapea el terreno primero y luego un implementador actúa sobre un brief preciso."),
+        "advisor.rationale.triage": (
+            "A cheap triager classifies each item and routes it to the right handler.",
+            "Un clasificador barato tría cada elemento y lo enruta al agente adecuado."),
+        "advisor.rationale.rootcause": (
+            "A serial root-cause hunt: reproduce, locate, fix, then verify.",
+            "Una caza de causa raíz en serie: reproducir, localizar, corregir y verificar."),
+        "advisor.rationale.pipeline": (
+            "Big, unfamiliar work: scout maps it, then plan → build → review in one pipeline.",
+            "Trabajo grande y desconocido: el explorador lo mapea, luego planificar → construir → revisar en un solo flujo."),
         "advisor.rationale.downgraded": (
             "Scaled the team down: a quick task on a fast model doesn't need a fleet.",
             "Equipo reducido: una tarea rápida en un modelo veloz no necesita una flota."),

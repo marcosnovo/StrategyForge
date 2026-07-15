@@ -15,7 +15,7 @@
 import Foundation
 import FoundationModels
 
-/// The team shape the model may choose. Mirrors the library's 8 templates.
+/// The team shape the model may choose. Mirrors the library's templates.
 @Generable(description: "The shape of a multi-agent team for a coding task")
 enum StrategyShape {
     case solo
@@ -26,6 +26,15 @@ enum StrategyShape {
     case debateConsensus
     case domainSpecialists
     case sparring
+    /// Cheap read-only scout maps the terrain, then an implementer acts on a brief.
+    case scoutAct
+    /// A cheap triager classifies/routes incoming work to the right handler.
+    case triageRouter
+    /// Serial root-cause hunt: reproduce → locate → fix → verify (non-delegable).
+    case rootCauseDebugging
+    /// Full pipeline for large, unfamiliar, high-stakes work: scout → plan →
+    /// implement → review. The deepest flow (a new composite builder).
+    case pipeline
 }
 
 /// The model's structured recommendation.
@@ -70,7 +79,11 @@ enum StrategyGenerator {
     You design agent teams for the Claude Code CLI. Given a coding task, choose the \
     team SHAPE that fits and a team size. Prefer the simplest shape that works. Use a \
     fan-out shape (orchestratorWorkers, researchFanout, domainSpecialists) only when \
-    the task clearly splits into parallel parts. Keep the rationale to one short sentence.
+    the task clearly splits into parallel parts. Use scoutAct when an unfamiliar area \
+    should be mapped cheaply before changing it; triageRouter to classify/route incoming \
+    work; rootCauseDebugging for a serial "why does it fail" hunt; and pipeline (scout → \
+    plan → implement → review) for large, unfamiliar, high-stakes changes. Keep the \
+    rationale to one short sentence.
     """
 
     /// Produce a strategy for a plain-language task.
@@ -104,6 +117,10 @@ enum StrategyGenerator {
         case .debateConsensus:     s = StrategyLibrary.debateConsensus()
         case .domainSpecialists:   s = StrategyLibrary.domainSpecialists()
         case .sparring:            s = StrategyLibrary.sparring()
+        case .scoutAct:            s = StrategyLibrary.scoutAct()
+        case .triageRouter:        s = StrategyLibrary.triageRouter()
+        case .rootCauseDebugging:  s = StrategyLibrary.rootCauseDebugging()
+        case .pipeline:            s = StrategyLibrary.explorePlanBuildReview()
         }
         // Scale the primary fan-out role (the one that already has count > 1).
         let size = max(1, min(teamSize, 6))
@@ -116,64 +133,164 @@ enum StrategyGenerator {
         return s.autoFixed()
     }
 
-    /// Keyword fallback when the on-device model isn't available. Internal for testing.
-    /// `connected` makes the SHAPE provider-aware: with several providers connected, a
-    /// broad task prefers a heterogeneous team of specialists (distinct roles that each
-    /// provider can fill) over N identical workers. Defaults to empty (single-provider
-    /// behavior) so existing callers are unaffected.
+    /// The deterministic classifier the whole app relies on when Apple Intelligence is
+    /// off (and the fallback otherwise). Reads the task on several independent axes, then
+    /// maps that profile → a team shape + size. `connected` makes the SHAPE provider-
+    /// aware. Pure and cheap (substring scans on normalized text); `connected` defaults
+    /// to empty so existing callers keep single-provider behavior.
     static func heuristicShape(for task: String,
                                connected: Set<AIProvider> = []) -> (StrategyShape, Int) {
-        let t = task.lowercased()
-        func has(_ words: [String]) -> Bool { words.contains { t.contains($0) } }
-        // 2+ providers connected → there's a real, heterogeneous team to spread across
-        // distinct roles, so broad work leans to specialists instead of worker clones.
-        let multiProvider = connected.count > 1
+        shape(for: classify(task), connected: connected)
+    }
 
-        // Does the task explicitly ask for BREADTH / parallel coverage ("from several
-        // fronts", "exhaustive", "in parallel", "a prioritized backlog", "across N
-        // areas")? That's the strongest signal for a fan-out team + supervisor, so it
-        // upgrades otherwise-single-agent shapes (a broad review → specialists, etc.).
-        let breadth = has(["exhaustiv", "varios frentes", "varias areas", "varias áreas",
-                           "desde varios", "en varios", "en paralelo", "in parallel",
-                           "several fronts", "multiple angles", "many areas", "backlog",
-                           "cada modulo", "cada módulo", "every module", "todo el codigo",
-                           "todo el código", "entire codebase", "whole codebase"])
+    // MARK: - Multi-axis task classifier
 
-        if has(["understand", "explain", "explore", "unfamiliar", "how does",
-                "entender", "explica", "explora", "investiga", "investigar", "research"]) {
-            return (.researchFanout, breadth ? 4 : 3)
+    /// What the task primarily asks for.
+    enum TaskIntent: String, Equatable {
+        case understand, decide, review, triage, change, build, harden, quick, general
+    }
+    /// How much of the codebase the task spans.
+    enum TaskScope: String, Equatable { case point, module, repo }
+
+    /// A deterministic, multi-axis reading of a task. Pure + cheap; drives shape
+    /// selection and is exposed for the UI's "why" and for tests.
+    struct TaskProfile: Equatable {
+        var intent: TaskIntent
+        var scope: TaskScope
+        var breadth: Bool        // explicit parallel / exhaustive coverage
+        var verifiable: Bool     // a checkable finish line (tests / lint / build / score)
+        var adversarial: Bool    // attack / break / harden / red-team
+        var serialDebug: Bool    // a non-delegable root-cause chain
+        var multiDomain: Bool    // spans ≥2 distinct domains (frontend/backend/db/…)
+        var needsScouting: Bool  // an unfamiliar area worth mapping first
+    }
+
+    /// Read a task into a `TaskProfile`. Bilingual (EN + ES): the text is lowercased and
+    /// diacritics folded, so every keyword below is stored accent-free.
+    static func classify(_ task: String) -> TaskProfile {
+        let t = " " + task.lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "en_US_POSIX")) + " "
+        func any(_ words: [String]) -> Bool { words.contains { t.contains($0) } }
+        func hits(_ words: [String]) -> Int { words.reduce(0) { t.contains($1) ? $0 + 1 : $0 } }
+
+        let serialDebug = any(["root cause", "root-cause", "causa raiz", "raiz del",
+            "why is", "why does", "why the", "why it", "why are", "por que falla",
+            "por que se", "por que da", "por que no funciona", "debug", "depura",
+            "trace through", "step through", "stack trace", "flaky", "intermitente",
+            "intermittent", "bisect"])
+        let adversarial = any(["adversarial", "attack", "atacar", "break ", "romper",
+            "exploit", "harden", "endurec", "red team", "red-team", "pentest",
+            "penetration", "sparring", "fuzz"])
+        let breadth = any(["exhaustiv", "varios frentes", "varias areas", "desde varios",
+            "en varios", "en paralelo", "in parallel", "several fronts", "multiple angles",
+            "many areas", "backlog", "cada modulo", "every module", "every component",
+            "batch", "todo el codigo", "entire codebase", "whole codebase"])
+        let verifiable = any(["test", "lint", "compil", "build succeeds", "deploy",
+            "hasta que", "until", "score", "pasen", "que pase", "green "])
+        let needsScouting = any(["unfamiliar", "legacy", "explore", "explora", "investiga",
+            "research", "how does", "como funciona", "map the", "no conozco", "desconocid",
+            "understand", "entender"])
+        let repo = any(["codebase", "code base", "repo", "across all", "all files",
+            "every file", "entire", "whole ", "todo el", "toda la", "project-wide",
+            "monorepo", "microservice"])
+        let module = any(["module", "modulo", "component", "componente", "service",
+            "servicio", "file", "archivo", "class ", "clase", "function", "funcion",
+            "endpoint"])
+        let scope: TaskScope = repo ? .repo : (module ? .module : .point)
+        let multiDomain = hits(["frontend", "backend", "database", "base de datos",
+            "security", "seguridad", "infra", "api", "mobile", "ui ", "devops"]) >= 2
+
+        // Intent — first matching group wins; the order resolves ambiguous tasks
+        // (e.g. "explain then refactor" reads as understand, not change).
+        let intent: TaskIntent
+        if any(["understand", "explain", "explica", "explora", "explore", "investiga",
+                "investigar", "research", "unfamiliar", "how does", "como funciona",
+                "entender", "comprender", "study"]) {
+            intent = .understand
+        } else if any(["architecture", "arquitectura", "design", "disen", "trade-off",
+                "tradeoff", "decide", "decidir", "compare", "comparar", "option",
+                "opcion", "choose", "elegir", "consensus", "consenso", "evaluate", "evalua"]) {
+            intent = .decide
+        } else if any(["review", "revisar", "audit", "auditar", "auditoria", "verify",
+                "verificar", "qa", "code review", "inspecc", "coverage", "cobertura",
+                "production", "critical", "critico", "produccion", "safe"]) {
+            intent = .review
+        } else if any(["triage", "triar", "router", "route ", "routing", "classify",
+                "clasific", "categor", "dispatch", "sort into", "prioriti", "prioriza"]) {
+            intent = .triage
+        } else if adversarial {
+            intent = .harden
+        } else if any(["refactor", "migrate", "migrar", "migracion", "rename", "renombr",
+                "bulk", "masivo", "convert", " port ", "upgrade", "actualiza", "cleanup",
+                "fix", "arregl", "replace", "reemplaza", "across", "todos los", "en todo"]) {
+            intent = .change
+        } else if any(["implement", "implementa", "add ", "anad", "create", "crea",
+                "build", "construir", "feature", "funcionalidad", "nuevo", "nueva",
+                "write", "escribe", "generate", "genera"]) {
+            intent = .build
+        } else if any(["experiment", "experimenta", "quick", "rapid", "small", "pequen",
+                "play", "prueba", "try "]) {
+            intent = .quick
+        } else {
+            intent = .general
         }
-        if has(["across", "all files", "every file", "bulk", "migrate", "rename",
-                "masivo", "todos los", "en todo", "migrar", "migración", "migracion"]) {
-            return (.orchestratorWorkers, breadth ? 4 : 3)
+
+        return TaskProfile(intent: intent, scope: scope, breadth: breadth,
+                           verifiable: verifiable, adversarial: adversarial,
+                           serialDebug: serialDebug, multiDomain: multiDomain,
+                           needsScouting: needsScouting)
+    }
+
+    /// Map a task profile (+ what's connected) to a concrete shape + team size. Pure and
+    /// total — every profile resolves to exactly one shape.
+    static func shape(for p: TaskProfile, connected: Set<AIProvider> = []) -> (StrategyShape, Int) {
+        let multi = connected.count > 1
+        let size = p.breadth ? 4 : 3
+        // A broad, splittable task: distinct specialists when several providers can each
+        // take a seat, else identical workers.
+        func fanout() -> (StrategyShape, Int) {
+            multi ? (.domainSpecialists, size) : (.orchestratorWorkers, size)
         }
-        // A code review / audit: broad ("from several fronts") → domain specialists
-        // (each covers an angle); a focused one → planner → reviewer.
-        if has(["review", "audit", "revisar", "auditar", "auditoria", "auditoría",
-                "verify", "verificar", "production", "critical", "safe",
-                "crítico", "producción", "qa"]) {
-            return breadth ? (.domainSpecialists, 4) : (.plannerReviewer, 1)
+
+        // 1. Serial root-cause hunt — non-delegable (advise() also enforces this).
+        if p.serialDebug { return (.rootCauseDebugging, 1) }
+        // 2. Adversarial hardening.
+        if p.intent == .harden { return (.sparring, 1) }
+        // 3. Classify / route incoming work.
+        if p.intent == .triage { return (.triageRouter, 1) }
+        // 4. Understand / explore.
+        if p.intent == .understand {
+            // Large, unfamiliar, broad understanding that leads to change → the full
+            // scout → plan → build → review pipeline; otherwise a research fan-out.
+            if p.scope == .repo && p.breadth { return (.pipeline, size) }
+            return (.researchFanout, size)
         }
-        if has(["design", "architecture", "trade-off", "tradeoff", "decide", "compare",
-                "arquitectura", "diseñar", "decidir"]) {
-            return breadth ? (.domainSpecialists, 4) : (.debateConsensus, 1)
+        // 5. Decide / design.
+        if p.intent == .decide {
+            return (p.multiDomain || p.breadth) ? (.domainSpecialists, size) : (.debateConsensus, 1)
         }
-        if has(["frontend", "backend", "database", "security", "full-stack", "fullstack",
-                "dominio", "especialista"]) {
-            return (.domainSpecialists, breadth ? 4 : 3)
+        // 6. Review / audit.
+        if p.intent == .review {
+            return (p.breadth || p.multiDomain) ? (.domainSpecialists, size) : (.plannerReviewer, 1)
         }
-        if has(["adversarial", "break", "attack", "harden", "sparring", "romper", "atacar"]) {
-            return (.sparring, 1)
+        // 7. Change (refactor / migrate / bulk edit).
+        if p.intent == .change {
+            if p.scope == .repo || p.breadth { return fanout() }
+            if p.needsScouting { return (.scoutAct, 1) }   // localized change in an unfamiliar area
+            return (.executorAdvisor, 1)
         }
-        if has(["experiment", "try", "quick", "small", "play",
-                "experimentar", "probar", "rápido", "pequeño"]) {
-            return (.solo, 1)
+        // 8. Build a feature.
+        if p.intent == .build {
+            if p.scope == .repo && p.breadth { return fanout() }
+            if p.verifiable { return (.plannerReviewer, 1) }
+            if p.needsScouting { return (.scoutAct, 1) }
+            return (.executorAdvisor, 1)
         }
-        // Any remaining breadth signal → a small fan-out beats the solo/exec default.
-        // With multiple providers connected, a broad multi-angle task is better served
-        // by distinct specialists (each a natural home for a different provider) than by
-        // identical worker clones.
-        if breadth { return multiProvider ? (.domainSpecialists, 4) : (.orchestratorWorkers, 3) }
+        // 9. Quick / trivial.
+        if p.intent == .quick { return (.solo, 1) }
+        // 10. Any remaining breadth signal → a small fan-out.
+        if p.breadth { return fanout() }
+        // 11. Default: a lean executor + advisor.
         return (.executorAdvisor, 1)
     }
 }

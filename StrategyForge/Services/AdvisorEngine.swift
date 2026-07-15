@@ -483,6 +483,10 @@ enum AdvisorEngine {
         case .debateConsensus:     return "debate"
         case .domainSpecialists:   return "domain"
         case .sparring:            return "sparring"
+        case .scoutAct:            return "scout"
+        case .triageRouter:        return "triage"
+        case .rootCauseDebugging:  return "rootcause"
+        case .pipeline:            return "pipeline"
         }
     }
 

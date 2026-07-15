@@ -23,6 +23,7 @@ enum StrategyLibrary {
             scoutAct(),
             triageRouter(),
             plannerImplementersReviewer(),
+            explorePlanBuildReview(),
             rootCauseDebugging(),
             domainSpecialists(),
             researchFanout(),
@@ -231,6 +232,91 @@ enum StrategyLibrary {
             subagents never talk to each other. The cost win is that a cheap scout \
             shrinks the expensive implementer's context. Re-scout if the brief proves \
             wrong instead of letting the implementer explore.
+            """
+        )
+    }
+
+    // MARK: - Explore → Plan → Build → Review (full pipeline)
+
+    /// The deepest flow for large, unfamiliar, high-stakes work: a read-only scout maps
+    /// the terrain, the orchestrator plans, an implementer builds from the plan, and a
+    /// read-only reviewer verifies the result before it's called done.
+    static func explorePlanBuildReview() -> Strategy {
+        Strategy(
+            name: "Explore → Plan → Build → Review",
+            description: "A read-only scout maps an unfamiliar area, the orchestrator "
+                + "turns findings into a plan, an implementer builds it, and a read-only "
+                + "reviewer verifies the result — the deepest pipeline for big, risky work.",
+            roles: [
+                orchestrator(
+                    name: "orchestrator",
+                    model: .fable5,
+                    description: "Main session. Runs the pipeline scout → plan → "
+                        + "implement → review, owning every hand-off.",
+                    systemPrompt: """
+                    You run a four-phase pipeline for a large, unfamiliar, high-stakes change.
+                    1. Delegate to `scout` (read-only) to map the terrain: the files, call \
+                    sites, conventions, and risks the task touches.
+                    2. Turn the scout's findings into a concrete, ordered plan.
+                    3. Delegate the plan to `implementer` as a precise, self-contained brief.
+                    4. Delegate the result to `reviewer` (read-only) and address anything it \
+                    flags before you call the work done.
+                    You are the sole channel between the subagents; they never talk to each \
+                    other. Re-scout or re-plan rather than letting the implementer wander.
+                    """
+                ),
+                AgentRole(
+                    name: "scout",
+                    role: .researcher,
+                    model: .haiku45,
+                    systemPrompt: """
+                    You are the scout. Read-only. Map exactly what the task touches: the \
+                    relevant files and call sites, the conventions to follow, and the risks \
+                    and edge cases. Return a tight brief the team can plan from. Do not \
+                    write code.
+                    """,
+                    description: "Use FIRST to map files, call sites, conventions and risks. "
+                        + "Read-only; returns a brief.",
+                    tools: Constants.readOnlyTools,
+                    count: 1
+                ),
+                AgentRole(
+                    name: "implementer",
+                    role: .worker,
+                    model: .sonnet5,
+                    systemPrompt: """
+                    You implement the orchestrator's ordered plan as a self-contained brief. \
+                    Trust the plan; don't re-explore. Follow the conventions it names, make \
+                    the change, and verify it locally. If the plan is wrong or insufficient, \
+                    say so precisely and stop — don't guess.
+                    """,
+                    description: "Use AFTER the plan is set, to build the change from a "
+                        + "self-contained brief. Does not re-explore.",
+                    tools: [],
+                    count: 1
+                ),
+                AgentRole(
+                    name: "reviewer",
+                    role: .reviewer,
+                    model: .sonnet5,
+                    systemPrompt: """
+                    You are the reviewer. Read-only. Check the implementer's change against \
+                    the plan and the codebase's conventions: correctness, missed cases, \
+                    risks, and regressions. Return a concise, prioritized list of what must \
+                    change — or confirm it's sound. You do not edit code.
+                    """,
+                    description: "Use LAST to review the implemented change for correctness, "
+                        + "missed cases and regressions. Read-only.",
+                    tools: Constants.readOnlyTools,
+                    count: 1
+                ),
+            ],
+            orchestrationNotes: """
+            Four phases run in order through the orchestrator: scout (read-only) maps the \
+            terrain, the orchestrator plans, `implementer` builds from the plan, and \
+            `reviewer` (read-only) verifies. Single level of delegation — subagents report \
+            only to the orchestrator and never to each other. Use this for large, \
+            unfamiliar, or high-stakes work where mapping and review earn their cost.
             """
         )
     }
