@@ -66,8 +66,8 @@ struct SidebarView: View {
                 LazyVStack(spacing: 2) {
                     ForEach(visibleConfigs) { config in
                         chatRow(config)
-                            .selectedRow(model.selectedConfigID == config.id, cornerRadius: Theme.innerCorner)
-                            .hoverTint(cornerRadius: Theme.innerCorner)
+                            .selectedRow(model.selectedConfigID == config.id, cornerRadius: Theme.rowCorner)
+                            .hoverTint(cornerRadius: Theme.rowCorner)
                             .contentShape(Rectangle())
                             .onTapGesture { model.selectedConfigID = config.id }
                             .contextMenu {
@@ -105,7 +105,7 @@ struct SidebarView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Frosted glass column: a translucent material shows the faint aurora as clean
         // neutral vibrancy. Inner rows stay readable (selection/hover tints, opaque text).
-        .background(.regularMaterial)
+        .background(.ultraThinMaterial)
         // A chat that just stopped running → fire its thumbnail's sphere-resolve.
         .onChange(of: model.runningChatIDs) { wasRunning, nowRunning in
             for id in wasRunning.subtracting(nowRunning) { finishToken[id, default: 0] += 1 }

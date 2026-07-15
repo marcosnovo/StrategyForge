@@ -154,6 +154,9 @@ enum Theme {
     static let windowMargin: CGFloat = 14
     /// Corner radius for the pill action buttons (`.moon` / `.reefOutline`).
     static let buttonCorner: CGFloat = 14
+    /// Tight radius for list/nav ROW selection highlights, so the coral "spotlight"
+    /// hugs the row instead of floating as a loose lozenge.
+    static let rowCorner: CGFloat = 9
     static let sectionSpacing: CGFloat = 20
     /// Vertical gap between chat messages (Claude/Superhuman-like breathing room).
     static let messageSpacing: CGFloat = 18

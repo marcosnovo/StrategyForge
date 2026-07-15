@@ -35,7 +35,7 @@ struct LoopSelectorColumn: View {
         .frame(maxHeight: .infinity)
         // Frosted glass column: a translucent material shows the faint aurora as clean
         // neutral vibrancy (matches the chat-list column).
-        .background(.regularMaterial)
+        .background(.ultraThinMaterial)
         .confirmationDialog(
             model.t("loop.delete.confirm"),
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
@@ -130,8 +130,8 @@ struct LoopSelectorColumn: View {
         }
         .buttonStyle(.plain)
         // Soft rounded glass selection + hover, matching the chat list (Aetheris).
-        .selectedRow(selected, cornerRadius: Theme.innerCorner)
-        .hoverTint(cornerRadius: Theme.innerCorner)
+        .selectedRow(selected, cornerRadius: Theme.rowCorner)
+        .hoverTint(cornerRadius: Theme.rowCorner)
         .onHover { hovering in
             if hovering { hoveredID = loop.id }
             else if hoveredID == loop.id { hoveredID = nil }

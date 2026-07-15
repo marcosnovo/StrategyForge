@@ -63,7 +63,7 @@ struct NavRail: View {
                  active: model.navSection == .usage) {
                 model.guardedLeave {
                     model.navSection = .usage
-                    Task { await model.refreshUsage() }
+                    Task { await model.refreshUsage(includeExact: true) }
                 }
             }
 
@@ -96,13 +96,18 @@ struct NavRail: View {
         .padding(.horizontal, Space.m)
         .padding(.top, 34)          // clear the floating traffic lights (hidden titlebar)
         .padding(.bottom, Space.m)
-        // Frosted glass rail: a translucent material lets the faint aurora vibrancy
-        // show through as clean neutral frost (its near-opaque warm-white base keeps
-        // color from washing in). The inner usage card stays an opaque neutral card.
-        .background(.regularMaterial)
+        // Frosted glass rail: a thin translucent material lets the faint aurora
+        // vibrancy show through more (closer to the reference), while the inner usage
+        // and profile cards stay their own readable surfaces.
+        .background(.ultraThinMaterial)
         // One spring cross-fades the selected pill between sections. Snaps under Reduce Motion.
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8),
                    value: model.navSection)
+        // Pull Claude's REAL 5-hour / week rate-limit % into the rail card (the same
+        // exact fetch the Usage page does), so it's visible without opening Usage.
+        // `refreshExactUsage()` is gated to run at most once per session, so this is a
+        // single deferred fetch (it may trigger a one-time macOS Keychain prompt).
+        .task { await model.refreshUsage(includeExact: true) }
     }
 
     /// Brand row: the coral mark (matches the app icon, breathing slowly) + wordmark.
@@ -193,21 +198,18 @@ struct NavRail: View {
         }
         .padding(.horizontal, Space.m)
         .frame(height: 34)
-        // Soft coral wash + selection hairline mark the active row on the light glass;
-        // the coral leading bar is the single strong accent cue.
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+        // A soft coral wash hugs the active row (tight radius, no hard border) with a
+        // short coral leading bar as the single strong accent cue.
+        .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
             .fill(active ? Theme.accentSoft : .clear))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-            .strokeBorder(active ? Theme.selectionBorder : .clear, lineWidth: 1))
         .overlay(alignment: .leading) {
             if active {
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                     .fill(Theme.accent)
-                    .frame(width: 3)
-                    .padding(.vertical, 7)
+                    .frame(width: 3, height: 16)
             }
         }
-        .hoverTint(cornerRadius: Theme.innerCorner)
+        .hoverTint(cornerRadius: Theme.rowCorner)
         .contentShape(Rectangle())   // whole row is tappable
     }
 
@@ -225,7 +227,7 @@ struct NavRail: View {
                 Button {
                     model.guardedLeave {
                         model.navSection = .usage
-                        Task { await model.refreshUsage() }
+                        Task { await model.refreshUsage(includeExact: true) }
                     }
                 } label: {
                     Text(model.t("rail.usage.view")).font(.sfCaption2.weight(.medium))
@@ -370,7 +372,6 @@ struct NavRail: View {
     /// The bottom user-profile row: identity + a menu (Settings / Sync / Sign out) when
     /// signed in, or a "Sign in" affordance (identity only gates iCloud sync) otherwise.
     @ViewBuilder private var profileRow: some View {
-        Divider().overlay(Theme.hairline).padding(.vertical, Space.xs)
         if let acc = auth.account {
             Menu {
                 Button(model.t("sidebar.settings")) { model.navSection = .settings }
@@ -380,45 +381,60 @@ struct NavRail: View {
                 Divider()
                 Button(model.t("rail.profile.signout"), role: .destructive) { auth.signOut() }
             } label: {
-                HStack(spacing: Space.s) {
-                    avatarCircle(initials(acc.label))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(acc.label).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink).lineLimit(1)
-                        if let email = acc.email {
-                            Text(email).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 9)).foregroundStyle(Theme.secondaryOnMaterial)
-                }
-                .padding(.vertical, Space.xs)
-                .contentShape(Rectangle())
+                profileCard(avatar: avatarCircle(initials(acc.label)),
+                            title: acc.label, sub: acc.email,
+                            trailingIcon: "chevron.up.chevron.down")
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden)
         } else {
             Button { model.navSection = .settings } label: {
-                HStack(spacing: Space.s) {
-                    Circle().fill(Theme.accentSoft).frame(width: 30, height: 30)
-                        .overlay(Image(systemName: "person.fill")
-                            .font(.system(size: 13)).foregroundStyle(Theme.secondaryOnMaterial))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(model.t("rail.profile.signin")).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink)
-                        Text(model.t("rail.profile.signin.sub"))
-                            .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .contentShape(Rectangle())
+                profileCard(avatar: signInAvatar,
+                            title: model.t("rail.profile.signin"),
+                            sub: model.t("rail.profile.signin.sub"),
+                            trailingIcon: nil)
             }
             .buttonStyle(.plain)
         }
     }
 
+    /// A distinct profile card (reference-style): avatar + name + plan/email, on a soft
+    /// frosted card so it reads clearly as its own element at the foot of the rail.
+    private func profileCard(avatar: some View, title: String, sub: String?,
+                             trailingIcon: String?) -> some View {
+        HStack(spacing: Space.s) {
+            avatar
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.sfBodyM.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
+                if let sub, !sub.isEmpty {
+                    Text(sub).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+            if let trailingIcon {
+                Image(systemName: trailingIcon)
+                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.secondaryOnMaterial)
+            }
+        }
+        .padding(.horizontal, Space.s)
+        .padding(.vertical, Space.s)
+        .glassPanel(cornerRadius: Theme.innerCorner, material: .thinMaterial)
+        .padding(.top, Space.xs)
+        .contentShape(Rectangle())
+    }
+
+    /// Solid coral avatar with white initials — a clear, high-contrast identity chip
+    /// (the old accentSoft-on-coral read too faint).
     private func avatarCircle(_ initials: String) -> some View {
-        Circle().fill(Theme.accentSoft).frame(width: 30, height: 30)
+        Circle().fill(Theme.primaryFill).frame(width: 32, height: 32)
             .overlay(Text(initials)
-                .font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(Theme.coral))
+                .font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.white))
+            .shadow(color: Theme.accentGlow, radius: 4, y: 1)
+    }
+
+    private var signInAvatar: some View {
+        Circle().fill(Theme.accentSoft).frame(width: 32, height: 32)
+            .overlay(Image(systemName: "person.fill")
+                .font(.system(size: 13)).foregroundStyle(Theme.accent))
     }
 
     private func initials(_ s: String) -> String {

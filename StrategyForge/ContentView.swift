@@ -299,9 +299,9 @@ struct AppAuroraBackground: View {
         scheme == .dark ? Color(red: 0.043, green: 0.067, blue: 0.075)   // #0B1113
                         : Color(red: 0.972, green: 0.965, blue: 0.960)   // #F8F6F5 warm white
     }
-    // Kept deliberately faint so it reads as a warm ambient wash, never as color
-    // bleeding through the panels and washing out the content on top.
-    private var bloomOpacity: Double { scheme == .dark ? 0.13 : 0.15 }
+    // Soft enough to read as a warm ambient wash (and a gentle tint through the now
+    // more-translucent chrome), without washing out the content on the opaque cards.
+    private var bloomOpacity: Double { scheme == .dark ? 0.16 : 0.20 }
 
     var body: some View {
         GeometryReader { geo in

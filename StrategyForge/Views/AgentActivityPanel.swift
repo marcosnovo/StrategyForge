@@ -121,7 +121,7 @@ struct AgentActivityPanel: View {
         // Frosted glass panel: a translucent material shows the faint aurora as clean
         // neutral vibrancy. The dense data stays readable because it sits on opaque
         // .panelCard() surfaces; the header bar above (.bar) also reads as glass.
-        .background(.regularMaterial)
+        .background(.ultraThinMaterial)
         // Weekly / 5-hour usage figures for the live meter (Claude local logs).
         .task { if model.claudeUsage == nil { await model.refreshUsage() } }
     }
@@ -1107,6 +1107,6 @@ struct SubagentDetailPanel: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Frosted glass column behind the step list (the .bar header stays glass too),
         // matching the main activity panel — a translucent material shows faint vibrancy.
-        .background(.regularMaterial)
+        .background(.ultraThinMaterial)
     }
 }
