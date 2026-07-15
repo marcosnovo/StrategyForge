@@ -234,6 +234,12 @@ final class ChatViewModel {
     /// into the assistant bubble as it happens (the one-shot legs don't token-stream,
     /// so without this the chat looks frozen until the final synthesis lands).
     @ObservationIgnored private var metaNarration: [String] = []
+    /// When the current (in-progress) narration step began — used to tick a live
+    /// elapsed timer onto it, so the bubble keeps visibly moving during the long
+    /// one-shot worker/synthesis calls (which can't stream token-by-token).
+    @ObservationIgnored private var narrationStepSince: Date?
+    /// A 1s heartbeat that re-renders the narration while a meta turn runs.
+    @ObservationIgnored private var narrationTicker: Task<Void, Never>?
     /// When the current turn started (for the elapsed timer).
     var turnStartedAt: Date?
     /// Files staged to attach to the next message for Claude to review.
@@ -350,6 +356,7 @@ final class ChatViewModel {
     deinit {
         // If the chat is torn down mid-run, stop the subprocess/stream.
         runTask?.cancel()
+        narrationTicker?.cancel()
     }
 
     /// Orchestrator (session) model — the launch model, per Claude Code's rules.
@@ -664,6 +671,17 @@ final class ChatViewModel {
                                       apiKeys: providerAPIKeys, reasoningEffort: codexReasoningEffort)
         let strategy = config.strategy
         metaNarration = []
+        narrationStepSince = nil
+        // Heartbeat: the workers/synthesis are one-shot CLIs with no token streaming, so
+        // between step transitions the bubble would sit still for minutes. Re-render once
+        // a second to keep the active step's elapsed timer visibly ticking ("…en directo").
+        narrationTicker?.cancel()
+        narrationTicker = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                self?.renderNarration(assistantIndex)
+            }
+        }
         let stream = AsyncStream<MetaEvent> { cont in
             let task = Task.detached {
                 await MetaOrchestrator.run(strategy: strategy, task: task, cwd: repo, runner: runner) {
@@ -678,6 +696,8 @@ final class ChatViewModel {
         for await event in stream {
             apply(event, assistantIndex: assistantIndex)
         }
+        narrationTicker?.cancel()
+        narrationTicker = nil
     }
 
     /// Map a MetaOrchestrator event onto the same chat/activity state the Claude
@@ -788,6 +808,7 @@ final class ChatViewModel {
     /// Append a line to the live narration and render it into the assistant bubble.
     private func narrate(_ line: String, assistantIndex: Int) {
         metaNarration.append(line)
+        narrationStepSince = Date()   // start the elapsed clock for this step
         renderNarration(assistantIndex)
     }
 
@@ -795,13 +816,27 @@ final class ChatViewModel {
     private func markNarrationDone(_ role: String, assistantIndex: Int) {
         if let i = metaNarration.lastIndex(where: { $0.contains(role) && $0.hasPrefix("▸") }) {
             metaNarration[i] = "✓ \(role)"
+            narrationStepSince = Date()   // reset the clock for whatever runs next
             renderNarration(assistantIndex)
         }
     }
 
     private func renderNarration(_ assistantIndex: Int) {
-        guard messages.indices.contains(assistantIndex) else { return }
-        messages[assistantIndex].text = metaNarration.joined(separator: "\n")
+        guard messages.indices.contains(assistantIndex), !metaNarration.isEmpty else { return }
+        var lines = metaNarration
+        // Tick a live elapsed timer onto the current in-progress step (a line ending in
+        // "…"), so the bubble keeps moving during the minutes-long one-shot calls.
+        if let since = narrationStepSince, let last = lines.indices.last,
+           lines[last].hasSuffix("…") {
+            let secs = Int(Date().timeIntervalSince(since))
+            if secs >= 2 { lines[last] += "  ·  \(narrationElapsed(secs))" }
+        }
+        messages[assistantIndex].text = lines.joined(separator: "\n")
+    }
+
+    /// "45s" / "2m 03s" for the live step timer.
+    private func narrationElapsed(_ secs: Int) -> String {
+        secs < 60 ? "\(secs)s" : "\(secs / 60)m \(String(format: "%02d", secs % 60))s"
     }
 
     /// Flush the transcript to disk at most every ~1.5s during streaming, so a
