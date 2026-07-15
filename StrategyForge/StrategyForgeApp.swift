@@ -11,6 +11,7 @@ import SwiftUI
 struct StrategyForgeApp: App {
     @State private var model = AppModel()
     @State private var auth = AuthModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -18,6 +19,11 @@ struct StrategyForgeApp: App {
                 .environment(model)
                 .environment(auth)
                 .tint(Theme.accent)
+        }
+        // Flush any coalesced device-local write (transcript/usage/draft) when the app
+        // leaves the foreground, so a deferred save is never lost on quit.
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { model.flushSaves() }
         }
         .windowStyle(.hiddenTitleBar)   // content fills under the traffic lights (seamless glass)
         .windowResizability(.contentMinSize)

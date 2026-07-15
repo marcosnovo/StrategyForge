@@ -1198,7 +1198,45 @@ final class AppModel {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
         configurations[i].transcript = messages
         configurations[i].lastActiveAt = Date()   // bump so active chats rise to the top
-        save(stamp: false)
+        saveThrottled()
+    }
+
+    // MARK: - Coalesced device-local writes
+    //
+    // During a streamed reply the transcript/usage/draft change many times a second, and
+    // each change used to trigger a FULL `save()` (re-encoding every chat's transcript +
+    // teams + settings) — ~40 disk encodes/min. Coalesce those hot-path writes into one
+    // deferred encode. Safe: the in-memory state updates immediately (nothing is lost from
+    // the app's point of view); only the WRITE is delayed ~1s, and `flushSaves()` forces
+    // it on background/quit. The format is unchanged, so there is no migration/data risk.
+    @ObservationIgnored private var pendingSave: DispatchWorkItem?
+    @ObservationIgnored private var pendingSaveSince: Date?
+
+    func saveThrottled() {
+        let now = Date()
+        if pendingSaveSince == nil { pendingSaveSince = now }
+        // Guarantee a write at least every ~3s even under continuous rescheduling (e.g. a
+        // non-stop token stream), so a crash can never lose more than that — while still
+        // collapsing bursts (typing, per-token usage) into ~one write.
+        if now.timeIntervalSince(pendingSaveSince ?? now) > 3.0 {
+            pendingSave?.cancel(); pendingSave = nil; pendingSaveSince = nil
+            _ = save(stamp: false)
+            return
+        }
+        pendingSave?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingSave = nil; self?.pendingSaveSince = nil
+            _ = self?.save(stamp: false)
+        }
+        pendingSave = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+    }
+
+    /// Force any pending coalesced write to disk immediately (call on background/quit).
+    func flushSaves() {
+        guard let work = pendingSave else { return }
+        work.cancel(); pendingSave = nil; pendingSaveSince = nil
+        _ = save(stamp: false)
     }
 
     /// Write the strategy's `.claude` files into the chat's repo without any UI
@@ -1223,20 +1261,23 @@ final class AppModel {
         }
     }
 
-    /// Persist a chat's unsent draft. Device-local (stamp: false); no-op if unchanged.
+    /// Persist a chat's unsent draft. Device-local; coalesced so typing doesn't trigger a
+    /// full state encode on every keystroke (a losable, non-critical draft).
     func updateDraft(_ id: Configuration.ID, _ text: String) {
         guard let i = configurations.firstIndex(where: { $0.id == id }),
               configurations[i].draft != text else { return }
         configurations[i].draft = text
-        save(stamp: false)
+        saveThrottled()
     }
 
     /// Persist a chat's cumulative token/cost usage. Device-local (stamp: false).
+    /// Coalesced: usage updates fire per token/worker; the counter is non-critical (it's
+    /// re-derivable), so a deferred write is safe and avoids a full encode per token.
     func updateUsage(_ id: Configuration.ID, tokens: Int, costUSD: Double) {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
         configurations[i].totalTokens = tokens
         configurations[i].totalCostUSD = costUSD
-        save(stamp: false)
+        saveThrottled()
     }
 
     // MARK: - Agent activity history (device-local, per-chat sidecar — never synced)
