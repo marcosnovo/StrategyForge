@@ -120,6 +120,39 @@ struct StrategyClassifierEvalTests {
 
     // MARK: - Confidence signal
 
+    // MARK: - Phase 2: semantic layer (on-device embeddings)
+
+    @Test func semanticLayerClassifiesParaphrasesByMeaning() {
+        // Only meaningful when on-device word embeddings are present; otherwise the
+        // feature no-ops and this skips (keyword path is unaffected either way).
+        guard SemanticClassifier.bestIntent(for: "understand the system") != nil else {
+            print("word embeddings unavailable — semantic layer test skipped"); return
+        }
+        // Paraphrases with NO intent keywords — keyword-only can't read them.
+        let cases: [(String, StrategyGenerator.TaskIntent)] = [
+            ("grasp how this whole thing operates", .understand),
+            ("tidy up and modernize the old plumbing", .change),
+            ("weigh a couple of approaches and pick one", .decide),
+            ("wire up a brand-new capability", .build),
+        ]
+        var correct = 0
+        for (task, want) in cases {
+            guard let r = SemanticClassifier.bestIntent(for: task) else { continue }
+            print(String(format: "SEM  %-45@ → %@  (%.3f)  want %@",
+                         task as NSString, "\(r.intent)" as NSString, r.score, "\(want)" as NSString))
+            if r.intent == want && r.score >= StrategyGenerator.semanticThreshold { correct += 1 }
+        }
+        // Embeddings are fuzzy; require a majority correct above threshold.
+        #expect(correct >= 2, "semantic layer classified only \(correct)/4 paraphrases correctly above threshold")
+    }
+
+    @Test func semanticLayerNeverChangesConfidentKeywordReads() {
+        // High-confidence keyword tasks must be identical with or without embeddings.
+        for (task, expected) in Self.golden {
+            #expect(shape(task) == expected)
+        }
+    }
+
     @Test func clearTasksReadHighConfidenceAmbiguousReadLow() {
         // A decisive task (clear intent + supporting axes) → confident.
         #expect(StrategyGenerator.classify(

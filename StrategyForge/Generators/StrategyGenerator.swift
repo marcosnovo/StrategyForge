@@ -140,8 +140,23 @@ enum StrategyGenerator {
     /// to empty so existing callers keep single-provider behavior.
     static func heuristicShape(for task: String,
                                connected: Set<AIProvider> = []) -> (StrategyShape, Int) {
-        shape(for: classify(task), connected: connected)
+        var p = classify(task)
+        // Semantic assist (Phase 2): when the keyword read is NOT confident, let the
+        // on-device embeddings propose an intent (robust to paraphrase / unusual wording).
+        // Adopt it only above a similarity threshold and only for a concrete intent — the
+        // keyword path stays authoritative for confident reads, so this can't regress it.
+        if !p.isConfident, let sem = SemanticClassifier.bestIntent(for: task),
+           sem.score >= semanticThreshold, sem.intent != .general {
+            p.intent = sem.intent
+            if sem.intent == .change || sem.intent == .build { p.willChange = true }
+            p.confidence = max(p.confidence, 0.55)
+        }
+        return shape(for: p, connected: connected)
     }
+
+    /// Minimum cosine similarity for the semantic layer to override a low-confidence
+    /// keyword read. Tuned so clear paraphrases match while unrelated tasks don't.
+    static let semanticThreshold = 0.60
 
     // MARK: - Multi-axis task classifier
 
