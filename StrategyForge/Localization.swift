@@ -703,6 +703,8 @@ enum L10n {
         "settings.languageSection": ("Language", "Idioma"),
         "settings.language": ("App language", "Idioma de la app"),
         "settings.language.system": ("System", "Sistema"),
+        "settings.language.en": ("English", "Inglés"),
+        "settings.language.es": ("Español", "Español"),
 
         // MARK: Roles
         "role.configure": ("Configure", "Configurar"),

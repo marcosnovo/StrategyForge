@@ -138,8 +138,9 @@ enum StrategyGenerator {
         // keyword path stays authoritative for confident reads, so this can't regress it.
         if !p.isConfident, let sem = SemanticClassifier.bestIntent(for: task),
            sem.score >= semanticThreshold, sem.intent != .general {
+            // Adopt the semantic INTENT only; keep the keyword-derived axis flags (they
+            // read the concrete words). Don't synthesize willChange from the intent.
             p.intent = sem.intent
-            if sem.intent == .change || sem.intent == .build { p.willChange = true }
             p.confidence = max(p.confidence, 0.55)
         }
         return shape(for: p, connected: connected)

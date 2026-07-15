@@ -180,6 +180,7 @@ extension L10n {
         "advisor.rationale.rootcause": (
             "A serial root-cause hunt: reproduce, locate, fix, then verify.",
             "Una caza de causa raíz en serie: reproducir, localizar, corregir y verificar."),
+        "advisor.usedAI": ("Apple Intelligence", "Apple Intelligence"),
         "advisor.rationale.pipeline": (
             "Big, unfamiliar work: scout maps it, then plan → build → review in one pipeline.",
             "Trabajo grande y desconocido: el explorador lo mapea, luego planificar → construir → revisar en un solo flujo."),

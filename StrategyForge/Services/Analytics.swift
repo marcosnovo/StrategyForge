@@ -114,6 +114,10 @@ enum Analytics {
         }
     }
 
+    /// Serializes file writes so concurrent `log` calls can't interleave and corrupt the
+    /// JSONL (each append seeks-to-end then writes; two at once would splice lines).
+    private static let writeQueue = DispatchQueue(label: "coral.analytics.write", qos: .background)
+
     /// Record an event (no-op unless the user opted in). Fire-and-forget, off-main.
     static func log(_ event: Event, at date: Date = Date()) {
         guard isEnabled else { return }
@@ -123,7 +127,7 @@ enum Analytics {
             "props": event.props,
         ]
         let url = fileURL
-        Task.detached(priority: .background) {
+        writeQueue.async {
             guard let data = try? JSONSerialization.data(withJSONObject: line),
                   let text = String(data: data, encoding: .utf8) else { return }
             append(text + "\n", to: url)

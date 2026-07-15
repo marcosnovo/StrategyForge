@@ -98,18 +98,22 @@ struct NavRail: View {
         .padding(.horizontal, Space.m)
         .padding(.top, 34)          // clear the floating traffic lights (hidden titlebar)
         .padding(.bottom, Space.m)
-        // Frosted glass rail: a thin translucent material lets the faint aurora
-        // vibrancy show through more (closer to the reference), while the inner usage
-        // and profile cards stay their own readable surfaces.
-        .background(.ultraThinMaterial)
+        // Frosted glass rail: a translucent material lets the faint aurora vibrancy show
+        // through, but `.thinMaterial` (not ultraThin) keeps enough opacity that the
+        // secondary nav text stays readable over the bright aurora in light mode.
+        .background(.thinMaterial)
         // One spring cross-fades the selected pill between sections. Snaps under Reduce Motion.
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8),
                    value: model.navSection)
         // Pull Claude's REAL 5-hour / week rate-limit % into the rail card (the same
-        // exact fetch the Usage page does), so it's visible without opening Usage.
-        // `refreshExactUsage()` is gated to run at most once per session, so this is a
-        // single deferred fetch (it may trigger a one-time macOS Keychain prompt).
-        .task { await model.refreshUsage(includeExact: true) }
+        // exact fetch the Usage page does), so it's visible without opening Usage. The
+        // exact fetch reads the Keychain (off the main thread; gated to once per session
+        // and may show a one-time macOS prompt), so we defer it briefly to stay out of
+        // the launch / first-paint path.
+        .task {
+            try? await Task.sleep(for: .seconds(1.2))
+            await model.refreshUsage(includeExact: true)
+        }
     }
 
     /// Brand row: the coral mark (matches the app icon, breathing slowly) + wordmark.

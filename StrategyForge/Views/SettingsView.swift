@@ -33,8 +33,8 @@ struct SettingsView: View {
                     set: { model.settings.language = $0; model.save() }
                 )) {
                     Text(model.t("settings.language.system")).tag(AppLanguage.system)
-                    Text("English").tag(AppLanguage.en)
-                    Text("Español").tag(AppLanguage.es)
+                    Text(model.t("settings.language.en")).tag(AppLanguage.en)
+                    Text(model.t("settings.language.es")).tag(AppLanguage.es)
                 }
             }
 

@@ -119,7 +119,7 @@ struct TaskToStrategySheet: View {
                 Text(model.strategyDisplayName(result.strategy)).font(.sfCardTitle).foregroundStyle(Theme.accent)
                 Spacer()
                 if result.usedAI {
-                    Label("Apple Intelligence", systemImage: "sparkles")
+                    Label(model.t("advisor.usedAI"), systemImage: "sparkles")
                         .font(.sfCaption2).foregroundStyle(.secondary)
                         .labelStyle(.titleAndIcon)
                 }

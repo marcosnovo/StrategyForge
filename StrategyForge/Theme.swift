@@ -146,12 +146,6 @@ enum Theme {
     static let innerCorner: CGFloat = 16
     /// Chat message bubble radius.
     static let bubbleCorner: CGFloat = 18
-    /// The outer floating "app card" shell radius — larger than inner cards so the
-    /// whole app reads as one rounded pane floating over the aurora.
-    static let shellCorner: CGFloat = 28
-    /// Inset of the floating app card from the window edge (lets the aurora bleed
-    /// around it, matching the reference's floating-panel-over-gradient look).
-    static let windowMargin: CGFloat = 14
     /// Corner radius for the pill action buttons (`.moon` / `.reefOutline`).
     static let buttonCorner: CGFloat = 14
     /// Tight radius for list/nav ROW selection highlights, so the coral "spotlight"

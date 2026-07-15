@@ -63,9 +63,14 @@ enum SemanticClassifier {
 
     // MARK: - Embedding plumbing
 
-    /// Cache the word-embedding models (loading is the expensive part). Keyed by code.
-    private static var cache: [String: NLEmbedding?] = [:]
+    /// Cache the word-embedding models (loading is the expensive part), keyed by code.
+    /// Guarded by a lock because `bestIntent` can be reached from concurrent async
+    /// contexts (multiple recommendation Tasks) — an unsynchronized Dictionary read/write
+    /// there would be a data race.
+    private static let cacheLock = NSLock()
+    nonisolated(unsafe) private static var cache: [String: NLEmbedding?] = [:]
     private static func embedding(for language: NLLanguage) -> NLEmbedding? {
+        cacheLock.lock(); defer { cacheLock.unlock() }
         if let hit = cache[language.rawValue] { return hit }
         let model = NLEmbedding.wordEmbedding(for: language)
         cache[language.rawValue] = model
