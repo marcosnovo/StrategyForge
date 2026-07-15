@@ -518,11 +518,32 @@ enum ClaudeRunner {
         return candidates.first(where: hasLogin) ?? candidates.first
     }
 
-    /// Resolve the `claude` binary to an absolute executable path.
+    // Resolved-path cache. `resolveBinary` spawns an interactive login shell (`which`,
+    // ~hundreds of ms) and is called on every provider detect + run; caching avoids
+    // re-paying that on every keystroke/refresh. Short TTL so a freshly-installed CLI is
+    // still picked up soon, and each hit is re-validated with a cheap isExecutableFile.
+    private static let binCacheLock = NSLock()
+    nonisolated(unsafe) private static var binCache: [String: (path: String, at: Date)] = [:]
+
+    /// Resolve the `claude` binary to an absolute executable path (cached).
     nonisolated static func resolveBinary(_ configured: String) -> String? {
         let fm = FileManager.default
         let name = configured.isEmpty ? "claude" : configured
 
+        binCacheLock.lock()
+        let cached = binCache[name]
+        binCacheLock.unlock()
+        if let cached, Date().timeIntervalSince(cached.at) < 60, fm.isExecutableFile(atPath: cached.path) {
+            return cached.path
+        }
+        let resolved = resolveBinaryUncached(name, fm: fm)
+        if let resolved {
+            binCacheLock.lock(); binCache[name] = (resolved, Date()); binCacheLock.unlock()
+        }
+        return resolved
+    }
+
+    private nonisolated static func resolveBinaryUncached(_ name: String, fm: FileManager) -> String? {
         // 1. An absolute path the user configured.
         if name.hasPrefix("/"), fm.isExecutableFile(atPath: name) { return name }
 

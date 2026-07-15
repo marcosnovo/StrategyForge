@@ -14,6 +14,11 @@ struct SidebarView: View {
     @Binding var showSidebar: Bool
     @State private var pendingDelete: Configuration.ID?
     @State private var searchText = ""
+    /// Debounced copy of `searchText` used for the COSTLY filter (full transcript scan
+    /// across every chat). Typing updates `searchText` instantly (responsive field) but
+    /// the scan only re-runs ~300ms after the user stops — not on every keystroke.
+    @State private var debouncedQuery = ""
+    @State private var searchDebounce: Task<Void, Never>?
     @State private var hoveredID: Configuration.ID?
     /// Per-chat token bumped when a chat finishes (running → not running), which fires
     /// a discreet sphere-resolve on its thumbnail — the celebration moved here from the
@@ -26,7 +31,7 @@ struct SidebarView: View {
     /// Chats sorted newest-first, filtered by the search field.
     private var visibleConfigs: [Configuration] {
         let sorted = model.configurations.sorted { $0.recency > $1.recency }
-        let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        let q = debouncedQuery.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return sorted }
         // The transcript scan is the costly part (many chats × long histories); only
         // run it once the query is specific enough to be worth it.
@@ -135,8 +140,19 @@ struct SidebarView: View {
             TextField(model.t("sidebar.search"), text: $searchText)
                 .textFieldStyle(.plain).font(.sfCaption2)
             if !searchText.isEmpty {
-                Button { searchText = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 11)) }
+                Button { searchText = ""; debouncedQuery = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 11)) }
                     .buttonStyle(.plain).foregroundStyle(.tertiary)
+            }
+        }
+        // Debounce the costly transcript filter: short queries apply immediately (cheap),
+        // longer ones wait ~300ms after the last keystroke so we don't scan every chat's
+        // full history on every character.
+        .onChange(of: searchText) { _, new in
+            searchDebounce?.cancel()
+            if new.trimmingCharacters(in: .whitespaces).count < 2 { debouncedQuery = new; return }
+            searchDebounce = Task {
+                try? await Task.sleep(for: .milliseconds(300))
+                if !Task.isCancelled { debouncedQuery = new }
             }
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)

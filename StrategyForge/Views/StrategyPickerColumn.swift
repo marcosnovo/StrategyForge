@@ -150,11 +150,10 @@ struct StrategyPickerColumn: View {
             onSelect(template)
         } label: {
             VStack(alignment: .leading, spacing: Space.s) {
-                // Ambient signal-dot motion on every card — the diagram's identity,
-                // matching the live chat diagram. Compact mode collapses multi-count
-                // roles into one stacked card and the layout caps node height to the
-                // slot, so the topology stays legible and the grid drifts at 20fps.
-                StrategyDiagramView(strategy: template, compact: true)
+                // Static topology per card. `ambient: false` stops every card in the
+                // grid running a 20fps clock (a wall of pickers was burning CPU redrawing
+                // idle thumbnails); the live chat diagram still animates.
+                StrategyDiagramView(strategy: template, compact: true, ambient: false)
                     .frame(height: StrategyDiagramView.compactHeight(for: template))
                 HStack(spacing: 5) {
                     Text(model.strategyDisplayName(template))
