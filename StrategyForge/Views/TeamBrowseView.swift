@@ -36,7 +36,8 @@ struct TeamBrowseView: View {
             }
             .padding(.horizontal, Space.l).padding(.top, Space.l).padding(.bottom, Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.appBg)
+            // Translucent glass header so the aurora reads faintly behind the title.
+            .background(.regularMaterial)
             Divider()
 
             switch tab.wrappedValue {

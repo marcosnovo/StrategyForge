@@ -35,6 +35,9 @@ struct ProviderConnectSheet: View {
                 Spacer()
                 if phase == .installing || phase == .signingIn { WorkingLogo(size: 16) }
             }
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassPanel(cornerRadius: Theme.innerCorner, material: .regularMaterial)
 
             steps
 
@@ -68,7 +71,7 @@ struct ProviderConnectSheet: View {
             }
             if case .failed = phase {
                 Button(model.t("provider.signin.terminal")) { ProviderInstaller.launchSignIn(provider) }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.reefOutline)
             }
 
             ScrollView {
@@ -78,7 +81,7 @@ struct ProviderConnectSheet: View {
             }
             .frame(height: 120)
             .padding(Space.s)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg))
 
             HStack {
                 Spacer()

@@ -14,6 +14,135 @@
 
 import Foundation
 
+/// A casual, time-of-day-aware greeting for a fresh, empty chat. Picks a playful
+/// line from a per-language, per-daypart pool, deterministically seeded by the chat
+/// (so each new chat gets its own greeting, stable across redraws — it won't flicker).
+/// Weaves in the user's first name when we have it. English + Spanish, resolved from
+/// the app's `langCode`. This is generated content, so it lives here rather than in
+/// the `L10n` key table, but it still honors the live language switch.
+enum DaypartGreeting {
+
+    /// Coarse, friendly buckets of the day.
+    private enum Part { case morning, afternoon, evening, lateNight }
+
+    private static func part(forHour h: Int) -> Part {
+        switch h {
+        case 5...11:  return .morning
+        case 12...18: return .afternoon
+        case 19...23: return .evening
+        default:      return .lateNight   // 0–4, la madrugada
+        }
+    }
+
+    /// A greeting for the given language / hour / seed. When `name` is non-empty it's
+    /// woven in; otherwise a name-less variant is used.
+    static func line(langCode: String, hour: Int, seed: Int, name: String?) -> String {
+        let es = (langCode == "es")
+        let trimmed = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasName = !trimmed.isEmpty
+        let pool = variants(part: part(forHour: hour), es: es, named: hasName)
+        guard !pool.isEmpty else { return "" }
+        // Unsigned modulo so any seed (incl. Int.min) maps safely into range.
+        let idx = Int(UInt(bitPattern: seed) % UInt(pool.count))
+        let template = pool[idx]
+        return hasName ? String(format: template, trimmed) : template
+    }
+
+    // MARK: Pools — `%@` is the first name. Keep them short, warm and a little cheeky.
+    private static func variants(part: Part, es: Bool, named: Bool) -> [String] {
+        switch (part, es, named) {
+
+        // Morning
+        case (.morning, false, false):
+            return ["Morning! ☀️ What are we building?",
+                    "Rise and grind — what's first?",
+                    "Good morning! Ready when you are.",
+                    "Morning! Coffee in hand? Let's go."]
+        case (.morning, false, true):
+            return ["Morning, %@! ☀️ What are we building?",
+                    "Rise and shine, %@ — what's first?",
+                    "Good morning, %@! Ready when you are.",
+                    "Morning, %@! Let's make something."]
+        case (.morning, true, false):
+            return ["¡Buenos días! ☀️ ¿Qué construimos?",
+                    "¡Arriba! ¿Por dónde empezamos?",
+                    "¡Buenos días! Cuando quieras.",
+                    "¡Buenas! ¿Café en mano? Vamos."]
+        case (.morning, true, true):
+            return ["¡Buenos días, %@! ☀️ ¿Qué construimos?",
+                    "¡Arriba, %@! ¿Por dónde empezamos?",
+                    "¡Buenos días, %@! Cuando quieras.",
+                    "¡Buenas, %@! ¿Café en mano? Vamos."]
+
+        // Afternoon
+        case (.afternoon, false, false):
+            return ["Good afternoon! What's on your plate?",
+                    "Afternoon! Let's get into it.",
+                    "Hey there — what are we tackling?",
+                    "Afternoon! Pick up where you left off?"]
+        case (.afternoon, false, true):
+            return ["Afternoon, %@! What's on your plate?",
+                    "Hey %@ — let's get into it.",
+                    "Good afternoon, %@! What are we tackling?",
+                    "Afternoon, %@! Ready to roll?"]
+        case (.afternoon, true, false):
+            return ["¡Buenas tardes! ¿Qué tenemos hoy?",
+                    "¡Buenas! Vamos al lío.",
+                    "¿Qué toca esta tarde?",
+                    "¡Buenas tardes! ¿Seguimos donde lo dejaste?"]
+        case (.afternoon, true, true):
+            return ["¡Buenas tardes, %@! ¿Qué tenemos hoy?",
+                    "¡Buenas, %@! Vamos al lío.",
+                    "%@, ¿qué toca esta tarde?",
+                    "¡Buenas tardes, %@! ¿Seguimos?"]
+
+        // Evening
+        case (.evening, false, false):
+            return ["Evening! 🌙 What's the mission?",
+                    "Good evening — burning the midnight oil?",
+                    "Evening! Let's wrap something up.",
+                    "Hey, good evening. What's up?"]
+        case (.evening, false, true):
+            return ["Evening, %@! 🌙 What's the mission?",
+                    "Good evening, %@ — still at it?",
+                    "Evening, %@! Let's wrap something up.",
+                    "Hey %@, good evening. What's up?"]
+        case (.evening, true, false):
+            return ["¡Buenas noches! 🌙 ¿Cuál es la misión?",
+                    "¿Rematando el día? Vamos.",
+                    "¡Buenas noches! Cerremos algo.",
+                    "Hey, buenas noches. ¿Qué se cuece?"]
+        case (.evening, true, true):
+            return ["¡Buenas noches, %@! 🌙 ¿Cuál es la misión?",
+                    "%@, ¿rematando el día? Vamos.",
+                    "¡Buenas noches, %@! Cerremos algo.",
+                    "Hey %@, buenas noches. ¿Qué se cuece?"]
+
+        // Late night (madrugada)
+        case (.lateNight, false, false):
+            return ["Up late? 🌙 Let's make it count.",
+                    "Burning the midnight oil — what's up?",
+                    "Late-night session? I'm in.",
+                    "Can't sleep? Let's build something."]
+        case (.lateNight, false, true):
+            return ["Up late, %@? 🌙 Let's make it count.",
+                    "Midnight oil, %@ — what's up?",
+                    "Late-night session, %@? I'm in.",
+                    "Can't sleep, %@? Let's build something."]
+        case (.lateNight, true, false):
+            return ["¿De madrugada? 🌙 Que cunda.",
+                    "A estas horas… ¿qué se cuece?",
+                    "¿Sesión nocturna? Me apunto.",
+                    "¿Sin sueño? Construyamos algo."]
+        case (.lateNight, true, true):
+            return ["¿De madrugada, %@? 🌙 Que cunda.",
+                    "%@, a estas horas… ¿qué se cuece?",
+                    "¿Sesión nocturna, %@? Me apunto.",
+                    "¿Sin sueño, %@? Construyamos algo."]
+        }
+    }
+}
+
 /// The language the user picked. `.system` follows the OS language.
 enum AppLanguage: String, Codable, CaseIterable, Identifiable {
     case system, en, es

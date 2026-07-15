@@ -97,7 +97,10 @@ struct TeamView: View {
                     )
                         .frame(height: StrategyDiagramView.preferredHeight(for: strategy))
                         .frame(maxWidth: .infinity)
-                        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+                        .padding(Space.s)
+                        // The team canvas floats on a soft rounded glass panel so the
+                        // aurora reads faintly through the topology (Aetheris surface).
+                        .glassPanel(cornerRadius: Theme.corner)
                         .staggeredAppear(index: 0)
 
                     if let orch = strategy.orchestrator {
@@ -305,9 +308,11 @@ struct TeamView: View {
             }
             .padding(Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                .fill(selected ? role.role.tint.opacity(0.08) : Theme.cardBg))
-            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
+            // Rounded card surface; selected agent glows in its role hue
+            // (orchestrator coral, workers teal) as a soft wash + border.
+            .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                .fill(selected ? role.role.tint.opacity(0.10) : Theme.cardBg))
+            .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                 .strokeBorder(selected ? role.role.tint : Theme.hairline,
                               lineWidth: selected ? 2 : 1))
             .contentShape(Rectangle())
@@ -328,9 +333,9 @@ struct TeamView: View {
                 Text(model.t("team.add")).font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, minHeight: 84)
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
+            .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                 .fill(Theme.accentSoft.opacity(0.5)))
-            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
+            .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                 .strokeBorder(Theme.accent.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
             .contentShape(Rectangle())
         }

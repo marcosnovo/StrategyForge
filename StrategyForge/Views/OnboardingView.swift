@@ -38,6 +38,9 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: Space.xs) {
                 StrategyDiagramView(strategy: StrategyLibrary.orchestratorWorkers())
                     .frame(height: 188)
+                    .padding(Space.s)
+                    // Soft rounded glass frame — the topology floats over the aurora.
+                    .glassPanel(cornerRadius: Theme.corner)
                 Text(model.t("onboard.diagramCaption"))
                     .font(.sfCaption2).foregroundStyle(.secondary)
             }
@@ -136,7 +139,8 @@ struct OnboardingView: View {
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+        // Translucent glass so the readiness strip floats over the aurora wash.
+        .glassPanel(cornerRadius: Theme.innerCorner)
     }
 
     private func step(_ number: Int, _ titleKey: String, _ descKey: String) -> some View {

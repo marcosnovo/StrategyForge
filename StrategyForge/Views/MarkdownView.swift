@@ -45,10 +45,12 @@ struct MarkdownView: View {
         case .heading(let level, let text):
             Text(inline(text))
                 .font(.system(size: [20, 17, 15][min(level - 1, 2)], weight: .semibold))
+                .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
         case .paragraph(let text):
             Text(inline(text))
                 .font(.sfBodyM)
+                .foregroundStyle(Theme.ink)
                 .lineSpacing(Theme.bodyLineSpacing)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
@@ -57,8 +59,8 @@ struct MarkdownView: View {
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                        Text("•").foregroundStyle(.secondary)
-                        Text(inline(item)).font(.sfBodyM).lineSpacing(Theme.bodyLineSpacing).fixedSize(horizontal: false, vertical: true)
+                        Text("•").foregroundStyle(Theme.accent)
+                        Text(inline(item)).font(.sfBodyM).foregroundStyle(Theme.ink).lineSpacing(Theme.bodyLineSpacing).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -66,8 +68,8 @@ struct MarkdownView: View {
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(items.enumerated()), id: \.offset) { i, item in
                     HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                        Text("\(i + 1).").foregroundStyle(.secondary).monospacedDigit()
-                        Text(inline(item)).font(.sfBodyM).lineSpacing(Theme.bodyLineSpacing).fixedSize(horizontal: false, vertical: true)
+                        Text("\(i + 1).").foregroundStyle(Theme.accent).monospacedDigit()
+                        Text(inline(item)).font(.sfBodyM).foregroundStyle(Theme.ink).lineSpacing(Theme.bodyLineSpacing).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -82,6 +84,7 @@ struct MarkdownView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             Text(code)
                 .font(.sfCode)
+                .foregroundStyle(Theme.ink)
                 .textSelection(.enabled)
                 .padding(Space.m)
         }
@@ -102,14 +105,14 @@ struct MarkdownView: View {
             GridRow {
                 ForEach(0..<columns, id: \.self) { c in
                     Text(inline(c < headers.count ? headers[c] : ""))
-                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(.secondary)
+                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
                 }
             }
             Divider().gridCellColumns(columns)
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 GridRow {
                     ForEach(0..<columns, id: \.self) { c in
-                        Text(inline(c < row.count ? row[c] : "")).font(.sfCaption2)
+                        Text(inline(c < row.count ? row[c] : "")).font(.sfCaption2).foregroundStyle(Theme.ink)
                     }
                 }
             }

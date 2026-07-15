@@ -30,6 +30,9 @@ struct ProviderSignInSheet: View {
                 Spacer()
                 if phase == .running { WorkingLogo(size: 16) }
             }
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassPanel(cornerRadius: Theme.innerCorner, material: .regularMaterial)
 
             switch phase {
             case .running:
@@ -51,7 +54,7 @@ struct ProviderSignInSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
                 // Some CLIs' login needs a real terminal — offer that as a fallback.
                 Button(model.t("provider.signin.terminal")) { ProviderInstaller.launchSignIn(provider) }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.reefOutline)
             }
 
             ScrollView {
@@ -61,7 +64,7 @@ struct ProviderSignInSheet: View {
             }
             .frame(height: 130)
             .padding(Space.s)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg))
 
             HStack {
                 Spacer()

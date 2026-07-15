@@ -99,6 +99,9 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showChangelog) { ChangelogSheet() }
         .formStyle(.grouped)
+        // Coral accent tint: toggles, pickers and selected rows adopt the brand
+        // color instead of the system blue.
+        .tint(Theme.accent)
         .frame(width: embedded ? nil : 520, height: embedded ? nil : 620)
         .frame(maxWidth: embedded ? .infinity : nil, maxHeight: embedded ? .infinity : nil)
         .background(embedded ? Theme.appBg : Color.clear)
@@ -252,6 +255,8 @@ private struct ChangelogSheet: View {
                 Button(model.t("common.done")) { dismiss() }
             }
             .padding(Space.l)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial)
 
             Divider()
 
@@ -294,6 +299,7 @@ private struct ChangelogSheet: View {
         }
         .frame(width: 520, height: 560)
         .background(Theme.appBg)
+        .tint(Theme.accent)
         .task {
             releases = await UpdateChecker.history()
             loading = false

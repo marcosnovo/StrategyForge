@@ -29,6 +29,9 @@ struct ProviderInstallSheet: View {
                 Spacer()
                 if state == .running { WorkingLogo(size: 16) }
             }
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassPanel(cornerRadius: Theme.innerCorner, material: .regularMaterial)
 
             switch state {
             case .needsNode:
@@ -52,7 +55,7 @@ struct ProviderInstallSheet: View {
             }
             .frame(height: 150)
             .padding(Space.s)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg))
 
             HStack {
                 Spacer()

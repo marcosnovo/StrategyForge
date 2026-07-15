@@ -76,9 +76,9 @@ struct AgentActivityPanel: View {
                             .symbolEffect(.pulse, options: .repeating)
                         Text(model.t("activity.running")).font(.sfCaption2.weight(.semibold))
                     }
-                    .foregroundStyle(Theme.success)
+                    .foregroundStyle(Theme.teal)
                     .padding(.horizontal, Space.s).padding(.vertical, 3)
-                    .glassEffect(.regular.tint(Theme.success.opacity(0.18)), in: .capsule)
+                    .glassEffect(.regular.tint(Theme.teal.opacity(0.18)), in: .capsule)
                 } else if vm.hasFinishedActivity {
                     Label(model.t("activity.done.turn"), systemImage: "checkmark.circle.fill")
                         .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.success)
@@ -118,6 +118,9 @@ struct AgentActivityPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Frosted glass panel: a translucent material shows the faint aurora as clean
+        // neutral vibrancy. The dense data stays readable because it sits on opaque
+        // .panelCard() surfaces; the header bar above (.bar) also reads as glass.
         .background(.regularMaterial)
         // Weekly / 5-hour usage figures for the live meter (Claude local logs).
         .task { if model.claudeUsage == nil { await model.refreshUsage() } }
@@ -158,7 +161,7 @@ struct AgentActivityPanel: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Space.s)
-        .background(RoundedRectangle(cornerRadius: 8).fill(tint.opacity(0.08)))
+        .background(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous).fill(tint.opacity(0.08)))
     }
 
     // MARK: Orchestrator + diagram (merged card)
@@ -274,10 +277,12 @@ struct AgentActivityPanel: View {
                     // A calm "live" badge — the working 3D mark already lives in the
                     // agent header above, so here it's just a small green dot + label.
                     HStack(spacing: 4) {
-                        Circle().fill(Theme.success).frame(width: 6, height: 6)
+                        Circle().fill(Theme.teal).frame(width: 6, height: 6)
                         Text(model.t("activity.usage.live")).font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(Theme.success)
+                            .foregroundStyle(Theme.teal)
                     }
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.tealSoft))
                 }
             }
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
@@ -748,7 +753,7 @@ struct AgentActivityPanel: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: Space.s) {
                     Image(systemName: icon).font(.system(size: 11))
-                        .foregroundStyle(status == .active ? Theme.success : .secondary)
+                        .foregroundStyle(status == .active ? Theme.teal : .secondary)
                         .frame(width: 16)
                     Text(name)
                         .font(.sfCaption2.weight(status == .active || isOpen ? .semibold : .medium))
@@ -784,13 +789,13 @@ struct AgentActivityPanel: View {
                 progressBar(status).padding(.leading, 16 + Space.s)
             }
             .padding(.horizontal, Space.s).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 8)
-                .fill(status == .active ? Theme.success.opacity(0.10)
+            .background(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
+                .fill(status == .active ? Theme.tealSoft
                       : (isOpen ? Theme.accentSoft
                          : (hoveredAgent == target ? Theme.hairline.opacity(0.6) : .clear))))
             .overlay(alignment: .leading) {
                 if status == .active {
-                    RoundedRectangle(cornerRadius: 1.5).fill(Theme.success)
+                    RoundedRectangle(cornerRadius: 1.5).fill(Theme.teal)
                         .frame(width: 2.5).padding(.vertical, 4)
                 }
             }
@@ -813,10 +818,14 @@ struct AgentActivityPanel: View {
                     .symbolEffect(.pulse, options: .repeating)
                 Text(model.t("activity.running")).font(.system(size: 9, weight: .semibold))
             }
-            .foregroundStyle(Theme.success)
+            .foregroundStyle(Theme.teal)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(Capsule().fill(Theme.tealSoft))
         case .done:
             Label(model.t("activity.done"), systemImage: "checkmark.circle.fill")
                 .font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.success)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Capsule().fill(Theme.success.opacity(0.14)))
         case .idle:
             Label(model.t("activity.idle"), systemImage: "hourglass")
                 .font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
@@ -828,7 +837,7 @@ struct AgentActivityPanel: View {
     private func progressBar(_ status: AgentStatus) -> some View {
         switch status {
         case .active:
-            ProgressView().progressViewStyle(.linear).tint(Theme.success)
+            ProgressView().progressViewStyle(.linear).tint(Theme.teal)
                 .controlSize(.small).frame(height: 4)
         case .done:
             Capsule().fill(Theme.success).frame(height: 4)
@@ -1096,6 +1105,8 @@ struct SubagentDetailPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Frosted glass column behind the step list (the .bar header stays glass too),
+        // matching the main activity panel — a translucent material shows faint vibrancy.
         .background(.regularMaterial)
     }
 }

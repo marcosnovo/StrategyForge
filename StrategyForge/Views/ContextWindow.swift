@@ -45,7 +45,7 @@ struct ContextBreakdown: Equatable {
             ("context.seg.system", systemPrompt, Theme.secondaryOnMaterial),
             ("context.seg.tools", tools, Theme.teal),
         ]
-        if mcp > 0 { out.append(("context.seg.mcp", mcp, Color(red: 0.55, green: 0.36, blue: 0.96))) }
+        if mcp > 0 { out.append(("context.seg.mcp", mcp, Theme.tealDeep)) }
         if skills > 0 { out.append(("context.seg.skills", skills, Theme.warning)) }
         out.append(("context.seg.free", free, Theme.hairline))
         return out
@@ -102,31 +102,35 @@ struct ContextWindowPopover: View {
                 Text("\(fmt(breakdown.used)) / \(fmt(breakdown.maxTokens)) · \(Int((breakdown.fraction * 100).rounded()))%")
                     .font(.sfCaption2).foregroundStyle(.secondary).monospacedDigit()
             }
-            // Stacked bar of the categories.
-            GeometryReader { geo in
-                HStack(spacing: 1) {
-                    ForEach(breakdown.segments, id: \.key) { seg in
-                        Rectangle().fill(seg.color)
-                            .frame(width: max(0, geo.size.width * Double(seg.tokens) / Double(max(breakdown.maxTokens, 1))))
+            VStack(alignment: .leading, spacing: Space.m) {
+                // Stacked bar of the categories.
+                GeometryReader { geo in
+                    HStack(spacing: 1) {
+                        ForEach(breakdown.segments, id: \.key) { seg in
+                            Rectangle().fill(seg.color)
+                                .frame(width: max(0, geo.size.width * Double(seg.tokens) / Double(max(breakdown.maxTokens, 1))))
+                        }
                     }
+                    .clipShape(Capsule())
                 }
-                .clipShape(Capsule())
-            }
-            .frame(height: 8)
+                .frame(height: 8)
 
-            VStack(spacing: 5) {
-                ForEach(breakdown.segments, id: \.key) { seg in
-                    HStack(spacing: Space.s) {
-                        RoundedRectangle(cornerRadius: 2).fill(seg.color).frame(width: 9, height: 9)
-                        Text(model.t(seg.key)).font(.sfCaption2)
-                        Spacer()
-                        Text(fmt(seg.tokens)).font(.sfCaption2.monospacedDigit()).foregroundStyle(.secondary)
-                        Text("\(Int((Double(seg.tokens) / Double(max(breakdown.maxTokens, 1)) * 100).rounded()))%")
-                            .font(.sfCaption2).foregroundStyle(.tertiary).monospacedDigit()
-                            .frame(width: 32, alignment: .trailing)
+                VStack(spacing: 5) {
+                    ForEach(breakdown.segments, id: \.key) { seg in
+                        HStack(spacing: Space.s) {
+                            RoundedRectangle(cornerRadius: 3, style: .continuous).fill(seg.color).frame(width: 9, height: 9)
+                            Text(model.t(seg.key)).font(.sfCaption2)
+                            Spacer()
+                            Text(fmt(seg.tokens)).font(.sfCaption2.monospacedDigit()).foregroundStyle(.secondary)
+                            Text("\(Int((Double(seg.tokens) / Double(max(breakdown.maxTokens, 1)) * 100).rounded()))%")
+                                .font(.sfCaption2).foregroundStyle(.tertiary).monospacedDigit()
+                                .frame(width: 32, alignment: .trailing)
+                        }
                     }
                 }
             }
+            .padding(Space.m)
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg))
 
             Text(model.t("context.estimate")).font(.system(size: 9)).foregroundStyle(.tertiary)
 

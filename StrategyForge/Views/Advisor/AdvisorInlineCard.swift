@@ -47,13 +47,8 @@ struct AdvisorInlineCard: View {
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-                .strokeBorder(Theme.hairline, lineWidth: 1)
-        )
+        // Airy translucent glass so the composer's suggestion reads as a floating pane.
+        .glassPanel(cornerRadius: Theme.innerCorner)
         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity),
                                 removal: .opacity))
     }
@@ -116,6 +111,9 @@ struct AdvisorInlineCard: View {
         HStack(spacing: Space.xs) {
             ForEach(tiers) { tier in
                 let on = tier.id == selectedID
+                // The "Recommended" (balanced) tier carries a soft coral wash + border
+                // even when unselected, so the suggested pick reads at a glance.
+                let recommended = tier.id == "balanced"
                 Button { onSelectTier(tier.id) } label: {
                     VStack(spacing: 1) {
                         Text(model.t(tier.labelKey))
@@ -126,9 +124,13 @@ struct AdvisorInlineCard: View {
                             .foregroundStyle(on ? Theme.onAccent.opacity(0.9) : .secondary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 5)
-                    .background(RoundedRectangle(cornerRadius: 9)
-                        .fill(on ? Theme.accent : Theme.hairline.opacity(0.5)))
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(on ? AnyShapeStyle(Theme.accent)
+                              : (recommended ? AnyShapeStyle(Theme.accentSoft)
+                                             : AnyShapeStyle(Theme.hairline.opacity(0.5)))))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(!on && recommended ? Theme.accent.opacity(0.35) : .clear, lineWidth: 1))
                     .foregroundStyle(on ? AnyShapeStyle(Theme.onAccent) : AnyShapeStyle(.primary))
                     .contentShape(Rectangle())
                 }

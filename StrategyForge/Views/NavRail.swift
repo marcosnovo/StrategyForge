@@ -2,12 +2,12 @@
 //  NavRail.swift
 //  StrategyForge
 //
-//  The always-present left navigation sidebar (reference-style): a dark, full-height
-//  ~224pt strip with the brand wordmark, labeled icon rows (selected = a soft coral
-//  pill + leading bar), and Settings pinned at the bottom. It stays DARK in both
-//  light and dark appearance (`railBg`) — that dark-sidebar / light-content contrast
-//  is the design's signature and keeps the floating traffic lights over a dark
-//  surface. The chat list remains a separate, section-conditional column beside it.
+//  The always-present left navigation sidebar (Aetheris-style): a light translucent
+//  glass strip (200pt) with the brand wordmark, labeled icon rows (selected = a soft
+//  coral pill + leading bar), and Settings pinned at the bottom. The container is an
+//  `.ultraThinMaterial` so the aurora behind the window glows faintly through in both
+//  light and dark appearance; text/icons use the dynamic Theme ink/secondary ramp.
+//  The chat list remains a separate, section-conditional column beside it.
 //
 
 import SwiftUI
@@ -22,12 +22,7 @@ struct NavRail: View {
         VStack(alignment: .leading, spacing: Space.xs) {
             brand
 
-            item("square.and.pencil", "sidebar.new") {
-                model.guardedLeave {
-                    model.navSection = .chats
-                    model.addConfiguration()
-                }
-            }
+            newChatButton
             item("bubble.left.and.bubble.right.fill", "sidebar.chats",
                  active: model.navSection == .chats,
                  running: !model.runningChatIDs.isEmpty || !model.attentionChatIDs.isEmpty) {
@@ -101,7 +96,10 @@ struct NavRail: View {
         .padding(.horizontal, Space.m)
         .padding(.top, 34)          // clear the floating traffic lights (hidden titlebar)
         .padding(.bottom, Space.m)
-        .background(Theme.railBg)
+        // Frosted glass rail: a translucent material lets the faint aurora vibrancy
+        // show through as clean neutral frost (its near-opaque warm-white base keeps
+        // color from washing in). The inner usage card stays an opaque neutral card.
+        .background(.regularMaterial)
         // One spring cross-fades the selected pill between sections. Snaps under Reduce Motion.
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8),
                    value: model.navSection)
@@ -114,7 +112,7 @@ struct NavRail: View {
                 .breathingGlow(color: Theme.coral)
             Text("Coral")
                 .font(.sfMono)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.ink)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, Space.s)
@@ -122,10 +120,40 @@ struct NavRail: View {
         .padding(.bottom, Space.s)
     }
 
+    /// The "New chat" affordance: a friendly rounded glass pill with a coral icon and
+    /// an ink label, set apart from the plain nav rows above the section list.
+    private var newChatButton: some View {
+        Button {
+            model.guardedLeave {
+                model.navSection = .chats
+                model.addConfiguration()
+            }
+        } label: {
+            HStack(spacing: Space.s) {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 22)
+                Text(model.t("sidebar.new"))
+                    .font(.sfBodyM.weight(.medium))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, Space.m)
+            .frame(height: 34)
+            .glassPanel(cornerRadius: Theme.buttonCorner, material: .thinMaterial)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(model.t("sidebar.new"))
+        .accessibilityLabel(model.t("sidebar.new"))
+    }
+
     /// A labeled sidebar row: leading icon + label, a full-width rounded pill fill +
     /// leading bar when active, and a trailing running-pulse when a non-active section
-    /// has work in flight. The rail is always dark, so text is a white opacity ramp and
-    /// the active accent is coral.
+    /// has work in flight. On the light glass rail text uses the Theme ink/secondary
+    /// ramp and the active accent is coral.
     private func item(_ icon: String, _ labelKey: String,
                       active: Bool = false, running: Bool = false,
                       action: @escaping () -> Void) -> some View {
@@ -142,7 +170,7 @@ struct NavRail: View {
         Text(model.t(key).uppercased())
             .font(.sfFieldLabel)
             .tracking(0.8)
-            .foregroundStyle(.white.opacity(0.32))
+            .foregroundStyle(Theme.secondaryOnMaterial)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Space.m)
             .padding(.top, Space.m)
@@ -154,31 +182,32 @@ struct NavRail: View {
         HStack(spacing: Space.s) {
             Image(systemName: icon)
                 .font(.system(size: 15))
-                .foregroundStyle(active ? Theme.coral : Color.white.opacity(0.55))
+                .foregroundStyle(active ? Theme.accent : Theme.secondaryOnMaterial)
                 .frame(width: 22)
             Text(label)
                 .font(.sfBodyM.weight(active ? .semibold : .regular))
-                .foregroundStyle(active ? Color.white : Color.white.opacity(0.55))
+                .foregroundStyle(active ? Theme.accent : Theme.secondaryOnMaterial)
                 .lineLimit(1)
             Spacer(minLength: 0)
             if running && !active { RunningPulseDot() }
         }
         .padding(.horizontal, Space.m)
         .frame(height: 34)
-        // Neutral "lit row" fill (not a coral block) — the coral leading bar + icon
-        // are the single accent cue, so coral stays reserved for actions/critical state.
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(active ? Color.white.opacity(0.08) : .clear))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .strokeBorder(active ? Color.white.opacity(0.12) : .clear, lineWidth: 1))
+        // Soft coral wash + selection hairline mark the active row on the light glass;
+        // the coral leading bar is the single strong accent cue.
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+            .fill(active ? Theme.accentSoft : .clear))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+            .strokeBorder(active ? Theme.selectionBorder : .clear, lineWidth: 1))
         .overlay(alignment: .leading) {
             if active {
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                    .fill(Theme.coral)
+                    .fill(Theme.accent)
                     .frame(width: 3)
                     .padding(.vertical, 7)
             }
         }
+        .hoverTint(cornerRadius: Theme.innerCorner)
         .contentShape(Rectangle())   // whole row is tappable
     }
 
@@ -206,9 +235,12 @@ struct NavRail: View {
             }
             .padding(Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.05)))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+            // Neutral card ground + hairline — no colored gradient behind the numbers.
+            // Only the ring/bar STROKES carry teal, so the data reads with clean contrast.
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+                .fill(Theme.cardBg))
+            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+                .strokeBorder(Theme.hairline, lineWidth: 1))
         }
     }
 
@@ -269,10 +301,10 @@ struct NavRail: View {
 
     private func providerLabel(_ p: AIProvider, right: String?) -> some View {
         HStack(spacing: 5) {
-            Text(p.displayName).font(.sfCaption2.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+            Text(p.displayName).font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
             Spacer(minLength: 0)
             if let right, !right.isEmpty {
-                Text(right).font(.system(size: 8, weight: .semibold)).foregroundStyle(.white.opacity(0.45))
+                Text(right).font(.system(size: 8, weight: .semibold)).foregroundStyle(Theme.secondaryOnMaterial)
             }
         }
     }
@@ -282,15 +314,15 @@ struct NavRail: View {
     private func miniRing(fraction: Double, center: String, caption: String) -> some View {
         VStack(spacing: 2) {
             ZStack {
-                Circle().stroke(Color.white.opacity(0.12), lineWidth: 3.5)
+                Circle().stroke(Theme.hairline, lineWidth: 3.5)
                 Circle().trim(from: 0, to: max(0.02, min(fraction, 1)))
                     .stroke(Theme.teal, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Text(center).font(.system(size: 9, weight: .semibold, design: .rounded)).foregroundStyle(.white)
+                Text(center).font(.system(size: 9, weight: .semibold, design: .rounded)).foregroundStyle(Theme.ink)
             }
             .frame(width: 34, height: 34)
             Text(caption).font(.system(size: 7, weight: .semibold)).tracking(0.4)
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(Theme.secondaryOnMaterial)
         }
     }
 
@@ -298,12 +330,12 @@ struct NavRail: View {
         VStack(spacing: 1) {
             HStack(spacing: 4) {
                 Text(label).font(.system(size: 8, weight: .semibold)).tracking(0.3)
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(Theme.secondaryOnMaterial)
                 Spacer(minLength: 0)
-                Text(value).font(.system(size: 8, weight: .medium)).foregroundStyle(.white.opacity(0.55))
+                Text(value).font(.system(size: 8, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
             }
             GeometryReader { geo in
-                Capsule().fill(Color.white.opacity(0.10))
+                Capsule().fill(Theme.hairline)
                     .overlay(alignment: .leading) {
                         Capsule().fill(Theme.teal)
                             .frame(width: max(3, geo.size.width * CGFloat(min(max(fraction, 0), 1))))
@@ -338,7 +370,7 @@ struct NavRail: View {
     /// The bottom user-profile row: identity + a menu (Settings / Sync / Sign out) when
     /// signed in, or a "Sign in" affordance (identity only gates iCloud sync) otherwise.
     @ViewBuilder private var profileRow: some View {
-        Divider().overlay(Color.white.opacity(0.08)).padding(.vertical, Space.xs)
+        Divider().overlay(Theme.hairline).padding(.vertical, Space.xs)
         if let acc = auth.account {
             Menu {
                 Button(model.t("sidebar.settings")) { model.navSection = .settings }
@@ -351,14 +383,14 @@ struct NavRail: View {
                 HStack(spacing: Space.s) {
                     avatarCircle(initials(acc.label))
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(acc.label).font(.sfBodyM.weight(.medium)).foregroundStyle(.white).lineLimit(1)
+                        Text(acc.label).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink).lineLimit(1)
                         if let email = acc.email {
-                            Text(email).font(.sfCaption2).foregroundStyle(.white.opacity(0.45)).lineLimit(1)
+                            Text(email).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
                         }
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 9)).foregroundStyle(.white.opacity(0.4))
+                        .font(.system(size: 9)).foregroundStyle(Theme.secondaryOnMaterial)
                 }
                 .padding(.vertical, Space.xs)
                 .contentShape(Rectangle())
@@ -367,13 +399,13 @@ struct NavRail: View {
         } else {
             Button { model.navSection = .settings } label: {
                 HStack(spacing: Space.s) {
-                    Circle().fill(Color.white.opacity(0.08)).frame(width: 30, height: 30)
+                    Circle().fill(Theme.accentSoft).frame(width: 30, height: 30)
                         .overlay(Image(systemName: "person.fill")
-                            .font(.system(size: 13)).foregroundStyle(.white.opacity(0.5)))
+                            .font(.system(size: 13)).foregroundStyle(Theme.secondaryOnMaterial))
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(model.t("rail.profile.signin")).font(.sfBodyM.weight(.medium)).foregroundStyle(.white)
+                        Text(model.t("rail.profile.signin")).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink)
                         Text(model.t("rail.profile.signin.sub"))
-                            .font(.sfCaption2).foregroundStyle(.white.opacity(0.45)).lineLimit(1)
+                            .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
                     }
                     Spacer(minLength: 0)
                 }

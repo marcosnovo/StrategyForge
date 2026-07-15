@@ -91,24 +91,33 @@ struct ArtifactSheet: View {
                 }
                 Button(model.t("common.done")) { dismiss() }.keyboardShortcut(.defaultAction)
             }
-            .padding(Space.l)
-            Divider()
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+            .background {
+                Rectangle().fill(.bar)
+                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
+            }
+            .zIndex(1)
 
             if let a = current {
                 if a.isRenderable && !showSource {
                     ArtifactWebView(html: a.language.lowercased() == "svg"
                                     ? "<html><body style=\"margin:0;display:flex;justify-content:center\">\(a.code)</body></html>"
                                     : a.code)
+                        .padding(Space.m)
                 } else {
                     ScrollView {
                         Text(a.code).font(.sfCode).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(Space.l)
                     }
-                    .background(Theme.insetBg)
+                    .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg))
+                    .padding(Space.m)
                 }
             }
         }
         .frame(minWidth: 640, idealWidth: 760, minHeight: 460, idealHeight: 600)
+        // Neutral, opaque sheet base so source code / rendered artifacts sit on a
+        // readable surface (the .bar header stays frosted).
+        .background(Theme.appBg)
     }
 }
 

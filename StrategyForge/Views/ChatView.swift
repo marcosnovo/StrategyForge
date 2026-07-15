@@ -12,6 +12,7 @@ import SwiftUI
 
 struct ChatView: View {
     @Environment(AppModel.self) private var model
+    @Environment(AuthModel.self) private var auth
     @Binding var showInspector: Bool
     @Binding var showSidebar: Bool
     /// Live configuration for header display (title/strategy/repo), re-passed by the
@@ -842,14 +843,13 @@ struct ChatView: View {
                 Text(message.text)
                     .font(.sfBodyM)
                     .lineSpacing(Theme.bodyLineSpacing)
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(Theme.onAccent)
                     .textSelection(.enabled)
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-                    // Soft coral tint (not a solid fill) so the user's own turns read as
-                    // "mine/coral" without shouting — full coral stays for real actions.
-                    .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.accentSoft))
-                    .overlay(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
-                        .strokeBorder(Theme.accentGlow, lineWidth: 1))
+                    // Vivid coral gradient pill (reference look) — the user's turns are
+                    // the bold, floating bubbles; white text on the Coral identity fill.
+                    .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.userBubbleFill))
+                    .shadow(color: Theme.accentGlow, radius: 6, x: 0, y: 2)
                     .contextMenu {
                         copyButton(message.text)
                         Button { editMessage(message) } label: {
@@ -864,11 +864,7 @@ struct ChatView: View {
                     if isStreaming {
                         WorkingLogo(size: 20)
                     } else {
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Theme.accent)
-                            .frame(width: 28, height: 28)
-                            .background(Circle().fill(Theme.accentSoft))
+                        CoralSphere(size: 28)
                     }
                 }
                 .frame(width: 28, height: 28)
@@ -882,6 +878,7 @@ struct ChatView: View {
                         if isStreaming {
                             Text(message.text)
                                 .font(.sfBodyM).lineSpacing(Theme.bodyLineSpacing)
+                                .foregroundStyle(Theme.ink)
                                 .textSelection(.enabled)
                         } else {
                             MarkdownView(text: message.text)
@@ -938,37 +935,70 @@ struct ChatView: View {
     }
 
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: Space.l) {
-            strategyHook
+        VStack(spacing: Space.l) {
+            // Airy, centered greeting (reference): a large iridescent presence orb,
+            // a casual time-of-day greeting, the welcome copy under it, then the team
+            // hook and glass suggestion pills.
+            CoralSphere(size: 72)
                 .staggeredAppear(index: 0)
-            Text(model.t("chat.empty"))
-                .font(.sfCallout).foregroundStyle(.secondary)
+            Text(chatGreeting)
+                .font(.sfDisplay)
+                .foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            VStack(alignment: .leading, spacing: Space.s) {
+                .frame(maxWidth: 520)
+                .staggeredAppear(index: 1)
+            Text(model.t("chat.empty"))
+                .font(.sfCardTitle)
+                .foregroundStyle(Theme.secondaryOnMaterial)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 520)
+                .staggeredAppear(index: 2)
+            strategyHook
+                .staggeredAppear(index: 3)
+            VStack(spacing: Space.s) {
                 ForEach(Array(["chat.suggest1", "chat.suggest2", "chat.suggest3"].enumerated()),
                         id: \.element) { index, key in
                     Button { vm.input = model.t(key) } label: {
                         HStack(spacing: Space.s) {
                             Image(systemName: "arrow.up.forward.square").foregroundStyle(Theme.accent)
-                            Text(model.t(key)).font(.sfCallout).foregroundStyle(.primary)
+                            Text(model.t(key)).font(.sfCallout).foregroundStyle(Theme.ink)
                             Spacer(minLength: 0)
                         }
-                        .padding(Space.m)
+                        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                            .fill(Theme.insetBg)
-                            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                                .strokeBorder(Theme.hairline, lineWidth: 1)))
+                        // Tidy, high-contrast pills: a clean neutral card fill under a
+                        // hairline (readability over glass) — the label stays crisp ink
+                        // instead of a washed material tint.
+                        .background(
+                            RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
+                                .fill(Theme.cardBg))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
+                                .strokeBorder(Theme.hairline, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                     .hoverLift()
-                    .staggeredAppear(index: index)
+                    .staggeredAppear(index: index + 4)
                 }
             }
             .frame(maxWidth: 520)
         }
         .padding(.top, Space.xl)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    /// A casual, time-of-day-aware greeting for this empty chat. Seeded by the chat's
+    /// id so each new chat gets its own line (stable — it won't reshuffle on redraw),
+    /// and personalized with the signed-in user's first name when we have it.
+    private var chatGreeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let first = auth.account?.displayName?
+            .split(separator: " ").first.map(String.init)
+        // Deterministic FNV-ish hash of the chat's UUID so the pick is stable per chat.
+        let seed = config.id.uuidString.utf8.reduce(5381) { ($0 &* 33) &+ Int($1) }
+        return DaypartGreeting.line(langCode: model.langCode, hour: hour, seed: seed, name: first)
     }
 
     /// The differentiator, front and center on an empty chat: this chat is driven
@@ -1247,19 +1277,12 @@ struct ChatView: View {
             TextField(model.t("chat.placeholder"),
                       text: Bindable(vm).input, axis: .vertical)
                 .textFieldStyle(.plain)
+                // High-contrast input: crisp ink glyphs and a coral caret so the
+                // composer reads clearly over the frosted bar (never washed).
+                .foregroundStyle(Theme.ink)
+                .tint(Theme.accent)
                 .lineLimit(1...5)
-                .padding(Space.s)
-                .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
-                // Focus reads as light, not weight: a fine coral ring plus a faint
-                // outer glow on the glass while composing; quiet when unfocused.
-                .overlay(
-                    RoundedRectangle(cornerRadius: Theme.innerCorner)
-                        .strokeBorder(Theme.focusRing, lineWidth: 1.5)
-                        .opacity(inputFocused ? 1 : 0)
-                )
-                .shadow(color: inputFocused ? Theme.focusGlow : .clear, radius: 8)
                 .focused($inputFocused)
-                .animation(.easeOut(duration: 0.18), value: inputFocused)
                 // @-mentions + /-commands: refresh both palettes as the draft changes.
                 .onChange(of: vm.input) { refreshMentions(); refreshSlash() }
                 .onSubmit { send() }
@@ -1272,20 +1295,31 @@ struct ChatView: View {
                 }
 
             if vm.isRunning {
-                Button { vm.stop() } label: {
-                    Label(model.t("chat.stop"), systemImage: "stop.fill")
-                }
-                .controlSize(.large)
+                circularSendButton(system: "stop.fill", accessibility: model.t("chat.stop"),
+                                   enabled: true) { vm.stop() }
             } else {
-                Button { send() } label: {
-                    Label(model.t("chat.send"), systemImage: "arrow.up.circle.fill")
-                }
-                .buttonStyle(.moon)
-                .controlSize(.large)
-                .disabled(!vm.canSend || engineMissing)
-                .keyboardShortcut(.return, modifiers: .command)
+                circularSendButton(system: "arrow.up", accessibility: model.t("chat.send"),
+                                   enabled: vm.canSend && !engineMissing) { send() }
+                    .keyboardShortcut(.return, modifiers: .command)
             }
             }
+            // A single frosted rounded field wraps the whole composer row (reference
+            // "Ask anything…" input). Readability wins over the glass effect: a
+            // near-opaque neutral card (Theme.cardBg) backs a light material so the
+            // bar stays a clean, neutral frost over the faint aurora — never tinted
+            // or washed. The focus ring stays a light coral hairline.
+            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                    .fill(Theme.cardBg))
+            .glassPanel(cornerRadius: Theme.corner, material: .thinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                    .strokeBorder(Theme.focusRing, lineWidth: 1.5)
+                    .opacity(inputFocused ? 1 : 0)
+            )
+            .shadow(color: inputFocused ? Theme.focusGlow : .clear, radius: 8)
+            .animation(.easeOut(duration: 0.18), value: inputFocused)
             composerFooter
         }
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: mentionMatches.count)
@@ -1310,6 +1344,26 @@ struct ChatView: View {
                                     set: { if !$0 { vm.pendingPermission = nil } })) {
             if let p = vm.pendingPermission { permissionSheet(p) }
         }
+    }
+
+    /// The reference's circular gradient send control: a coral-filled Circle with a
+    /// white glyph and a soft coral shadow. Doubles as the stop button while running
+    /// (same shape, `stop.fill` glyph) — the action and enabled state are passed in.
+    private func circularSendButton(system: String, accessibility: String,
+                                    enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: system)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Theme.onAccent)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(Theme.primaryFill))
+                .shadow(color: Theme.accentGlow, radius: 6, x: 0, y: 2)
+                .opacity(enabled ? 1 : 0.45)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .help(accessibility)
+        .accessibilityLabel(accessibility)
     }
 
     private func permissionSheet(_ p: PendingPermission) -> some View {
@@ -1529,8 +1583,7 @@ struct ChatView: View {
                 if let pr = prInfo { prStateBadge(pr) }
             }
             .padding(.horizontal, Space.m).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.accentSoft.opacity(0.5)))
-            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+            .glassPanel(cornerRadius: Theme.innerCorner, material: .thinMaterial)
             .contentShape(Rectangle())
             .onTapGesture {
                 if let pr = prInfo, let u = URL(string: pr.url) { NSWorkspace.shared.open(u) }

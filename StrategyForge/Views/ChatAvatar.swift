@@ -81,3 +81,17 @@ struct ChatAvatar: View {
         return "shape.fanout"
     }
 }
+
+// MARK: - Iridescent sphere (Aetheris assistant avatar)
+
+/// The app's own 3D globe — the "Sphere" figure from the in-app particle set: a
+/// Fibonacci globe of coral dots, depth-shaded and gently rotating (still under
+/// Reduce Motion). Used as the assistant avatar and the empty-state hero. Wraps
+/// `Particle3DSpinner` so callers just pass a size.
+struct CoralSphere: View {
+    var size: CGFloat = 28
+    var body: some View {
+        Particle3DSpinner(size: size, color: Theme.accent, figure: .sphere)
+            .accessibilityHidden(true)
+    }
+}

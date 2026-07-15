@@ -25,9 +25,13 @@ struct ChatInspector: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .padding(Space.s)
-
-            Divider()
+            .tint(Theme.accent)
+            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+            .background {
+                Rectangle().fill(.bar)
+                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
+            }
+            .zIndex(1)
 
             switch tab {
             case .strategy:
@@ -43,6 +47,8 @@ struct ChatInspector: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Frosted glass column: a translucent material shows the faint aurora as clean
+        // neutral vibrancy; the segmented-picker header (.bar) above stays glass too.
         .background(.regularMaterial)
         .confirmationDialog(model.t("inspector.replaceStrategy.confirm"),
                             isPresented: Binding(get: { pendingTemplate != nil },

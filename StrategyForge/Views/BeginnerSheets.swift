@@ -107,9 +107,9 @@ struct ChooseStrategyWizard: View {
                     .padding(Space.m)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
-                        RoundedRectangle(cornerRadius: Theme.innerCorner)
+                        RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
                             .fill(opt.selected ? Theme.accentSoft : Theme.cardBg)
-                            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
+                            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
                                 .strokeBorder(opt.selected ? Theme.accent.opacity(0.5) : Theme.hairline, lineWidth: 1))
                     )
                 }
@@ -128,10 +128,8 @@ struct ChooseStrategyWizard: View {
             StrategyDiagramView(strategy: strategy)
                 .frame(height: StrategyDiagramView.preferredHeight(for: strategy))
         }
-        .padding(Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.cardBg)
-            .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1)))
+        // Rounded floating result card with soft depth.
+        .card(padding: Space.l)
     }
 }
 
@@ -193,10 +191,8 @@ struct WhatNowSheet: View {
                     }
                 }
             }
-            .padding(Space.l)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.cardBg)
-                .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1)))
+            // Rounded floating steps card with soft depth.
+            .card(padding: Space.l)
 
             DisclosureGroup(isExpanded: $showExplain) {
                 Text(model.t("whatnow.explain.body"))

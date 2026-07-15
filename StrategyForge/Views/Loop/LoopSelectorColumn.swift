@@ -33,6 +33,8 @@ struct LoopSelectorColumn: View {
         }
         .frame(width: 260)
         .frame(maxHeight: .infinity)
+        // Frosted glass column: a translucent material shows the faint aurora as clean
+        // neutral vibrancy (matches the chat-list column).
         .background(.regularMaterial)
         .confirmationDialog(
             model.t("loop.delete.confirm"),
@@ -49,7 +51,7 @@ struct LoopSelectorColumn: View {
 
     private var header: some View {
         HStack {
-            Text(model.t("rail.loops")).font(.sfCardTitle)
+            Text(model.t("rail.loops")).font(.sfCardTitle).foregroundStyle(Theme.ink)
             Spacer()
             Button {
                 store.addLoop()
@@ -99,7 +101,7 @@ struct LoopSelectorColumn: View {
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(loop.name.isEmpty ? model.t("loop.untitled") : loop.name)
-                        .font(.sfCallout.weight(.medium)).lineLimit(1)
+                        .font(.sfCallout.weight(.medium)).foregroundStyle(Theme.ink).lineLimit(1)
                     Text(model.t(loop.kind.labelKey))
                         .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -125,13 +127,11 @@ struct LoopSelectorColumn: View {
             .padding(.vertical, Space.xs).padding(.horizontal, Space.s)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                .fill(selected ? Theme.accentSoft.opacity(0.65) : .clear))
-            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
-                .strokeBorder(selected ? Theme.accent.opacity(0.5) : .clear, lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .hoverTint()
+        // Soft rounded glass selection + hover, matching the chat list (Aetheris).
+        .selectedRow(selected, cornerRadius: Theme.innerCorner)
+        .hoverTint(cornerRadius: Theme.innerCorner)
         .onHover { hovering in
             if hovering { hoveredID = loop.id }
             else if hoveredID == loop.id { hoveredID = nil }

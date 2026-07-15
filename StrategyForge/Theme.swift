@@ -83,6 +83,13 @@ enum Theme {
                  Color(red: 0.941, green: 0.243, blue: 0.153)],  // #F03E27 coral-hi
         startPoint: .topLeading, endPoint: .bottomTrailing)
 
+    /// Vivid coral gradient for the user's chat bubble — the reference's bold pill,
+    /// rendered in the Coral identity instead of blue/purple. White text sits on it.
+    static let userBubbleFill = LinearGradient(
+        colors: [Color(red: 1.000, green: 0.502, blue: 0.400),   // #FF8066 coral-lo
+                 Color(red: 0.898, green: 0.220, blue: 0.145)],  // #E53825 coral-hi
+        startPoint: .topLeading, endPoint: .bottomTrailing)
+
     // MARK: Surfaces — near-white (a whisper of warmth) in light, "reef ink" in dark
     static let appBg = Color(
         light: Color(red: 0.980, green: 0.978, blue: 0.973),   // #FAF9F6 soft white
@@ -133,12 +140,20 @@ enum Theme {
     /// lights / hidden titlebar (content fills to the window edge; this pushes the
     /// header text down to a comfortable toolbar height instead of the very edge).
     static let titlebarInset: CGFloat = 30
-    // Corner radii — deliberately restrained (not pill-soft): a more sober, squarer
-    // look while still avoiding hard 90° corners.
-    static let corner: CGFloat = 11
-    static let innerCorner: CGFloat = 8
+    // Corner radii — soft & modern (reference "Aetheris" glass aesthetic): generous
+    // rounding on cards, pills and bubbles for an airy, friendly surface.
+    static let corner: CGFloat = 20
+    static let innerCorner: CGFloat = 16
     /// Chat message bubble radius.
-    static let bubbleCorner: CGFloat = 12
+    static let bubbleCorner: CGFloat = 18
+    /// The outer floating "app card" shell radius — larger than inner cards so the
+    /// whole app reads as one rounded pane floating over the aurora.
+    static let shellCorner: CGFloat = 28
+    /// Inset of the floating app card from the window edge (lets the aurora bleed
+    /// around it, matching the reference's floating-panel-over-gradient look).
+    static let windowMargin: CGFloat = 14
+    /// Corner radius for the pill action buttons (`.moon` / `.reefOutline`).
+    static let buttonCorner: CGFloat = 14
     static let sectionSpacing: CGFloat = 20
     /// Vertical gap between chat messages (Claude/Superhuman-like breathing room).
     static let messageSpacing: CGFloat = 18
@@ -231,7 +246,7 @@ private struct MoonButtonBody: View {
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, Space.m)
             .padding(.vertical, Space.s)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.primaryFill))
+            .background(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous).fill(Theme.primaryFill))
             // One-shot specular sheen when the pointer enters — not a loop.
             .overlay(sheen)
             // Hover: the coral brightens a touch and its glow deepens — alive
@@ -273,7 +288,7 @@ private struct MoonButtonBody: View {
                     }
                 }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous))
         .allowsHitTesting(false)
     }
 }
@@ -303,9 +318,9 @@ private struct OutlineButtonBody: View {
             .foregroundStyle(hovering ? Theme.accent : Theme.ink)
             .padding(.horizontal, Space.m)
             .padding(.vertical, Space.s)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .background(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
                 .fill(hovering ? Theme.accentSoft : .clear))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .overlay(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
                 .strokeBorder(hovering ? Theme.accent.opacity(0.35) : Theme.hairline, lineWidth: 1))
             .opacity(isEnabled ? 1 : 0.45)
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
@@ -383,6 +398,28 @@ extension View {
                     .fill(Theme.cardBg)
                     .shadow(color: .black.opacity(0.12), radius: 22, x: 0, y: 9)
             )
+    }
+
+    /// A frosted glass panel (reference aesthetic): a translucent material fill under
+    /// a whisper-white top sheen and a soft hairline edge, on a rounded rect. Use for
+    /// surfaces that should let the aurora glow read faintly through — sidebars,
+    /// suggestion chips, the composer, floating cards.
+    func glassPanel(cornerRadius: CGFloat = Theme.corner,
+                    material: Material = .regularMaterial,
+                    strokeOpacity: Double = 0.55) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return self
+            .background(shape.fill(material))
+            .overlay(
+                shape.fill(LinearGradient(colors: [.white.opacity(0.14), .clear],
+                                          startPoint: .top, endPoint: .center))
+                    .allowsHitTesting(false)
+            )
+            .overlay(
+                shape.strokeBorder(.white.opacity(strokeOpacity * 0.25), lineWidth: 1)
+                    .allowsHitTesting(false)
+            )
+            .clipShape(shape)
     }
 }
 

@@ -42,7 +42,8 @@ struct DecisionPathView: View {
                 .font(.sfCallout)
                 .padding(.horizontal, Space.m)
                 .padding(.vertical, Space.s)
-                .background(Capsule().fill(Theme.insetBg))
+                // Translucent glass pill for the question (airy Aetheris chip).
+                .glassPanel(cornerRadius: 999)
                 .fixedSize(horizontal: false, vertical: true)
 
             // The answer taken, with its YES/NO chip.

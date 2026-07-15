@@ -66,8 +66,8 @@ struct SidebarView: View {
                 LazyVStack(spacing: 2) {
                     ForEach(visibleConfigs) { config in
                         chatRow(config)
-                            .selectedRow(model.selectedConfigID == config.id, cornerRadius: 8)
-                            .hoverTint(cornerRadius: 8)
+                            .selectedRow(model.selectedConfigID == config.id, cornerRadius: Theme.innerCorner)
+                            .hoverTint(cornerRadius: Theme.innerCorner)
                             .contentShape(Rectangle())
                             .onTapGesture { model.selectedConfigID = config.id }
                             .contextMenu {
@@ -103,7 +103,9 @@ struct SidebarView: View {
             .scrollContentBackground(.hidden)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.appBg)   // match the Skills list surface (client preference)
+        // Frosted glass column: a translucent material shows the faint aurora as clean
+        // neutral vibrancy. Inner rows stay readable (selection/hover tints, opaque text).
+        .background(.regularMaterial)
         // A chat that just stopped running → fire its thumbnail's sphere-resolve.
         .onChange(of: model.runningChatIDs) { wasRunning, nowRunning in
             for id in wasRunning.subtracting(nowRunning) { finishToken[id, default: 0] += 1 }
@@ -156,8 +158,12 @@ struct SidebarView: View {
             }
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-        // Squarer search field (not a pill) — matches the more sober corner language.
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg))
+        // Clean neutral inset well (not translucent glass over the aurora) so the
+        // search text reads without color bleed. Rounded to match innerCorner.
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+            .fill(Theme.insetBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+            .strokeBorder(Theme.hairline, lineWidth: 1))
         .padding(.horizontal, Space.m).padding(.bottom, Space.s)
     }
 
@@ -188,6 +194,7 @@ struct SidebarView: View {
                     }
                     Text(config.name.isEmpty ? model.t("chat.untitled") : config.name)
                         .font(.sfBodyM.weight(model.attentionChatIDs.contains(config.id) ? .bold : .semibold))
+                        .foregroundStyle(Theme.ink)
                         .lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: Space.xs)
                     if hovering {
@@ -306,7 +313,7 @@ struct SidebarView: View {
         // Brand + collapse + new chat now live in the NavRail, so the list header
         // is just its title and the import overflow menu.
         HStack(spacing: Space.s) {
-            Text(model.t("sidebar.chats")).font(.sfCardTitle)
+            Text(model.t("sidebar.chats")).font(.sfCardTitle).foregroundStyle(Theme.ink)
             Spacer(minLength: Space.xs)
             Menu {
                 Button(model.t("import.repo")) { model.importFromRepo() }
@@ -327,7 +334,7 @@ struct SidebarView: View {
         .padding(.horizontal, Space.m)
         .padding(.top, Theme.titlebarInset).padding(.bottom, Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.appBg)
+        // No opaque fill — the frosted column reads through the header (Aetheris).
         .zoomWindowOnDoubleClick()
     }
 

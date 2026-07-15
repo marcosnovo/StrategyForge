@@ -41,8 +41,12 @@ struct MissionReportView: View {
                 Spacer()
                 Button(model.t("common.done")) { dismiss() }.keyboardShortcut(.defaultAction)
             }
-            .padding(Space.m)
-            Divider()
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+            .background {
+                Rectangle().fill(.bar)
+                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
+            }
+            .zIndex(1)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.l) {
@@ -53,7 +57,6 @@ struct MissionReportView: View {
                 .padding(Space.l)
             }
 
-            Divider()
             HStack(spacing: Space.s) {
                 Spacer()
                 Button {
@@ -69,10 +72,16 @@ struct MissionReportView: View {
                 } label: { Label(model.t("report.saveImage"), systemImage: "photo") }
                 .buttonStyle(.moon)
             }
-            .padding(Space.m)
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+            .background {
+                Rectangle().fill(.bar)
+                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: -1)
+            }
         }
         .frame(width: 640, height: 640)
-        .background(.regularMaterial)
+        // Neutral, opaque sheet base so the report card + Markdown read cleanly
+        // (the .bar top/bottom action bars stay frosted).
+        .background(Theme.appBg)
         // Sheets cover the window's banner host — give this one its own.
         .bannerOverlay()
     }
@@ -85,21 +94,17 @@ struct MissionReportView: View {
             Text("\(strategyName) · \(title.isEmpty ? model.t("report.aTask") : title)")
                 .font(.sfCallout).foregroundStyle(.secondary).lineLimit(2)
             HStack(spacing: Space.l) {
-                stat("person.2.fill", "\(agents.count)", model.t("report.agents"))
-                stat("circle.hexagongrid", formatTokens(tokens), model.t("report.tokens"))
-                if costUSD > 0 { stat("dollarsign.circle", String(format: "$%.2f", costUSD), model.t("report.cost")) }
-                if !elapsed.isEmpty { stat("clock", elapsed, model.t("report.time")) }
+                stat("person.2.fill", "\(agents.count)", model.t("report.agents"), Theme.accent)
+                stat("circle.hexagongrid", formatTokens(tokens), model.t("report.tokens"), Theme.teal)
+                if costUSD > 0 { stat("dollarsign.circle", String(format: "$%.2f", costUSD), model.t("report.cost"), Theme.success) }
+                if !elapsed.isEmpty { stat("clock", elapsed, model.t("report.time"), Theme.accent) }
             }
             HStack(spacing: 6) {
                 Image(systemName: "bolt.horizontal.circle.fill").foregroundStyle(Theme.accent)
                 Text("Coral").font(.sfCaption2.weight(.semibold)).foregroundStyle(.secondary)
             }
         }
-        .padding(Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.cardBg)
-            .shadow(color: .black.opacity(0.12), radius: 12, y: 4))
-        .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1))
+        .card()
     }
 
     /// Actionable tuning hints derived from this run (idle agent, cost hog, …).
@@ -150,9 +155,14 @@ struct MissionReportView: View {
         }
     }
 
-    private func stat(_ icon: String, _ value: String, _ label: String) -> some View {
+    private func stat(_ icon: String, _ value: String, _ label: String, _ tint: Color = Theme.accent) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Label(value, systemImage: icon).font(.sfCardTitle)
+            Label {
+                Text(value).foregroundStyle(.primary)
+            } icon: {
+                Image(systemName: icon).foregroundStyle(tint)
+            }
+            .font(.sfCardTitle)
             Text(label).font(.sfCaption2).foregroundStyle(.secondary)
         }
     }

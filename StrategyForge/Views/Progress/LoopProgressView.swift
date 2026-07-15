@@ -25,7 +25,8 @@ struct LoopProgressView: View {
             HStack(spacing: Space.s) {
                 dotsRow(cap: 8, size: 6, spacing: 3)
                 Text(counter).font(.sfFieldLabel).foregroundStyle(.secondary)
-                Text(stageLabel).font(.sfFieldLabel).foregroundStyle(Theme.accent).tracking(0.8)
+                Text(stageLabel).font(.sfFieldLabel)
+                    .foregroundStyle(running ? Theme.teal : Theme.accent).tracking(0.8)
                 if stage == .done || stage == .failed { verdictBadge }
             }
         } else {
@@ -70,11 +71,14 @@ struct LoopProgressView: View {
 
     private var stageStrip: some View {
         HStack(spacing: Space.xs) {
-            stageSegment("progress.stage.act", active: stage == .act)
+            // Act / Verify are live work → teal; Done resolves to success (pass)
+            // or coral (stopped/attention).
+            stageSegment("progress.stage.act", active: stage == .act, tint: Theme.teal)
             arrow
-            stageSegment("progress.stage.verify", active: stage == .verify)
+            stageSegment("progress.stage.verify", active: stage == .verify, tint: Theme.teal)
             arrow
-            stageSegment("progress.stage.done", active: stage == .done || stage == .failed)
+            stageSegment("progress.stage.done", active: stage == .done || stage == .failed,
+                         tint: stage == .failed ? Theme.accent : Theme.success)
         }
     }
 
@@ -83,12 +87,12 @@ struct LoopProgressView: View {
             .font(.system(size: 7, weight: .semibold)).foregroundStyle(.quaternary)
     }
 
-    private func stageSegment(_ key: String, active: Bool) -> some View {
+    private func stageSegment(_ key: String, active: Bool, tint: Color) -> some View {
         Text(model.t(key).uppercased())
             .font(.sfFieldLabel).tracking(0.8)
-            .foregroundStyle(active ? Theme.accent : Theme.tertiaryOnMaterial)
+            .foregroundStyle(active ? tint : Theme.tertiaryOnMaterial)
             .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(Capsule().fill(active ? Theme.accentSoft : Color.clear))
+            .background(Capsule().fill(active ? tint.opacity(0.14) : Color.clear))
     }
 
     private var stageLabel: String {
@@ -122,10 +126,10 @@ private struct PulsingDot: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Circle().fill(Theme.coral)
+        Circle().fill(Theme.teal)
             .frame(width: size, height: size)
             .background(
-                Circle().stroke(Theme.coral.opacity(0.55), lineWidth: 1.5)
+                Circle().stroke(Theme.teal.opacity(0.55), lineWidth: 1.5)
                     .scaleEffect(pulsing ? 1.8 : 1)
                     .opacity(pulsing ? 0 : 0.8)
             )

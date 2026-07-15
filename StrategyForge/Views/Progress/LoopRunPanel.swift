@@ -46,12 +46,7 @@ struct LoopRunPanel: View {
                 idleBody
             }
         }
-        .padding(Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-            .fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-            .strokeBorder(Theme.hairline.opacity(0.6), lineWidth: 1))
+        .card(padding: Space.m)
         .confirmationDialog(model.t("loop.checkpoint.restore.confirm"),
                             isPresented: Binding(get: { confirmRestore != nil },
                                                  set: { if !$0 { confirmRestore = nil } }),

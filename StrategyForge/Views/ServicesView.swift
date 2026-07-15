@@ -21,7 +21,7 @@ struct ServicesListColumn: View {
                 Spacer()
             }
             .padding(.horizontal, Space.m).padding(.top, Space.m).padding(.bottom, Space.s)
-            .background(Theme.appBg)
+            .background(.bar)
             .zoomWindowOnDoubleClick()
             Divider()
 
@@ -37,10 +37,11 @@ struct ServicesListColumn: View {
                 .padding(.horizontal, Space.s).padding(.top, Space.xs)
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.appBg)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.appBg)
+        // Frosted glass column: a translucent material shows the faint aurora as clean
+        // neutral vibrancy; the (.bar) title header above keeps the glass accent too.
+        .background(.regularMaterial)
         .task { await model.refreshConnectedProviders() }
     }
 
@@ -177,10 +178,7 @@ struct ProviderConfigView: View {
                     .buttonStyle(.moon)
             }
         }
-        .padding(Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+        .card()
     }
 
     /// Your subscription plan (declared manually — no CLI exposes it), surfaced here
@@ -202,10 +200,7 @@ struct ProviderConfigView: View {
             Text(model.t("provider.plan.hint")).font(.sfCaption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+        .card()
     }
 
     private var binaryCard: some View {
@@ -215,10 +210,7 @@ struct ProviderConfigView: View {
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { model.save(); Task { await model.refreshConnectedProviders() } }
         }
-        .padding(Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+        .card()
     }
 
     /// Diagnose & fix: runs the full end-to-end check (resolve the CLI → one real
@@ -253,10 +245,7 @@ struct ProviderConfigView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+        .card()
     }
 
     /// A classified failure: title + plain explanation + a one-click fix (and the raw
@@ -282,7 +271,7 @@ struct ProviderConfigView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(Space.s)
-                        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.insetBg))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.insetBg))
                 } label: {
                     Text(model.t("provider.diagnose.details")).font(.sfCaption2).foregroundStyle(.tertiary)
                 }
@@ -341,10 +330,7 @@ struct ProviderConfigView: View {
                     .font(.sfCaption2).foregroundStyle(model.hasOpenAIAPIKey ? Theme.success : .secondary)
             }
         }
-        .padding(Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+        .card()
         .onAppear { if model.hasOpenAIAPIKey, apiKeyDraft.isEmpty { apiKeyDraft = model.openAIAPIKey ?? "" } }
     }
 
@@ -366,10 +352,7 @@ struct ProviderConfigView: View {
             Text(model.t("provider.codex.effort.hint")).font(.sfCaption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+        .card()
     }
 
     private func runDiagnose() {
@@ -457,9 +440,7 @@ struct ToolConfigView: View {
                 }
             }
         }
-        .padding(Space.l).frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+        .card()
     }
 
     private func toolStatusRow(_ label: String, ok: Bool, pending: Bool = false) -> some View {
@@ -487,9 +468,7 @@ struct ToolConfigView: View {
                 }
             }
         }
-        .padding(Space.l).frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 1))
+        .card()
     }
 
     private func refresh() async {

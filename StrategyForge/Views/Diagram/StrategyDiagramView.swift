@@ -292,7 +292,7 @@ struct StrategyDiagramView: View {
         // Tap a box to select/edit that agent (only when a caller opts in). Sits above
         // the Canvas as invisible hit targets aligned to the same computed layout.
         .overlay { tapTargets(spec: spec) }
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous))
         // Force a fresh Canvas when the strategy changes so the drawing can never
         // lag behind the picker selection.
         .id(strategy.name)

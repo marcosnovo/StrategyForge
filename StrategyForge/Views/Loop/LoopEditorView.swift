@@ -81,6 +81,9 @@ struct LoopEditorView: View {
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         }
+        .padding(.horizontal, Space.l)
+        .padding(.vertical, Space.m)
+        .glassPanel(cornerRadius: Theme.corner)
     }
 
     // MARK: - Card 1 · Kind
@@ -503,7 +506,7 @@ struct LoopEditorView: View {
                           ?? model.t("loop.editor.chooseRepo"),
                           systemImage: "folder")
                 }
-                .controlSize(.large)
+                .buttonStyle(.reefOutline)
                 .lineLimit(1)
                 .help(model.t("loop.editor.chooseRepo.help"))
 
@@ -513,7 +516,7 @@ struct LoopEditorView: View {
                     } label: {
                         Image(systemName: "arrow.up.forward.app")
                     }
-                    .controlSize(.large)
+                    .buttonStyle(.reefOutline)
                     .help(model.t("loop.editor.reveal.help"))
                 }
 
@@ -522,7 +525,7 @@ struct LoopEditorView: View {
                 } label: {
                     Label(model.t("loop.editor.preview"), systemImage: "doc.text.magnifyingglass")
                 }
-                .controlSize(.large)
+                .buttonStyle(.reefOutline)
                 .lineLimit(1)
 
                 Spacer(minLength: Space.s)
@@ -533,14 +536,22 @@ struct LoopEditorView: View {
                     Label(model.t("loop.editor.generate"), systemImage: "square.and.arrow.down")
                 }
                 .buttonStyle(.moon)
-                .controlSize(.large)
                 .disabled(repoURL == nil)
                 .help(model.t("loop.editor.generate.help"))
             }
         }
         .padding(Space.l)
         .frame(maxWidth: .infinity)
-        .background(.bar)
+        // Frosted glass toolbar: a translucent material under a top sheen so the
+        // aurora reads faintly through the bottom action bar.
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            LinearGradient(colors: [.white.opacity(0.10), .clear],
+                           startPoint: .top, endPoint: .center)
+                .frame(height: 24)
+                .frame(maxWidth: .infinity, alignment: .top)
+                .allowsHitTesting(false)
+        }
         .overlay(alignment: .top) { Divider() }
     }
 

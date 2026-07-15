@@ -55,6 +55,7 @@ struct SkillsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
+        .tint(Theme.accent)
         .task(id: tab) {
             store.scan(projectRepo: projectRepo)
             if tab == .top, topSkills.isEmpty, !loadingTop { await loadTop() }
@@ -104,7 +105,7 @@ struct SkillsView: View {
                 }
                 .labelsHidden().pickerStyle(.segmented).padding(.top, Space.xs)
             }
-            .padding(Space.m).background(Theme.appBg).zoomWindowOnDoubleClick()
+            .padding(Space.m).background(.regularMaterial).zoomWindowOnDoubleClick()
             Divider()
             filterBar
             Divider()
@@ -133,7 +134,7 @@ struct SkillsView: View {
                 }
             }
             .padding(.horizontal, Space.s).padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.insetBg))
             Picker("", selection: $kindFilter) {
                 Text(model.t("skills.kind.all")).tag(KindFilter.all)
                 Text(model.t("skills.kind.knowledge")).tag(KindFilter.knowledge)
@@ -141,7 +142,7 @@ struct SkillsView: View {
             }
             .labelsHidden().pickerStyle(.segmented)
         }
-        .padding(.horizontal, Space.m).padding(.vertical, Space.s).background(Theme.appBg)
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s).background(.regularMaterial)
     }
 
     /// A curated entry's coarse type — code if its known slug ships scripts, else
@@ -192,7 +193,7 @@ struct SkillsView: View {
                 if fetching { WorkingLogo(size: 14) }
             }
             .padding(.horizontal, Space.s).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.insetBg))
             if let e = errorText {
                 Label(e, systemImage: "exclamationmark.triangle.fill").font(.sfCaption2)
                     .foregroundStyle(Theme.warning).fixedSize(horizontal: false, vertical: true)

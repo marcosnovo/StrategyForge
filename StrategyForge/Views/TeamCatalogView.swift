@@ -70,8 +70,8 @@ struct TeamCatalogView: View {
                 .onSubmit { importPasted() }
             if fetching { WorkingLogo(size: 14) }
         }
-        .padding(.horizontal, Space.s).padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+        .padding(.horizontal, Space.m).padding(.vertical, 10)
+        .glassPanel(cornerRadius: Theme.buttonCorner)
     }
 
     // MARK: Curated card
@@ -106,16 +106,15 @@ struct TeamCatalogView: View {
                 Spacer()
             }
         }
-        .padding(Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.corner).fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1))
+        // Rounded floating card (soft depth) instead of a flat hairline box.
+        .card(padding: Space.m)
+        .hoverLift()
     }
 
     private func categoryChip(_ text: String) -> some View {
         Text(text.uppercased()).font(.sfFieldLabel).foregroundStyle(.secondary)
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(Capsule().fill(Theme.insetBg))
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(Theme.accentSoft))
     }
 
     // MARK: Preview sheet (confirm before it lands in the library)

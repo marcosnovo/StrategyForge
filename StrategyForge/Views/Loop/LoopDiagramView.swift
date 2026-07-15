@@ -45,8 +45,9 @@ struct LoopDiagramView: View {
                 frame(labels: labels, time: 0, pulse: 0.6)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
+            .strokeBorder(Theme.hairline, lineWidth: 1))
         // Fresh Canvas when the kind changes so the drawing never lags the picker.
         .id(plan.kind)
     }
@@ -55,7 +56,7 @@ struct LoopDiagramView: View {
     private func frame(labels: [String], time: Double, pulse: CGFloat) -> some View {
         Canvas { ctx, size in
             let n = max(labels.count, 1)
-            ctx.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 14),
+            ctx.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: Theme.innerCorner),
                      with: .color(Theme.insetBg))
 
             let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -178,8 +179,9 @@ struct LoopKindFlowDiagram: View {
             case .proactive: drawProactive(&ctx, size)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
+            .strokeBorder(Theme.hairline, lineWidth: 1))
         .id(kind)
         .accessibilityLabel(model.t(kind.blurbKey) + accessibilitySuffix)
     }
@@ -319,8 +321,10 @@ struct LoopKindFlowDiagram: View {
         let shape = Path(roundedRect: rect, cornerRadius: rect.height / 2)
         let fill: Color, stroke: Color, lw: CGFloat
         switch role {
+        // Trigger = coral (the orchestrator / brand). Work = teal (the reef-water
+        // secondary: worker agents). Exit = success green.
         case .trigger: fill = Theme.accentSoft; stroke = Theme.accent; lw = 1.5
-        case .work:    fill = Theme.cardBg; stroke = Theme.hairline; lw = 1
+        case .work:    fill = Theme.tealSoft; stroke = Theme.tealEdge; lw = 1
         case .exit:    fill = Theme.success.opacity(0.12); stroke = Theme.success; lw = 1.5
         }
         ctx.fill(shape, with: .color(fill))
@@ -332,8 +336,12 @@ struct LoopKindFlowDiagram: View {
 
     private func circleNode(_ ctx: inout GraphicsContext, center: CGPoint, radius: CGFloat, glyph: String, role: NodeRole) {
         let rect = CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
-        let (fill, stroke): (Color, Color) = role == .exit
-            ? (Theme.success.opacity(0.12), Theme.success) : (Theme.accentSoft, Theme.accent)
+        let (fill, stroke): (Color, Color)
+        switch role {
+        case .exit: (fill, stroke) = (Theme.success.opacity(0.12), Theme.success)
+        case .work: (fill, stroke) = (Theme.tealSoft, Theme.teal)
+        case .trigger: (fill, stroke) = (Theme.accentSoft, Theme.accent)
+        }
         ctx.fill(Path(ellipseIn: rect), with: .color(fill))
         ctx.stroke(Path(ellipseIn: rect), with: .color(stroke), lineWidth: 1.5)
         var g = ctx.resolve(Text(Image(systemName: glyph)).font(.system(size: radius * 0.72)))

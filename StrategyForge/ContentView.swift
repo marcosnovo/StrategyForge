@@ -188,10 +188,11 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 720, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
-        // Fill UNDER the hidden titlebar so there's no empty band at the very top —
-        // the columns paint to the window's edge; the nav rail's own top padding still
-        // clears the floating traffic lights.
-        .ignoresSafeArea(.container, edges: .top)
+        // Fill the window edge-to-edge — macOS rounds the window corners for us (no
+        // inset "capsule"). A very subtle aurora sits behind the panels as a warm
+        // ambient; behind-window glass sits below it.
+        .ignoresSafeArea()
+        .background(AppAuroraBackground().ignoresSafeArea())
         .background(hazeBackground)
         // App-wide banner so success/errors surface anywhere, not just the editor.
         .bannerOverlay()
@@ -285,6 +286,51 @@ struct ContentView: View {
     }
 }
 
+/// The app-wide ambient aurora: soft pastel blooms in the Coral identity (coral +
+/// peach + teal + mint) over a warm base, heavily blurred so it reads as a dreamy
+/// gradient. It shows around the floating app pane (in the window margin) and glows
+/// faintly through any translucent panels layered above it. Static (no motion) so it
+/// stays calm and cheap; the living AuroraBackground still animates inside the chat.
+struct AppAuroraBackground: View {
+    @Environment(\.colorScheme) private var scheme
+
+    // Pastel identity hues. On dark, the base goes to reef-ink and the blooms dim.
+    private var base: Color {
+        scheme == .dark ? Color(red: 0.043, green: 0.067, blue: 0.075)   // #0B1113
+                        : Color(red: 0.972, green: 0.965, blue: 0.960)   // #F8F6F5 warm white
+    }
+    // Kept deliberately faint so it reads as a warm ambient wash, never as color
+    // bleeding through the panels and washing out the content on top.
+    private var bloomOpacity: Double { scheme == .dark ? 0.13 : 0.15 }
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            let d = max(w, h)
+            ZStack {
+                base
+                // Corner blooms — coral leads (top-trailing), teal answers
+                // (bottom-leading); warm peach + cool mint fill the diagonal.
+                bloom(Theme.coral, at: CGPoint(x: w * 0.92, y: h * 0.04), size: d * 1.05)
+                bloom(Color(red: 1.0, green: 0.72, blue: 0.55), at: CGPoint(x: w * 0.02, y: h * 0.05), size: d * 0.9)
+                bloom(Theme.teal, at: CGPoint(x: w * 0.06, y: h * 0.98), size: d * 1.0)
+                bloom(Color(red: 0.60, green: 0.86, blue: 0.72), at: CGPoint(x: w * 0.98, y: h * 0.94), size: d * 0.85)
+            }
+            .blur(radius: 70)
+            .drawingGroup()
+        }
+        .ignoresSafeArea()
+    }
+
+    private func bloom(_ color: Color, at center: CGPoint, size: CGFloat) -> some View {
+        Circle()
+            .fill(RadialGradient(colors: [color.opacity(bloomOpacity), .clear],
+                                 center: .center, startRadius: 0, endRadius: size / 2))
+            .frame(width: size, height: size)
+            .position(center)
+    }
+}
+
 /// Shown in the center column when nothing is selected.
 private struct EmptyEditorState: View {
     @Environment(AppModel.self) private var model
@@ -292,14 +338,25 @@ private struct EmptyEditorState: View {
     var onDescribeTask: () -> Void = {}
 
     var body: some View {
-        // Reference-style landing: a personal greeting header (top-left) + subtitle,
-        // then the primary/secondary actions — instead of a centered placeholder.
-        VStack(alignment: .leading, spacing: Space.xl) {
-            VStack(alignment: .leading, spacing: Space.xs) {
-                Text(greeting).font(.sfDisplay).foregroundStyle(Theme.ink)
-                Text(model.t("empty.editor.desc"))
-                    .font(.sfBodyM).foregroundStyle(Theme.secondaryOnMaterial)
-                    .fixedSize(horizontal: false, vertical: true)
+        // Reference-style landing ("Good Morning, …"): a big iridescent sphere over a
+        // centered greeting + subtitle, then the primary/secondary actions — airy and
+        // centered, floating on the aurora pane.
+        VStack(spacing: Space.xl) {
+            Spacer(minLength: 0)
+
+            VStack(spacing: Space.l) {
+                CoralSphere(size: 84)
+                    .breathingGlow(color: Theme.accentGlow)
+                VStack(spacing: Space.xs) {
+                    Text(greeting)
+                        .font(.sfDisplay)
+                        .foregroundStyle(Theme.ink)
+                        .multilineTextAlignment(.center)
+                    Text(model.t("empty.editor.desc"))
+                        .font(.sfBodyM).foregroundStyle(Theme.secondaryOnMaterial)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             HStack(spacing: Space.m) {
@@ -324,7 +381,7 @@ private struct EmptyEditorState: View {
 
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, Space.xl + Space.s)
         .padding(.top, Theme.titlebarInset + Space.l)
     }

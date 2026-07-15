@@ -60,12 +60,14 @@ struct RoleRowView: View {
         }
         .padding(Space.l)
         .background(
-            RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-                .fill(Theme.insetBg)
+            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                .fill(role.isOrchestrator ? Theme.accentSoft.opacity(0.6) : Theme.cardBg)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-                .strokeBorder(hasError ? Theme.danger.opacity(0.55) : Theme.hairline, lineWidth: 1)
+            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                .strokeBorder(hasError ? Theme.danger.opacity(0.55)
+                              : (role.isOrchestrator ? Theme.accent.opacity(0.30) : Theme.hairline),
+                              lineWidth: 1)
         )
         .sheet(isPresented: $configuring) {
             VStack(alignment: .leading, spacing: Space.m) {
@@ -246,9 +248,9 @@ struct RoleEditorForm: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 9).padding(.horizontal, 6)
         .opacity(connected ? 1 : 0.6)
-        .background(RoundedRectangle(cornerRadius: 10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
             .fill(selected ? p.tint.opacity(0.12) : Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: 10)
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
             .strokeBorder(selected ? p.tint : Theme.hairline, lineWidth: selected ? 1.5 : 1))
         .contentShape(Rectangle())
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selected)
