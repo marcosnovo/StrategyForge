@@ -18,7 +18,7 @@ import Foundation
 /// Progress emitted by a meta-orchestration run, for the activity UI.
 enum MetaEvent: Sendable, Equatable {
     case phase(String)                                   // "plan" | "delegate" | "synthesize"
-    case roleStarted(role: String, provider: AIProvider, model: String)
+    case roleStarted(role: String, provider: AIProvider, model: String, task: String = "")
     case roleFinished(role: String, tokens: Int)
     case roleFailed(role: String, message: String)       // one worker failed; others go on
     case assistantText(String)                           // the final synthesized answer
@@ -203,7 +203,7 @@ struct MetaOrchestrator {
                         let thisOrder = order; order += 1
                         let prompt = workerPrompt(role: role, task: sub.task, instance: inst, of: instances)
                         group.addTask {
-                            onEvent(.roleStarted(role: role.name, provider: role.provider, model: m))
+                            onEvent(.roleStarted(role: role.name, provider: role.provider, model: m, task: sub.task))
                             do {
                                 let r = try await runStep(runner, role: role.name, provider: role.provider, model: m, prompt: prompt, cwd: cwd)
                                 onEvent(.roleFinished(role: role.name, tokens: r.tokens))

@@ -1088,6 +1088,8 @@ enum L10n {
         "act.planning": ("Planning tasks", "Planificando tareas"),
         "act.using": ("Using %@", "Usando %@"),
         "act.delegated": ("Delegated to %@", "Delegó en %@"),
+        "act.roleDone": ("%@ finished", "%@ terminó"),
+        "act.roleFailed": ("%@ failed", "%@ falló"),
 
         // MARK: Document preview
         "filepreview.title": ("Files produced", "Archivos generados"),

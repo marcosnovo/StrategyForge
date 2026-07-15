@@ -282,12 +282,11 @@ struct AgentActivityPanel: View {
             }
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                 // Fixed on one line so a growing count never wraps ("53.2\nk").
-                Text(formatTokens(vm.totalTokens))
+                CountingNumber(value: Double(vm.totalTokens), format: formatTokens)
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
                     .lineLimit(1).fixedSize()
-                    .contentTransition(.numericText())
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.totalTokens)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.9), value: vm.totalTokens)
                 Text(model.t("activity.usage.tokens"))
                     .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
                 Spacer(minLength: Space.xs)
@@ -411,7 +410,8 @@ struct AgentActivityPanel: View {
                 ForEach(shownStrategy.subagentRoles) { role in
                     let name = titleCase(role.name)
                     agentRow(name: name, icon: "person.fill", target: .sub(name),
-                             objective: role.description, status: status(forSubagent: name))
+                             objective: objective(forSubagent: name, fallback: role.description),
+                             status: status(forSubagent: name))
                 }
             }
         }
@@ -426,10 +426,26 @@ struct AgentActivityPanel: View {
         return vm.hasFinishedActivity ? .done : .idle
     }
     private func status(forSubagent name: String) -> AgentStatus {
-        let active = vm.isRunning && StrategyDiagramView.titlesMatch(vm.activeSubagent ?? "", name)
+        // Prefer the per-role in-progress set (accurate when several workers run at once);
+        // fall back to the single activeSubagent only when it's empty (native path). This
+        // is what keeps the panel in lockstep with the chat — a finished worker no longer
+        // shows "working" here while the chat shows it done.
+        let active = vm.isRunning && (
+            vm.rolesInProgress.contains { StrategyDiagramView.titlesMatch($0, name) }
+            || (vm.rolesInProgress.isEmpty && StrategyDiagramView.titlesMatch(vm.activeSubagent ?? "", name))
+        )
         if active { return .active }
         let hasWork = vm.timeline.contains { StrategyDiagramView.titlesMatch($0.agent ?? "", name) }
         return hasWork ? .done : .idle
+    }
+
+    /// What a role is ACTUALLY doing this turn (the orchestrator's assigned task) when
+    /// known, else its generic role description — so the panel shows live intent.
+    private func objective(forSubagent name: String, fallback: String) -> String {
+        for (role, task) in vm.roleTasks where StrategyDiagramView.titlesMatch(role, name) {
+            return task
+        }
+        return fallback
     }
 
     /// The tool steps attributed to one agent (Claude-Code-style per-agent metrics
@@ -873,6 +889,19 @@ struct AgentActivityPanel: View {
     }
 }
 
+/// A number that RAMPS smoothly to its target instead of snapping. The meta path
+/// receives a whole agent's tokens at once, so the raw count jumps in big steps; this
+/// interpolates through the intermediate values (Claude-style live counting).
+struct CountingNumber: View, Animatable {
+    var value: Double
+    let format: (Int) -> String
+    var animatableData: Double {
+        get { value }
+        set { value = newValue }
+    }
+    var body: some View { Text(format(Int(value.rounded()))) }
+}
+
 // MARK: - Panel section card (reference "Group Info" look)
 
 private struct PanelCard: ViewModifier {
@@ -959,6 +988,9 @@ func activityPhrase(_ step: ActivityStep, _ model: AppModel) -> String {
     case "Grep", "Glob": return withTarget("act.searching")
     case "WebFetch", "WebSearch": return withTarget("act.fetching")
     case "TodoWrite": return model.t("act.planning")
+    // Meta path role completion markers — the detail holds the role name.
+    case "role.done": return model.t("act.roleDone", target.isEmpty ? "" : target)
+    case "role.failed": return model.t("act.roleFailed", target.isEmpty ? "" : target)
     default:
         return target.isEmpty ? model.t("act.using", step.title)
                               : model.t("act.using", "\(step.title) · \(target)")
@@ -1008,8 +1040,10 @@ struct SubagentDetailPanel: View {
     private var isActiveAgent: Bool {
         guard vm.isRunning else { return false }
         switch focus {
-        case .orchestrator: return vm.activeSubagent == nil
-        case .sub(let name): return StrategyDiagramView.titlesMatch(vm.activeSubagent ?? "", name)
+        case .orchestrator: return vm.activeSubagent == nil && vm.rolesInProgress.isEmpty
+        case .sub(let name):
+            return vm.rolesInProgress.contains { StrategyDiagramView.titlesMatch($0, name) }
+                || (vm.rolesInProgress.isEmpty && StrategyDiagramView.titlesMatch(vm.activeSubagent ?? "", name))
         case .allSteps: return true
         }
     }

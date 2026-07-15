@@ -200,6 +200,11 @@ final class ChatViewModel {
     @ObservationIgnored private var turnEditedFiles: [String] = []
     /// The subagent the orchestrator is currently delegating to (if any).
     var activeSubagent: String?
+    /// Roles executing RIGHT NOW. The meta path runs several workers concurrently, so a
+    /// single `activeSubagent` can't represent them and goes stale (a finished worker
+    /// looked "working" in the panel while the chat showed it done). This per-role set
+    /// keeps the panel/diagram status in lockstep with the chat — no discrepancies.
+    var rolesInProgress: Set<String> = []
     /// Every subagent the orchestrator has delegated to this turn, in order (unique).
     var agentsInvolved: [String] = []
     /// Tool uses the last run wasn't permitted to perform (→ offer allow & retry).
@@ -230,6 +235,9 @@ final class ChatViewModel {
     @ObservationIgnored private var pendingCommands: [String: String] = [:]
     /// Meta path: remember each role's model within a turn, to attribute its tokens.
     @ObservationIgnored private var roleModels: [String: String] = [:]
+    /// Meta path: the concrete task the orchestrator assigned each role this turn, so the
+    /// panel/diagram can show what an agent is ACTUALLY doing (not just its generic role).
+    var roleTasks: [String: String] = [:]
     /// Meta path: a live, human-readable narration of what the team is doing, written
     /// into the assistant bubble as it happens (the one-shot legs don't token-stream,
     /// so without this the chat looks frozen until the final synthesis lands).
@@ -466,6 +474,8 @@ final class ChatViewModel {
         tokensByModel = [:]
         tokensByAgent = [:]
         roleModels = [:]
+        rolesInProgress = []
+        roleTasks = [:]
         pendingCommands = [:]
         turnStartedAt = Date()
         lastStreamPersist = .distantPast
@@ -739,17 +749,23 @@ final class ChatViewModel {
             activity.append(p)
             if p != "delegate" { activeSubagent = nil }   // orchestrator is planning/synthesizing
             narrate(phaseNarration(p), assistantIndex: assistantIndex)
-        case .roleStarted(let role, _, let model):
+        case .roleStarted(let role, _, let model, let task):
             if role == orchName {
                 activeSubagent = nil
             } else {
                 activeSubagent = role
+                rolesInProgress.insert(role)
                 roleModels[role] = model
+                let brief = task.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !brief.isEmpty { roleTasks[role] = brief }
                 if !agentsInvolved.contains(role) { agentsInvolved.append(role) }
                 activity.append("→ \(role)")
-                timeline.append(ActivityStep(title: role, detail: model, at: Date(),
+                // The step DETAIL now carries the assigned task, so the timeline shows
+                // what each agent is actually doing — not just that it was delegated to.
+                timeline.append(ActivityStep(title: role, detail: shortTask(brief) ?? model, at: Date(),
                                              isDelegation: true, agent: nil))
-                narrate("▸ \(role) · \(model)…", assistantIndex: assistantIndex)
+                let taskSuffix = shortTask(brief).map { " — \($0)" } ?? ""
+                narrate("▸ \(role) · \(model)\(taskSuffix)…", assistantIndex: assistantIndex)
             }
         case .roleFinished(let role, let tokens):
             // Exact per-agent + per-model attribution on the cross-provider path.
@@ -758,21 +774,23 @@ final class ChatViewModel {
                 if let m = roleModels[role] { tokensByModel[m, default: 0] += tokens }
             }
             if role != orchName {
+                rolesInProgress.remove(role)
                 // Attribute a completed step to the agent so the panel marks it done.
-                timeline.append(ActivityStep(title: "done", detail: nil, at: Date(),
+                timeline.append(ActivityStep(title: "role.done", detail: role, at: Date(),
                                              isDelegation: false, agent: role))
                 markNarrationDone(role, assistantIndex: assistantIndex)
             }
         case .roleFailed(let role, let message):
             // One worker failed but the run continues with the others — record it and
             // mark this agent's narration line as failed so the UI isn't left "working".
+            rolesInProgress.remove(role)
             DiagnosticsLog.record("meta worker “\(role)” failed — \(message)")
             if let i = metaNarration.lastIndex(where: { $0.contains(role) && $0.hasPrefix("▸") }) {
                 metaNarration[i] = "⚠ \(role)"
                 narrationStepSince = Date()
                 renderNarration(assistantIndex)
             }
-            timeline.append(ActivityStep(title: "done", detail: nil, at: Date(),
+            timeline.append(ActivityStep(title: "role.failed", detail: role, at: Date(),
                                          isDelegation: false, agent: role))
         case .assistantText(let text):
             // The final synthesis replaces the live narration. The answer stays in the
@@ -789,8 +807,10 @@ final class ChatViewModel {
         case .failed(let message):
             DiagnosticsLog.record(message)
             errorText = message
+            rolesInProgress = []
         case .finished:
-            break
+            activeSubagent = nil
+            rolesInProgress = []   // nothing is in flight once the run finishes
         }
     }
 
@@ -840,6 +860,15 @@ final class ChatViewModel {
         secs < 60 ? "\(secs)s" : "\(secs / 60)m \(String(format: "%02d", secs % 60))s"
     }
 
+    /// A one-line, trimmed excerpt of an assigned task for the narration/timeline, so the
+    /// UI shows what an agent is doing without dumping a paragraph. nil when empty.
+    private func shortTask(_ task: String) -> String? {
+        let firstLine = task.split(separator: "\n").first.map(String.init) ?? task
+        let clean = firstLine.trimmingCharacters(in: .whitespaces)
+        guard !clean.isEmpty else { return nil }
+        return clean.count > 80 ? String(clean.prefix(79)) + "…" : clean
+    }
+
     /// Flush the transcript to disk at most every ~1.5s during streaming, so a
     /// crash mid-reply doesn't lose the whole response (the full flush still
     /// happens when the turn ends).
@@ -868,6 +897,7 @@ final class ChatViewModel {
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
         turnSkillsUsed = []
         turnEditedFiles = []
+        rolesInProgress = []; roleTasks = [:]
         commandLog = []; pendingCommands = [:]; tokensByModel = [:]; tokensByAgent = [:]; roleModels = [:]
         lastStreamPersist = .distantPast
         runTask?.cancel()   // don't orphan a prior run
