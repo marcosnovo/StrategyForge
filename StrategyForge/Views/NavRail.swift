@@ -397,13 +397,13 @@ struct NavRail: View {
     /// rows, with a coral "Sign out" set apart under a divider.
     private var accountMenu: some View {
         VStack(alignment: .leading, spacing: 1) {
-            accountMenuRow("gearshape", "sidebar.settings") { model.navSection = .settings }
+            // Settings lives in the rail already, so it's not repeated here.
             if auth.canSync {
                 accountMenuRow("arrow.triangle.2.circlepath", "rail.profile.sync") {
                     Task { await auth.sync(model) }
                 }
+                Divider().padding(.horizontal, Space.s).padding(.vertical, 5)
             }
-            Divider().padding(.horizontal, Space.s).padding(.vertical, 5)
             accountMenuRow("rectangle.portrait.and.arrow.right", "rail.profile.signout",
                            destructive: true) { auth.signOut() }
         }

@@ -153,8 +153,10 @@ struct StrategyPickerColumn: View {
                 // Static topology per card. `ambient: false` stops every card in the
                 // grid running a 20fps clock (a wall of pickers was burning CPU redrawing
                 // idle thumbnails); the live chat diagram still animates.
+                // A CONSTANT diagram height (not per-template) so every card in the grid
+                // is the same size regardless of how big the strategy's topology is.
                 StrategyDiagramView(strategy: template, compact: true, ambient: false)
-                    .frame(height: StrategyDiagramView.compactHeight(for: template))
+                    .frame(height: 120)
                 HStack(spacing: 5) {
                     Text(model.strategyDisplayName(template))
                         .font(.sfCallout.weight(.semibold))
@@ -176,6 +178,9 @@ struct StrategyPickerColumn: View {
                         .font(.sfCaption2).foregroundStyle(.secondary)
                         .lineLimit(3).fixedSize(horizontal: false, vertical: true)
                 }
+                // Push the chip row to the bottom so, with a fixed card height, every
+                // card's chips line up and all cards are the exact same size.
+                Spacer(minLength: 0)
                 HStack(spacing: 5) {
                     if let bucket = activeBucket, model.isRecommended(template, for: bucket) {
                         HStack(spacing: 3) {
@@ -192,7 +197,8 @@ struct StrategyPickerColumn: View {
                 }
             }
             .padding(Space.m)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // Every card is the same fixed size (uniform grid), content top-aligned.
+            .frame(maxWidth: .infinity, minHeight: 312, maxHeight: 312, alignment: .topLeading)
             .contentShape(Rectangle())
             .selectedRow(selected, cornerRadius: Theme.innerCorner, restingFill: Theme.cardBg)
             // Keep the resting card hairline when unselected; selection draws its own.
