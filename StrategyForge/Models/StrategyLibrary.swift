@@ -28,6 +28,7 @@ enum StrategyLibrary {
             researchFanout(),
             debateConsensus(),
             sparring(),
+            soloEconomy(),
             solo(),
         ]
     }
@@ -735,7 +736,41 @@ enum StrategyLibrary {
         )
     }
 
-    // MARK: - 8. Solo (baseline)
+    // MARK: - 8. Solo · Economy (cheap, single low-cost agent)
+
+    /// A single low-cost agent (Haiku) for simple, well-scoped chores where a frontier
+    /// model is overkill — e.g. "merge this to main", small config edits, quick answers.
+    /// This is the cheapest strategy in the library.
+    static func soloEconomy() -> Strategy {
+        Strategy(
+            name: "Solo · Economy (Haiku)",
+            description: "One low-cost agent (Haiku) for simple, well-scoped tasks — "
+                + "merges, small edits, quick answers. The cheapest option; use it when "
+                + "a frontier model would be overkill.",
+            roles: [
+                orchestrator(
+                    name: "solo",
+                    model: .haiku45,
+                    description: "Main session on a low-cost model. Handles the whole "
+                        + "task directly — best for simple, cheap chores.",
+                    systemPrompt: """
+                    You are working solo on a fast, low-cost model. Handle simple, \
+                    well-scoped tasks directly and efficiently — read, do the change, \
+                    and verify. Keep it tight; don't over-engineer. If a task turns out \
+                    to be genuinely complex or risky, say so and recommend switching to \
+                    a stronger model rather than pressing on.
+                    """
+                ),
+            ],
+            orchestrationNotes: """
+            Economy baseline: a single low-cost agent (Haiku) does everything directly. \
+            No subagents, no delegation — the cheapest way to run a simple task. Switch \
+            to a stronger Solo or a multi-agent strategy when the work needs it.
+            """
+        )
+    }
+
+    // MARK: - 9. Solo (baseline)
 
     static func solo() -> Strategy {
         Strategy(
