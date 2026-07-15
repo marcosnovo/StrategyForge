@@ -30,8 +30,15 @@ private final class MockRunner: OneShotRunner, @unchecked Sendable {
     }
 }
 
+/// Thread-safe event collector: `MetaOrchestrator.run` invokes `onEvent` from
+/// CONCURRENT worker tasks (the delegate phase runs a task group), so appends must be
+/// locked — an unsynchronized `Array.append` from parallel tasks corrupts the buffer
+/// and crashes (EXC_BAD_ACCESS). Mirrors `MockRunner`'s locking.
 private final class EventBox: @unchecked Sendable {
-    var events: [MetaEvent] = []
+    private let lock = NSLock()
+    private var _events: [MetaEvent] = []
+    func append(_ event: MetaEvent) { lock.lock(); _events.append(event); lock.unlock() }
+    var events: [MetaEvent] { lock.lock(); defer { lock.unlock() }; return _events }
 }
 
 private func makeStrategy() -> Strategy {
@@ -80,7 +87,7 @@ struct MetaOrchestratorRunTests {
         let box = EventBox()
 
         let final = await MetaOrchestrator.run(strategy: strategy, task: "Do the thing", cwd: nil,
-                                               runner: runner) { box.events.append($0) }
+                                               runner: runner) { box.append($0) }
 
         // Final synthesized answer.
         #expect(final == "FINAL ANSWER")
@@ -114,7 +121,7 @@ struct MetaOrchestratorRunTests {
         let runner = MockRunner()
         let box = EventBox()
         let final = await MetaOrchestrator.run(strategy: strategy, task: "Just answer", cwd: nil,
-                                               runner: runner) { box.events.append($0) }
+                                               runner: runner) { box.append($0) }
         #expect(final == "result:claude-opus-4-8")
         #expect(runner.calls.count == 1)   // no plan/synthesize, just one answer
     }

@@ -163,4 +163,49 @@ struct AdvisorProvidersTests {
         let (_, picks) = AdvisorEngine.assignProviders(to: s, connected: all)
         #expect(picks.map(\.roleName) == ["lead", "impl", "review"])
     }
+
+    // MARK: - Coverage: connected providers actually get used (Gemini fix)
+
+    @Test func connectedGeminiLandsOnTheReviewSeat() {
+        // Coder → OpenAI, so the reviewer's second opinion should come from a third
+        // family: Gemini (reasoning 4 vs Claude 5 is only a 1-pt loss — acceptable), so
+        // all three connected providers appear instead of Gemini being shut out.
+        let s = strategy([role("lead", .orchestrator, orchestrator: true),
+                          role("impl", .worker, count: 2),
+                          role("review", .reviewer)])
+        let (out, _) = AdvisorEngine.assignProviders(to: s, connected: all)
+        #expect(out.roles.first { $0.name == "review" }?.provider == .gemini)
+        #expect(Set(out.roles.map(\.provider)) == all)
+    }
+
+    @Test func everyConnectedProviderIsRepresentedOnADiverseTeam() {
+        let s = strategy([role("lead", .orchestrator, orchestrator: true),
+                          role("impl", .worker, count: 2),
+                          role("scout", .researcher, count: 3),
+                          role("review", .reviewer)])
+        let (out, _) = AdvisorEngine.assignProviders(to: s, connected: all)
+        #expect(Set(out.roles.map(\.provider)) == all)
+    }
+
+    @Test func coverageNeverPlantsAWeakCoderOnAPureCodingTeam() {
+        // Lead + one coding worker only. Gemini (coding 3) would lose 2 points vs
+        // GPT-5 Codex (5) — above the 1-pt threshold — so it is NOT forced in.
+        let s = strategy([role("lead", .orchestrator, orchestrator: true),
+                          role("impl", .worker, count: 3)])
+        let (out, _) = AdvisorEngine.assignProviders(to: s, connected: all)
+        #expect(!out.roles.contains { $0.provider == .gemini })
+        #expect(out.roles.first { $0.name == "impl" }?.provider == .openai)
+    }
+
+    @Test func coverageIsANoOpWhenEveryProviderAlreadyUsed() {
+        // scout→Gemini, impl→OpenAI, lead→Claude already covers all three; coverage
+        // must not reshuffle anything.
+        let s = strategy([role("lead", .orchestrator, orchestrator: true),
+                          role("impl", .worker, count: 2),
+                          role("scout", .researcher, count: 3)])
+        let (a, _) = AdvisorEngine.assignProviders(to: s, connected: all)
+        let (b, _) = AdvisorEngine.assignProviders(to: s, connected: all)
+        #expect(a.roles.map(\.provider) == b.roles.map(\.provider))
+        #expect(Set(a.roles.map(\.provider)) == all)
+    }
 }

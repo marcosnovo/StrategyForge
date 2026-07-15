@@ -218,8 +218,65 @@ extension AdvisorEngine {
             ordered.append((i, pick(s.roles[i].name, s.roles[i].role, profile, reason)))
         }
 
+        // Pass 3 — coverage: make sure every CONNECTED provider is actually used at
+        // least once (the app's "mix real AIs" promise — the reason Gemini was never
+        // showing up). For each connected provider that won no role, hand it the
+        // non-orchestrator role where it fits best, but ONLY if the swap costs at most
+        // one point on that role's primary axis — so we never plant a weak coder on a
+        // coding seat. In practice this lands Gemini (breadth/second-opinion) on a
+        // review / research seat, and never degrades the team below a hair.
+        ensureCoverage(in: &s, ordered: &ordered, available: available,
+                       connected: connected, bias: bias)
+
         let picks = ordered.sorted { $0.index < $1.index }.map(\.pick)
         return (s, picks)
+    }
+
+    /// The profile matching a role's CURRENT (provider, model), used to measure the
+    /// capability lost by a coverage swap.
+    private static func currentProfile(for role: AgentRole, in available: [ModelProfile]) -> ModelProfile? {
+        available.first { p in
+            guard p.provider == role.provider else { return false }
+            return role.provider == .claude ? p.modelID == role.model.rawValue
+                                             : p.modelID == role.providerModelID
+        }
+    }
+
+    /// Give each connected-but-unused provider one role it genuinely fits (loss ≤ 1 on
+    /// that role's primary axis). Deterministic (providers in catalog order; ties by
+    /// role index). Never touches the orchestrator, so the lead stays best-in-class.
+    private static func ensureCoverage(in s: inout Strategy,
+                                       ordered: inout [(index: Int, pick: ProviderPick)],
+                                       available: [ModelProfile],
+                                       connected: Set<AIProvider>,
+                                       bias: TierBias) {
+        let usable = Set(available.map(\.provider)).intersection(connected)
+        for provider in AIProvider.allCases
+        where usable.contains(provider) && !s.roles.contains(where: { $0.provider == provider }) {
+            // The best role to host this provider: maximize its primary-axis fit,
+            // requiring the swap to lose at most one point vs the role's current model.
+            var choice: (index: Int, profile: ModelProfile, axis: Axis, fit: Int)?
+            for i in s.roles.indices where !s.roles[i].isOrchestrator {
+                let axis = primaryAxis(for: s.roles[i].role)
+                let pool = available.filter { $0.provider == provider }
+                guard let cand = best(from: pool, axis: axis, bias: bias) else { continue }
+                let currentVal = currentProfile(for: s.roles[i], in: available)?.value(axis) ?? cand.value(axis)
+                guard currentVal - cand.value(axis) <= 1 else { continue }   // loss ≤ 1
+                let fit = cand.value(axis)
+                if choice == nil || fit > choice!.fit { choice = (i, cand, axis, fit) }
+            }
+            guard let c = choice else { continue }
+            apply(c.profile, to: &s.roles[c.index])
+            let newPick = ProviderPick(roleName: s.roles[c.index].name, roleKind: s.roles[c.index].role,
+                                       provider: c.profile.provider, modelDisplayName: c.profile.displayName,
+                                       reasonKey: "advisor.provider.reason.diversity",
+                                       isConnected: connected.contains(c.profile.provider))
+            if let existing = ordered.firstIndex(where: { $0.index == c.index }) {
+                ordered[existing].pick = newPick
+            } else {
+                ordered.append((c.index, newPick))
+            }
+        }
     }
 
     // MARK: - Scoring (deterministic)
