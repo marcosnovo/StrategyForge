@@ -112,7 +112,22 @@ struct StrategyClassifierEvalTests {
             print("Classifier corpus accuracy: \(Int(accuracy * 100))% (\(correct)/\(Self.corpus.count)). Mismatches:")
             mismatches.forEach { print($0) }
         }
-        // Floor: current measured level. Raising the classifier's quality raises this.
-        #expect(accuracy >= 0.80, "Corpus accuracy \(Int(accuracy * 100))% fell below the 80% floor")
+        // Floor raised to 0.90 after Phase 1 (the weighted-signal fixes took the corpus
+        // from 84% → 100%). Kept a little below 100% so genuinely-hard cases can be added
+        // to the corpus later without instantly failing; the golden set stays strict.
+        #expect(accuracy >= 0.90, "Corpus accuracy \(Int(accuracy * 100))% fell below the 90% floor")
+    }
+
+    // MARK: - Confidence signal
+
+    @Test func clearTasksReadHighConfidenceAmbiguousReadLow() {
+        // A decisive task (clear intent + supporting axes) → confident.
+        #expect(StrategyGenerator.classify(
+            "migrate the entire repo from bcrypt to argon2 exhaustively").isConfident)
+        #expect(StrategyGenerator.classify(
+            "debug why the API fails intermittently").isConfident)
+        // A bare, signal-less task → NOT confident, so the UI can offer to clarify.
+        #expect(!StrategyGenerator.classify("do the thing").isConfident)
+        #expect(!StrategyGenerator.classify("stuff").isConfident)
     }
 }

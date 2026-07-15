@@ -163,6 +163,13 @@ enum StrategyGenerator {
         var serialDebug: Bool    // a non-delegable root-cause chain
         var multiDomain: Bool    // spans ≥2 distinct domains (frontend/backend/db/…)
         var needsScouting: Bool  // an unfamiliar area worth mapping first
+        var willChange: Bool     // the task ends in a change/build (not pure research)
+        /// How decisively the task classified (0…1). Low confidence → the UI can offer
+        /// to ask a clarifying question rather than commit to a shape.
+        var confidence: Double
+
+        /// A low-confidence read is one the UI shouldn't present as certain.
+        var isConfident: Bool { confidence >= 0.5 }
     }
 
     /// Read a task into a `TaskProfile`. Bilingual (EN + ES): the text is lowercased and
@@ -199,19 +206,26 @@ enum StrategyGenerator {
         let scope: TaskScope = repo ? .repo : (module ? .module : .point)
         let multiDomain = hits(["frontend", "backend", "database", "base de datos",
             "security", "seguridad", "infra", "api", "mobile", "ui ", "devops"]) >= 2
+        // Does the task ultimately CHANGE the code (vs. pure understanding)? Separates a
+        // research fan-out from the full build pipeline.
+        let willChange = any(["rewrite", "reescrib", "refactor", "migrate", "migrar",
+            "implement", "implementa", "build", "construir", "add ", "create", "crea",
+            "feature", "funcionalidad", "change", "cambia", " port ", "upgrade"])
 
         // Intent — first matching group wins; the order resolves ambiguous tasks
-        // (e.g. "explain then refactor" reads as understand, not change).
+        // (e.g. "explain then refactor" reads as understand, not change). NOTE:
+        // "unfamiliar"/"legacy" are scouting SIGNALS, not an understand intent — a
+        // "change this unfamiliar module" is a change that needs scouting, not research.
         let intent: TaskIntent
         if any(["understand", "explain", "explica", "explora", "explore", "investiga",
-                "investigar", "research", "unfamiliar", "how does", "como funciona",
+                "investigar", "research", "how does", "como funciona",
                 "entender", "comprender", "study"]) {
             intent = .understand
         } else if any(["architecture", "arquitectura", "design", "disen", "trade-off",
                 "tradeoff", "decide", "decidir", "compare", "comparar", "option",
                 "opcion", "choose", "elegir", "consensus", "consenso", "evaluate", "evalua"]) {
             intent = .decide
-        } else if any(["review", "revisar", "audit", "auditar", "auditoria", "verify",
+        } else if any(["review", "revis", "audit", "auditar", "auditoria", "verify",
                 "verificar", "qa", "code review", "inspecc", "coverage", "cobertura",
                 "production", "critical", "critico", "produccion", "safe"]) {
             intent = .review
@@ -222,7 +236,8 @@ enum StrategyGenerator {
             intent = .harden
         } else if any(["refactor", "migrate", "migrar", "migracion", "rename", "renombr",
                 "bulk", "masivo", "convert", " port ", "upgrade", "actualiza", "cleanup",
-                "fix", "arregl", "replace", "reemplaza", "across", "todos los", "en todo"]) {
+                "fix", "arregl", "replace", "reemplaza", "across", "todos los", "en todo",
+                "change", "cambia", "modif", "tweak", "adjust", "edit "]) {
             intent = .change
         } else if any(["implement", "implementa", "add ", "anad", "create", "crea",
                 "build", "construir", "feature", "funcionalidad", "nuevo", "nueva",
@@ -235,10 +250,20 @@ enum StrategyGenerator {
             intent = .general
         }
 
+        // Confidence: how decisively the task read. A clear intent (or a decisive flag
+        // like a debug hunt / adversarial ask) plus supporting axes reads high; a bare
+        // `general` task with no axes reads low (the UI can then offer to clarify).
+        var axes = 0
+        for on in [breadth, verifiable, adversarial, serialDebug, multiDomain,
+                   needsScouting, scope != .point] where on { axes += 1 }
+        let decisive = intent != .general || serialDebug || adversarial
+        let confidence = min(1.0, (decisive ? 0.6 : 0.35) + 0.1 * Double(axes))
+
         return TaskProfile(intent: intent, scope: scope, breadth: breadth,
                            verifiable: verifiable, adversarial: adversarial,
                            serialDebug: serialDebug, multiDomain: multiDomain,
-                           needsScouting: needsScouting)
+                           needsScouting: needsScouting, willChange: willChange,
+                           confidence: confidence)
     }
 
     /// Map a task profile (+ what's connected) to a concrete shape + team size. Pure and
@@ -260,28 +285,31 @@ enum StrategyGenerator {
         if p.intent == .triage { return (.triageRouter, 1) }
         // 4. Understand / explore.
         if p.intent == .understand {
-            // Large, unfamiliar, broad understanding that leads to change → the full
-            // scout → plan → build → review pipeline; otherwise a research fan-out.
-            if p.scope == .repo && p.breadth { return (.pipeline, size) }
+            // Large, unfamiliar, broad understanding that LEADS TO a change → the full
+            // scout → plan → build → review pipeline; pure research → a research fan-out.
+            if p.scope == .repo && p.breadth && p.willChange { return (.pipeline, size) }
             return (.researchFanout, size)
         }
         // 5. Decide / design.
         if p.intent == .decide {
             return (p.multiDomain || p.breadth) ? (.domainSpecialists, size) : (.debateConsensus, 1)
         }
-        // 6. Review / audit.
+        // 6. Review / audit — broad, multi-domain, or repo-wide → a specialist per angle.
         if p.intent == .review {
-            return (p.breadth || p.multiDomain) ? (.domainSpecialists, size) : (.plannerReviewer, 1)
+            return (p.breadth || p.multiDomain || p.scope == .repo) ? (.domainSpecialists, size)
+                                                                     : (.plannerReviewer, 1)
         }
         // 7. Change (refactor / migrate / bulk edit).
         if p.intent == .change {
             if p.scope == .repo || p.breadth { return fanout() }
+            if p.multiDomain { return (.domainSpecialists, size) }
             if p.needsScouting { return (.scoutAct, 1) }   // localized change in an unfamiliar area
             return (.executorAdvisor, 1)
         }
         // 8. Build a feature.
         if p.intent == .build {
             if p.scope == .repo && p.breadth { return fanout() }
+            if p.multiDomain { return (.domainSpecialists, size) }
             if p.verifiable { return (.plannerReviewer, 1) }
             if p.needsScouting { return (.scoutAct, 1) }
             return (.executorAdvisor, 1)
