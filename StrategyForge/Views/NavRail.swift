@@ -17,6 +17,8 @@ struct NavRail: View {
     @Environment(AuthModel.self) private var auth
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var showSidebar: Bool
+    /// Drives the styled account popover (reference-style menu with icon rows).
+    @State private var showAccountMenu = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
@@ -373,19 +375,13 @@ struct NavRail: View {
     /// signed in, or a "Sign in" affordance (identity only gates iCloud sync) otherwise.
     @ViewBuilder private var profileRow: some View {
         if let acc = auth.account {
-            Menu {
-                Button(model.t("sidebar.settings")) { model.navSection = .settings }
-                if auth.canSync {
-                    Button(model.t("rail.profile.sync")) { Task { await auth.sync(model) } }
-                }
-                Divider()
-                Button(model.t("rail.profile.signout"), role: .destructive) { auth.signOut() }
-            } label: {
+            Button { showAccountMenu.toggle() } label: {
                 profileCard(avatar: avatarCircle(initials(acc.label)),
                             title: acc.label, sub: acc.email,
-                            trailingIcon: "chevron.up.chevron.down")
+                            trailingIcon: "chevron.down")
             }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden)
+            .buttonStyle(.plain)
+            .popover(isPresented: $showAccountMenu, arrowEdge: .bottom) { accountMenu }
         } else {
             Button { model.navSection = .settings } label: {
                 profileCard(avatar: signInAvatar,
@@ -397,8 +393,53 @@ struct NavRail: View {
         }
     }
 
-    /// A distinct profile card (reference-style): avatar + name + plan/email, on a soft
-    /// frosted card so it reads clearly as its own element at the foot of the rail.
+    /// The account dropdown, styled like the reference: a soft frosted card of icon
+    /// rows, with a coral "Sign out" set apart under a divider.
+    private var accountMenu: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            accountMenuRow("gearshape", "sidebar.settings") { model.navSection = .settings }
+            if auth.canSync {
+                accountMenuRow("arrow.triangle.2.circlepath", "rail.profile.sync") {
+                    Task { await auth.sync(model) }
+                }
+            }
+            Divider().padding(.horizontal, Space.s).padding(.vertical, 5)
+            accountMenuRow("rectangle.portrait.and.arrow.right", "rail.profile.signout",
+                           destructive: true) { auth.signOut() }
+        }
+        .padding(Space.xs)
+        .frame(width: 214)
+    }
+
+    private func accountMenuRow(_ icon: String, _ key: String,
+                                destructive: Bool = false,
+                                action: @escaping () -> Void) -> some View {
+        Button {
+            showAccountMenu = false
+            action()
+        } label: {
+            HStack(spacing: Space.s) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(destructive ? Theme.danger : Theme.secondaryOnMaterial)
+                    .frame(width: 20)
+                Text(model.t(key))
+                    .font(.sfBodyM)
+                    .foregroundStyle(destructive ? Theme.danger : Theme.ink)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, Space.s)
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverTint(cornerRadius: Theme.rowCorner)
+    }
+
+    /// A distinct profile card (reference "Sophia · Pro Plan" style): a solid, softly
+    /// elevated light card — avatar + name + plan/email + a chevron — so it reads
+    /// clearly as its own element at the foot of the translucent rail (a faint frosted
+    /// patch got lost against the glass).
     private func profileCard(avatar: some View, title: String, sub: String?,
                              trailingIcon: String?) -> some View {
         HStack(spacing: Space.s) {
@@ -412,12 +453,22 @@ struct NavRail: View {
             Spacer(minLength: 0)
             if let trailingIcon {
                 Image(systemName: trailingIcon)
-                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.secondaryOnMaterial)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.secondaryOnMaterial)
             }
         }
-        .padding(.horizontal, Space.s)
-        .padding(.vertical, Space.s)
-        .glassPanel(cornerRadius: Theme.innerCorner, material: .thinMaterial)
+        .padding(.horizontal, Space.m)
+        .padding(.vertical, 10)
+        // A solid, elevated card — clearly defined against the frosted rail.
+        .background(
+            RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+                .fill(Theme.cardBg)
+                .shadow(color: .black.opacity(0.10), radius: 8, x: 0, y: 3)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+                .strokeBorder(Theme.hairline, lineWidth: 1)
+        )
         .padding(.top, Space.xs)
         .contentShape(Rectangle())
     }
@@ -425,16 +476,17 @@ struct NavRail: View {
     /// Solid coral avatar with white initials — a clear, high-contrast identity chip
     /// (the old accentSoft-on-coral read too faint).
     private func avatarCircle(_ initials: String) -> some View {
-        Circle().fill(Theme.primaryFill).frame(width: 32, height: 32)
+        Circle().fill(Theme.primaryFill).frame(width: 34, height: 34)
             .overlay(Text(initials)
-                .font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.white))
+                .font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white))
             .shadow(color: Theme.accentGlow, radius: 4, y: 1)
     }
 
     private var signInAvatar: some View {
-        Circle().fill(Theme.accentSoft).frame(width: 32, height: 32)
+        Circle().fill(Theme.primaryFill).frame(width: 34, height: 34)
             .overlay(Image(systemName: "person.fill")
-                .font(.system(size: 13)).foregroundStyle(Theme.accent))
+                .font(.system(size: 14)).foregroundStyle(.white))
+            .shadow(color: Theme.accentGlow, radius: 4, y: 1)
     }
 
     private func initials(_ s: String) -> String {
