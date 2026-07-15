@@ -156,7 +156,8 @@ struct SidebarView: View {
             }
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-        .background(Capsule().fill(Theme.insetBg))
+        // Squarer search field (not a pill) — matches the more sober corner language.
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg))
         .padding(.horizontal, Space.m).padding(.bottom, Space.s)
     }
 

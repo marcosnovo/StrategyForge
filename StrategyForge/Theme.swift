@@ -133,10 +133,12 @@ enum Theme {
     /// lights / hidden titlebar (content fills to the window edge; this pushes the
     /// header text down to a comfortable toolbar height instead of the very edge).
     static let titlebarInset: CGFloat = 30
-    static let corner: CGFloat = 18
-    static let innerCorner: CGFloat = 14
+    // Corner radii — deliberately restrained (not pill-soft): a more sober, squarer
+    // look while still avoiding hard 90° corners.
+    static let corner: CGFloat = 11
+    static let innerCorner: CGFloat = 8
     /// Chat message bubble radius.
-    static let bubbleCorner: CGFloat = 18
+    static let bubbleCorner: CGFloat = 12
     static let sectionSpacing: CGFloat = 20
     /// Vertical gap between chat messages (Claude/Superhuman-like breathing room).
     static let messageSpacing: CGFloat = 18
