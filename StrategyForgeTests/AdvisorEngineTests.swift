@@ -9,7 +9,7 @@
 
 import Testing
 import Foundation
-@testable import StrategyForge
+@testable import Coral
 
 struct AdvisorEngineTests {
 

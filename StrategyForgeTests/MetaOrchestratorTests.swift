@@ -9,7 +9,7 @@
 
 import Testing
 import Foundation
-@testable import StrategyForge
+@testable import Coral
 
 /// Records every call and returns canned text based on the prompt kind. Thread-safe
 /// because delegated workers now run concurrently.

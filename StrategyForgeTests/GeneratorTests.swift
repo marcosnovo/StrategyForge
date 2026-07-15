@@ -8,7 +8,7 @@
 
 import Testing
 import Foundation
-@testable import StrategyForge
+@testable import Coral
 
 struct AgentFileGeneratorTests {
 
@@ -189,11 +189,15 @@ struct LaunchCommandGeneratorTests {
 
 struct CostEstimatorTests {
 
-    @Test func soloCostsLessThanABigTeam() {
+    @Test func cheaperModelCostsLess() {
+        // Same single-agent shape, cheaper model → strictly cheaper: Solo · Economy runs
+        // on Haiku, the Solo baseline on Opus. This is a guaranteed ordering, unlike
+        // solo-vs-team, which depends on the team's token/model mix and can tie (a big
+        // team of cheap workers costs about the same as one frontier-model agent).
+        let economy = CostEstimator.estimate(StrategyLibrary.soloEconomy())
         let solo = CostEstimator.estimate(StrategyLibrary.solo())
-        let domain = CostEstimator.estimate(StrategyLibrary.domainSpecialists())
-        #expect(solo.perRun < domain.perRun)
-        #expect(solo.perRun > 0)
+        #expect(economy.perRun < solo.perRun)
+        #expect(economy.perRun > 0)
     }
 
     @Test func moreInstancesCostMore() {

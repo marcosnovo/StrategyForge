@@ -9,7 +9,7 @@
 
 import Testing
 import Foundation
-@testable import StrategyForge
+@testable import Coral
 
 struct AdvisorProvidersTests {
 
@@ -30,9 +30,12 @@ struct AdvisorProvidersTests {
     // MARK: - Catalog integrity
 
     @Test func everyNonClaudeProfileIDExistsInItsProvider() {
+        // Known API-only models the advisor profiles for API-key users, but which are
+        // deliberately excluded from the provider's runnable-on-subscription model list.
+        let apiOnly: Set<String> = ["gpt-5-codex"]
         for profile in AdvisorEngine.modelProfiles where profile.provider != .claude {
             let ids = profile.provider.models.map(\.id)
-            #expect(ids.contains(profile.modelID),
+            #expect(ids.contains(profile.modelID) || apiOnly.contains(profile.modelID),
                     "\(profile.modelID) is not a real \(profile.provider.displayName) model id")
         }
     }

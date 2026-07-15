@@ -10,7 +10,7 @@
 import Testing
 import Foundation
 import CloudKit
-@testable import StrategyForge
+@testable import Coral
 
 struct LaunchHardeningTests {
 
@@ -35,12 +35,10 @@ struct LaunchHardeningTests {
         #expect(!UpdateChecker.isVersion("1.2.0", olderThan: "1.2"))
     }
 
-    @Test func dormantWhenManifestUnset() async {
-        let saved = UpdateChecker.manifestURLString
-        UpdateChecker.manifestURLString = ""
-        let update = await UpdateChecker.check(current: "1.0.0")
-        #expect(update == nil)
-        UpdateChecker.manifestURLString = saved
+    @Test func updateCheckerTargetsGitHubReleases() {
+        // The updater reads GitHub Releases; its repo is set (not the old empty manifest).
+        #expect(!UpdateChecker.repo.isEmpty)
+        #expect(UpdateChecker.repo.contains("/"))
     }
 
     // MARK: - CloudKit batching

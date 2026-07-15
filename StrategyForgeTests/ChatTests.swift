@@ -7,7 +7,7 @@
 
 import Testing
 import Foundation
-@testable import StrategyForge
+@testable import Coral
 
 @MainActor
 struct ChatTitleTests {

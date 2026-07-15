@@ -86,7 +86,10 @@ extension AdvisorEngine {
         ModelProfile(provider: .claude, modelID: ClaudeModel.haiku45.rawValue,
                      displayName: ClaudeModel.haiku45.displayName,
                      reasoning: 2, coding: 2, breadth: 2, speed: 5),
-        // OpenAI / Codex
+        // OpenAI / Codex. NOTE: gpt-5-codex is API-only (it errors on a ChatGPT
+        // subscription login), so it is intentionally NOT in AIProvider.openai.models —
+        // but it stays profiled here as the strongest OpenAI coder for API-key users. The
+        // catalog-integrity test allows this known API-only id.
         ModelProfile(provider: .openai, modelID: "gpt-5-codex", displayName: "GPT-5 Codex",
                      reasoning: 4, coding: 5, breadth: 3, speed: 3),
         ModelProfile(provider: .openai, modelID: "gpt-5", displayName: "GPT-5",
