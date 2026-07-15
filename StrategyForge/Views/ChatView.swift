@@ -70,6 +70,9 @@ struct ChatView: View {
     @State private var showArtifacts = false
     /// Persisted, user-resizable width of the agent-activity panel.
     @AppStorage("col.activity") private var activityW = 320.0
+    /// Width of the right-side Code workspace panel (files/diffs/terminal/git). Wider
+    /// than the activity panel since it hosts a full developer view.
+    @AppStorage("col.code") private var codeW = 520.0
     private let rename: (String) -> Void
     private let saveDraft: (String) -> Void
 
@@ -103,7 +106,16 @@ struct ChatView: View {
     var body: some View {
         HStack(spacing: 0) {
             chatColumn
-            if showActivity {
+            // Code Mode opens as the RIGHT-side panel (the chat stays put on the left)
+            // rather than replacing the conversation. It takes precedence over the
+            // activity panel while open.
+            if codeMode {
+                ResizableDivider(
+                    width: Binding(get: { CGFloat(codeW) }, set: { codeW = Double($0) }),
+                    range: 380...900, sign: -1)
+                CodeModeView(vm: vm)
+                    .frame(width: CGFloat(codeW))
+            } else if showActivity {
                 ResizableDivider(
                     width: Binding(get: { CGFloat(activityW) }, set: { activityW = Double($0) }),
                     range: 260...560, sign: -1)
@@ -111,10 +123,10 @@ struct ChatView: View {
                                    previewStrategy: advisorPreviewStrategy, previewLabel: advisorPreviewLabel,
                                    previewReason: advisorPreviewReason)
                     .frame(width: CGFloat(activityW))
-            }
-            if showActivity, let focus = agentFocus {
-                SubagentDetailPanel(vm: vm, focus: focus) { agentFocus = nil }
-                    .frame(width: 300)
+                if let focus = agentFocus {
+                    SubagentDetailPanel(vm: vm, focus: focus) { agentFocus = nil }
+                        .frame(width: 300)
+                }
             }
         }
         // NOTE: no implicit animation / transition here. These panels contain
@@ -226,7 +238,9 @@ struct ChatView: View {
             // sits under the header; the old indeterminate "thinking" line was noise
             // and duplicated the activity panel, so it's gone.
             if vm.isRunning, let p = vm.taskProgress, p.total > 0 { runningProgressBar }
-            if codeMode { CodeModeView(vm: vm) } else { messagesList }
+            // The chat always stays here; Code Mode now opens in the right-side panel
+            // (see body) instead of replacing the conversation.
+            messagesList
             if engineMissing { engineMissingCard }
             if vm.mixedProvidersNote { mixedProvidersStrip }
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
@@ -1003,7 +1017,7 @@ struct ChatView: View {
                 .fixedSize()
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Space.s) {
-                    ForEach(vm.editedFiles, id: \.self) { path in fileChip(path) }
+                    ForEach(Array(vm.editedFiles.reversed()), id: \.self) { path in fileChip(path) }
                 }
             }
             Button { showPreview = true } label: {

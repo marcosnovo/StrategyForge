@@ -150,17 +150,37 @@ final class AppModel {
         }
     }
 
-    /// Re-read usage: Claude token counts (local logs) + its authoritative rate-limit
-    /// % (endpoint) + Codex's authoritative % (local logs). All off the main thread.
-    func refreshUsage() async {
+    /// Re-read usage from LOCAL LOGS only (Claude + Codex token counts) — no Keychain,
+    /// so this is safe to call ambiently (activity panel, nav card) without triggering a
+    /// login-Keychain password prompt. The exact rate-limit % (which needs the Claude
+    /// Keychain token) is fetched separately, only on deliberate intent — see
+    /// `refreshExactUsage()`. That's why the app no longer asks for the Keychain password
+    /// on every launch.
+    func refreshUsage(includeExact: Bool = false) async {
         isRefreshingUsage = true
         async let claude = Task.detached(priority: .utility) { ClaudeUsageStore.load() }.value
         async let codex = Task.detached(priority: .utility) { CodexUsageStore.load() }.value
-        async let exact = Task.detached(priority: .utility) { await ClaudeUsageAPI.fetch() }.value
         claudeUsage = await claude
         codexUsage = await codex
-        claudeExact = await exact
         isRefreshingUsage = false
+        if includeExact { await refreshExactUsage() }
+    }
+
+    /// Whether we've already attempted the Keychain-backed exact-usage fetch this session
+    /// — so a missing/expired token prompts (or no-ops) at most ONCE, never repeatedly.
+    @ObservationIgnored private var didAttemptExactUsage = false
+
+    /// Fetch Claude's authoritative rate-limit % from its usage endpoint. This reads the
+    /// Claude Code login token from the Keychain (which can prompt for the password), so
+    /// it runs ONLY on deliberate intent — opening the Usage section or an explicit
+    /// refresh — never at launch. Attempted once per session unless `force` is set (the
+    /// manual "refresh" / just-signed-in cases). Cached in `claudeExact` once it lands.
+    func refreshExactUsage(force: Bool = false) async {
+        guard force || !didAttemptExactUsage else { return }
+        didAttemptExactUsage = true
+        if let exact = await Task.detached(priority: .utility, operation: { await ClaudeUsageAPI.fetch() }).value {
+            claudeExact = exact
+        }
     }
     /// The service shown in the main area while in the Services section.
     var selectedService: AIProvider = .claude

@@ -33,7 +33,12 @@ struct UsageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
-        .task { if model.claudeUsage == nil { await model.refreshUsage() } }
+        // Opening the Usage section is deliberate intent — here (and only here) we also
+        // fetch the exact rate-limit % (which reads the Keychain), attempted once/session.
+        .task {
+            if model.claudeUsage == nil { await model.refreshUsage() }
+            await model.refreshExactUsage()
+        }
     }
 
     private var header: some View {
@@ -44,7 +49,7 @@ struct UsageView: View {
             }
             Spacer()
             Button {
-                Task { await model.refreshUsage() }
+                Task { await model.refreshUsage(); await model.refreshExactUsage(force: true) }
             } label: {
                 Label(model.t("usage.refresh"), systemImage: "arrow.clockwise")
                     .symbolEffect(.rotate, isActive: model.isRefreshingUsage)
@@ -130,7 +135,7 @@ struct UsageView: View {
         }
         .equalCard()
         .sheet(isPresented: $reconnectingClaude) {
-            ProviderConnectSheet(provider: .claude) { Task { await model.refreshUsage() } }
+            ProviderConnectSheet(provider: .claude) { Task { await model.refreshUsage(); await model.refreshExactUsage(force: true) } }
         }
     }
 

@@ -614,10 +614,11 @@ struct AgentActivityPanel: View {
                 .buttonStyle(.plain).foregroundStyle(Theme.accent)
                 .help(model.t("filepreview.title"))
             }
-            ForEach(vm.editedFiles, id: \.self) { path in fileRow(path) }
+            // Newest first — the most recently produced file sits at the top.
+            ForEach(Array(vm.editedFiles.reversed()), id: \.self) { path in fileRow(path) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .sheet(isPresented: $previewingFiles) { DocumentPreviewSheet(files: vm.editedFiles) }
+        .sheet(isPresented: $previewingFiles) { DocumentPreviewSheet(files: vm.editedFiles.reversed()) }
     }
 
     /// Which Agent Skills the model pulled into context this chat — so it's clear

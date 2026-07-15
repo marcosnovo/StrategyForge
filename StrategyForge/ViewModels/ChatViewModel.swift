@@ -682,9 +682,13 @@ final class ChatViewModel {
                 self?.renderNarration(assistantIndex)
             }
         }
+        // The meta path is stateless (each role is a one-shot CLI with no session), so —
+        // unlike the native Claude path with --session-id — follow-up turns would lose all
+        // prior context. Prepend the recent conversation so the team continues the thread.
+        let contextualTask = metaTaskWithContext(task, upTo: assistantIndex)
         let stream = AsyncStream<MetaEvent> { cont in
             let task = Task.detached {
-                await MetaOrchestrator.run(strategy: strategy, task: task, cwd: repo, runner: runner) {
+                await MetaOrchestrator.run(strategy: strategy, task: contextualTask, cwd: repo, runner: runner) {
                     cont.yield($0)
                 }
                 cont.finish()
@@ -698,6 +702,32 @@ final class ChatViewModel {
         }
         narrationTicker?.cancel()
         narrationTicker = nil
+    }
+
+    /// Prepend the recent conversation to a meta-turn task so the cross-provider team has
+    /// the same running context a normal Claude/ChatGPT chat keeps. The native path gets
+    /// this for free via `--session-id`; the meta path must carry it in the prompt. Recent
+    /// history is included within a character budget so the prompt stays bounded.
+    private func metaTaskWithContext(_ current: String, upTo index: Int) -> String {
+        // Everything before the current user message + the empty assistant placeholder.
+        let prior = Array(messages.prefix(max(0, index - 1)))
+        guard !prior.isEmpty else { return current }
+        var budget = 12_000
+        var lines: [String] = []
+        for m in prior.reversed() where !m.text.isEmpty {
+            let line = "\(m.role == .user ? "User" : "Assistant"): \(m.text)"
+            if line.count > budget { break }
+            budget -= line.count
+            lines.append(line)
+        }
+        guard !lines.isEmpty else { return current }
+        return """
+        CONVERSATION SO FAR (context — continue this thread, do not restart):
+        \(lines.reversed().joined(separator: "\n\n"))
+
+        CURRENT REQUEST:
+        \(current)
+        """
     }
 
     /// Map a MetaOrchestrator event onto the same chat/activity state the Claude
@@ -734,12 +764,12 @@ final class ChatViewModel {
                 markNarrationDone(role, assistantIndex: assistantIndex)
             }
         case .assistantText(let text):
-            // The final synthesis replaces the live narration.
+            // The final synthesis replaces the live narration. The answer stays in the
+            // transcript only — it is NOT written to disk as a file (a plain response is
+            // not a "download"; only real files the agents write with tools are listed).
             metaNarration = []
+            narrationStepSince = nil
             if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = text }
-            // A cross-provider turn's deliverable is text, not a disk file — save a
-            // substantial answer as a file so it's listed and recoverable like any other.
-            materializeMetaDeliverable(text)
             persistStreaming()
         case .usage(let tokens, let cost):
             totalTokens += tokens
@@ -751,46 +781,6 @@ final class ChatViewModel {
         case .finished:
             break
         }
-    }
-
-    /// For cross-provider (meta) turns the deliverable is text, never a file on disk —
-    /// so a report/document would otherwise be unrecoverable from the files panel. When
-    /// the answer reads like a document, write it into the chat's artifacts folder and
-    /// list it as a produced file (persisted per turn, downloadable, revealable).
-    private func materializeMetaDeliverable(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Only worth saving when it's a document, not a one-line reply.
-        let looksLikeDoc = trimmed.hasPrefix("# ") || trimmed.contains("\n# ")
-            || trimmed.contains("\n## ") || trimmed.count >= 800
-        guard looksLikeDoc else { return }
-        let dir = AppPaths.supportDirectory()
-            .appendingPathComponent("Artifacts", isDirectory: true)
-            .appendingPathComponent(config.id.uuidString, isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = dir.appendingPathComponent("\(deliverableSlug(from: trimmed)).md")
-        do {
-            try text.write(to: url, atomically: true, encoding: .utf8)
-            let path = url.path
-            if !editedFiles.contains(path) { editedFiles.append(path) }
-            if !turnEditedFiles.contains(path) { turnEditedFiles.append(path) }
-        } catch {
-            DiagnosticsLog.record("materialize deliverable failed: \(error.localizedDescription)")
-        }
-    }
-
-    /// A filesystem-safe file base from the answer's first heading (or first line),
-    /// e.g. "# Informe App Oricloud" → "Informe-App-Oricloud".
-    private func deliverableSlug(from text: String) -> String {
-        let firstMeaningful = text
-            .components(separatedBy: "\n")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .first { !$0.isEmpty } ?? "deliverable"
-        let title = firstMeaningful.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)
-        let allowed = CharacterSet.alphanumerics.union(.whitespaces)
-        let cleaned = String(title.unicodeScalars.filter { allowed.contains($0) })
-            .split(whereSeparator: { $0 == " " }).joined(separator: "-")
-        let base = cleaned.isEmpty ? "deliverable" : cleaned
-        return String(base.prefix(60))
     }
 
     // MARK: - Meta live narration
