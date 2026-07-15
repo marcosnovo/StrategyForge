@@ -32,6 +32,10 @@ struct CodeModeView: View {
     // Push & PR
     @State private var pushing = false
     @State private var prURL: String?
+    /// The pull request for the current branch (open/merged/closed), if any — so Code
+    /// Mode shows the generated PR, its state, links to its diff, and a merge button.
+    @State private var pr: GitHubCLI.PRInfo?
+    @State private var merging = false
     // Branch switching
     @State private var branches: [String] = []
     @State private var showNewBranch = false
@@ -60,6 +64,7 @@ struct CodeModeView: View {
                 if let repo = vm.config.repoPath {
                     branch = await CodeGit.currentBranch(repo: repo)
                     branches = await CodeGit.branches(repo: repo)
+                    await refreshPR()
                 }
             }
         }
@@ -265,6 +270,7 @@ struct CodeModeView: View {
                         }
                     }
                     if !vm.commandLog.isEmpty { terminalPane }
+                    if isRepo { prStatusBar }
                     if isRepo { commitBar }
                 }
             } else {
@@ -402,7 +408,7 @@ struct CodeModeView: View {
         gitBusy = true; gitError = nil
         Task {
             let r = await CodeGit.checkout(repo: repo, branch: b)
-            if r.ok { branch = b; await loadDiff() } else { gitError = r.out }
+            if r.ok { branch = b; await loadDiff(); await refreshPR() } else { gitError = r.out }
             gitBusy = false
         }
     }
@@ -432,10 +438,86 @@ struct CodeModeView: View {
             if pr.ok {
                 prURL = pr.url
                 model.flashSuccess(model.t("code.pr.opened"))
+                await refreshPR()
             } else {
                 gitError = pr.out
             }
             pushing = false
+        }
+    }
+
+    /// Re-read the current branch's PR state (open/merged/closed) for the status bar.
+    private func refreshPR() async {
+        guard let repo = vm.config.repoPath, let b = branch, GitHubCLI.isInstalled else { pr = nil; return }
+        pr = await GitHubCLI.prInfo(repo: repo, branch: b)
+    }
+
+    /// Merge the current branch's PR (squash) via gh, then refresh its state.
+    private func mergePR() {
+        guard let repo = vm.config.repoPath, let b = branch, !merging else { return }
+        merging = true; gitError = nil
+        Task {
+            let r = await GitHubCLI.mergePR(repo: repo, branch: b)
+            if r.ok { model.flashSuccess(model.t("code.pr.merged")) } else { gitError = r.out }
+            await refreshPR()
+            merging = false
+        }
+    }
+
+    /// A compact status bar for the branch's pull request: state badge, number + title,
+    /// links to the PR and its diff, and a one-tap merge when it's open.
+    @ViewBuilder
+    private var prStatusBar: some View {
+        if let pr {
+            let state = pr.isDraft ? "DRAFT" : pr.state.uppercased()
+            Divider()
+            HStack(spacing: Space.s) {
+                Label {
+                    Text(state.capitalized).font(.sfCaption2.weight(.semibold))
+                } icon: {
+                    Image(systemName: prIcon(state)).font(.system(size: 11))
+                }
+                .foregroundStyle(prColor(state))
+                .padding(.horizontal, 7).padding(.vertical, 2)
+                .background(Capsule().fill(prColor(state).opacity(0.14)))
+
+                Text("#\(pr.number)").font(.sfCaption2.weight(.semibold)).foregroundStyle(.secondary)
+                Text(pr.title).font(.sfCaption2).foregroundStyle(.primary).lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: Space.s)
+
+                if let url = URL(string: pr.url) {
+                    Link(destination: url.appendingPathComponent("files")) {
+                        Label(model.t("code.pr.diff"), systemImage: "plus.forwardslash.minus").font(.sfCaption2)
+                    }
+                    Link(destination: url) {
+                        Label(model.t("code.viewPR"), systemImage: "arrow.up.forward.square").font(.sfCaption2)
+                    }
+                }
+                if merging { WorkingLogo(size: 14) }
+                if state == "OPEN" {
+                    Button(model.t("code.pr.merge")) { mergePR() }
+                        .controlSize(.small).buttonStyle(.moon).disabled(merging)
+                }
+            }
+            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+            .background(.bar)
+        }
+    }
+
+    private func prIcon(_ state: String) -> String {
+        switch state {
+        case "MERGED": return "arrow.triangle.merge"
+        case "CLOSED": return "xmark.circle"
+        case "DRAFT": return "pencil.circle"
+        default: return "arrow.triangle.pull"   // OPEN
+        }
+    }
+    private func prColor(_ state: String) -> Color {
+        switch state {
+        case "MERGED": return Theme.accent
+        case "CLOSED": return Theme.danger
+        case "DRAFT": return .secondary
+        default: return Theme.success   // OPEN
         }
     }
 

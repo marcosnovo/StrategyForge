@@ -72,6 +72,17 @@ enum GitHubCLI {
         }.value
     }
 
+    /// Merge the PR for `branch` (squash by default) using the user's own gh auth.
+    /// Returns ok + gh's output so the UI can surface a failure (e.g. checks not passed,
+    /// branch protection). The caller re-reads prInfo afterwards to reflect MERGED.
+    nonisolated static func mergePR(repo: String, branch: String, squash: Bool = true) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let gh = ghPath() else { return (false, "GitHub CLI (gh) not found") }
+            let r = run(gh, ["pr", "merge", branch, squash ? "--squash" : "--merge", "--delete-branch=false"], cwd: repo)
+            return (r.ok, r.out)
+        }.value
+    }
+
     /// A GitHub repository the signed-in user can open (for the Code launcher list).
     struct RepoRef: Sendable, Hashable, Identifiable {
         var nameWithOwner: String
