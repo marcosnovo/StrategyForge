@@ -697,7 +697,8 @@ final class AppModel {
         invalidateChatVM(id)
         configurations.removeAll { $0.id == id }
         liveRepoURLs[id] = nil
-        try? FileManager.default.removeItem(at: activityURL(id))   // drop the history sidecar
+        try? FileManager.default.removeItem(at: activityURL(id))     // drop the history sidecar
+        try? FileManager.default.removeItem(at: transcriptURL(id))   // and the transcript sidecar
         if selectedConfigID == id { selectedConfigID = configurations.first?.id }
         save()
     }
@@ -717,6 +718,9 @@ final class AppModel {
             configurations.append(copy)
         }
         selectedConfigID = copy.id
+        // The copy carries the source's transcript in memory — write its sidecar so it
+        // survives the transcript-stripped data.json save (else it'd be lost on reload).
+        if !copy.transcript.isEmpty { writeTranscript(copy.id, copy.transcript) }
         save()
     }
 
@@ -1198,7 +1202,8 @@ final class AppModel {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
         configurations[i].transcript = messages
         configurations[i].lastActiveAt = Date()   // bump so active chats rise to the top
-        saveThrottled()
+        writeTranscript(id, messages)             // the transcript goes to its own sidecar
+        saveThrottled()                           // data.json (transcript-free) for metadata
     }
 
     // MARK: - Coalesced device-local writes
@@ -1278,6 +1283,35 @@ final class AppModel {
         configurations[i].totalTokens = tokens
         configurations[i].totalCostUSD = costUSD
         saveThrottled()
+    }
+
+    // MARK: - Transcript sidecars (device-local, per-chat)
+    //
+    // A chat's transcript can be large and grows every token; keeping it inline in
+    // data.json meant every save re-encoded EVERY chat's full history. Transcripts now
+    // live in a per-chat sidecar (transcripts/<id>.json): data.json is encoded WITHOUT
+    // them (small + fast), and only the active chat's sidecar is rewritten as it streams.
+    // Backward compatible: an old data.json with inline transcripts still loads, and its
+    // transcript is migrated to a sidecar on load (synchronously, before any save can
+    // strip it) so nothing is ever lost.
+
+    private func transcriptURL(_ id: Configuration.ID) -> URL {
+        let dir = AppPaths.supportDirectory().appendingPathComponent("transcripts", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("\(id.uuidString).json")
+    }
+
+    /// Write one chat's transcript to its sidecar, atomically. Synchronous and cheap
+    /// (one chat, not all) — and crash-safe: the sidecar exists before save() strips the
+    /// inline copy from data.json.
+    private func writeTranscript(_ id: Configuration.ID, _ messages: [ChatMessage]) {
+        guard let data = try? JSONEncoder().encode(messages) else { return }
+        try? data.write(to: transcriptURL(id), options: .atomic)
+    }
+
+    private func loadTranscript(_ id: Configuration.ID) -> [ChatMessage]? {
+        guard let data = try? Data(contentsOf: transcriptURL(id)) else { return nil }
+        return try? JSONDecoder().decode([ChatMessage].self, from: data)
     }
 
     // MARK: - Agent activity history (device-local, per-chat sidecar — never synced)
@@ -1823,7 +1857,12 @@ final class AppModel {
         // fired every ~1.5s mid-reply) avoids rebuilding a dictionary of every chat on
         // each token flush.
         if stamp { stampChanges(); snapshotConfigurations() }
-        let state = PersistedState(configurations: configurations, settings: settings, savedTeams: savedTeams)
+        // Encode WITHOUT transcripts — they live in per-chat sidecars (written by
+        // updateTranscript), so data.json stays small and cheap to re-encode. The
+        // in-memory configurations keep their transcripts; only this encoded copy is slim.
+        var slim = configurations
+        for i in slim.indices { slim[i].transcript = [] }
+        let state = PersistedState(configurations: slim, settings: settings, savedTeams: savedTeams)
         let url = storeURL
         writeTask?.cancel()
         writeTask = Task.detached(priority: .utility) { [weak self] in
@@ -1878,6 +1917,17 @@ final class AppModel {
         configurations = state.configurations
         settings = state.settings
         savedTeams = state.savedTeams
+        // Hydrate transcripts from their sidecars. For an OLD data.json that still carried
+        // transcripts inline, migrate each to a sidecar NOW (synchronously, before any
+        // save() can strip the inline copy) so a transcript can never be lost.
+        for i in configurations.indices {
+            let id = configurations[i].id
+            if let t = loadTranscript(id) {
+                configurations[i].transcript = t
+            } else if !configurations[i].transcript.isEmpty {
+                writeTranscript(id, configurations[i].transcript)   // migrate inline → sidecar
+            }
+        }
         // Restore the last session's UI: selected chat + activity-panel visibility.
         if let last = settings.lastSelectedConfigID,
            let restored = configurations.first(where: { $0.id.uuidString == last }) {
