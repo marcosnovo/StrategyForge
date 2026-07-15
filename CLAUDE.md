@@ -6,7 +6,17 @@ read that first, this file only covers running the loop verifier.
 
 ## Build & test (the loop's verifier gate)
 
-    xcodebuild test -project StrategyForge.xcodeproj -scheme StrategyForge -destination 'platform=macOS'
+    xcodebuild test -project StrategyForge.xcodeproj -scheme StrategyForge -destination 'platform=macOS' \
+      TEST_HOST='$(BUILT_PRODUCTS_DIR)/Coral.app/Contents/MacOS/Coral'
+
+The `TEST_HOST` override is needed because the product was renamed to **Coral**
+(`PRODUCT_NAME = Coral`) but the test target's `TEST_HOST` build setting still
+points at the old `StrategyForge.app/StrategyForge`. Until that one line is
+fixed in the pbxproj (a Build Settings edit that must be done with **Xcode
+closed** — set the StrategyForgeTests `Test Host` to
+`$(BUILT_PRODUCTS_DIR)/Coral.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Coral`), pass
+the override above. The module is also `Coral` now, so tests
+`@testable import Coral` (not `StrategyForge`). 165 tests, 31 suites.
 
 Targets: `StrategyForge` (app), `StrategyForgeTests` (unit tests — the real
 gate for most changes, written with `Testing` / `@Test`, not XCTest),
