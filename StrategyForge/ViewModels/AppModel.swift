@@ -60,6 +60,18 @@ final class AppModel {
     /// Whether a provider can be selected right now (its CLI is installed).
     func isConnected(_ provider: AIProvider) -> Bool { connectedProviders.contains(provider) }
 
+    /// Providers currently near their usage limit. The recommender steers role
+    /// assignment AWAY from these when a comparable alternative exists (it never hard-
+    /// excludes them — a capped provider is still used when it's the only real fit).
+    /// Uses the same signals as the rail's usage card: Claude's real 5-hour / week
+    /// rate-limit %, and Codex's plan %. Gemini exposes no usage, so it's never capped.
+    var deprioritizedProviders: Set<AIProvider> {
+        var set: Set<AIProvider> = []
+        if let e = claudeExact, e.fiveHourPercent >= 85 || e.weekPercent >= 90 { set.insert(.claude) }
+        if let c = codexUsage, let w = c.primary ?? c.secondary, w.usedPercent >= 85 { set.insert(.openai) }
+        return set
+    }
+
     // MARK: Provider plan (manual) + spend aggregation
 
     /// The user's declared plan for a provider (no CLI exposes it).
@@ -929,7 +941,8 @@ final class AppModel {
         // private); otherwise the deterministic engine. When >1 provider CLI is
         // connected, roles are also mixed across providers (Claude-only otherwise).
         // Re-find the index after the await in case the array changed while thinking.
-        let advice = await AdvisorEngine.adviseCrossProvider(task: task, connected: connectedProviders)
+        let advice = await AdvisorEngine.adviseCrossProvider(task: task, connected: connectedProviders,
+                                                             deprioritize: deprioritizedProviders)
         guard let i = configurations.firstIndex(where: { $0.id == id }),
               configurations[i].strategyIsAuto else { return nil }
         configurations[i].strategy = advice.strategy

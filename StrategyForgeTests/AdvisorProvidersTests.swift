@@ -208,4 +208,36 @@ struct AdvisorProvidersTests {
         #expect(a.roles.map(\.provider) == b.roles.map(\.provider))
         #expect(Set(a.roles.map(\.provider)) == all)
     }
+
+    // MARK: - Usage-aware assignment (steer away from near-capped providers)
+
+    @Test func deprioritizedProviderLosesRolesToAComparableRival() {
+        // A coding worker normally lands on OpenAI (Codex, coding 5). Mark OpenAI as
+        // near its limit → the role should move to the next comparable coder.
+        let s = strategy([role("lead", .orchestrator, orchestrator: true),
+                          role("impl", .worker, count: 2)])
+        #expect(AdvisorEngine.assignProviders(to: s, connected: all)
+                    .strategy.roles.first { $0.name == "impl" }?.provider == .openai)
+        let (capped, _) = AdvisorEngine.assignProviders(to: s, connected: all, deprioritize: [.openai])
+        #expect(capped.roles.first { $0.name == "impl" }?.provider != .openai)
+    }
+
+    @Test func deprioritizedProviderIsStillUsedWhenItIsTheBestFitAnyway() {
+        // If every candidate is deprioritized, the penalty is uniform, so the raw
+        // capability ranking stands — a near-capped provider is never hard-excluded.
+        let s = strategy([role("lead", .orchestrator, orchestrator: true),
+                          role("impl", .worker)])
+        let (out, _) = AdvisorEngine.assignProviders(to: s, connected: [.claude, .openai],
+                                                     deprioritize: [.claude, .openai])
+        #expect(out.roles.first { $0.name == "impl" }?.provider == .openai)
+    }
+
+    @Test func emptyDeprioritizeMatchesTheDefault() {
+        let s = strategy([role("lead", .orchestrator, orchestrator: true),
+                          role("impl", .worker, count: 2),
+                          role("review", .reviewer)])
+        let a = AdvisorEngine.assignProviders(to: s, connected: all).strategy.roles.map(\.provider)
+        let b = AdvisorEngine.assignProviders(to: s, connected: all, deprioritize: []).strategy.roles.map(\.provider)
+        #expect(a == b)
+    }
 }

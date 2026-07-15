@@ -345,7 +345,8 @@ enum AdvisorEngine {
     /// recommendation (AI-shaped when available), and a max-quality one that spends
     /// more for better results. Same shape/loop/goal — they differ in model tier and
     /// team size, so the estimated cost tells the tradeoff honestly.
-    static func adviseTiers(task: String, connected: Set<AIProvider> = [.claude]) async -> [Tier] {
+    static func adviseTiers(task: String, connected: Set<AIProvider> = [.claude],
+                            deprioritize: Set<AIProvider> = []) async -> [Tier] {
         let balanced = await adviseWithAI(task: task, connected: connected)
         let saver = variant(of: balanced, shift: -1, countDelta: -1,
                             effort: lower(balanced.effort),
@@ -368,7 +369,8 @@ enum AdvisorEngine {
         // still explained by its own provider picks. No-op when <2 providers connected.
         if Set(connected).count > 1 {
             tiers = tiers.map { t in
-                let advice = applyingProviders(t.advice, connected: connected, bias: TierBias.from(tierID: t.id))
+                let advice = applyingProviders(t.advice, connected: connected,
+                                               bias: TierBias.from(tierID: t.id), deprioritize: deprioritize)
                 return Tier(id: t.id, labelKey: t.labelKey, noteKey: t.noteKey, advice: advice)
             }
         }

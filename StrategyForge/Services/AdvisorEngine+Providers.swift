@@ -154,11 +154,13 @@ extension AdvisorEngine {
     /// providers are connected — so a Claude-only user sees exactly today's behavior.
     static func assignProviders(to strategy: Strategy,
                                 connected: Set<AIProvider>,
-                                bias: TierBias = .balanced) -> (strategy: Strategy, picks: [ProviderPick]) {
+                                bias: TierBias = .balanced,
+                                deprioritize: Set<AIProvider> = []) -> (strategy: Strategy, picks: [ProviderPick]) {
         let connectedSet = connected.isEmpty ? [AIProvider.claude] : connected
         let available = modelProfiles.filter { connectedSet.contains($0.provider) }
         guard Set(available.map(\.provider)).count > 1 else { return (strategy, []) }
-        return assignCore(to: strategy, available: available, bias: bias, connected: connectedSet)
+        return assignCore(to: strategy, available: available, bias: bias,
+                          connected: connectedSet, deprioritize: deprioritize)
     }
 
     /// The IDEAL cross-provider mix computed against ALL providers (ignoring what's
@@ -179,7 +181,8 @@ extension AdvisorEngine {
     private static func assignCore(to strategy: Strategy,
                                    available: [ModelProfile],
                                    bias: TierBias,
-                                   connected: Set<AIProvider>) -> (strategy: Strategy, picks: [ProviderPick]) {
+                                   connected: Set<AIProvider>,
+                                   deprioritize: Set<AIProvider> = []) -> (strategy: Strategy, picks: [ProviderPick]) {
         var s = strategy
         // Collect (roleIndex, pick) so the UI can show picks in role order.
         var ordered: [(index: Int, pick: ProviderPick)] = []
@@ -194,7 +197,7 @@ extension AdvisorEngine {
         // Pass 1 — every non-review role by its primary axis.
         for i in s.roles.indices where !isReviewRole(s.roles[i].role) {
             let axis = primaryAxis(for: s.roles[i].role)
-            guard let profile = best(from: available, axis: axis, bias: bias) else { continue }
+            guard let profile = best(from: available, axis: axis, bias: bias, deprioritize: deprioritize) else { continue }
             apply(profile, to: &s.roles[i])
             ordered.append((i, pick(s.roles[i].name, s.roles[i].role, profile, reasonKey(for: axis))))
             if (s.roles[i].role == .worker || s.roles[i].role == .specialist), coderProvider == nil {
@@ -210,7 +213,7 @@ extension AdvisorEngine {
         for i in s.roles.indices where isReviewRole(s.roles[i].role) {
             let crossFamily = available.filter { $0.provider != coderProvider }
             let pool = crossFamily.isEmpty ? available : crossFamily
-            guard let profile = best(from: pool, axis: .reasoning, bias: bias) else { continue }
+            guard let profile = best(from: pool, axis: .reasoning, bias: bias, deprioritize: deprioritize) else { continue }
             apply(profile, to: &s.roles[i])
             let reason = crossFamily.isEmpty
                 ? "advisor.provider.reason.onlyOne"
@@ -226,7 +229,7 @@ extension AdvisorEngine {
         // coding seat. In practice this lands Gemini (breadth/second-opinion) on a
         // review / research seat, and never degrades the team below a hair.
         ensureCoverage(in: &s, ordered: &ordered, available: available,
-                       connected: connected, bias: bias)
+                       connected: connected, bias: bias, deprioritize: deprioritize)
 
         let picks = ordered.sorted { $0.index < $1.index }.map(\.pick)
         return (s, picks)
@@ -249,8 +252,10 @@ extension AdvisorEngine {
                                        ordered: inout [(index: Int, pick: ProviderPick)],
                                        available: [ModelProfile],
                                        connected: Set<AIProvider>,
-                                       bias: TierBias) {
-        let usable = Set(available.map(\.provider)).intersection(connected)
+                                       bias: TierBias,
+                                       deprioritize: Set<AIProvider> = []) {
+        // Don't force a near-capped provider onto a role just for coverage.
+        let usable = Set(available.map(\.provider)).intersection(connected).subtracting(deprioritize)
         for provider in AIProvider.allCases
         where usable.contains(provider) && !s.roles.contains(where: { $0.provider == provider }) {
             // The best role to host this provider: maximize its primary-axis fit,
@@ -283,10 +288,11 @@ extension AdvisorEngine {
 
     /// The best profile for an axis under a bias, with a stable, deterministic
     /// tie-break (provider order, then model id) so the same inputs never reorder.
-    private static func best(from candidates: [ModelProfile], axis: Axis, bias: TierBias) -> ModelProfile? {
+    private static func best(from candidates: [ModelProfile], axis: Axis, bias: TierBias,
+                             deprioritize: Set<AIProvider> = []) -> ModelProfile? {
         candidates.max { a, b in
-            let sa = score(a, axis: axis, bias: bias)
-            let sb = score(b, axis: axis, bias: bias)
+            let sa = score(a, axis: axis, bias: bias, deprioritize: deprioritize)
+            let sb = score(b, axis: axis, bias: bias, deprioritize: deprioritize)
             if sa != sb { return sa < sb }
             let oa = providerOrder(a.provider), ob = providerOrder(b.provider)
             if oa != ob { return oa > ob }               // lower order wins
@@ -295,14 +301,20 @@ extension AdvisorEngine {
     }
 
     /// Weighted score: the priority axis dominates (×100); the bias nudges the
-    /// tie-break toward cheap/fast (saver) or top capability (max).
-    private static func score(_ p: ModelProfile, axis: Axis, bias: TierBias) -> Int {
+    /// tie-break toward cheap/fast (saver) or top capability (max). A provider in
+    /// `deprioritize` (near its usage limit) takes a fixed penalty of just over one axis
+    /// point, so it loses to a comparable rival but is still used when it's the only fit.
+    private static func score(_ p: ModelProfile, axis: Axis, bias: TierBias,
+                              deprioritize: Set<AIProvider> = []) -> Int {
         let base = p.value(axis) * 100
+        let penalty = deprioritize.contains(p.provider) ? 120 : 0
+        let bonus: Int
         switch bias {
-        case .saver:    return base + p.speed * 10
-        case .balanced: return base + p.speed * 2 + p.reasoning * 2
-        case .max:      return base + (p.reasoning + p.coding) * 10
+        case .saver:    bonus = p.speed * 10
+        case .balanced: bonus = p.speed * 2 + p.reasoning * 2
+        case .max:      bonus = (p.reasoning + p.coding) * 10
         }
+        return base + bonus - penalty
     }
 
     private static func providerOrder(_ p: AIProvider) -> Int {
@@ -329,9 +341,10 @@ extension AdvisorEngine {
     /// connected.
     static func adviseCrossProvider(task: String,
                                     connected: Set<AIProvider>,
-                                    bias: TierBias = .balanced) async -> Advice {
+                                    bias: TierBias = .balanced,
+                                    deprioritize: Set<AIProvider> = []) async -> Advice {
         let base = await adviseWithAI(task: task, connected: connected)
-        return applyingProviders(base, connected: connected, bias: bias)
+        return applyingProviders(base, connected: connected, bias: bias, deprioritize: deprioritize)
     }
 
     /// Reassign providers on top of an already-built advice (used by `adviseTiers`,
@@ -339,8 +352,10 @@ extension AdvisorEngine {
     /// tier logic can reuse it.
     static func applyingProviders(_ advice: Advice,
                                   connected: Set<AIProvider>,
-                                  bias: TierBias) -> Advice {
-        let (s, picks) = assignProviders(to: advice.strategy, connected: connected, bias: bias)
+                                  bias: TierBias,
+                                  deprioritize: Set<AIProvider> = []) -> Advice {
+        let (s, picks) = assignProviders(to: advice.strategy, connected: connected,
+                                         bias: bias, deprioritize: deprioritize)
         // The launch command's headline model tracks the orchestrator only while it
         // stays on Claude (the session model is a Claude Code concept).
         let head: ClaudeModel = (s.orchestrator?.provider == .claude ? (s.orchestrator?.model ?? advice.model) : advice.model)

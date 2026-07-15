@@ -293,7 +293,8 @@ struct ChatView: View {
                 // Same on-device-AI path the first turn will apply, as three cost/
                 // quality options — so the card matches what actually runs (falls back
                 // to the deterministic engine when Apple Intelligence is unavailable).
-                let tiers = await AdvisorEngine.adviseTiers(task: draft, connected: model.connectedProviders)
+                let tiers = await AdvisorEngine.adviseTiers(task: draft, connected: model.connectedProviders,
+                                                            deprioritize: model.deprioritizedProviders)
                 guard !Task.isCancelled else { return }
                 withAnimation {
                     inlineTiers = tiers

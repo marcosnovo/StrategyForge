@@ -146,7 +146,8 @@ struct AdvisorView: View {
             // Provider-aware: when >1 CLI is connected, mix providers per role;
             // otherwise this returns exactly the Claude-only advice.
             let advice = await AdvisorEngine.adviseCrossProvider(
-                task: task, connected: model.connectedProviders)
+                task: task, connected: model.connectedProviders,
+                deprioritize: model.deprioritizedProviders)
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 model.advisorAdvice = advice
             }
