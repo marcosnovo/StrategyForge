@@ -296,6 +296,12 @@ struct ChatView: View {
                 let tiers = await AdvisorEngine.adviseTiers(task: draft, connected: model.connectedProviders,
                                                             deprioritize: model.deprioritizedProviders)
                 guard !Task.isCancelled else { return }
+                // Telemetry: log the recommended (balanced) tier that the user is shown.
+                if let balanced = tiers.first(where: { $0.id == "balanced" }) ?? tiers.first {
+                    Analytics.logRecommendation(balanced.advice, task: draft,
+                                                connected: model.connectedProviders,
+                                                deprioritized: model.deprioritizedProviders)
+                }
                 withAnimation {
                     inlineTiers = tiers
                     if !tiers.contains(where: { $0.id == selectedTierID }) { selectedTierID = "balanced" }

@@ -45,6 +45,11 @@ enum Analytics {
         case licenseActivated
         /// Pro-moat engagement: an A/B comparison of two runs.
         case testbenchComparisonRun
+        /// A strategy recommendation was produced. Captures WHAT was recommended for
+        /// WHICH task read + connected set, so field data can later be correlated with
+        /// run outcomes (Mission Reports) to tune the recommender and the model profiles.
+        case recommendationMade(shape: String, teamSize: Int, intent: String, confidence: Int,
+                                usedAI: Bool, connected: String, deprioritized: String, providers: String)
 
         var name: String {
             switch self {
@@ -69,6 +74,7 @@ enum Analytics {
             case .checkoutStarted: return "checkout_started"
             case .licenseActivated: return "license_activated"
             case .testbenchComparisonRun: return "testbench_comparison_run"
+            case .recommendationMade: return "recommendation_made"
             }
         }
 
@@ -100,6 +106,10 @@ enum Analytics {
                 return ["surface": s]
             case .checkoutStarted(let p):
                 return ["provider": p]
+            case .recommendationMade(let shape, let size, let intent, let conf, let ai, let conn, let deprio, let provs):
+                return ["shape": shape, "team_size": "\(size)", "intent": intent,
+                        "confidence": "\(conf)", "used_ai": "\(ai)", "connected": conn,
+                        "deprioritized": deprio, "providers": provs]
             }
         }
     }
@@ -118,6 +128,24 @@ enum Analytics {
                   let text = String(data: data, encoding: .utf8) else { return }
             append(text + "\n", to: url)
         }
+    }
+
+    /// Convenience: log a recommendation from a finished `Advice` plus its inputs, so
+    /// the field data ties the task READ (intent/confidence) to WHAT was recommended
+    /// (shape, size, per-role provider mix) under WHICH connected/limit context.
+    static func logRecommendation(_ advice: AdvisorEngine.Advice, task: String,
+                                  connected: Set<AIProvider>, deprioritized: Set<AIProvider>) {
+        guard isEnabled else { return }
+        let profile = StrategyGenerator.classify(task)
+        let shape = advice.shapeRationaleKey.replacingOccurrences(of: "advisor.rationale.", with: "")
+        let providers = Set(advice.strategy.roles.map { $0.provider.rawValue }).sorted().joined(separator: ",")
+        let size = advice.strategy.subagentRoles.reduce(0) { $0 + $1.count }
+        log(.recommendationMade(shape: shape, teamSize: size, intent: profile.intent.rawValue,
+                                confidence: Int((profile.confidence * 100).rounded()),
+                                usedAI: advice.usedAI,
+                                connected: connected.map(\.rawValue).sorted().joined(separator: ","),
+                                deprioritized: deprioritized.map(\.rawValue).sorted().joined(separator: ","),
+                                providers: providers))
     }
 
     /// Delete the local telemetry file (offered when the user turns telemetry off).

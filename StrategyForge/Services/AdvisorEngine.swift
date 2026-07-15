@@ -314,7 +314,7 @@ enum AdvisorEngine {
         let base = advise(task: task, connected: connected)
         guard StrategyGenerator.isAIAvailable,
               !task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return base }
-        let ai = await StrategyGenerator.generate(from: task)
+        let ai = await StrategyGenerator.generate(from: task, connected: connected)
         guard ai.usedAI else { return base }
         var s = ai.strategy
         // Keep the recommended model on the orchestrator (launch command + cost).

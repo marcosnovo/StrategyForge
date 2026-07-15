@@ -146,6 +146,54 @@ struct StrategyClassifierEvalTests {
         #expect(correct >= 2, "semantic layer classified only \(correct)/4 paraphrases correctly above threshold")
     }
 
+    // MARK: - Phase 3: model reads axes → deterministic shape() maps them
+
+    @Test func shapeMapsAModelStyleProfileDeterministically() {
+        // The AI path builds a TaskProfile from the model's read, then calls shape().
+        // Verify that mapping directly (the AI path can't run in tests, but its mapping
+        // is the same deterministic function).
+        let bigUnfamiliar = StrategyGenerator.TaskProfile(
+            intent: .understand, scope: .repo, breadth: true, verifiable: false,
+            adversarial: false, serialDebug: false, multiDomain: false,
+            needsScouting: true, willChange: true, confidence: 0.85)
+        #expect(StrategyGenerator.shape(for: bigUnfamiliar).0 == .pipeline)
+
+        let multiDomainBuild = StrategyGenerator.TaskProfile(
+            intent: .build, scope: .module, breadth: false, verifiable: false,
+            adversarial: false, serialDebug: false, multiDomain: true,
+            needsScouting: false, willChange: true, confidence: 0.85)
+        #expect(StrategyGenerator.shape(for: multiDomainBuild).0 == .domainSpecialists)
+    }
+
+    @Test func theKeywordFallbackAlwaysBuildsALegalStrategy() {
+        // The deterministic fallback path generate() uses when the model is off. (We do
+        // NOT call generate() here — that could invoke the on-device model inside the
+        // test host; we exercise the same pure classify → shape → buildStrategy chain.)
+        for task in ["migrate the entire repo to argon2", "fix a typo", "audit the code",
+                     "understand the whole system exhaustively before the rewrite"] {
+            let (shp, size) = StrategyGenerator.heuristicShape(for: task)
+            let s = StrategyGenerator.buildStrategy(shape: shp, teamSize: size)
+            #expect(s.orchestrator != nil)
+            #expect(s.validate().isEmpty, "\(task) → illegal topology")
+        }
+    }
+
+    // MARK: - Phase 4b: recommendation telemetry event
+
+    @Test func recommendationEventSerializesForTheDashboard() {
+        let e = Analytics.Event.recommendationMade(
+            shape: "pipeline", teamSize: 4, intent: "understand", confidence: 85,
+            usedAI: true, connected: "claude,openai", deprioritized: "openai",
+            providers: "claude,gemini,openai")
+        #expect(e.name == "recommendation_made")
+        #expect(e.props["shape"] == "pipeline")
+        #expect(e.props["team_size"] == "4")
+        #expect(e.props["confidence"] == "85")
+        #expect(e.props["used_ai"] == "true")
+        #expect(e.props["providers"] == "claude,gemini,openai")
+        #expect(e.props["deprioritized"] == "openai")
+    }
+
     @Test func semanticLayerNeverChangesConfidentKeywordReads() {
         // High-confidence keyword tasks must be identical with or without embeddings.
         for (task, expected) in Self.golden {

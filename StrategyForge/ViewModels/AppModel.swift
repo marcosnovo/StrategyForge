@@ -943,6 +943,8 @@ final class AppModel {
         // Re-find the index after the await in case the array changed while thinking.
         let advice = await AdvisorEngine.adviseCrossProvider(task: task, connected: connectedProviders,
                                                              deprioritize: deprioritizedProviders)
+        Analytics.logRecommendation(advice, task: task, connected: connectedProviders,
+                                    deprioritized: deprioritizedProviders)
         guard let i = configurations.firstIndex(where: { $0.id == id }),
               configurations[i].strategyIsAuto else { return nil }
         configurations[i].strategy = advice.strategy

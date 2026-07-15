@@ -37,19 +37,6 @@ enum StrategyShape {
     case pipeline
 }
 
-/// The model's structured recommendation.
-@Generable(description: "A recommended multi-agent setup for a coding task")
-struct StrategyRecommendation {
-    @Guide(description: "The team shape that best fits the task")
-    var shape: StrategyShape
-
-    @Guide(description: "Number of parallel workers/specialists, used only when the shape fans out", .range(1...6))
-    var teamSize: Int
-
-    @Guide(description: "One short sentence explaining why this shape fits")
-    var rationale: String
-}
-
 enum StrategyGenerator {
 
     struct Result {
@@ -75,34 +62,38 @@ enum StrategyGenerator {
         }
     }
 
-    private static let instructions = """
-    You design agent teams for the Claude Code CLI. Given a coding task, choose the \
-    team SHAPE that fits and a team size. Prefer the simplest shape that works. Use a \
-    fan-out shape (orchestratorWorkers, researchFanout, domainSpecialists) only when \
-    the task clearly splits into parallel parts. Use scoutAct when an unfamiliar area \
-    should be mapped cheaply before changing it; triageRouter to classify/route incoming \
-    work; rootCauseDebugging for a serial "why does it fail" hunt; and pipeline (scout → \
-    plan → implement → review) for large, unfamiliar, high-stakes changes. Keep the \
-    rationale to one short sentence.
+    private static let profileInstructions = """
+    You classify a coding task for an agent-team planner. Read the task and fill in the \
+    structured fields honestly and precisely — do NOT choose a team, just describe the \
+    task along each axis. Pick the single best `intent`; set each boolean flag only when \
+    the task clearly warrants it. Keep the rationale to one short sentence.
     """
 
-    /// Produce a strategy for a plain-language task.
-    static func generate(from task: String) async -> Result {
+    /// Produce a strategy for a plain-language task. When Apple Intelligence is on, the
+    /// model READS the task into a structured `TaskRead` (the axes) and the deterministic
+    /// `shape(for:)` map decides the team — so the AI path is explainable and consistent
+    /// with the keyword path (same mapping, richer task understanding). Falls back to the
+    /// keyword classifier on any model error or when the model is unavailable.
+    static func generate(from task: String, connected: Set<AIProvider> = []) async -> Result {
         let trimmed = task.trimmingCharacters(in: .whitespacesAndNewlines)
         if isAIAvailable, !trimmed.isEmpty {
             do {
-                let session = LanguageModelSession(instructions: instructions)
-                let response = try await session.respond(to: trimmed, generating: StrategyRecommendation.self)
-                let rec = response.content
-                return Result(strategy: buildStrategy(shape: rec.shape, teamSize: rec.teamSize),
-                              aiRationale: rec.rationale, usedAI: true)
+                let session = LanguageModelSession(instructions: profileInstructions)
+                let read = try await session.respond(to: trimmed, generating: TaskRead.self).content
+                let profile = TaskProfile(intent: read.intent, scope: read.scope, breadth: read.breadth,
+                                          verifiable: read.verifiable, adversarial: read.adversarial,
+                                          serialDebug: read.serialDebug, multiDomain: read.multiDomain,
+                                          needsScouting: read.needsScouting, willChange: read.willChange,
+                                          confidence: 0.85)
+                let (shp, size) = shape(for: profile, connected: connected)
+                return Result(strategy: buildStrategy(shape: shp, teamSize: size),
+                              aiRationale: read.rationale, usedAI: true)
             } catch {
-                // Fall through to the heuristic on any model error.
+                // Fall through to the keyword classifier on any model error.
             }
         }
-        let (shape, size) = heuristicShape(for: trimmed)
-        return Result(strategy: buildStrategy(shape: shape, teamSize: size),
-                      aiRationale: nil, usedAI: false)
+        let (shp, size) = heuristicShape(for: trimmed, connected: connected)
+        return Result(strategy: buildStrategy(shape: shp, teamSize: size), aiRationale: nil, usedAI: false)
     }
 
     /// Build a real, legal Strategy from a shape + size. Internal for testing.
@@ -161,11 +152,31 @@ enum StrategyGenerator {
     // MARK: - Multi-axis task classifier
 
     /// What the task primarily asks for.
+    @Generable(description: "What a coding task primarily asks for")
     enum TaskIntent: String, Equatable {
         case understand, decide, review, triage, change, build, harden, quick, general
     }
     /// How much of the codebase the task spans.
+    @Generable(description: "How much of the codebase a task spans")
     enum TaskScope: String, Equatable { case point, module, repo }
+
+    /// The on-device model's structured READ of a task along the same axes the keyword
+    /// classifier uses. The model does what it's good at — understanding intent — while
+    /// the deterministic `shape(for:)` map decides the team, so the AI path is explainable
+    /// and consistent with the keyword path.
+    @Generable(description: "A structured reading of a coding task along independent axes")
+    struct TaskRead {
+        @Guide(description: "What the task primarily asks for") var intent: TaskIntent
+        @Guide(description: "How much of the codebase it spans") var scope: TaskScope
+        @Guide(description: "Explicitly asks for parallel or exhaustive coverage") var breadth: Bool
+        @Guide(description: "Has a checkable finish line like passing tests or lint") var verifiable: Bool
+        @Guide(description: "Is about attacking, breaking, or hardening security") var adversarial: Bool
+        @Guide(description: "A serial root-cause debugging hunt (why does it fail)") var serialDebug: Bool
+        @Guide(description: "Spans two or more distinct domains (frontend, backend, database…)") var multiDomain: Bool
+        @Guide(description: "Touches an unfamiliar area worth mapping before changing it") var needsScouting: Bool
+        @Guide(description: "The task ultimately changes or builds code, not pure research") var willChange: Bool
+        @Guide(description: "One short sentence: why you read the task this way") var rationale: String
+    }
 
     /// A deterministic, multi-axis reading of a task. Pure + cheap; drives shape
     /// selection and is exposed for the UI's "why" and for tests.
