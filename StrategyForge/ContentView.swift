@@ -302,26 +302,34 @@ struct AppAuroraBackground: View {
         scheme == .dark ? Color(red: 0.043, green: 0.067, blue: 0.075)   // #0B1113
                         : Color(red: 0.972, green: 0.965, blue: 0.960)   // #F8F6F5 warm white
     }
+    // A faint brand tint over the vibrancy so text stays legible over a busy wallpaper,
+    // while the desktop still reads clearly through it — "leaning toward transparent".
+    private var tintOpacity: Double { scheme == .dark ? 0.44 : 0.30 }
     // Very low, so the app-wide background reads as ONE uniform translucent color
     // rather than a visible coral/teal gradient bleeding through the (now translucent)
     // chat and panels. Just a whisper of warmth, no directional wash.
     private var bloomOpacity: Double { scheme == .dark ? 0.05 : 0.06 }
 
     var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            let d = max(w, h)
-            ZStack {
-                base
-                // Corner blooms — coral leads (top-trailing), teal answers
-                // (bottom-leading); warm peach + cool mint fill the diagonal.
-                bloom(Theme.coral, at: CGPoint(x: w * 0.92, y: h * 0.04), size: d * 1.05)
-                bloom(Color(red: 1.0, green: 0.72, blue: 0.55), at: CGPoint(x: w * 0.02, y: h * 0.05), size: d * 0.9)
-                bloom(Theme.teal, at: CGPoint(x: w * 0.06, y: h * 0.98), size: d * 1.0)
-                bloom(Color(red: 0.60, green: 0.86, blue: 0.72), at: CGPoint(x: w * 0.98, y: h * 0.94), size: d * 0.85)
+        ZStack {
+            // A faint, TRANSLUCENT brand tint (was an opaque fill — which is exactly what
+            // hid the behind-window glass sitting below this view). At this opacity the
+            // desktop reads clearly through the frosted haze while text stays legible.
+            base.opacity(tintOpacity)
+            // Corner blooms — coral leads (top-trailing), teal answers (bottom-leading);
+            // warm peach + cool mint fill the diagonal.
+            GeometryReader { geo in
+                let w = geo.size.width, h = geo.size.height
+                let d = max(w, h)
+                ZStack {
+                    bloom(Theme.coral, at: CGPoint(x: w * 0.92, y: h * 0.04), size: d * 1.05)
+                    bloom(Color(red: 1.0, green: 0.72, blue: 0.55), at: CGPoint(x: w * 0.02, y: h * 0.05), size: d * 0.9)
+                    bloom(Theme.teal, at: CGPoint(x: w * 0.06, y: h * 0.98), size: d * 1.0)
+                    bloom(Color(red: 0.60, green: 0.86, blue: 0.72), at: CGPoint(x: w * 0.98, y: h * 0.94), size: d * 0.85)
+                }
+                .blur(radius: 70)
+                .drawingGroup()
             }
-            .blur(radius: 70)
-            .drawingGroup()
         }
         .ignoresSafeArea()
     }
