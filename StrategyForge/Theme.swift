@@ -401,7 +401,7 @@ extension View {
     /// (`Theme.columnBg`) instead of the aurora: a frosted material for the glassy feel,
     /// with a `columnBg` wash over it so the left columns read as the SAME color as the
     /// chat + activity panel while staying translucent (the aurora only whispers through).
-    func translucentColumn(tint: Double = 0.78) -> some View {
+    func translucentColumn(tint: Double = 0.68) -> some View {
         background(Theme.columnBg.opacity(tint))
             .background(.ultraThinMaterial)
     }

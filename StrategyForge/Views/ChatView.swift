@@ -138,9 +138,9 @@ struct ChatView: View {
         // continuously-redrawing TimelineViews (WorkingLogo, live diagram) over
         // materials; animating their insertion made the UI hang. Snap them in.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The chat is the protagonist: a clean, bright, near-white surface (not the
-        // dull frosted gray) so the conversation feels open and modern.
-        .background(Theme.columnBg)
+        // Translucent, tinted to the app's neutral surface color — the whole app shares
+        // one glassy background (chat, side columns and activity panel all match).
+        .translucentColumn()
         // Reflect an auto-generated title (set in AppModel after the first message).
         .onChange(of: config.name) { _, new in editingTitle = new }
         // Auto-open the panel the first time an agent starts working.

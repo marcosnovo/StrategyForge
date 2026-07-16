@@ -118,10 +118,9 @@ struct AgentActivityPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Same opaque column surface as the chat, so the activity panel reads as one
-        // continuous part of the app — not a separate translucent slab floating over the
-        // aurora. Structure comes from the inner .panelCard() surfaces + the .bar header.
-        .background(Theme.columnBg)
+        // Same translucent surface as the chat + side columns, so the whole app shares
+        // one glassy background. Structure comes from the inner .panelCard() surfaces.
+        .translucentColumn()
         // Weekly / 5-hour usage figures for the live meter (Claude local logs).
         .task { if model.claudeUsage == nil { await model.refreshUsage() } }
     }
@@ -1105,8 +1104,7 @@ struct SubagentDetailPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Same opaque column surface as the chat + activity panel, so the drill-down
-        // reads as one continuous surface rather than a separate translucent slab.
-        .background(Theme.columnBg)
+        // Same translucent surface as the rest of the app.
+        .translucentColumn()
     }
 }

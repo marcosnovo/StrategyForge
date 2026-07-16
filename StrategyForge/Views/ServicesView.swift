@@ -41,7 +41,7 @@ struct ServicesListColumn: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Frosted glass column: a translucent material shows the faint aurora as clean
         // neutral vibrancy; the (.bar) title header above keeps the glass accent too.
-        .background(.ultraThinMaterial)
+        .translucentColumn()
         .task { await model.refreshConnectedProviders() }
     }
 

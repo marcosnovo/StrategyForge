@@ -49,7 +49,7 @@ struct ChatInspector: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Frosted glass column: a translucent material shows the faint aurora as clean
         // neutral vibrancy; the segmented-picker header (.bar) above stays glass too.
-        .background(.ultraThinMaterial)
+        .translucentColumn()
         .confirmationDialog(model.t("inspector.replaceStrategy.confirm"),
                             isPresented: Binding(get: { pendingTemplate != nil },
                                                  set: { if !$0 { pendingTemplate = nil } }),

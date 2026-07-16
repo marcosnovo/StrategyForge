@@ -33,7 +33,7 @@ struct TeamSelectorColumn: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
+        .translucentColumn()
         // "Drag your repo and visualize your setup" — drop a folder with .claude/.
         .dropDestination(for: URL.self) { urls, _ in
             guard let url = urls.first(where: { $0.hasDirectoryPath }) else { return false }

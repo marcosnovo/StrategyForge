@@ -25,6 +25,8 @@ private struct DiagramNode: Identifiable {
     var isAccent: Bool
     /// Draw a self-loop with this label (nil = no loop).
     var loopLabel: String?
+    /// Which AI provider runs this role — drawn as a small logo badge on the box.
+    var provider: AIProvider
     /// Left column (orchestrator) vs right column (subagents).
     var isOrchestrator: Bool
     /// Vertical slot index and total, for positioning within the right column.
@@ -130,6 +132,7 @@ private enum DiagramSpecBuilder {
             subtitle: t(orchestratorSubtitleKey(strategy)),
             isAccent: tier(orchRole?.model ?? .fable5) >= topTier,
             loopLabel: nil,
+            provider: orchRole?.provider ?? .claude,
             isOrchestrator: true,
             slot: 0, slotCount: 1, stackCount: 1
         )
@@ -173,6 +176,7 @@ private enum DiagramSpecBuilder {
                 subtitle: subtitle,
                 isAccent: tier(box.role.model) >= topTier,
                 loopLabel: nil,   // no self-loops — the round-trip tells the story
+                provider: box.role.provider,
                 isOrchestrator: false,
                 slot: i, slotCount: count, stackCount: box.stack
             )
@@ -294,6 +298,9 @@ struct StrategyDiagramView: View {
         // Tap a box to select/edit that agent (only when a caller opts in). Sits above
         // the Canvas as invisible hit targets aligned to the same computed layout.
         .overlay { tapTargets(spec: spec) }
+        // A small provider logo on each box's bottom-right corner — so you see WHICH AI
+        // runs each role at a glance (Claude / ChatGPT-Codex / Gemini).
+        .overlay { providerBadges(spec: spec) }
         .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous))
         // Force a fresh Canvas when the strategy changes so the drawing can never
         // lag behind the picker selection.
@@ -337,6 +344,23 @@ struct StrategyDiagramView: View {
                 }
             }
         }
+    }
+
+    /// A small provider logo hugging each node's bottom-right corner (the requested
+    /// per-role provider identity). Uses the same computed layout as the Canvas so the
+    /// badges track the boxes exactly. Never intercepts taps.
+    private func providerBadges(spec: DiagramSpec) -> some View {
+        GeometryReader { geo in
+            let frames = layout(spec: spec, in: geo.size)
+            ForEach(spec.allNodes) { node in
+                if let rect = frames[node.id] {
+                    let s: CGFloat = compact ? 14 : 18
+                    ProviderAvatar(provider: node.provider, size: s)
+                        .position(x: rect.maxX - s / 2 - 3, y: rect.maxY - s / 2 - 3)
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     // MARK: Layout
