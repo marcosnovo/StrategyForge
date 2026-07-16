@@ -170,6 +170,14 @@ struct Attachment: Identifiable, Hashable {
     let url: URL       // file to hand to Claude (original or converted .txt)
 }
 
+/// A message the user submitted while a turn was still running — held in a queue and
+/// sent automatically as soon as the run frees up (like Claude Code's queued input).
+struct QueuedMessage: Identifiable, Hashable {
+    let id = UUID()
+    var text: String
+    var attachments: [Attachment]
+}
+
 @Observable
 @MainActor
 final class ChatViewModel {
@@ -258,6 +266,9 @@ final class ChatViewModel {
     /// — NOT the display text, which only carries 📎 file names.
     @ObservationIgnored private var lastPromptText = ""
     var input = ""
+    /// Messages the user submitted while a turn was running — sent automatically, in
+    /// order, as each run finishes (Claude Code-style queued input). Empty when idle.
+    var queued: [QueuedMessage] = []
     var isRunning = false {
         didSet { if isRunning != oldValue { onRunningChanged?(isRunning) } }
     }
@@ -381,6 +392,38 @@ final class ChatViewModel {
     var canSend: Bool {
         let hasText = !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return (hasText || !attachments.isEmpty) && !isRunning
+    }
+
+    /// There's something in the composer to submit (text or attachments), whether or
+    /// not a turn is running — running turns queue it instead of sending immediately.
+    var hasComposerContent: Bool {
+        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
+    }
+
+    /// The composer's primary action. Sends now when idle; otherwise queues the message
+    /// and clears the composer, so the user can keep typing ahead (Claude Code-style).
+    func submit() {
+        guard hasComposerContent else { return }
+        guard isRunning else { send(); return }
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        queued.append(QueuedMessage(text: text, attachments: attachments))
+        input = ""
+        attachments = []
+    }
+
+    /// Remove a queued message before it gets sent.
+    func removeQueued(_ id: QueuedMessage.ID) {
+        queued.removeAll { $0.id == id }
+    }
+
+    /// If the run is idle and messages are waiting, send the next one. Called at the end
+    /// of every finished turn so the queue drains one message per turn, in order.
+    private func flushQueue() {
+        guard !isRunning, !queued.isEmpty else { return }
+        let next = queued.removeFirst()
+        input = next.text
+        attachments = next.attachments
+        send()
     }
 
     /// The folder Claude runs in: the chosen repo, or a per-chat scratch folder so
@@ -562,6 +605,8 @@ final class ChatViewModel {
                 messages.remove(at: assistantIndex)
             }
             persist(messages)
+            // Send the next queued message (if any) now that the run is free.
+            flushQueue()
         }
     }
 
@@ -934,6 +979,7 @@ final class ChatViewModel {
                 messages.remove(at: assistantIndex)
             }
             persist(messages)
+            flushQueue()
         }
     }
 
@@ -950,6 +996,9 @@ final class ChatViewModel {
         runTask = nil
         isRunning = false
         pendingPermission = nil
+        // Interrupting the run also drops anything queued behind it — the user hit stop,
+        // so don't quietly fire off the messages they'd lined up.
+        queued = []
         Analytics.log(.runCancelled)
     }
 }

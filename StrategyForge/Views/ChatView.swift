@@ -1250,6 +1250,7 @@ struct ChatView: View {
             if !mentionMatches.isEmpty {
                 mentionPopover.transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+            if !vm.queued.isEmpty { queuedChips }
             if !vm.attachments.isEmpty { attachmentChips }
             HStack(spacing: Space.s) {
             // Attach files for Claude to review.
@@ -1283,6 +1284,12 @@ struct ChatView: View {
                 }
 
             if vm.isRunning {
+                // Typing while it works? Enter (or this button) queues the message — it
+                // sends automatically when the current turn finishes. Stop stays available.
+                if vm.hasComposerContent {
+                    circularSendButton(system: "arrow.up", accessibility: model.t("chat.queue"),
+                                       enabled: !engineMissing) { send() }
+                }
                 circularSendButton(system: "stop.fill", accessibility: model.t("chat.stop"),
                                    enabled: true) { vm.stop() }
             } else {
@@ -1698,6 +1705,34 @@ struct ChatView: View {
         .frame(width: 288)
     }
 
+    /// Queued messages waiting behind the running turn — each removable before it fires.
+    private var queuedChips: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 5) {
+                Image(systemName: "clock.arrow.circlepath").font(.system(size: 9))
+                Text(model.t("chat.queued.count", vm.queued.count)).font(.sfCaption2)
+            }
+            .foregroundStyle(Theme.accent)
+            ForEach(vm.queued) { q in
+                HStack(spacing: 6) {
+                    Text(q.text.isEmpty ? model.t("chat.queued.attachmentsOnly") : q.text)
+                        .font(.sfCaption2).lineLimit(1).foregroundStyle(Theme.ink)
+                    if !q.attachments.isEmpty {
+                        Image(systemName: "paperclip").font(.system(size: 8)).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 4)
+                    Button { vm.removeQueued(q.id) } label: {
+                        Image(systemName: "xmark").font(.system(size: 8))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.accentSoft))
+            }
+        }
+    }
+
     /// Chips for staged attachments, each removable.
     private var attachmentChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -1763,9 +1798,9 @@ struct ChatView: View {
     }
 
     private func send() {
-        guard vm.canSend else { return }
-        sendPulse += 1          // tactile confirmation the message left
-        vm.send()
+        guard vm.hasComposerContent, !engineMissing else { return }
+        sendPulse += 1          // tactile confirmation the message left (or queued)
+        vm.submit()             // sends now, or queues behind the running turn
         saveDraft("")           // sent → clear the persisted draft
         inputFocused = true     // keep the composer focused for the next turn
     }

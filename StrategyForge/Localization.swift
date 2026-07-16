@@ -946,6 +946,11 @@ enum L10n {
         "chat.placeholder": ("Ask anything, or attach a file to review…", "Pregunta lo que sea, o adjunta un archivo para revisar…"),
         "chat.send": ("Send", "Enviar"),
         "chat.stop": ("Stop", "Parar"),
+        "chat.queue": ("Queue this message — it sends when the current turn finishes",
+                       "Poner en cola — se enviará cuando termine el turno actual"),
+        "chat.queued.count": ("%lld queued — sends automatically when this turn ends",
+                              "%lld en cola — se envía sola al terminar este turno"),
+        "chat.queued.attachmentsOnly": ("(attachments)", "(adjuntos)"),
 
         // MCP tool servers
         "mcp.title": ("Tool servers (MCP)", "Servidores de herramientas (MCP)"),
