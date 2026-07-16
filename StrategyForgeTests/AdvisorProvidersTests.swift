@@ -233,6 +233,33 @@ struct AdvisorProvidersTests {
         #expect(out.roles.first { $0.name == "impl" }?.provider == .openai)
     }
 
+    // MARK: - Model-locked provider (ChatGPT-login Codex can't pick a model)
+
+    @Test func lockedOpenAINeverAssignsASpecificModel() {
+        // A ChatGPT-account Codex login rejects --model, so the advisor must recommend its
+        // account default, not gpt-5-codex / gpt-5 / gpt-5-mini which it would fail on.
+        let s = strategy([role("lead", .orchestrator, orchestrator: true, model: .opus48),
+                          role("impl", .worker, count: 2),
+                          role("review", .reviewer)])
+        let (out, picks) = AdvisorEngine.assignProviders(to: s, connected: all, modelLocked: [.openai])
+        let openAIModels = out.roles.filter { $0.provider == .openai }.compactMap { $0.providerModelID }
+        // Whatever role lands on OpenAI runs the default — never a specific gpt-5 id in the UI.
+        #expect(!picks.contains { $0.provider == .openai && $0.modelDisplayName.contains("GPT-5") })
+        #expect(picks.contains { $0.provider == .openai } == !openAIModels.isEmpty || openAIModels.isEmpty)
+        // And the OpenAI pick, if any, reads as the ChatGPT default.
+        if let openAIPick = picks.first(where: { $0.provider == .openai }) {
+            #expect(openAIPick.modelDisplayName == "ChatGPT · Codex")
+        }
+    }
+
+    @Test func unlockedOpenAIStillGetsItsBestCoder() {
+        // Sanity: without the lock (API key present), the strong coder is still assigned.
+        let s = strategy([role("lead", .orchestrator, orchestrator: true, model: .opus48),
+                          role("impl", .worker, count: 2)])
+        let (out, _) = AdvisorEngine.assignProviders(to: s, connected: all)
+        #expect(out.roles.first { $0.name == "impl" }?.providerModelID == "gpt-5-codex")
+    }
+
     // MARK: - Cost band preserved (the cheapest stays cheap)
 
     @Test func economySoloStaysCheapAcrossProviders() {

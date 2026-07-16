@@ -346,7 +346,8 @@ enum AdvisorEngine {
     /// more for better results. Same shape/loop/goal — they differ in model tier and
     /// team size, so the estimated cost tells the tradeoff honestly.
     static func adviseTiers(task: String, connected: Set<AIProvider> = [.claude],
-                            deprioritize: Set<AIProvider> = []) async -> [Tier] {
+                            deprioritize: Set<AIProvider> = [],
+                            modelLocked: Set<AIProvider> = []) async -> [Tier] {
         let balanced = await adviseWithAI(task: task, connected: connected)
         let saver = variant(of: balanced, shift: -1, countDelta: -1,
                             effort: lower(balanced.effort),
@@ -370,7 +371,8 @@ enum AdvisorEngine {
         if Set(connected).count > 1 {
             tiers = tiers.map { t in
                 let advice = applyingProviders(t.advice, connected: connected,
-                                               bias: TierBias.from(tierID: t.id), deprioritize: deprioritize)
+                                               bias: TierBias.from(tierID: t.id), deprioritize: deprioritize,
+                                               modelLocked: modelLocked)
                 return Tier(id: t.id, labelKey: t.labelKey, noteKey: t.noteKey, advice: advice)
             }
         }

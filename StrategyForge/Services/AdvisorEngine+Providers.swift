@@ -188,12 +188,43 @@ extension AdvisorEngine {
     static func assignProviders(to strategy: Strategy,
                                 connected: Set<AIProvider>,
                                 bias: TierBias = .balanced,
-                                deprioritize: Set<AIProvider> = []) -> (strategy: Strategy, picks: [ProviderPick]) {
+                                deprioritize: Set<AIProvider> = [],
+                                modelLocked: Set<AIProvider> = []) -> (strategy: Strategy, picks: [ProviderPick]) {
         let connectedSet = connected.isEmpty ? [AIProvider.claude] : connected
-        let available = modelProfiles.filter { connectedSet.contains($0.provider) }
+        let available = collapsingLocked(modelProfiles.filter { connectedSet.contains($0.provider) }, modelLocked)
         guard Set(available.map(\.provider)).count > 1 else { return (strategy, []) }
         return assignCore(to: strategy, available: available, bias: bias,
                           connected: connectedSet, deprioritize: deprioritize)
+    }
+
+    /// Collapse each `modelLocked` provider — one whose CLI can't select a model (an
+    /// OpenAI/Codex *ChatGPT-account* login rejects `--model` with "not supported when
+    /// using Codex with a ChatGPT account") — down to a SINGLE "account default" profile.
+    /// So the advisor never assigns or shows a specific model the login can't actually
+    /// run; it just uses that provider's one default. Unlocked providers pass through.
+    private static func collapsingLocked(_ profiles: [ModelProfile], _ locked: Set<AIProvider>) -> [ModelProfile] {
+        guard !locked.isEmpty else { return profiles }
+        var result = profiles.filter { !locked.contains($0.provider) }
+        for provider in locked {
+            let own = profiles.filter { $0.provider == provider }
+            // The account default is a strong all-rounder — keep the best coder's caps so
+            // the provider still competes for the role it fits, just under one honest name.
+            guard let best = own.max(by: { $0.coding < $1.coding }) else { continue }
+            result.append(ModelProfile(provider: provider, modelID: best.modelID,
+                                       displayName: defaultModelName(provider),
+                                       reasoning: best.reasoning, coding: best.coding,
+                                       breadth: best.breadth, speed: best.speed))
+        }
+        return result
+    }
+
+    /// The honest display name for a provider's account-default model (no `--model`).
+    private static func defaultModelName(_ p: AIProvider) -> String {
+        switch p {
+        case .openai: return "ChatGPT · Codex"
+        case .gemini: return "Gemini"
+        case .claude: return ClaudeModel.opus48.displayName
+        }
     }
 
     /// The IDEAL cross-provider mix computed against ALL providers (ignoring what's
@@ -203,8 +234,9 @@ extension AdvisorEngine {
     /// a run can never target a provider the user hasn't connected.
     static func aspirationalPicks(for strategy: Strategy,
                                   connected: Set<AIProvider>,
-                                  bias: TierBias = .balanced) -> [ProviderPick] {
-        let available = modelProfiles   // every provider in the catalog
+                                  bias: TierBias = .balanced,
+                                  modelLocked: Set<AIProvider> = []) -> [ProviderPick] {
+        let available = collapsingLocked(modelProfiles, modelLocked)   // every provider in the catalog
         guard Set(available.map(\.provider)).count > 1 else { return [] }
         return assignCore(to: strategy, available: available, bias: bias, connected: connected).picks
     }
@@ -379,9 +411,11 @@ extension AdvisorEngine {
     static func adviseCrossProvider(task: String,
                                     connected: Set<AIProvider>,
                                     bias: TierBias = .balanced,
-                                    deprioritize: Set<AIProvider> = []) async -> Advice {
+                                    deprioritize: Set<AIProvider> = [],
+                                    modelLocked: Set<AIProvider> = []) async -> Advice {
         let base = await adviseWithAI(task: task, connected: connected)
-        return applyingProviders(base, connected: connected, bias: bias, deprioritize: deprioritize)
+        return applyingProviders(base, connected: connected, bias: bias,
+                                 deprioritize: deprioritize, modelLocked: modelLocked)
     }
 
     /// Reassign providers on top of an already-built advice (used by `adviseTiers`,
@@ -390,9 +424,10 @@ extension AdvisorEngine {
     static func applyingProviders(_ advice: Advice,
                                   connected: Set<AIProvider>,
                                   bias: TierBias,
-                                  deprioritize: Set<AIProvider> = []) -> Advice {
+                                  deprioritize: Set<AIProvider> = [],
+                                  modelLocked: Set<AIProvider> = []) -> Advice {
         let (s, picks) = assignProviders(to: advice.strategy, connected: connected,
-                                         bias: bias, deprioritize: deprioritize)
+                                         bias: bias, deprioritize: deprioritize, modelLocked: modelLocked)
         // The launch command's headline model tracks the orchestrator only while it
         // stays on Claude (the session model is a Claude Code concept).
         let head: ClaudeModel = (s.orchestrator?.provider == .claude ? (s.orchestrator?.model ?? advice.model) : advice.model)

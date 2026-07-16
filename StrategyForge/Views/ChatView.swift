@@ -294,7 +294,8 @@ struct ChatView: View {
                 // quality options — so the card matches what actually runs (falls back
                 // to the deterministic engine when Apple Intelligence is unavailable).
                 let tiers = await AdvisorEngine.adviseTiers(task: draft, connected: model.connectedProviders,
-                                                            deprioritize: model.deprioritizedProviders)
+                                                            deprioritize: model.deprioritizedProviders,
+                                                            modelLocked: model.modelLockedProviders)
                 guard !Task.isCancelled else { return }
                 // Telemetry: log the recommended (balanced) tier that the user is shown.
                 if let balanced = tiers.first(where: { $0.id == "balanced" }) ?? tiers.first {

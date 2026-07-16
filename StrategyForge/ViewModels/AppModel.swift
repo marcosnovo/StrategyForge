@@ -103,6 +103,14 @@ final class AppModel {
         return [.openai: key]
     }
 
+    /// Providers whose CLI can't select a model, so the advisor must recommend only their
+    /// account DEFAULT (not a specific one it would fail on). OpenAI/Codex on a ChatGPT
+    /// login rejects `--model`; an API key re-enables model choice, so it's only locked
+    /// without one. (Claude and Gemini accept a model on their normal logins.)
+    var modelLockedProviders: Set<AIProvider> {
+        providerAPIKeys()[.openai] == nil ? [.openai] : []
+    }
+
     /// Per-provider spend rolled up from persisted chats. Claude carries real dollar
     /// cost + tokens (from Claude Code's result JSON); Codex/Gemini CLIs report no
     /// usage, so their tokens/cost are ~0 and only the chat count is meaningful.
@@ -962,7 +970,8 @@ final class AppModel {
         // connected, roles are also mixed across providers (Claude-only otherwise).
         // Re-find the index after the await in case the array changed while thinking.
         let advice = await AdvisorEngine.adviseCrossProvider(task: task, connected: connectedProviders,
-                                                             deprioritize: deprioritizedProviders)
+                                                             deprioritize: deprioritizedProviders,
+                                                             modelLocked: modelLockedProviders)
         Analytics.logRecommendation(advice, task: task, connected: connectedProviders,
                                     deprioritized: deprioritizedProviders)
         guard let i = configurations.firstIndex(where: { $0.id == id }),

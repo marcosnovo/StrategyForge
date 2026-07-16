@@ -225,7 +225,8 @@ struct AdvisorInlineCard: View {
         sel.advice.providerPicks.isEmpty
             ? AdvisorEngine.aspirationalPicks(for: sel.advice.strategy,
                                               connected: model.connectedProviders,
-                                              bias: AdvisorEngine.TierBias.from(tierID: sel.id))
+                                              bias: AdvisorEngine.TierBias.from(tierID: sel.id),
+                                              modelLocked: model.modelLockedProviders)
             : sel.advice.providerPicks
     }
 
