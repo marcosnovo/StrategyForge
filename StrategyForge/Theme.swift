@@ -397,6 +397,15 @@ extension View {
             )
     }
 
+    /// A translucent side-column surface tinted to the app's neutral CHAT color
+    /// (`Theme.columnBg`) instead of the aurora: a frosted material for the glassy feel,
+    /// with a `columnBg` wash over it so the left columns read as the SAME color as the
+    /// chat + activity panel while staying translucent (the aurora only whispers through).
+    func translucentColumn(tint: Double = 0.78) -> some View {
+        background(Theme.columnBg.opacity(tint))
+            .background(.ultraThinMaterial)
+    }
+
     /// A frosted glass panel (reference aesthetic): a translucent material fill under
     /// a whisper-white top sheen and a soft hairline edge, on a rounded rect. Use for
     /// surfaces that should let the aurora glow read faintly through — sidebars,

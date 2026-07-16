@@ -98,10 +98,10 @@ struct NavRail: View {
         .padding(.horizontal, Space.m)
         .padding(.top, 34)          // clear the floating traffic lights (hidden titlebar)
         .padding(.bottom, Space.m)
-        // Frosted glass rail: a translucent material lets the faint aurora vibrancy show
-        // through, but `.thinMaterial` (not ultraThin) keeps enough opacity that the
-        // secondary nav text stays readable over the bright aurora in light mode.
-        .background(.thinMaterial)
+        // Translucent, but tinted to the chat/panel color (Theme.columnBg) rather than
+        // the aurora — so the two left columns read as the same neutral surface as the
+        // chat window and activity panel, just glassy.
+        .translucentColumn()
         // One spring cross-fades the selected pill between sections. Snaps under Reduce Motion.
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8),
                    value: model.navSection)

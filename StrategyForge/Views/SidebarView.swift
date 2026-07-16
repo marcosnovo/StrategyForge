@@ -103,9 +103,10 @@ struct SidebarView: View {
             .scrollContentBackground(.hidden)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Frosted glass column: a translucent material shows the faint aurora as clean
-        // neutral vibrancy. Inner rows stay readable (selection/hover tints, opaque text).
-        .background(.ultraThinMaterial)
+        // Translucent, but tinted to the chat/panel color (Theme.columnBg) rather than
+        // the aurora — matching the nav rail so the two left columns read as the same
+        // neutral surface as the chat window and activity panel, just glassy.
+        .translucentColumn()
         // A chat that just stopped running → fire its thumbnail's sphere-resolve.
         .onChange(of: model.runningChatIDs) { wasRunning, nowRunning in
             for id in wasRunning.subtracting(nowRunning) { finishToken[id, default: 0] += 1 }
