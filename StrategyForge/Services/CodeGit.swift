@@ -235,6 +235,62 @@ enum CodeGit {
         }.value
     }
 
+    // MARK: - Worktree isolation (loops)
+
+    /// Add a git worktree at `path` on a new `branch` off the repo's HEAD. Used to run
+    /// a loop in its own tree so parallel loops never fight over the working copy.
+    nonisolated static func addWorktree(repo: String, path: String, branch: String) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, "git not found") }
+            return runResult(git, ["-C", repo, "worktree", "add", "-b", branch, path, "HEAD"])
+        }.value
+    }
+
+    /// Stage everything and commit in `dir` (typically a worktree). ok == false when
+    /// there was nothing to commit — the caller treats that as "no work produced".
+    nonisolated static func commitAll(dir: String, message: String) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, "git not found") }
+            _ = runResult(git, ["-C", dir, "add", "-A"])
+            return runResult(git, ["-C", dir, "commit", "-m", message])
+        }.value
+    }
+
+    /// Merge `branch` into whatever `repo` has checked out (its base branch), no-ff so
+    /// the loop's work stays a reviewable unit. On conflict git leaves a merge in
+    /// progress — the caller aborts (`abortMerge`) and leaves the branch for review.
+    nonisolated static func mergeNoFF(repo: String, branch: String, message: String) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, "git not found") }
+            return runResult(git, ["-C", repo, "merge", "--no-ff", branch, "-m", message])
+        }.value
+    }
+
+    /// Abort an in-progress merge (after a conflict), restoring the base branch.
+    nonisolated static func abortMerge(repo: String) async {
+        _ = await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return }
+            _ = runResult(git, ["-C", repo, "merge", "--abort"])
+        }.value
+    }
+
+    /// Remove a worktree (force, since it may hold committed-but-unmerged work we
+    /// intentionally keep on its branch).
+    nonisolated static func removeWorktree(repo: String, path: String) async {
+        _ = await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return }
+            _ = runResult(git, ["-C", repo, "worktree", "remove", path, "--force"])
+        }.value
+    }
+
+    /// Delete a local branch (used to clean up after a successful merge).
+    nonisolated static func deleteBranch(repo: String, name: String) async {
+        _ = await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return }
+            _ = runResult(git, ["-C", repo, "branch", "-D", name])
+        }.value
+    }
+
     /// Push the current branch to origin, setting upstream. Returns combined output.
     nonisolated static func push(repo: String) async -> (ok: Bool, out: String) {
         await Task.detached(priority: .userInitiated) {

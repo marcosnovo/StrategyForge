@@ -471,6 +471,18 @@ struct LoopEditorView: View {
                 }
             }
             .toggleStyle(.switch)
+
+            Divider()
+
+            Toggle(isOn: $plan.useWorktree) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.t("loop.editor.worktree")).font(.sfCallout.weight(.medium))
+                    Text(model.t("loop.editor.worktree.why"))
+                        .font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .toggleStyle(.switch)
         }
         .card()
     }

@@ -38,6 +38,49 @@ struct LoopFileGeneratorTests {
         }
     }
 
+    // MARK: - Worktree isolation (opt-in)
+
+    private func script(_ files: [GeneratedFile]) -> String {
+        files.first { $0.relativePath == "loop.sh" }!.contents
+    }
+
+    @Test func worktreeOffLeavesTheScriptUntouched() {
+        // Default (off) must be byte-identical to before: no worktree machinery anywhere.
+        for kind in LoopKind.allCases {
+            let sh = script(LoopFileGenerator.generate(for: makePlan(kind: kind)))
+            #expect(!sh.contains("worktree"))
+            #expect(!sh.contains("coral_finish"))
+        }
+    }
+
+    @Test func worktreeOnInjectsPreambleAndGate() {
+        var plan = makePlan(kind: .goalBased)
+        plan.useWorktree = true
+        let sh = script(LoopFileGenerator.generate(for: plan))
+        // The preamble sets up an isolated tree and installs the merge-gating trap.
+        #expect(sh.contains("git worktree add -b \"$CORAL_BRANCH\""))
+        #expect(sh.contains("trap coral_finish EXIT"))
+        #expect(sh.contains("loop/fix-auth-"))            // branch slug from the name
+        // Merge ONLY on a verified PASS; every other outcome leaves the branch.
+        #expect(sh.contains("VERDICT: PASS"))
+        #expect(sh.contains("merge --no-ff"))
+        #expect(sh.contains("left this run on branch"))
+        // The trap is installed only after cd, so a failed add can't touch the main tree.
+        let cdIdx = sh.range(of: "cd \"$CORAL_WT\"")!.lowerBound
+        let trapIdx = sh.range(of: "trap coral_finish EXIT")!.lowerBound
+        #expect(cdIdx < trapIdx)
+    }
+
+    @Test func worktreeCarriesScaffoldingForEveryKind() {
+        for kind in LoopKind.allCases {
+            var plan = makePlan(kind: kind)
+            plan.useWorktree = true
+            let sh = script(LoopFileGenerator.generate(for: plan))
+            #expect(sh.contains("loop-verifier.md"))       // copies the verifier in
+            #expect(sh.contains("trap coral_finish EXIT"))  // wraps all four kinds
+        }
+    }
+
     @Test func stateMdOnlyWhenMemoryEnabled() {
         let with = LoopFileGenerator.generate(for: makePlan(memory: true))
         #expect(with.contains { $0.relativePath == "STATE.md" })

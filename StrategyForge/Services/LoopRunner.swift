@@ -51,6 +51,12 @@ final class LoopRunController {
 
     @ObservationIgnored private var runTask: Task<Void, Never>?
 
+    /// Worktree isolation context for the current run (nil when running directly in the
+    /// repo). Set at start when `plan.useWorktree` is on; cleared by `finalizeWorktree`.
+    @ObservationIgnored private var wtBase: String?
+    @ObservationIgnored private var wtDir: String?
+    @ObservationIgnored private var wtBranch: String?
+
     deinit {
         // If the panel is torn down mid-run, stop the subprocess/stream.
         runTask?.cancel()
@@ -67,6 +73,72 @@ final class LoopRunController {
                                    iterations: iteration,
                                    tokens: totalTokens,
                                    costUSD: totalCostUSD))
+    }
+
+    /// Close out a run: settle the worktree (merge on PASS, keep the branch otherwise),
+    /// then emit the summary. Used at every terminal return so isolation is honored no
+    /// matter which exit the run took. No-op on the worktree side when running directly.
+    private func finalizeAndEmit(pass: Bool?) async {
+        await finalizeWorktree(pass: pass)
+        emitFinished(pass: pass)
+    }
+
+    /// Set up a git worktree for the run and return its path (the new working dir), or
+    /// nil if isolation wasn't requested. Throws a readable message if git can't create
+    /// it, so the caller aborts rather than silently running in the repo unisolated.
+    private func setUpWorktree(base: String, plan: LoopPlan) async throws -> String? {
+        guard plan.useWorktree else { return nil }
+        let slug = LoopFileGenerator.branchSlugForRun(plan.name)
+        let stamp = Int(Date().timeIntervalSince1970)
+        let branch = "loop/\(slug)-\(stamp)"
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("coral-loops-\(UUID().uuidString.prefix(8))").path
+        let add = await CodeGit.addWorktree(repo: base, path: dir, branch: branch)
+        guard add.ok else {
+            throw NSError(domain: "Coral.Loop", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey:
+                            "Couldn't create a git worktree: \(add.out.prefix(160))"])
+        }
+        // The loop's own scaffolding may be uncommitted, so a fresh checkout wouldn't
+        // have it — copy LOOP.md / STATE.md / the verifier into the isolated tree.
+        for rel in ["LOOP.md", "STATE.md", ".claude/agents/loop-verifier.md"] {
+            let src = (base as NSString).appendingPathComponent(rel)
+            let dst = (dir as NSString).appendingPathComponent(rel)
+            guard FileManager.default.fileExists(atPath: src) else { continue }
+            try? FileManager.default.createDirectory(
+                atPath: (dst as NSString).deletingLastPathComponent,
+                withIntermediateDirectories: true)
+            try? FileManager.default.removeItem(atPath: dst)
+            try? FileManager.default.copyItem(atPath: src, toPath: dst)
+        }
+        wtBase = base; wtDir = dir; wtBranch = branch
+        return dir
+    }
+
+    /// Settle the worktree at the end of a run. Commits whatever the run produced so
+    /// nothing is lost, then — ONLY on a verified PASS — merges the branch back into the
+    /// base and removes the worktree. On conflict it aborts the merge and keeps the
+    /// branch; on any non-PASS outcome it keeps the branch for review and removes just
+    /// the temporary worktree. Silently merging unverified work never happens.
+    private func finalizeWorktree(pass: Bool?) async {
+        guard let base = wtBase, let dir = wtDir, let branch = wtBranch else { return }
+        wtBase = nil; wtDir = nil; wtBranch = nil
+        _ = await CodeGit.commitAll(dir: dir, message: "Coral loop \(branch)")
+        if pass == true {
+            let merge = await CodeGit.mergeNoFF(repo: base, branch: branch,
+                                                message: "Merge loop \(branch) (verified PASS)")
+            if merge.ok {
+                await CodeGit.removeWorktree(repo: base, path: dir)
+                await CodeGit.deleteBranch(repo: base, name: branch)
+            } else {
+                await CodeGit.abortMerge(repo: base)
+                lastVerdictReason = "PASS, but the merge hit conflicts — resolve branch \(branch) by hand."
+            }
+        } else {
+            // Keep the branch (it holds the run's committed work) for review; drop only
+            // the temporary worktree checkout.
+            await CodeGit.removeWorktree(repo: base, path: dir)
+        }
     }
 
     func start(plan: LoopPlan, repoURL: URL, binary: String) {
@@ -97,6 +169,22 @@ final class LoopRunController {
             var hasSession = false
             let turns = maxTurns
 
+            // Where the work happens: the repo directly, or an isolated git worktree
+            // (opt-in). If isolation was requested but git couldn't set it up, fail the
+            // run rather than silently running unisolated in the repo.
+            let base = repoURL.path
+            let workDir: String
+            do {
+                workDir = try await setUpWorktree(base: base, plan: plan) ?? base
+            } catch {
+                stage = .failed
+                statusKey = "progress.status.error"
+                lastVerdictReason = String(error.localizedDescription.prefix(200))
+                finishedSuccessfully = false
+                emitFinished(pass: false)
+                return
+            }
+
             for turn in 1...turns {
                 if Task.isCancelled { break }
                 iteration = turn
@@ -105,13 +193,13 @@ final class LoopRunController {
 
                 let prompt = Self.workPrompt(plan: plan)
                 let effort = plan.effort.cliValue
-                var outcome = await runWorkTurn(binary: resolved, repo: repoURL.path,
+                var outcome = await runWorkTurn(binary: resolved, repo: workDir,
                                                 prompt: prompt, model: plan.workerModel.rawValue,
                                                 sessionID: sessionID, resume: hasSession, effort: effort)
                 // The CLI lost the session (e.g. cleaned ~/.claude) → retry fresh
                 // once, invisibly (same resilience as ChatViewModel.send()).
                 if case .sessionMissing = outcome, hasSession {
-                    outcome = await runWorkTurn(binary: resolved, repo: repoURL.path,
+                    outcome = await runWorkTurn(binary: resolved, repo: workDir,
                                                 prompt: prompt, model: plan.workerModel.rawValue,
                                                 sessionID: sessionID, resume: false, effort: effort)
                 }
@@ -122,14 +210,14 @@ final class LoopRunController {
                     statusKey = "progress.status.error"
                     lastVerdictReason = String(message.prefix(200))
                     finishedSuccessfully = false
-                    emitFinished(pass: false)
+                    await finalizeAndEmit(pass: false)
                     return
                 }
                 if Task.isCancelled { break }
 
                 // Non-destructive checkpoint of the repo after this iteration's work,
                 // so the run can be rewound here later (git stash-create SHA).
-                if let sha = await CodeGit.snapshot(repo: repoURL.path) {
+                if let sha = await CodeGit.snapshot(repo: workDir) {
                     checkpoints.append(LoopCheckpoint(iteration: turn, sha: sha,
                                                       reason: nil, at: Date()))
                 }
@@ -144,7 +232,7 @@ final class LoopRunController {
                     lastVerdictReason = String(format: "Stopped: $%.2f spent, over the $%.2f cap.",
                                                totalCostUSD, cap)
                     finishedSuccessfully = false
-                    emitFinished(pass: false)
+                    await finalizeAndEmit(pass: false)
                     return
                 }
 
@@ -155,7 +243,7 @@ final class LoopRunController {
                     // pretending the goal was met (finishedSuccessfully stays nil).
                     stage = .done
                     statusKey = "progress.status.doneUnverified"
-                    emitFinished(pass: nil)
+                    await finalizeAndEmit(pass: nil)
                     return
                 }
 
@@ -166,7 +254,7 @@ final class LoopRunController {
                     let result = try await runner.run(prompt: Self.verifierPrompt(plan: plan),
                                                       provider: .claude,
                                                       model: plan.verifierModel.rawValue,
-                                                      cwd: repoURL.path)
+                                                      cwd: workDir)
                     totalTokens += result.tokens
                     totalCostUSD += result.costUSD
                     let verdict = Self.parseVerdict(result.text)
@@ -176,7 +264,7 @@ final class LoopRunController {
                         stage = .done
                         statusKey = "progress.status.pass"
                         finishedSuccessfully = true
-                        emitFinished(pass: true)
+                        await finalizeAndEmit(pass: true)
                         return
                     } else if turn < turns {
                         statusKey = "progress.status.retry"
@@ -184,7 +272,7 @@ final class LoopRunController {
                         stage = .failed
                         statusKey = "progress.status.outOfTurns"
                         finishedSuccessfully = false
-                        emitFinished(pass: false)
+                        await finalizeAndEmit(pass: false)
                     }
                 } catch {
                     if Task.isCancelled { break }
@@ -192,7 +280,7 @@ final class LoopRunController {
                     statusKey = "progress.status.error"
                     lastVerdictReason = String(error.localizedDescription.prefix(200))
                     finishedSuccessfully = false
-                    emitFinished(pass: false)
+                    await finalizeAndEmit(pass: false)
                     return
                 }
             }

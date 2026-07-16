@@ -112,6 +112,11 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     var verifierModel: ClaudeModel
     /// Whether a STATE.md memory file carries context between runs.
     var memoryEnabled: Bool
+    /// Run each loop in its OWN git worktree on a fresh branch, so parallel loops
+    /// never fight over the working tree. On a verified PASS the branch is merged back
+    /// and the worktree removed; otherwise the branch is left for review. Opt-in — off
+    /// keeps the loop running directly in the repo (today's behavior) untouched.
+    var useWorktree: Bool
     /// POSIX path of the target repo, for display. Nil until the user picks one.
     var repoPath: String?
     /// Security-scoped bookmark for the repo folder, so write access persists.
@@ -155,6 +160,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         verifierEnabled: Bool = true,
         verifierModel: ClaudeModel = .haiku45,
         memoryEnabled: Bool = true,
+        useWorktree: Bool = false,
         repoPath: String? = nil,
         repoBookmark: Data? = nil,
         updatedAt: Date = Date(),
@@ -178,6 +184,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         self.verifierEnabled = verifierEnabled
         self.verifierModel = verifierModel
         self.memoryEnabled = memoryEnabled
+        self.useWorktree = useWorktree
         self.repoPath = repoPath
         self.repoBookmark = repoBookmark
         self.updatedAt = updatedAt
@@ -190,7 +197,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, kind, goal, neverTouch, stopIf, maxTurns, budgetUSD, effort, intervalMinutes
-        case workerModel, verifierEnabled, verifierModel, memoryEnabled
+        case workerModel, verifierEnabled, verifierModel, memoryEnabled, useWorktree
         case repoPath, repoBookmark, updatedAt, lastRunAt, lastRun
         case lifetimeRuns, lifetimeAccepted, lifetimeCostUSD
     }
@@ -218,6 +225,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         let verifierRaw = ((try? c.decodeIfPresent(String.self, forKey: .verifierModel)) ?? nil) ?? ""
         verifierModel = ClaudeModel(rawValue: verifierRaw) ?? .haiku45
         memoryEnabled = try c.decodeIfPresent(Bool.self, forKey: .memoryEnabled) ?? true
+        useWorktree = try c.decodeIfPresent(Bool.self, forKey: .useWorktree) ?? false
         repoPath = try c.decodeIfPresent(String.self, forKey: .repoPath)
         repoBookmark = try c.decodeIfPresent(Data.self, forKey: .repoBookmark)
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
