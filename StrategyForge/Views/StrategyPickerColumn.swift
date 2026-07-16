@@ -145,8 +145,13 @@ struct StrategyPickerColumn: View {
     /// task/cost chips — big enough to read in the wide grid.
     private func strategyCard(_ template: Strategy) -> some View {
         let selected = template.name == selectedStrategyName
+        // Show the team as it would ACTUALLY run given what's connected: the same
+        // cross-provider assignment the advisor/chat applies, so the diagram, cost and
+        // provider summary reflect Claude / ChatGPT-Codex / Gemini — not a fixed 100%
+        // Claude template. (No-op when only Claude is connected.)
+        let displayed = AdvisorEngine.assignProviders(to: template, connected: model.connectedProviders).strategy
         return Button {
-            onSelect(template)
+            onSelect(displayed)
         } label: {
             VStack(alignment: .leading, spacing: Space.s) {
                 // Static topology per card. `ambient: false` stops every card in the
@@ -155,7 +160,7 @@ struct StrategyPickerColumn: View {
                 // The card is a fixed size (below), but the diagram FILLS the space left
                 // above the text — so its boxes get as tall as the card allows instead of
                 // sitting small in a 120pt slot with empty room beneath.
-                StrategyDiagramView(strategy: template, compact: true, ambient: false)
+                StrategyDiagramView(strategy: displayed, compact: true, ambient: false)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 HStack(spacing: 5) {
                     Text(model.strategyDisplayName(template))
@@ -191,9 +196,9 @@ struct StrategyPickerColumn: View {
                         .background(Capsule().fill(Theme.accentSoft))
                     }
                     taskTagChip(template)
-                    costTierPill(template)
+                    costTierPill(displayed)
                     Spacer(minLength: 4)
-                    providerSummary(template)
+                    providerSummary(displayed)
                 }
             }
             .padding(Space.m)

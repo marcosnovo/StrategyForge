@@ -212,6 +212,9 @@ struct ContentView: View {
         .onChange(of: model.selectedTeamID) { model.rememberSelection() }
         .task { await model.refreshConnectedProviders() }
         .task { await model.checkForUpdates() }
+        // Load usage from LOCAL logs at launch (no Keychain, no prompt) so the rail's
+        // Claude usage is populated by default — not only after visiting the Usage page.
+        .task { await model.refreshUsage() }
         .onAppear {
             if !didOnboard { showOnboarding = true }
             // Wire the loop store's feedback into the global banner (idempotent).

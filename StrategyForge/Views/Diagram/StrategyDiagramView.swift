@@ -513,21 +513,31 @@ struct StrategyDiagramView: View {
             var tctx = ctx
             tctx.clip(to: Path(roundedRect: rect.insetBy(dx: 3, dy: 3), cornerRadius: 10))
             let cx = rect.midX
-            let titleSize: CGFloat = compact ? 12 : 14
-            let modelSize: CGFloat = compact ? 9.5 : 10
-            let fitTitle = truncated(node.title, toWidth: rect.width - 8, fontSize: titleSize, weight: 0.60)
-            let fitModel = truncated(node.model.uppercased(), toWidth: rect.width - 8, fontSize: modelSize, weight: 0.62)
-            let title = Text(fitTitle).font(.system(size: titleSize, weight: .semibold))
-            let modelT = Text(fitModel).font(.system(size: modelSize, weight: .semibold, design: .monospaced))
+            let boxH = rect.height
+            // Adapt to the box height: a tall box shows title + model on two lines; a
+            // short box (5+ agents crammed into a compact card) shows just the role title,
+            // scaled to fit — so text never overlaps or clips.
+            let twoLine = boxH >= 38
+            let modelSize: CGFloat = compact ? 9 : 10
+            let titleSize: CGFloat = min(compact ? 12 : 14, max(9, boxH * (twoLine ? 0.30 : 0.46)))
+            let title = Text(truncated(node.title, toWidth: rect.width - 8, fontSize: titleSize, weight: 0.60))
+                .font(.system(size: titleSize, weight: .semibold))
+            func modelText() -> Text {
+                Text(truncated(node.model.uppercased(), toWidth: rect.width - 8, fontSize: modelSize, weight: 0.62))
+                    .font(.system(size: modelSize, weight: .semibold, design: .monospaced))
+            }
 
             if let subtitle = node.subtitle, !compact {
                 drawText(&tctx, title, at: CGPoint(x: cx, y: rect.midY - 15), color: palette.text)
-                drawText(&tctx, modelT, at: CGPoint(x: cx, y: rect.midY + 1), color: node.isAccent ? palette.accent : palette.secondary)
+                drawText(&tctx, modelText(), at: CGPoint(x: cx, y: rect.midY + 1), color: node.isAccent ? palette.accent : palette.secondary)
                 drawText(&tctx, Text(truncated(subtitle, toWidth: rect.width - 8, fontSize: 9.5, weight: 0.55)).font(.system(size: 9.5)),
                          at: CGPoint(x: cx, y: rect.midY + 15), color: palette.secondary)
-            } else {
+            } else if twoLine {
                 drawText(&tctx, title, at: CGPoint(x: cx, y: rect.midY - 8), color: palette.text)
-                drawText(&tctx, modelT, at: CGPoint(x: cx, y: rect.midY + 9), color: node.isAccent ? palette.accent : palette.secondary)
+                drawText(&tctx, modelText(), at: CGPoint(x: cx, y: rect.midY + 9), color: node.isAccent ? palette.accent : palette.secondary)
+            } else {
+                // Short box: role title only, centered and legible.
+                drawText(&tctx, title, at: CGPoint(x: cx, y: rect.midY), color: palette.text)
             }
 
             // ×N badge — a small pill hugging the top-right CORNER (outside the box),
@@ -666,54 +676,45 @@ struct StrategyThumbnail: View {
             ctx.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 6),
                      with: .color(palette.canvas))
 
-            // A shrunk version of the full diagram: a hub node on the left, N
-            // subagent nodes on the right, delegate arrows out + dashed return
-            // arrows back — the same visual language, just tiny and label-less.
+            // A clean hub-and-spoke of DOTS (not tiny bordered boxes, which were an
+            // unreadable smudge at 34pt): one coral orchestrator hub on the left wired to
+            // N teal agent dots on the right. Reads as "a lead directing a team" at any size.
+            func dot(_ c: CGPoint, _ r: CGFloat) -> Path {
+                Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
+            }
             let subs = spec.subagents
             let solo = subs.isEmpty
-            let shown = Array(subs.prefix(4))
+            let shown = Array(subs.prefix(5))
             let k = max(shown.count, 1)
-
-            let pad: CGFloat = 5
-            let nodeW = min(max(size.width * 0.30, 16), 26)
-            let nodeH = min(max((size.height - pad * 2) / CGFloat(k) - 4, 7), 14)
-            let hubY = size.height / 2
-            let hubRect = CGRect(x: solo ? (size.width - nodeW) / 2 : pad,
-                                 y: hubY - nodeH / 2, width: nodeW, height: nodeH)
-            let rightX = size.width - nodeW - pad
-            let span = size.height - pad * 2
-            let satRects: [CGRect] = shown.indices.map { i in
-                let t = k == 1 ? 0.5 : CGFloat(i) / CGFloat(k - 1)
-                return CGRect(x: rightX, y: pad + t * span - nodeH / 2, width: nodeW, height: nodeH)
+            let base = min(size.width, size.height)
+            let pad = base * 0.16
+            let hubR = base * (solo ? 0.26 : 0.18)
+            let satR = max(hubR * 0.62, 2.5)
+            let hubC = CGPoint(x: solo ? size.width / 2 : pad + hubR, y: size.height / 2)
+            let rightX = size.width - pad - satR
+            let top = pad + satR, bottom = size.height - pad - satR
+            func satY(_ i: Int) -> CGFloat {
+                k == 1 ? size.height / 2 : top + CGFloat(i) / CGFloat(max(k - 1, 1)) * (bottom - top)
             }
-
-            func arrowHead(_ tip: CGPoint, _ angle: CGFloat, _ s: CGFloat) -> Path {
-                var p = Path(); p.move(to: tip)
-                p.addLine(to: CGPoint(x: tip.x + cos(angle + .pi - 0.5) * s, y: tip.y + sin(angle + .pi - 0.5) * s))
-                p.addLine(to: CGPoint(x: tip.x + cos(angle + .pi + 0.5) * s, y: tip.y + sin(angle + .pi + 0.5) * s))
-                p.closeSubpath(); return p
+            if !solo {
+                // Coral delegation wires, hub → each agent.
+                for i in 0..<k {
+                    var w = Path()
+                    w.move(to: CGPoint(x: hubC.x + hubR * 0.7, y: hubC.y))
+                    w.addLine(to: CGPoint(x: rightX - satR, y: satY(i)))
+                    ctx.stroke(w, with: .color(palette.accent.opacity(0.5)),
+                               style: StrokeStyle(lineWidth: max(1, base * 0.03), lineCap: .round))
+                }
+                // Agent dots — teal, or coral if it's a highlighted (top-tier) agent.
+                for (i, node) in shown.enumerated() {
+                    let c = CGPoint(x: rightX, y: satY(i))
+                    ctx.fill(dot(c, satR), with: .color((node.isAccent ? Theme.accent : Theme.teal).opacity(0.92)))
+                    ctx.stroke(dot(c, satR), with: .color(.white.opacity(0.7)), lineWidth: 0.6)
+                }
             }
-            for r in satRects {
-                // Return (dashed, quiet) slightly below.
-                let rs = CGPoint(x: r.minX, y: r.midY + 2), re = CGPoint(x: hubRect.maxX, y: hubRect.midY + 2)
-                var back = Path(); back.move(to: rs); back.addLine(to: re)
-                ctx.stroke(back, with: .color(palette.returnArrow),
-                           style: StrokeStyle(lineWidth: 0.8, dash: [2, 2]))
-                // Delegate (solid accent) with arrowhead into the subagent.
-                let ds = CGPoint(x: hubRect.maxX, y: hubRect.midY - 1), de = CGPoint(x: r.minX, y: r.midY - 1)
-                var wire = Path(); wire.move(to: ds); wire.addLine(to: de)
-                ctx.stroke(wire, with: .color(palette.accent.opacity(0.8)), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
-                let ang = atan2(de.y - ds.y, de.x - ds.x)
-                ctx.fill(arrowHead(de, ang, 3.2), with: .color(palette.accent.opacity(0.8)))
-            }
-
-            func box(_ rect: CGRect, accent: Bool) {
-                let shape = Path(roundedRect: rect, cornerRadius: 3)
-                ctx.fill(shape, with: .color(accent ? palette.accent.opacity(0.20) : palette.surface))
-                ctx.stroke(shape, with: .color(accent ? palette.accent : palette.border), lineWidth: accent ? 1.2 : 0.8)
-            }
-            for (r, node) in zip(satRects, shown) { box(r, accent: node.isAccent) }
-            box(hubRect, accent: true)   // orchestrator always highlighted
+            // The orchestrator hub — coral, the clear lead.
+            ctx.fill(dot(hubC, hubR), with: .color(palette.accent))
+            ctx.stroke(dot(hubC, hubR), with: .color(.white.opacity(0.85)), lineWidth: 0.9)
         }
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.hairline, lineWidth: 1))
