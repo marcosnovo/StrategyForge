@@ -247,7 +247,7 @@ enum LoopFileGenerator {
         VERDICT=""
         git worktree add -b "$CORAL_BRANCH" "$CORAL_WT" >&2
         for f in LOOP.md STATE.md loop.sh; do
-          [ -f "$CORAL_MAIN/$f" ] && cp "$CORAL_MAIN/$f" "$CORAL_WT/$f"
+          if [ -f "$CORAL_MAIN/$f" ]; then cp "$CORAL_MAIN/$f" "$CORAL_WT/$f" || true; fi
         done
         if [ -f "$CORAL_MAIN/.claude/agents/loop-verifier.md" ]; then
           mkdir -p "$CORAL_WT/.claude/agents"

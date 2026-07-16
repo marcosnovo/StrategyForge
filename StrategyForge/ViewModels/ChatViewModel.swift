@@ -536,11 +536,13 @@ final class ChatViewModel {
             // delayed. isRunning locks the composer while we (briefly) decide.
             isRunning = true
             let firstText = text
-            Task { [weak self] in
+            // Track this in runTask so stop() can cancel the (brief) recommend step too —
+            // otherwise hitting stop during it would still fire the full run afterward.
+            runTask = Task { [weak self] in
                 guard let self else { return }
-                if let recommended = await self.autoRecommendStrategy(firstText) {
-                    self.config.strategy = recommended
-                }
+                let recommended = await self.autoRecommendStrategy(firstText)
+                if Task.isCancelled { self.isRunning = false; return }
+                if let recommended { self.config.strategy = recommended }
                 self.onFirstUserMessage(firstText)   // auto-title the chat
                 self.commitAndRun(promptText: promptText, displayText: displayText,
                                   repo: repo, useMeta: useMeta, extraDirs: extraDirs)

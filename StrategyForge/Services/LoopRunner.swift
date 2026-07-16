@@ -284,6 +284,12 @@ final class LoopRunController {
                     return
                 }
             }
+            // Settle the worktree even when the run was cancelled mid-flight (stop()):
+            // no terminal `finalizeAndEmit` ran on that path, so without this the temp
+            // worktree + branch would leak. No-op on every other path (wt* already
+            // cleared by the finalize that emitted). pass:nil → never merges, keeps the
+            // branch for review, removes just the temporary checkout.
+            await finalizeWorktree(pass: nil)
             // Cancelled mid-run (stop()) → back to idle; done/failed states stick.
             if stage != .done && stage != .failed { stage = .idle }
         }
