@@ -298,9 +298,6 @@ struct StrategyDiagramView: View {
         // Tap a box to select/edit that agent (only when a caller opts in). Sits above
         // the Canvas as invisible hit targets aligned to the same computed layout.
         .overlay { tapTargets(spec: spec) }
-        // A small provider logo on each box's bottom-right corner — so you see WHICH AI
-        // runs each role at a glance (Claude / ChatGPT-Codex / Gemini).
-        .overlay { providerBadges(spec: spec) }
         .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous))
         // Force a fresh Canvas when the strategy changes so the drawing can never
         // lag behind the picker selection.
@@ -346,23 +343,6 @@ struct StrategyDiagramView: View {
         }
     }
 
-    /// A small provider logo hugging each node's bottom-right corner (the requested
-    /// per-role provider identity). Uses the same computed layout as the Canvas so the
-    /// badges track the boxes exactly. Never intercepts taps.
-    private func providerBadges(spec: DiagramSpec) -> some View {
-        GeometryReader { geo in
-            let frames = layout(spec: spec, in: geo.size)
-            ForEach(spec.allNodes) { node in
-                if let rect = frames[node.id] {
-                    let s: CGFloat = compact ? 14 : 18
-                    ProviderAvatar(provider: node.provider, size: s)
-                        .position(x: rect.maxX - s / 2 - 3, y: rect.maxY - s / 2 - 3)
-                }
-            }
-        }
-        .allowsHitTesting(false)
-    }
-
     // MARK: Layout
 
     /// Preferred height for a strategy's diagram, so nodes never overlap.
@@ -380,7 +360,7 @@ struct StrategyDiagramView: View {
     }
 
     private func nodeWidth(in size: CGSize) -> CGFloat {
-        compact ? min(max(size.width * 0.30, 84), 120)
+        compact ? min(max(size.width * 0.32, 92), 132)
                 : min(max(size.width * 0.22, 104), 180)
     }
 
@@ -399,7 +379,7 @@ struct StrategyDiagramView: View {
         let availH = max(size.height - topPad * 2, 1)
         let slotSpan = availH / CGFloat(k)
         let gap: CGFloat = min(compact ? 10 : 12, slotSpan * 0.22)
-        let nodeH = min(slotSpan - gap, compact ? 54 : 80)
+        let nodeH = min(slotSpan - gap, compact ? 66 : 80)
 
         // Reserve room on the left for the Main loop and on the right for the
         // per-node loops and labels (scaled so the diagram fits narrow widths).
@@ -533,11 +513,12 @@ struct StrategyDiagramView: View {
             var tctx = ctx
             tctx.clip(to: Path(roundedRect: rect.insetBy(dx: 3, dy: 3), cornerRadius: 10))
             let cx = rect.midX
-            let titleSize: CGFloat = compact ? 11 : 14
+            let titleSize: CGFloat = compact ? 12 : 14
+            let modelSize: CGFloat = compact ? 9.5 : 10
             let fitTitle = truncated(node.title, toWidth: rect.width - 8, fontSize: titleSize, weight: 0.60)
-            let fitModel = truncated(node.model.uppercased(), toWidth: rect.width - 8, fontSize: compact ? 8.5 : 10, weight: 0.62)
+            let fitModel = truncated(node.model.uppercased(), toWidth: rect.width - 8, fontSize: modelSize, weight: 0.62)
             let title = Text(fitTitle).font(.system(size: titleSize, weight: .semibold))
-            let modelT = Text(fitModel).font(.system(size: compact ? 8.5 : 10, weight: .semibold, design: .monospaced))
+            let modelT = Text(fitModel).font(.system(size: modelSize, weight: .semibold, design: .monospaced))
 
             if let subtitle = node.subtitle, !compact {
                 drawText(&tctx, title, at: CGPoint(x: cx, y: rect.midY - 15), color: palette.text)

@@ -35,10 +35,8 @@ struct AdvisorView: View {
             .padding(Space.xl)
             .frame(maxWidth: .infinity) // centers the column
         }
-        // Static ambient wash — always mounted (never inserted/removed with an
-        // animation; see the TimelineView-over-material note in ChatView).
-        .background(AuroraBackground(intensity: 0.6))
-        .background(Theme.appBg)
+        // One uniform translucent surface (same as the chat + panels) — no gradient.
+        .translucentColumn()
     }
 
     // MARK: - Header

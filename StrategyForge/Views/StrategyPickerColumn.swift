@@ -103,10 +103,9 @@ struct StrategyPickerColumn: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Static ambient wash — always mounted (never inserted/removed with an
-        // animation; see the TimelineView-over-material note in ChatView).
-        .background(AuroraBackground(intensity: 0.5))
-        .background(Theme.appBg)
+        // One uniform translucent surface (same as the chat + panels) — no aurora
+        // gradient behind the strategy grid.
+        .translucentColumn()
         .sheet(isPresented: $showWizard) {
             if let config { ChooseStrategyWizard(config: config) }
         }
@@ -153,10 +152,11 @@ struct StrategyPickerColumn: View {
                 // Static topology per card. `ambient: false` stops every card in the
                 // grid running a 20fps clock (a wall of pickers was burning CPU redrawing
                 // idle thumbnails); the live chat diagram still animates.
-                // A CONSTANT diagram height (not per-template) so every card in the grid
-                // is the same size regardless of how big the strategy's topology is.
+                // The card is a fixed size (below), but the diagram FILLS the space left
+                // above the text — so its boxes get as tall as the card allows instead of
+                // sitting small in a 120pt slot with empty room beneath.
                 StrategyDiagramView(strategy: template, compact: true, ambient: false)
-                    .frame(height: 120)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 HStack(spacing: 5) {
                     Text(model.strategyDisplayName(template))
                         .font(.sfCallout.weight(.semibold))
@@ -178,9 +178,8 @@ struct StrategyPickerColumn: View {
                         .font(.sfCaption2).foregroundStyle(.secondary)
                         .lineLimit(3).fixedSize(horizontal: false, vertical: true)
                 }
-                // Push the chip row to the bottom so, with a fixed card height, every
-                // card's chips line up and all cards are the exact same size.
-                Spacer(minLength: 0)
+                // Chips row: topology tag + cost, then a compact summary of the AI
+                // providers the team uses, on the far right (right of the cost).
                 HStack(spacing: 5) {
                     if let bucket = activeBucket, model.isRecommended(template, for: bucket) {
                         HStack(spacing: 3) {
@@ -193,7 +192,8 @@ struct StrategyPickerColumn: View {
                     }
                     taskTagChip(template)
                     costTierPill(template)
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 4)
+                    providerSummary(template)
                 }
             }
             .padding(Space.m)
@@ -243,5 +243,22 @@ struct StrategyPickerColumn: View {
         .foregroundStyle(color)
         .padding(.horizontal, 6).padding(.vertical, 2)
         .background(Capsule().fill(color.opacity(0.16)))
+    }
+
+    /// The distinct AI providers this strategy's roles use, in catalog order.
+    private func providers(_ s: Strategy) -> [AIProvider] {
+        let used = Set(s.roles.map(\.provider))
+        return AIProvider.allCases.filter { used.contains($0) }
+    }
+
+    /// A compact cluster of the team's provider logos — the "who runs this" summary at
+    /// the card's bottom-right, next to the cost.
+    private func providerSummary(_ template: Strategy) -> some View {
+        HStack(spacing: -5) {
+            ForEach(providers(template)) { p in
+                ProviderAvatar(provider: p, size: 18)
+            }
+        }
+        .help(providers(template).map(\.displayName).joined(separator: " · "))
     }
 }

@@ -817,27 +817,8 @@ struct ChatView: View {
                     DispatchQueue.main.async { proxy.scrollTo(last, anchor: .bottom) }
                 }
             }
-            // Ambient aurora behind the empty canvas. ALWAYS mounted (never
-            // structurally inserted/removed — the documented hang pattern);
-            // once the conversation starts, intensity drops to 0 (the component
-            // then renders no TimelineView at all — free) while the outer
-            // opacity fades the last frame out. Static under Reduce Motion.
-            .background {
-                // Softer gradient, more living dots — the ambient stays visible even
-                // mid-conversation (the user wanted less gradient, more ambience). The
-                // aurora is dialled DOWN and the dot field is kept ON (at a calmer
-                // density/opacity) instead of going to zero once messages arrive.
-                // Always mounted to avoid the documented TimelineView-insert hang.
-                ZStack {
-                    AuroraBackground(intensity: vm.messages.isEmpty ? 0.65 : 0.36)
-                    if !reduceMotion {
-                        ParticleField(density: vm.messages.isEmpty ? 120 : 84, reactive: vm.messages.isEmpty)
-                            .opacity(vm.messages.isEmpty ? 0.55 : 0.42)
-                            .allowsHitTesting(false)
-                    }
-                }
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.45), value: vm.messages.isEmpty)
-            }
+            // No aurora/gradient behind the chat: the conversation sits on the app's one
+            // uniform translucent surface, so the chat matches every other panel.
         }
     }
 

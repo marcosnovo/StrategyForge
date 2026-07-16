@@ -299,9 +299,10 @@ struct AppAuroraBackground: View {
         scheme == .dark ? Color(red: 0.043, green: 0.067, blue: 0.075)   // #0B1113
                         : Color(red: 0.972, green: 0.965, blue: 0.960)   // #F8F6F5 warm white
     }
-    // Soft enough to read as a warm ambient wash (and a gentle tint through the now
-    // more-translucent chrome), without washing out the content on the opaque cards.
-    private var bloomOpacity: Double { scheme == .dark ? 0.16 : 0.20 }
+    // Very low, so the app-wide background reads as ONE uniform translucent color
+    // rather than a visible coral/teal gradient bleeding through the (now translucent)
+    // chat and panels. Just a whisper of warmth, no directional wash.
+    private var bloomOpacity: Double { scheme == .dark ? 0.05 : 0.06 }
 
     var body: some View {
         GeometryReader { geo in
