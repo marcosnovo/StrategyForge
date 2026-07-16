@@ -35,17 +35,18 @@ struct AdvisorInlineCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
+        VStack(alignment: .leading, spacing: Space.m) {
             headerRow
             if let team = currentTeamName { chosenTeamRow(team) }
             tierRow
             if let sel = selected {
+                Divider().opacity(0.5)
                 selectionRow(sel)
                 providerMixRow(sel)
                 if sel.advice.loopKind != .turnBased { loopHintRow(sel) }
             }
         }
-        .padding(Space.m)
+        .padding(Space.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         // Airy translucent glass so the composer's suggestion reads as a floating pane.
         .glassPanel(cornerRadius: Theme.innerCorner)
@@ -187,6 +188,8 @@ struct AdvisorInlineCard: View {
         if !picks.isEmpty {
             let hasLocked = picks.contains { !$0.isConnected }
             VStack(alignment: .leading, spacing: 5) {
+                Text(model.t("advisor.inline.team"))
+                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
                 HStack(spacing: Space.m) {
                     ForEach(Array(picks.prefix(4)), id: \.self) { pick in
                         HStack(spacing: 4) {

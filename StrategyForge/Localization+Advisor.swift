@@ -214,6 +214,7 @@ extension L10n {
         // MARK: Inline card (Advisor inside the chat)
         "advisor.inline.caption": ("Advisor", "Asesor"),
         "advisor.inline.applyTeam": ("Apply team", "Aplicar equipo"),
+        "advisor.inline.team": ("The team", "El equipo"),
         "advisor.inline.switchTeam": ("Switch to this", "Cambiar a este"),
         "advisor.inline.youChose": ("You chose “%@” — here's what I'd recommend for this task:",
                                     "Elegiste «%@» — esto es lo que recomendaría para esta tarea:"),
