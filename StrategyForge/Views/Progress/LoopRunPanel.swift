@@ -109,17 +109,22 @@ struct LoopRunPanel: View {
     // MARK: Idle
 
     private var idleBody: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
+        VStack(alignment: .leading, spacing: Space.m) {
+            // Launching needs exactly two things: a goal (usually pre-filled) and a
+            // target folder. Surface BOTH here, in order, so nothing is hidden — the
+            // folder picker used to live in a bar at the very bottom, which is why the
+            // Run button read as "disabled for no reason".
+            if goalEmpty {
+                hint("target", model.t("progress.run.needsGoal"), color: Theme.warning)
+            }
+            folderRow
             Button { start() } label: {
                 Label(model.t("progress.run.button"), systemImage: "play.fill")
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.moon)
+            .controlSize(.large)
             .disabled(!canRun)
-            if repoURL == nil {
-                hint("folder.badge.questionmark", model.t("progress.run.needsRepo"))
-            } else if goalEmpty {
-                hint("target", model.t("progress.run.needsGoal"))
-            }
             if plan.kind != .goalBased {
                 hint("exclamationmark.triangle", model.t("progress.run.singlePass"),
                      color: Theme.warning)
@@ -128,6 +133,32 @@ struct LoopRunPanel: View {
             if let last = plan.lastRun {
                 lastRunBlock(last)
             }
+        }
+    }
+
+    /// The one launch requirement made obvious and actionable, right next to Run: a big
+    /// "choose a folder" button when none is set, a compact confirmation (with Change)
+    /// once it is.
+    @ViewBuilder
+    private var folderRow: some View {
+        if let repoURL {
+            HStack(spacing: Space.s) {
+                Image(systemName: "folder.fill").font(.system(size: 12)).foregroundStyle(Theme.accent)
+                Text(repoURL.lastPathComponent).font(.sfCallout.weight(.medium)).lineLimit(1)
+                Spacer(minLength: Space.s)
+                Button(model.t("loop.editor.changeFolder")) { store.pickRepo(for: plan.id) }
+                    .buttonStyle(.plain).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+            }
+            .padding(Space.s)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.insetBg))
+        } else {
+            Button { store.pickRepo(for: plan.id) } label: {
+                Label(model.t("progress.run.chooseFolder"), systemImage: "folder.badge.plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.reefOutline)
+            .controlSize(.large)
         }
     }
 

@@ -109,29 +109,33 @@ struct AdvisorInlineCard: View {
 
     /// The three cost/quality options as selectable chips (label + per-run cost).
     private var tierRow: some View {
-        HStack(spacing: Space.xs) {
+        HStack(spacing: Space.s) {
             ForEach(tiers) { tier in
                 let on = tier.id == selectedID
-                // The "Recommended" (balanced) tier carries a soft coral wash + border
-                // even when unselected, so the suggested pick reads at a glance.
+                // The "Recommended" (balanced) tier carries a soft coral border even when
+                // unselected, so the suggested pick reads at a glance.
                 let recommended = tier.id == "balanced"
+                // Every tab needs a clear surface + border so all three read as tabs —
+                // the old near-invisible hairline fill washed the unselected ones out.
+                let fill: AnyShapeStyle = on ? AnyShapeStyle(Theme.accent)
+                    : (recommended ? AnyShapeStyle(Theme.accentSoft) : AnyShapeStyle(Theme.insetBg))
+                let border: Color = on ? .clear
+                    : (recommended ? Theme.accent.opacity(0.55) : Theme.hairline)
                 Button { onSelectTier(tier.id) } label: {
-                    VStack(spacing: 1) {
+                    VStack(spacing: 2) {
                         Text(model.t(tier.labelKey))
-                            .font(.sfCaption2.weight(.semibold))
+                            .font(.sfCallout.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.85)
                         // Tokens are the headline; the dollar figure rides in parens.
                         Text(tier.advice.estimatedCost.headline)
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(on ? Theme.onAccent.opacity(0.9) : .secondary)
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(on ? Theme.onAccent.opacity(0.92) : .secondary)
+                            .lineLimit(1).minimumScaleFactor(0.8)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(on ? AnyShapeStyle(Theme.accent)
-                              : (recommended ? AnyShapeStyle(Theme.accentSoft)
-                                             : AnyShapeStyle(Theme.hairline.opacity(0.5)))))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(!on && recommended ? Theme.accent.opacity(0.35) : .clear, lineWidth: 1))
+                    .padding(.vertical, 9)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(fill))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(border, lineWidth: on ? 0 : 1))
                     .foregroundStyle(on ? AnyShapeStyle(Theme.onAccent) : AnyShapeStyle(.primary))
                     .contentShape(Rectangle())
                 }

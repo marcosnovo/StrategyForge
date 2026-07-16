@@ -18,6 +18,7 @@ struct LoopEditorView: View {
     @State private var showPreview = false
     @State private var showGuardrails = false
     @State private var showKindDetails = false
+    @State private var showAdvanced = false
     @State private var confirmDelete = false
     @State private var saveTask: Task<Void, Never>?
 
@@ -27,15 +28,21 @@ struct LoopEditorView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
+                // Minimal by default: to run a loop you only need a goal and a folder.
+                // Everything else (type, team, guardrails, health) hides behind
+                // "Customize", so the screen isn't a wall of config on first open.
                 header
-                kindCard
-                diagramCard      // the animated flow sits right under the type picker —
-                                 // visible without scrolling, and it explains the choice
-                goalCard
-                teamCard
-                healthCard       // secondary: only after the loop has actually run
-                conditionsNudge  // secondary: a collapsed "is a loop worth it?" checklist
-                runCard
+                runCard          // the hero: choose a folder + Run, right at the top so
+                                 // launching is never a mystery (it was buried before)
+                goalCard         // what "done" means — the loop's contract
+                advancedToggle
+                if showAdvanced {
+                    kindCard
+                    diagramCard      // the animated flow explains the chosen type
+                    teamCard
+                    healthCard       // only meaningful after the loop has actually run
+                    conditionsNudge  // a collapsed "is a loop worth it?" checklist
+                }
                 validationSummary
             }
             .padding(Space.xl)
@@ -166,6 +173,28 @@ struct LoopEditorView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// One tap reveals the loop's advanced config (type, team, guardrails, health) —
+    /// hidden by default so the first thing a user sees is just "run this loop".
+    private var advancedToggle: some View {
+        Button {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { showAdvanced.toggle() }
+        } label: {
+            HStack(spacing: Space.s) {
+                Image(systemName: "slider.horizontal.3").font(.sfCallout).foregroundStyle(Theme.accent)
+                Text(model.t("loop.editor.customize")).font(.sfCallout.weight(.medium))
+                Spacer()
+                Image(systemName: showAdvanced ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+            }
+            .foregroundStyle(Theme.ink)
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+            .frame(maxWidth: .infinity)
+            .glassPanel(cornerRadius: Theme.corner)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Card 1 · Kind

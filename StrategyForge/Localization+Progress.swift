@@ -38,6 +38,7 @@ extension L10n {
         "progress.run.button": ("Run loop", "Ejecutar bucle"),
         "progress.run.stop": ("Stop", "Detener"),
         "progress.run.again": ("Run again", "Ejecutar de nuevo"),
+        "progress.run.chooseFolder": ("Choose a folder to run in", "Elige una carpeta donde ejecutar"),
         "progress.run.needsRepo": ("Pick a project folder first — the loop needs somewhere to work.",
                                    "Elige primero una carpeta de proyecto — el bucle necesita dónde trabajar."),
         "progress.run.needsGoal": ("Write a goal first — the loop needs a “done when”.",

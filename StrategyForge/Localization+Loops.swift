@@ -222,6 +222,8 @@ extension L10n {
                                      "Ejecuta cada bucle en su propia rama, en un worktree aparte, para que los bucles en paralelo no choquen. Con un PASS verificado hace merge y limpia; si no, deja la rama para que la revises."),
 
         "loop.editor.kind.details": ("How this type works", "Cómo funciona este tipo"),
+        "loop.editor.customize": ("Customize (type, team, guardrails)",
+                                  "Personalizar (tipo, equipo, límites)"),
 
         // MARK: Editor — diagram card
         "loop.editor.diagram.title": ("The cycle", "El ciclo"),
@@ -232,6 +234,7 @@ extension L10n {
         "loop.editor.needRepo": ("Choose a target folder first — that's where the loop files are written.",
                                  "Elige primero una carpeta destino: ahí se escriben los archivos del bucle."),
         "loop.editor.chooseRepo": ("Choose folder…", "Elegir carpeta…"),
+        "loop.editor.changeFolder": ("Change", "Cambiar"),
         "loop.editor.chooseRepo.help": ("The project folder where LOOP.md, loop.sh and the verifier are written.",
                                         "La carpeta del proyecto donde se escriben LOOP.md, loop.sh y el verificador."),
         "loop.editor.preview": ("Preview", "Vista previa"),
