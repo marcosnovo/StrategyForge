@@ -159,6 +159,22 @@ final class LoopStore {
         return nil
     }
 
+    /// Where a run actually works: the user's chosen project folder, or a private
+    /// per-loop workspace so a loop that ISN'T tied to a code project (a writing or
+    /// design task) still runs somewhere — the folder is optional, mirroring how chats
+    /// fall back to a per-chat scratch folder.
+    func workingURL(for plan: LoopPlan) -> URL {
+        if let url = repoURL(for: plan) { return url }
+        let dir = AppPaths.supportDirectory()
+            .appendingPathComponent("loop-workspaces/\(plan.id.uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// True when the loop targets the user's OWN folder (needs security-scoped access),
+    /// vs an app-owned scratch workspace (which doesn't).
+    func hasUserFolder(for plan: LoopPlan) -> Bool { repoURL(for: plan) != nil }
+
     private func resolveBookmark(_ data: Data) -> URL? {
         var stale = false
         return try? URL(

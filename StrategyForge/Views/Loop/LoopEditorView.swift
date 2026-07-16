@@ -18,6 +18,7 @@ struct LoopEditorView: View {
     @State private var showPreview = false
     @State private var showGuardrails = false
     @State private var showKindDetails = false
+    @State private var showKindPicker = false
     @State private var showAdvanced = false
     @State private var confirmDelete = false
     @State private var saveTask: Task<Void, Never>?
@@ -31,14 +32,15 @@ struct LoopEditorView: View {
                 // Minimal by default: to run a loop you only need a goal and a folder.
                 // Everything else (type, team, guardrails, health) hides behind
                 // "Customize", so the screen isn't a wall of config on first open.
+                // Minimal, but the parts that explain the loop stay visible: the goal
+                // (your task), the type + its animated diagram (how it works). Only the
+                // deeper config (team, guardrails, health) hides behind "Customize".
                 header
-                runCard          // the hero: choose a folder + Run, right at the top so
-                                 // launching is never a mystery (it was buried before)
-                goalCard         // what "done" means — the loop's contract
+                runCard          // the hero: run it, with the folder right inside
+                goalCard         // your task, as the loop's "done when"
+                typeCard         // the type + its animated diagram, with "Change type"
                 advancedToggle
                 if showAdvanced {
-                    kindCard
-                    diagramCard      // the animated flow explains the chosen type
                     teamCard
                     healthCard       // only meaningful after the loop has actually run
                     conditionsNudge  // a collapsed "is a loop worth it?" checklist
@@ -197,28 +199,44 @@ struct LoopEditorView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Card 1 · Kind
+    // MARK: - Card · Type (name + animated diagram + change)
 
-    private var kindCard: some View {
+    /// The loop's type stays visible (with its animated diagram — that's what makes the
+    /// mechanism click), but the 4-way picker + the spec-sheet legend only appear when
+    /// you tap "Change type", so the default view is calm without hiding the explanation.
+    private var typeCard: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            SectionHeader("arrow.triangle.2.circlepath", model.t("loop.editor.kind.title"),
-                          subtitle: model.t("loop.editor.kind.subtitle"))
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: Space.m),
-                                GridItem(.flexible(), spacing: Space.m)],
-                      spacing: Space.m) {
-                ForEach(Array(LoopKind.allCases.enumerated()), id: \.element.id) { index, kind in
-                    kindCell(kind).staggeredAppear(index: index)
+            HStack(alignment: .firstTextBaseline) {
+                SectionHeader("arrow.triangle.2.circlepath", model.t("loop.editor.kind.title"),
+                              subtitle: model.t(plan.kind.blurbKey))
+                Spacer(minLength: Space.s)
+                Button(model.t(showKindPicker ? "common.done" : "loop.editor.changeType")) {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { showKindPicker.toggle() }
                 }
+                .buttonStyle(.plain).font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
             }
-            // The animated diagram below already tells the flow, so the verbose
-            // spec-sheet legend (Start/Trigger/Rule/Stop + best-for + cadence) is tucked
-            // behind a disclosure — the default view stays the 4-type picker, calm.
-            DisclosureGroup(isExpanded: $showKindDetails) {
-                kindLegend.id(plan.kind).padding(.top, Space.s)
-            } label: {
-                Text(model.t("loop.editor.kind.details")).font(.sfCallout.weight(.medium))
+
+            // The animated flow — always visible, so "how this type works" reads at a glance.
+            LoopKindFlowDiagram(kind: plan.kind, maxTurns: plan.maxTurns,
+                                intervalMinutes: plan.intervalMinutes)
+                .frame(height: plan.kind == .proactive ? 160 : 140)
+                .background(AuroraBackground(intensity: 0.35)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner)))
+
+            // The picker + spec-sheet legend, revealed by "Change type".
+            if showKindPicker {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: Space.m),
+                                    GridItem(.flexible(), spacing: Space.m)],
+                          spacing: Space.m) {
+                    ForEach(LoopKind.allCases) { kind in kindCell(kind) }
+                }
+                DisclosureGroup(isExpanded: $showKindDetails) {
+                    kindLegend.id(plan.kind).padding(.top, Space.s)
+                } label: {
+                    Text(model.t("loop.editor.kind.details")).font(.sfCallout.weight(.medium))
+                }
+                .tint(Theme.accent)
             }
-            .tint(Theme.accent)
         }
         .card()
     }
@@ -560,27 +578,7 @@ struct LoopEditorView: View {
         .opacity(enabled ? 1 : 0.5)
     }
 
-    // MARK: - Card 4 · Diagram
-
-    private var diagramCard: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            SectionHeader("point.3.connected.trianglepath.dotted",
-                          model.t("loop.editor.diagram.title"),
-                          subtitle: model.t("loop.editor.diagram.subtitle"))
-            LoopKindFlowDiagram(kind: plan.kind, maxTurns: plan.maxTurns,
-                                intervalMinutes: plan.intervalMinutes)
-                .frame(height: plan.kind == .proactive ? 160 : 140)
-                // Faint, always-mounted wash behind the cycle diagram (static
-                // mount — never animated in/out; see the note in ChatView).
-                .background(
-                    AuroraBackground(intensity: 0.35)
-                        .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner))
-                )
-        }
-        .card()
-    }
-
-    // MARK: - Card 5 · Run panel (built by another module)
+    // MARK: - Card · Run panel (built by another module)
 
     private var runCard: some View {
         LoopRunPanel(plan: plan, repoURL: repoURL, binary: model.settings.claudeBinary, store: store)

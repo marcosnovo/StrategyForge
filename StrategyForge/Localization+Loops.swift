@@ -171,9 +171,9 @@ extension L10n {
                                       "Cómo se dispara el bucle y quién lo dirige."),
 
         // MARK: Editor — goal card
-        "loop.editor.goal.title": ("Goal", "Objetivo"),
-        "loop.editor.goal.subtitle": ("The loop stops when this condition can be verified — not before, not on a hunch.",
-                                      "El bucle se detiene cuando esta condición se puede verificar — ni antes, ni por intuición."),
+        "loop.editor.goal.title": ("Goal — your task", "Objetivo — tu tarea"),
+        "loop.editor.goal.subtitle": ("This is your prompt, turned into the loop's “done when”. Edit it so a check can confirm it — the loop repeats until it's true, then stops.",
+                                      "Esto es tu prompt, convertido en el «terminado cuando» del bucle. Edítalo para que algo pueda comprobarlo — el bucle repite hasta que sea cierto y para."),
         "loop.editor.goal.label": ("done when (verifiable)", "terminado cuando (verificable)"),
         "loop.editor.goal.placeholder": ("e.g. all tests in tests/auth pass and lint is clean",
                                          "p. ej. todos los tests de tests/auth pasan y el lint está limpio"),
@@ -222,8 +222,9 @@ extension L10n {
                                      "Ejecuta cada bucle en su propia rama, en un worktree aparte, para que los bucles en paralelo no choquen. Con un PASS verificado hace merge y limpia; si no, deja la rama para que la revises."),
 
         "loop.editor.kind.details": ("How this type works", "Cómo funciona este tipo"),
-        "loop.editor.customize": ("Customize (type, team, guardrails)",
-                                  "Personalizar (tipo, equipo, límites)"),
+        "loop.editor.changeType": ("Change type", "Cambiar tipo"),
+        "loop.editor.customize": ("Customize (team, guardrails, limits)",
+                                  "Personalizar (equipo, límites, guardarraíles)"),
 
         // MARK: Editor — diagram card
         "loop.editor.diagram.title": ("The cycle", "El ciclo"),

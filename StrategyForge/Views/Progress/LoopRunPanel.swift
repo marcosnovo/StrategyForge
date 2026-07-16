@@ -30,7 +30,9 @@ struct LoopRunPanel: View {
     private var goalEmpty: Bool {
         plan.goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-    private var canRun: Bool { repoURL != nil && !goalEmpty }
+    // The folder is OPTIONAL now: without one, the loop runs in a private workspace
+    // (like a chat's scratch folder), so a non-code task doesn't need a project.
+    private var canRun: Bool { !goalEmpty }
     private var finished: Bool {
         !controller.isRunning && (controller.stage == .done || controller.stage == .failed)
     }
@@ -136,15 +138,18 @@ struct LoopRunPanel: View {
         }
     }
 
-    /// The one launch requirement made obvious and actionable, right next to Run: a big
-    /// "choose a folder" button when none is set, a compact confirmation (with Change)
-    /// once it is.
+    /// Where the loop runs, made explicit — but OPTIONAL. With a project folder it works
+    /// in your code; without one it runs in a private workspace, so a non-code task
+    /// doesn't need to pick anything. Either way, Run stays enabled.
     @ViewBuilder
     private var folderRow: some View {
         if let repoURL {
             HStack(spacing: Space.s) {
                 Image(systemName: "folder.fill").font(.system(size: 12)).foregroundStyle(Theme.accent)
-                Text(repoURL.lastPathComponent).font(.sfCallout.weight(.medium)).lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(repoURL.lastPathComponent).font(.sfCallout.weight(.medium)).lineLimit(1)
+                    Text(model.t("progress.run.folder.hint")).font(.sfCaption2).foregroundStyle(.secondary)
+                }
                 Spacer(minLength: Space.s)
                 Button(model.t("loop.editor.changeFolder")) { store.pickRepo(for: plan.id) }
                     .buttonStyle(.plain).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
@@ -153,12 +158,20 @@ struct LoopRunPanel: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 10).fill(Theme.insetBg))
         } else {
-            Button { store.pickRepo(for: plan.id) } label: {
-                Label(model.t("progress.run.chooseFolder"), systemImage: "folder.badge.plus")
-                    .frame(maxWidth: .infinity)
+            HStack(spacing: Space.s) {
+                Image(systemName: "shippingbox").font(.system(size: 12)).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(model.t("progress.run.workspace")).font(.sfCaption2.weight(.medium)).foregroundStyle(.primary)
+                    Text(model.t("progress.run.workspace.hint")).font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: Space.s)
+                Button(model.t("progress.run.pickProject")) { store.pickRepo(for: plan.id) }
+                    .buttonStyle(.plain).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
             }
-            .buttonStyle(.reefOutline)
-            .controlSize(.large)
+            .padding(Space.s)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.insetBg))
         }
     }
 
@@ -405,19 +418,23 @@ struct LoopRunPanel: View {
     }
 
     private func start() {
-        guard let repoURL else { return }
+        // The folder is optional: a picked project, or an app-owned scratch workspace.
+        let workURL = store.workingURL(for: plan)
+        // Only the user's own folder needs security-scoped access; the scratch workspace
+        // lives in our container, so scoping it would fail.
+        let scoped = store.hasUserFolder(for: plan)
+        let didAccess = scoped && workURL.startAccessingSecurityScopedResource()
+        defer { if didAccess { workURL.stopAccessingSecurityScopedResource() } }
         // The work/verifier prompts tell the model to read LOOP.md (and STATE.md),
         // so make sure the loop files exist and are current before launching —
         // quietly, mirroring how chats write their strategy files before a run.
-        let didAccess = repoURL.startAccessingSecurityScopedResource()
-        defer { if didAccess { repoURL.stopAccessingSecurityScopedResource() } }
         do {
-            _ = try LoopWriter(repoURL: repoURL, binary: binary).write(plan: plan)
+            _ = try LoopWriter(repoURL: workURL, binary: binary).write(plan: plan)
         } catch {
             // Don't start a run whose charter files couldn't be written.
             model.flashFailure(model.t("loop.editor.generateFailed", error.localizedDescription))
             return
         }
-        controller.start(plan: plan, repoURL: repoURL, binary: binary)
+        controller.start(plan: plan, repoURL: workURL, binary: binary)
     }
 }

@@ -88,6 +88,9 @@ final class LoopRunController {
     /// it, so the caller aborts rather than silently running in the repo unisolated.
     private func setUpWorktree(base: String, plan: LoopPlan) async throws -> String? {
         guard plan.useWorktree else { return nil }
+        // Worktrees need a git repo. A private scratch workspace (folder-less loop) isn't
+        // one, so run directly there instead of failing — isolation is moot with no repo.
+        guard await CodeGit.currentBranch(repo: base) != nil else { return nil }
         let slug = LoopFileGenerator.branchSlugForRun(plan.name)
         let stamp = Int(Date().timeIntervalSince1970)
         let branch = "loop/\(slug)-\(stamp)"
