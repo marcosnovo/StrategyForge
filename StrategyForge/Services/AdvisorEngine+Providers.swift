@@ -264,7 +264,19 @@ extension AdvisorEngine {
         for i in s.roles.indices where !isReviewRole(s.roles[i].role) {
             let axis = primaryAxis(for: s.roles[i].role)
             let band = costBand(ofModelID: currentModelID(of: s.roles[i]))
-            guard let profile = best(from: capped(available, toBand: band), axis: axis, bias: bias, deprioritize: deprioritize) else { continue }
+            var pool = capped(available, toBand: band)
+            // Keep the ORCHESTRATOR off Gemini: it's the meta run's planner + synthesizer,
+            // which must emit strict JSON and chew through the whole combined context. In
+            // practice Gemini stalls on that (large prompt → the 10-min watchdog) and its
+            // one blocking call freezes the entire run at 0 tokens. It's fine as a
+            // worker/reviewer, just not driving the loop. (A cost-band floor could
+            // otherwise hand a cheap orchestrator seat to Gemini Flash — the exact case
+            // that hung "RM_Game_1".) Falls back to the full pool only if nothing's left.
+            if s.roles[i].isOrchestrator {
+                let nonGemini = pool.filter { $0.provider != .gemini }
+                if !nonGemini.isEmpty { pool = nonGemini }
+            }
+            guard let profile = best(from: pool, axis: axis, bias: bias, deprioritize: deprioritize) else { continue }
             apply(profile, to: &s.roles[i])
             ordered.append((i, pick(s.roles[i].name, s.roles[i].role, profile, reasonKey(for: axis))))
             if (s.roles[i].role == .worker || s.roles[i].role == .specialist), coderProvider == nil {

@@ -751,8 +751,13 @@ struct BannerCapsule: View {
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(.white.opacity(0.22)))
                 }
-                Button { model.dismissBanner() } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
-                    .buttonStyle(.plain)
+                Button { model.dismissBanner() } label: {
+                    Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
+                        .padding(6)                    // a comfortable hit target, not a 10pt speck
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)       // Esc also closes it
             }
             .foregroundStyle(.white)
             .padding(.horizontal, Space.l).padding(.vertical, Space.m)

@@ -516,19 +516,21 @@ final class AppModel {
         }
     }
 
-    /// Show a banner; success banners auto-dismiss after a few seconds, errors stay.
+    /// Show a banner and always schedule its auto-dismiss — success after a few seconds,
+    /// failures after a longer window (long enough to read + hit Fix/Export, short enough
+    /// that a stuck error banner never lingers reading as "the app is frozen"). The ✕
+    /// still dismisses either immediately.
     private func show(_ banner: Banner) {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             self.banner = banner
         }
         bannerDismissTask?.cancel()
-        if case .success = banner {
-            bannerDismissTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(4))
-                if self.banner == banner {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        self.banner = nil
-                    }
+        let delay: Duration = { if case .success = banner { return .seconds(4) } else { return .seconds(12) } }()
+        bannerDismissTask = Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            if self.banner == banner {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    self.banner = nil
                 }
             }
         }

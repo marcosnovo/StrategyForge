@@ -15,6 +15,14 @@ import Observation
 /// Where a running loop currently is, for the shared progress visual.
 enum LoopStage: Hashable { case idle, act, verify, done, failed }
 
+/// One iteration's verified result, for the per-iteration list in the run panel.
+struct IterationOutcome: Identifiable, Hashable {
+    let id = UUID()
+    let iteration: Int
+    let pass: Bool
+    let reason: String
+}
+
 @Observable
 @MainActor
 final class LoopRunController {
@@ -34,6 +42,9 @@ final class LoopRunController {
     var stage: LoopStage = .idle
     /// One entry per completed (verified) iteration: true = PASS, false = FAIL.
     var verdicts: [Bool] = []
+    /// Per-iteration verdict + the verifier's one-line reason, so the panel can show
+    /// "iteration 1 · FAIL · the keeper check still errors" instead of only the last one.
+    var iterationOutcomes: [IterationOutcome] = []
     /// Non-destructive git snapshots taken after each iteration's work, so a run can
     /// be rewound to any point (see LoopRunPanel). Live for the current/last run.
     var checkpoints: [LoopCheckpoint] = []
@@ -150,6 +161,7 @@ final class LoopRunController {
         iteration = 0
         stage = .act
         verdicts = []
+        iterationOutcomes = []
         checkpoints = []
         lastVerdictReason = nil
         statusKey = "progress.status.working"
@@ -262,6 +274,8 @@ final class LoopRunController {
                     totalCostUSD += result.costUSD
                     let verdict = Self.parseVerdict(result.text)
                     verdicts.append(verdict.pass)
+                    iterationOutcomes.append(IterationOutcome(iteration: turn, pass: verdict.pass,
+                                                              reason: verdict.reason))
                     lastVerdictReason = verdict.reason
                     if verdict.pass {
                         stage = .done

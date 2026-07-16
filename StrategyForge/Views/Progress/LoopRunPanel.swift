@@ -332,20 +332,23 @@ struct LoopRunPanel: View {
     // MARK: Running
 
     private var runningBody: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
+        VStack(alignment: .leading, spacing: Space.m) {
             LoopProgressView(iteration: controller.iteration,
                              maxTurns: controller.maxTurns,
                              stage: controller.stage,
                              verdicts: controller.verdicts)
+            // A prominent "what's happening RIGHT NOW" line — the stage in plain words +
+            // the live tool/file, so it reads as moving even between the silent one-shots.
             HStack(spacing: Space.s) {
+                Circle().fill(Theme.teal).frame(width: 7, height: 7)
                 Text(model.t(controller.statusKey))
-                    .font(.sfCaption2.weight(.medium)).foregroundStyle(.primary)
-                    .fixedSize()
+                    .font(.sfCallout.weight(.semibold)).foregroundStyle(.primary)
                 if !controller.liveDetail.isEmpty {
                     Text(controller.liveDetail)
-                        .font(.sfCaption2).foregroundStyle(.tertiary)
+                        .font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle)
                 }
+                Spacer(minLength: 0)
             }
             HStack(spacing: Space.m) {
                 if let start = controller.startedAt {
@@ -361,34 +364,105 @@ struct LoopRunPanel: View {
                 }
                 .buttonStyle(.bordered).controlSize(.small)
             }
+            iterationsBlock     // per-iteration verdict + reason, newest first
             checkpointsBlock
+        }
+    }
+
+    /// One row per verified iteration: PASS/FAIL + the verifier's reason, so you can see
+    /// WHY a turn didn't meet the goal ("iteration 1 · FAIL · the auth test still errors").
+    @ViewBuilder
+    private var iterationsBlock: some View {
+        if !controller.iterationOutcomes.isEmpty {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                FieldLabel(text: model.t("loop.iterations"))
+                ForEach(controller.iterationOutcomes.reversed()) { o in
+                    HStack(alignment: .top, spacing: Space.s) {
+                        Image(systemName: o.pass ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .font(.system(size: 11)).foregroundStyle(o.pass ? Theme.success : Theme.danger)
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(spacing: 6) {
+                                Text(model.t("loop.iteration.n", o.iteration))
+                                    .font(.sfCaption2.weight(.semibold))
+                                Text(o.pass ? model.t("progress.verdict.pass") : model.t("progress.verdict.fail"))
+                                    .font(.sfCaption2.weight(.semibold))
+                                    .foregroundStyle(o.pass ? Theme.success : Theme.danger)
+                            }
+                            if !o.reason.isEmpty {
+                                Text(o.reason).font(.sfCaption2).foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .padding(.top, Space.xs)
         }
     }
 
     // MARK: Finished
 
     private var finishedBody: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
+        VStack(alignment: .leading, spacing: Space.m) {
+            finishedHeadline
             LoopProgressView(iteration: controller.iteration,
                              maxTurns: controller.maxTurns,
                              stage: controller.stage,
                              verdicts: controller.verdicts)
-            if let reason = controller.lastVerdictReason, !reason.isEmpty {
-                Text(reason)
-                    .font(.sfCaption2).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            iterationsBlock
             HStack(spacing: Space.m) {
                 usageCaptions
-                Spacer(minLength: Space.s)
+                Spacer(minLength: 0)
+            }
+            whatNowRow
+            checkpointsBlock
+        }
+    }
+
+    /// A one-line verdict on the whole run, so "it finished" isn't ambiguous.
+    private var finishedHeadline: some View {
+        let (icon, tint, key): (String, Color, String)
+        switch controller.finishedSuccessfully {
+        case .some(true):  (icon, tint, key) = ("checkmark.seal.fill", Theme.success, "loop.finished.pass")
+        case .some(false): (icon, tint, key) = ("xmark.octagon.fill", Theme.danger, "loop.finished.fail")
+        case .none:        (icon, tint, key) = ("checkmark.circle", .secondary, "loop.finished.unverified")
+        }
+        return HStack(spacing: Space.s) {
+            Image(systemName: icon).font(.system(size: 15)).foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(model.t(key)).font(.sfCallout.weight(.semibold))
+                if let reason = controller.lastVerdictReason, !reason.isEmpty {
+                    Text(reason).font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// "What now": where the loop's work landed (your folder / a private workspace) and
+    /// how to see it, so the run doesn't end in a dead end. The loop DOES edit files in
+    /// its working folder — this makes that explicit and one tap away.
+    private var whatNowRow: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text(model.t(repoURL != nil ? "loop.finished.whatNow.folder" : "loop.finished.whatNow.workspace"))
+                .font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Space.s) {
+                Button { revealWork() } label: {
+                    Label(model.t("loop.finished.reveal"), systemImage: "folder")
+                }
+                .buttonStyle(.reefOutline).controlSize(.small)
                 Button { start() } label: {
                     Label(model.t("progress.run.again"), systemImage: "arrow.counterclockwise")
                 }
-                .buttonStyle(.moon).controlSize(.small)
-                .disabled(!canRun)
+                .buttonStyle(.moon).controlSize(.small).disabled(!canRun)
             }
-            checkpointsBlock
         }
+    }
+
+    private func revealWork() {
+        NSWorkspace.shared.activateFileViewerSelecting([store.workingURL(for: plan)])
     }
 
     // MARK: Shared bits

@@ -233,6 +233,30 @@ struct AdvisorProvidersTests {
         #expect(out.roles.first { $0.name == "impl" }?.provider == .openai)
     }
 
+    // MARK: - Orchestrator never on Gemini (it drives the meta run's plan/synthesis)
+
+    @Test func orchestratorNeverLandsOnGemini() {
+        // Even a cheap (band-0) orchestrator seat must not go to Gemini — it's the meta
+        // run's planner + synthesizer and stalls on that. The cost-band floor would
+        // otherwise hand a Haiku lead to Gemini Flash (reasoning 3 > Haiku's 2), the exact
+        // case that hung "RM_Game_1".
+        let s = strategy([role("lead", .orchestrator, orchestrator: true, model: .haiku45),
+                          role("impl", .worker, count: 2)])
+        let (out, _) = AdvisorEngine.assignProviders(to: s, connected: all)
+        #expect(out.orchestrator?.provider != .gemini)
+    }
+
+    @Test func geminiStillUsedAsAWorkerOrReviewer() {
+        // The rule is orchestrator-only — Gemini must still show up elsewhere on a diverse
+        // team (the "mix real AIs" promise).
+        let s = strategy([role("lead", .orchestrator, orchestrator: true, model: .opus48),
+                          role("impl", .worker, count: 2),
+                          role("scout", .researcher, count: 2),
+                          role("review", .reviewer)])
+        let (out, _) = AdvisorEngine.assignProviders(to: s, connected: all)
+        #expect(out.roles.contains { $0.provider == .gemini })
+    }
+
     // MARK: - Model-locked provider (ChatGPT-login Codex can't pick a model)
 
     @Test func lockedOpenAINeverAssignsASpecificModel() {
