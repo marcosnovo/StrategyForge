@@ -160,6 +160,7 @@ struct LoopKindFlowDiagram: View {
     var maxTurns: Int = 20
     var intervalMinutes: Int = 30
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var accessibilitySuffix: String {
         switch kind {
@@ -171,12 +172,17 @@ struct LoopKindFlowDiagram: View {
     }
 
     var body: some View {
-        Canvas { ctx, size in
-            switch kind {
-            case .turnBased: drawTurnBased(&ctx, size)
-            case .goalBased: drawGoalBased(&ctx, size)
-            case .timeBased: drawTimeBased(&ctx, size)
-            case .proactive: drawProactive(&ctx, size)
+        // The mechanism reads best in motion: coral signal dots ride each wire in the
+        // direction of travel (and around the dashed loop-back), so the flow — and the
+        // fact that it *loops* — is unmistakable. A single static frame under Reduce
+        // Motion still shows one mid-flight dot per wire so direction survives.
+        Group {
+            if reduceMotion {
+                canvas(time: 0)
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 24.0)) { timeline in
+                    canvas(time: timeline.date.timeIntervalSinceReferenceDate)
+                }
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner))
@@ -186,10 +192,23 @@ struct LoopKindFlowDiagram: View {
         .accessibilityLabel(model.t(kind.blurbKey) + accessibilitySuffix)
     }
 
+    /// One frame. Pure drawing from `size`; `time == 0` collapses motion to a single
+    /// mid-flight dot per wire (Reduce Motion).
+    private func canvas(time: Double) -> some View {
+        Canvas { ctx, size in
+            switch kind {
+            case .turnBased: drawTurnBased(&ctx, size, time: time)
+            case .goalBased: drawGoalBased(&ctx, size, time: time)
+            case .timeBased: drawTimeBased(&ctx, size, time: time)
+            case .proactive: drawProactive(&ctx, size, time: time)
+            }
+        }
+    }
+
     // MARK: Topologies
 
     /// Prompt → Work → Check → ◇(you) : "stop" → Reply, dashed "next round" back.
-    private func drawTurnBased(_ ctx: inout GraphicsContext, _ size: CGSize) {
+    private func drawTurnBased(_ ctx: inout GraphicsContext, _ size: CGSize, time: Double) {
         let W = size.width, H = size.height
         let row = H * 0.56
         let prompt = pillRect(&ctx, CGPoint(x: W * 0.11, y: row), model.t("loop.stage.prompt"))
@@ -198,15 +217,15 @@ struct LoopKindFlowDiagram: View {
         let dc = CGPoint(x: W * 0.68, y: row); let half: CGFloat = 15
         let reply  = pillRect(&ctx, CGPoint(x: W * 0.88, y: row), model.t("loop.stage.reply"))
 
-        arrow(&ctx, from: CGPoint(x: prompt.maxX + 3, y: row), to: CGPoint(x: work.minX - 7, y: row))
-        arrow(&ctx, from: CGPoint(x: work.maxX + 3, y: row), to: CGPoint(x: check.minX - 7, y: row))
-        arrow(&ctx, from: CGPoint(x: check.maxX + 3, y: row), to: CGPoint(x: dc.x - half - 5, y: row))
-        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: row), to: CGPoint(x: reply.minX - 7, y: row))
+        arrow(&ctx, from: CGPoint(x: prompt.maxX + 3, y: row), to: CGPoint(x: work.minX - 7, y: row), time: time)
+        arrow(&ctx, from: CGPoint(x: work.maxX + 3, y: row), to: CGPoint(x: check.minX - 7, y: row), time: time)
+        arrow(&ctx, from: CGPoint(x: check.maxX + 3, y: row), to: CGPoint(x: dc.x - half - 5, y: row), time: time)
+        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: row), to: CGPoint(x: reply.minX - 7, y: row), time: time)
         branchLabel(&ctx, model.t("loop.flow.stop"), at: CGPoint(x: (dc.x + half + reply.minX) / 2, y: row - 10))
         // "next round" arcs over the top back to Prompt.
         loopBack(&ctx, from: CGPoint(x: dc.x, y: dc.y - half),
                  to: CGPoint(x: prompt.midX, y: prompt.minY - 2),
-                 dip: H * 0.14, endAngle: .pi / 2)
+                 dip: H * 0.14, endAngle: .pi / 2, time: time)
         branchLabel(&ctx, model.t("loop.flow.nextRound"),
                     at: CGPoint(x: (dc.x + prompt.midX) / 2, y: H * 0.13), color: Theme.accent.opacity(0.8))
 
@@ -218,7 +237,7 @@ struct LoopKindFlowDiagram: View {
     }
 
     /// Goal → Try → ◇(verifier) : "Pass" → Done, dashed "Fail" back to Try.
-    private func drawGoalBased(_ ctx: inout GraphicsContext, _ size: CGSize) {
+    private func drawGoalBased(_ ctx: inout GraphicsContext, _ size: CGSize, time: Double) {
         let W = size.width, H = size.height
         let row = H * 0.52
         let goal = pillRect(&ctx, CGPoint(x: W * 0.12, y: row), model.t("loop.stage.goal"))
@@ -226,14 +245,14 @@ struct LoopKindFlowDiagram: View {
         let dc = CGPoint(x: W * 0.58, y: row); let half: CGFloat = 16
         let done = pillRect(&ctx, CGPoint(x: W * 0.84, y: row), model.t("loop.stage.done"))
 
-        arrow(&ctx, from: CGPoint(x: goal.maxX + 3, y: row), to: CGPoint(x: tryR.minX - 7, y: row))
-        arrow(&ctx, from: CGPoint(x: tryR.maxX + 3, y: row), to: CGPoint(x: dc.x - half - 5, y: row))
-        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: row), to: CGPoint(x: done.minX - 7, y: row))
+        arrow(&ctx, from: CGPoint(x: goal.maxX + 3, y: row), to: CGPoint(x: tryR.minX - 7, y: row), time: time)
+        arrow(&ctx, from: CGPoint(x: tryR.maxX + 3, y: row), to: CGPoint(x: dc.x - half - 5, y: row), time: time)
+        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: row), to: CGPoint(x: done.minX - 7, y: row), time: time)
         branchLabel(&ctx, model.t("loop.flow.pass"), at: CGPoint(x: (dc.x + half + done.minX) / 2, y: row - 10), color: Theme.success)
         // "Fail" arcs under, back to Try (retry the attempt, not the goal).
         loopBack(&ctx, from: CGPoint(x: dc.x, y: dc.y + half),
                  to: CGPoint(x: tryR.midX, y: tryR.maxY + 2),
-                 dip: H * 0.88, endAngle: -.pi / 2)
+                 dip: H * 0.88, endAngle: -.pi / 2, time: time)
         branchLabel(&ctx, model.t("loop.flow.fail"),
                     at: CGPoint(x: (dc.x + tryR.midX) / 2, y: H * 0.9), color: Theme.warning)
 
@@ -244,7 +263,7 @@ struct LoopKindFlowDiagram: View {
     }
 
     /// ⏱ (clock trigger) → Check → React → Wait, dashed "every N min" arc back.
-    private func drawTimeBased(_ ctx: inout GraphicsContext, _ size: CGSize) {
+    private func drawTimeBased(_ ctx: inout GraphicsContext, _ size: CGSize, time: Double) {
         let W = size.width, H = size.height
         let row = H * 0.50
         let clock = CGPoint(x: W * 0.12, y: row); let r: CGFloat = 18
@@ -252,12 +271,12 @@ struct LoopKindFlowDiagram: View {
         let react = pillRect(&ctx, CGPoint(x: W * 0.58, y: row), model.t("loop.stage.react"))
         let wait  = pillRect(&ctx, CGPoint(x: W * 0.78, y: row), model.t("loop.stage.wait"))
 
-        arrow(&ctx, from: CGPoint(x: clock.x + r + 3, y: row), to: CGPoint(x: check.minX - 7, y: row))
-        arrow(&ctx, from: CGPoint(x: check.maxX + 3, y: row), to: CGPoint(x: react.minX - 7, y: row))
-        arrow(&ctx, from: CGPoint(x: react.maxX + 3, y: row), to: CGPoint(x: wait.minX - 7, y: row))
+        arrow(&ctx, from: CGPoint(x: clock.x + r + 3, y: row), to: CGPoint(x: check.minX - 7, y: row), time: time)
+        arrow(&ctx, from: CGPoint(x: check.maxX + 3, y: row), to: CGPoint(x: react.minX - 7, y: row), time: time)
+        arrow(&ctx, from: CGPoint(x: react.maxX + 3, y: row), to: CGPoint(x: wait.minX - 7, y: row), time: time)
         loopBack(&ctx, from: CGPoint(x: wait.midX, y: wait.maxY + 2),
                  to: CGPoint(x: clock.x, y: clock.y + r + 2),
-                 dip: H * 0.9, endAngle: -.pi / 2)
+                 dip: H * 0.9, endAngle: -.pi / 2, time: time)
         branchLabel(&ctx, model.t("loop.flow.everyMin", intervalMinutes),
                     at: CGPoint(x: (wait.midX + clock.x) / 2, y: H * 0.92), color: Theme.accent.opacity(0.8))
 
@@ -269,7 +288,7 @@ struct LoopKindFlowDiagram: View {
 
     /// Several events fan into a Router diamond, which fans out to parallel workers,
     /// which converge into Review; a dashed arc shows it keeps watching.
-    private func drawProactive(_ ctx: inout GraphicsContext, _ size: CGSize) {
+    private func drawProactive(_ ctx: inout GraphicsContext, _ size: CGSize, time: Double) {
         let W = size.width, H = size.height
         let er: CGFloat = 11
         let events: [(CGPoint, String)] = [
@@ -284,18 +303,18 @@ struct LoopKindFlowDiagram: View {
 
         // Fan-in: each event → router.
         for (p, _) in events {
-            arrow(&ctx, from: CGPoint(x: p.x + er + 2, y: p.y), to: CGPoint(x: dc.x - half - 4, y: dc.y))
+            arrow(&ctx, from: CGPoint(x: p.x + er + 2, y: p.y), to: CGPoint(x: dc.x - half - 4, y: dc.y), time: time)
         }
         // Fan-out: router → each worker.
-        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: dc.y), to: CGPoint(x: w1.minX - 7, y: w1.midY))
-        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: dc.y), to: CGPoint(x: w2.minX - 7, y: w2.midY))
+        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: dc.y), to: CGPoint(x: w1.minX - 7, y: w1.midY), time: time)
+        arrow(&ctx, from: CGPoint(x: dc.x + half + 2, y: dc.y), to: CGPoint(x: w2.minX - 7, y: w2.midY), time: time)
         // Converge: workers → review.
-        arrow(&ctx, from: CGPoint(x: w1.maxX + 3, y: w1.midY), to: CGPoint(x: review.minX - 7, y: review.midY))
-        arrow(&ctx, from: CGPoint(x: w2.maxX + 3, y: w2.midY), to: CGPoint(x: review.minX - 7, y: review.midY))
+        arrow(&ctx, from: CGPoint(x: w1.maxX + 3, y: w1.midY), to: CGPoint(x: review.minX - 7, y: review.midY), time: time)
+        arrow(&ctx, from: CGPoint(x: w2.maxX + 3, y: w2.midY), to: CGPoint(x: review.minX - 7, y: review.midY), time: time)
         // Keeps watching: dashed arc from review back to the events column.
         loopBack(&ctx, from: CGPoint(x: review.midX, y: review.maxY + 2),
                  to: CGPoint(x: events[2].0.x, y: events[2].0.y + er + 2),
-                 dip: H * 0.96, endAngle: -.pi / 2)
+                 dip: H * 0.96, endAngle: -.pi / 2, time: time)
 
         for (p, glyph) in events { circleNode(&ctx, center: p, radius: er, glyph: glyph, role: .trigger) }
         drawDiamond(&ctx, center: dc, half: half, glyph: "arrow.triangle.branch")
@@ -366,21 +385,58 @@ struct LoopKindFlowDiagram: View {
     }
 
     private func arrow(_ ctx: inout GraphicsContext, from a: CGPoint, to b: CGPoint,
-                       color: Color = Theme.accent.opacity(0.8)) {
+                       color: Color = Theme.accent.opacity(0.8), time: Double = 0) {
         var p = Path(); p.move(to: a); p.addLine(to: b)
         ctx.stroke(p, with: .color(color), style: StrokeStyle(lineWidth: 2, lineCap: .round))
         ctx.fill(head(at: b, angle: atan2(b.y - a.y, b.x - a.x), size: 6), with: .color(color))
+        // Signal dots ride the wire from source to tip (a straight line is just a cubic
+        // whose controls are its endpoints), so the direction of flow is unmistakable.
+        flowDots(&ctx, a, a, b, b, time: time, color: color)
     }
 
     /// A dashed cubic loop-back with an arrowhead at the end (`endAngle` = travel dir).
     private func loopBack(_ ctx: inout GraphicsContext, from a: CGPoint, to b: CGPoint,
-                          dip: CGFloat, endAngle: CGFloat) {
+                          dip: CGFloat, endAngle: CGFloat, time: Double = 0) {
+        let c1 = CGPoint(x: a.x, y: dip), c2 = CGPoint(x: b.x, y: dip)
         var p = Path()
         p.move(to: a)
-        p.addCurve(to: b, control1: CGPoint(x: a.x, y: dip), control2: CGPoint(x: b.x, y: dip))
+        p.addCurve(to: b, control1: c1, control2: c2)
         ctx.stroke(p, with: .color(Theme.accent.opacity(0.45)),
                    style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
         ctx.fill(head(at: b, angle: endAngle, size: 6), with: .color(Theme.accent.opacity(0.7)))
+        // A dot circling back reinforces that the loop actually *loops*.
+        flowDots(&ctx, a, c1, c2, b, time: time, color: Theme.accent.opacity(0.6))
+    }
+
+    /// Draw travelling signal dots along the cubic p0→p3 (straight lines pass their
+    /// endpoints as controls). Each dot emits at the source and fades into the tip
+    /// (`sin(u·π)`), so the wire reads directionally. A deterministic per-wire phase
+    /// (from its start point) keeps parallel wires from pulsing in unison. `time == 0`
+    /// collapses to one static mid-flight dot so direction survives Reduce Motion.
+    private func flowDots(_ ctx: inout GraphicsContext, _ p0: CGPoint, _ p1: CGPoint,
+                          _ p2: CGPoint, _ p3: CGPoint, time: Double, color: Color,
+                          count: Int = 2, r: CGFloat = 2.4) {
+        let phase = Double((abs(p0.x) + abs(p0.y)).truncatingRemainder(dividingBy: 100)) / 100.0
+        for d in 0..<count {
+            let base = Double(d) / Double(count) + phase
+            let u = time == 0 ? 0.5 : (time * 0.32 + base).truncatingRemainder(dividingBy: 1.0)
+            let fade = sin(u * .pi)
+            guard fade > 0.05 else { continue }
+            let p = pointOnCubic(p0, p1, p2, p3, CGFloat(u))
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - r * 2, y: p.y - r * 2, width: r * 4, height: r * 4)),
+                     with: .color(color.opacity(0.12 * fade)))
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
+                     with: .color(color.opacity(0.35 + 0.55 * fade)))
+            if time == 0 { break }
+        }
+    }
+
+    /// Point at parameter `u` (0…1) along a cubic Bézier.
+    private func pointOnCubic(_ p0: CGPoint, _ p1: CGPoint, _ p2: CGPoint, _ p3: CGPoint, _ u: CGFloat) -> CGPoint {
+        let v = 1 - u
+        let a = v * v * v, b = 3 * v * v * u, c = 3 * v * u * u, d = u * u * u
+        return CGPoint(x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+                       y: a * p0.y + b * p1.y + c * p2.y + d * p3.y)
     }
 
     private func branchLabel(_ ctx: inout GraphicsContext, _ text: String, at p: CGPoint,
