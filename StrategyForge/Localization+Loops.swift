@@ -221,6 +221,8 @@ extension L10n {
         "loop.editor.worktree.why": ("Run each loop on its own branch in a separate worktree, so parallel loops never clash. On a verified PASS it merges back and cleans up; otherwise the branch is left for you to review.",
                                      "Ejecuta cada bucle en su propia rama, en un worktree aparte, para que los bucles en paralelo no choquen. Con un PASS verificado hace merge y limpia; si no, deja la rama para que la revises."),
 
+        "loop.editor.kind.details": ("How this type works", "Cómo funciona este tipo"),
+
         // MARK: Editor — diagram card
         "loop.editor.diagram.title": ("The cycle", "El ciclo"),
         "loop.editor.diagram.subtitle": ("One pass, left to right: the coral stage triggers it, the green stage is the exit, and the dashed arc repeats.",

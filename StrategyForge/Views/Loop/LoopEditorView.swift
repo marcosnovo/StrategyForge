@@ -17,6 +17,7 @@ struct LoopEditorView: View {
 
     @State private var showPreview = false
     @State private var showGuardrails = false
+    @State private var showKindDetails = false
     @State private var confirmDelete = false
     @State private var saveTask: Task<Void, Never>?
 
@@ -27,12 +28,13 @@ struct LoopEditorView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                 header
-                healthCard
-                conditionsNudge
                 kindCard
+                diagramCard      // the animated flow sits right under the type picker —
+                                 // visible without scrolling, and it explains the choice
                 goalCard
                 teamCard
-                diagramCard
+                healthCard       // secondary: only after the loop has actually run
+                conditionsNudge  // secondary: a collapsed "is a loop worth it?" checklist
                 runCard
                 validationSummary
             }
@@ -179,12 +181,15 @@ struct LoopEditorView: View {
                     kindCell(kind).staggeredAppear(index: index)
                 }
             }
-            // A spec-sheet legend that makes the chosen type's PURPOSE unmistakable:
-            // Start / Trigger / Rule / Stop (color-coded, stable key) + Best for +
-            // an honest cadence footer tied to the plan's real numbers.
-            kindLegend
-                .id(plan.kind)
-                .transition(.opacity)
+            // The animated diagram below already tells the flow, so the verbose
+            // spec-sheet legend (Start/Trigger/Rule/Stop + best-for + cadence) is tucked
+            // behind a disclosure — the default view stays the 4-type picker, calm.
+            DisclosureGroup(isExpanded: $showKindDetails) {
+                kindLegend.id(plan.kind).padding(.top, Space.s)
+            } label: {
+                Text(model.t("loop.editor.kind.details")).font(.sfCallout.weight(.medium))
+            }
+            .tint(Theme.accent)
         }
         .card()
     }
