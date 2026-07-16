@@ -307,6 +307,10 @@ struct AgentActivityPanel: View {
                 Text(pct).font(.sfCaption2).foregroundStyle(Theme.tertiaryOnMaterial)
                     .contentTransition(.numericText())
             }
+            // Liveness for the (silent) one-shot meta calls: a ticking elapsed so it's
+            // obviously alive, and a "taking a while" nudge once it runs long — so a slow
+            // provider reads as slow, not hung (and the user knows they can queue ahead).
+            liveWorkingLine
             // Claude PLAN headroom (account-wide rate-limit %), so the "how much of my
             // plan is left" figure is visible here — not only on the Usage page.
             if let e = model.claudeExact {
@@ -332,6 +336,29 @@ struct AgentActivityPanel: View {
             }
             // The account-wide totals (this week / 5-hour window / per-provider) live
             // in the Usage section — this live card shows ONLY this chat's own spend.
+        }
+    }
+
+    /// A live "working · 2m 14s" line while a turn runs, with a "taking a while" nudge
+    /// once it's been long — the liveness signal for the one-shot meta calls that don't
+    /// stream tokens. Ticks once a second via a periodic TimelineView.
+    @ViewBuilder private var liveWorkingLine: some View {
+        if vm.isRunning, let started = (vm.roleStartedAt.values.min() ?? vm.turnStartedAt) {
+            TimelineView(.periodic(from: Date(), by: 1)) { ctx in
+                let secs = Int(max(0, ctx.date.timeIntervalSince(started)))
+                HStack(spacing: 6) {
+                    Circle().fill(Theme.teal).frame(width: 5, height: 5)
+                        .opacity(secs % 2 == 0 ? 1 : 0.35)   // a slow blink = "alive"
+                    Text(model.t("activity.working.elapsed", activityElapsed(from: started, to: ctx.date)))
+                        .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+                        .contentTransition(.numericText())
+                    if secs >= 90 {
+                        Text(model.t("activity.working.slow"))
+                            .font(.sfCaption2).foregroundStyle(Theme.warning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
         }
     }
 
@@ -1006,7 +1033,8 @@ func activityPhrase(_ step: ActivityStep, _ model: AppModel) -> String {
     case "Grep", "Glob": return withTarget("act.searching")
     case "WebFetch", "WebSearch": return withTarget("act.fetching")
     case "TodoWrite": return model.t("act.planning")
-    // Meta path role completion markers — the detail holds the role name.
+    // Meta path role markers — the detail holds the task (working) or role name (done).
+    case "role.working": return target.isEmpty ? model.t("act.working") : model.t("act.workingOn", target)
     case "role.done": return model.t("act.roleDone", target.isEmpty ? "" : target)
     case "role.failed": return model.t("act.roleFailed", target.isEmpty ? "" : target)
     default:

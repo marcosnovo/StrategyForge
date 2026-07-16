@@ -1240,6 +1240,11 @@ enum L10n {
         "act.delegated": ("Delegated to %@", "Delegó en %@"),
         "act.roleDone": ("%@ finished", "%@ terminó"),
         "act.roleFailed": ("%@ failed", "%@ falló"),
+        "act.working": ("Working…", "Trabajando…"),
+        "act.workingOn": ("Working on: %@", "Trabajando en: %@"),
+        "activity.working.elapsed": ("working · %@", "trabajando · %@"),
+        "activity.working.slow": ("· taking a while — it's still running, you can queue a follow-up",
+                                  "· tardando un poco — sigue en marcha, puedes dejar otro mensaje en cola"),
 
         // MARK: Document preview
         "filepreview.title": ("Files produced", "Archivos generados"),

@@ -246,6 +246,10 @@ final class ChatViewModel {
     /// Meta path: the concrete task the orchestrator assigned each role this turn, so the
     /// panel/diagram can show what an agent is ACTUALLY doing (not just its generic role).
     var roleTasks: [String: String] = [:]
+    /// Meta path: when each in-progress role started, so the panel can tick a live "working
+    /// 2m 14s" — the one-shot CLIs don't stream, so this is the liveness signal that the
+    /// team is alive (not hung) during the long, silent worker calls.
+    var roleStartedAt: [String: Date] = [:]
     /// Meta path: a live, human-readable narration of what the team is doing, written
     /// into the assistant bubble as it happens (the one-shot legs don't token-stream,
     /// so without this the chat looks frozen until the final synthesis lands).
@@ -519,6 +523,7 @@ final class ChatViewModel {
         roleModels = [:]
         rolesInProgress = []
         roleTasks = [:]
+        roleStartedAt = [:]
         pendingCommands = [:]
         turnStartedAt = Date()
         lastStreamPersist = .distantPast
@@ -805,10 +810,16 @@ final class ChatViewModel {
                 if !brief.isEmpty { roleTasks[role] = brief }
                 if !agentsInvolved.contains(role) { agentsInvolved.append(role) }
                 activity.append("→ \(role)")
+                roleStartedAt[role] = Date()
                 // The step DETAIL now carries the assigned task, so the timeline shows
                 // what each agent is actually doing — not just that it was delegated to.
                 timeline.append(ActivityStep(title: role, detail: shortTask(brief) ?? model, at: Date(),
                                              isDelegation: true, agent: nil))
+                // A step attributed to the AGENT itself, so its per-agent drill-down shows
+                // "working on …" the moment it starts — instead of staying empty for the
+                // minutes the one-shot CLI runs with no intermediate output.
+                timeline.append(ActivityStep(title: "role.working", detail: shortTask(brief) ?? model,
+                                             at: Date(), isDelegation: false, agent: role))
                 let taskSuffix = shortTask(brief).map { " — \($0)" } ?? ""
                 narrate("▸ \(role) · \(model)\(taskSuffix)…", assistantIndex: assistantIndex)
             }
@@ -820,6 +831,7 @@ final class ChatViewModel {
             }
             if role != orchName {
                 rolesInProgress.remove(role)
+                roleStartedAt[role] = nil
                 // Attribute a completed step to the agent so the panel marks it done.
                 timeline.append(ActivityStep(title: "role.done", detail: role, at: Date(),
                                              isDelegation: false, agent: role))
@@ -829,6 +841,7 @@ final class ChatViewModel {
             // One worker failed but the run continues with the others — record it and
             // mark this agent's narration line as failed so the UI isn't left "working".
             rolesInProgress.remove(role)
+            roleStartedAt[role] = nil
             DiagnosticsLog.record("meta worker “\(role)” failed — \(message)")
             if let i = metaNarration.lastIndex(where: { $0.contains(role) && $0.hasPrefix("▸") }) {
                 metaNarration[i] = "⚠ \(role)"
@@ -853,9 +866,11 @@ final class ChatViewModel {
             DiagnosticsLog.record(message)
             errorText = message
             rolesInProgress = []
+            roleStartedAt = [:]
         case .finished:
             activeSubagent = nil
             rolesInProgress = []   // nothing is in flight once the run finishes
+            roleStartedAt = [:]
         }
     }
 
