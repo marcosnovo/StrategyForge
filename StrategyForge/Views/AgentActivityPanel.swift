@@ -307,6 +307,16 @@ struct AgentActivityPanel: View {
                 Text(pct).font(.sfCaption2).foregroundStyle(Theme.tertiaryOnMaterial)
                     .contentTransition(.numericText())
             }
+            // Claude PLAN headroom (account-wide rate-limit %), so the "how much of my
+            // plan is left" figure is visible here — not only on the Usage page.
+            if let e = model.claudeExact {
+                HStack(spacing: 6) {
+                    Image(systemName: "gauge.with.needle").font(.system(size: 9)).foregroundStyle(Theme.accent)
+                    Text(model.t("activity.usage.claudePlan",
+                                 Int(e.fiveHourPercent.rounded()), Int(e.weekPercent.rounded())))
+                        .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+                }
+            }
             // EXACT per-model / per-agent spend for THIS run (from each message's
             // own model), so e.g. Haiku subagent tokens show up. Falls back to the
             // team's configured models before any usage has streamed.

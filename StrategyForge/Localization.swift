@@ -1193,6 +1193,8 @@ enum L10n {
         "activity.preview": ("Preview", "Vista previa"),
         "activity.usage.title": ("LIVE USAGE", "USO EN VIVO"),
         "activity.usage.tokens": ("tokens", "tokens"),
+        "activity.usage.claudePlan": ("Claude plan · 5h %lld%% · week %lld%%",
+                                      "Plan Claude · 5h %lld%% · semana %lld%%"),
         "activity.usage.pct5h": ("%@ of 5h", "%@ de 5h"),
         "activity.usage.pctWk": ("%@ of week", "%@ semana"),
         "activity.usage.live": ("live", "en vivo"),

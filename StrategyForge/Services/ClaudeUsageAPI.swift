@@ -20,8 +20,10 @@ import Security
 
 enum ClaudeUsageAPI {
 
-    /// Real rate-limit utilization for the two headline windows.
-    struct Exact: Equatable, Sendable {
+    /// Real rate-limit utilization for the two headline windows. Codable so the last
+    /// fetched value can be cached to disk and shown at a glance on the next launch
+    /// (before — or without — a fresh, Keychain-touching fetch).
+    struct Exact: Equatable, Sendable, Codable {
         var fiveHourPercent: Double
         var fiveHourResetsAt: Date?
         var weekPercent: Double

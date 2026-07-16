@@ -170,12 +170,28 @@ final class AppModel {
     /// on every launch.
     func refreshUsage(includeExact: Bool = false) async {
         isRefreshingUsage = true
+        // Seed the exact rate-limit % from the last cached fetch so the rail / activity
+        // panel show it at a glance immediately — no Keychain touch. A fresh fetch (on
+        // deliberate intent) replaces it.
+        if claudeExact == nil { claudeExact = Self.loadCachedExact() }
         async let claude = Task.detached(priority: .utility) { ClaudeUsageStore.load() }.value
         async let codex = Task.detached(priority: .utility) { CodexUsageStore.load() }.value
         claudeUsage = await claude
         codexUsage = await codex
         isRefreshingUsage = false
         if includeExact { await refreshExactUsage() }
+    }
+
+    /// UserDefaults key for the cached exact-usage snapshot.
+    private static let exactCacheKey = "claude.exactUsage.cache.v1"
+
+    /// The last fetched exact usage, if it was cached recently enough to still be a
+    /// useful "last known" figure (windows are 5h / weekly, so we cap staleness at 12h).
+    private static func loadCachedExact() -> ClaudeUsageAPI.Exact? {
+        guard let data = UserDefaults.standard.data(forKey: exactCacheKey),
+              let exact = try? JSONDecoder().decode(ClaudeUsageAPI.Exact.self, from: data),
+              Date().timeIntervalSince(exact.computedAt) < 12 * 3600 else { return nil }
+        return exact
     }
 
     /// Whether we've already attempted the Keychain-backed exact-usage fetch this session
@@ -192,6 +208,10 @@ final class AppModel {
         didAttemptExactUsage = true
         if let exact = await Task.detached(priority: .utility, operation: { await ClaudeUsageAPI.fetch() }).value {
             claudeExact = exact
+            // Cache it so the next launch can show the % immediately, no Keychain touch.
+            if let data = try? JSONEncoder().encode(exact) {
+                UserDefaults.standard.set(data, forKey: Self.exactCacheKey)
+            }
         }
     }
     /// The service shown in the main area while in the Services section.
