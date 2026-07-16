@@ -262,6 +262,47 @@ struct LoopPlanCodableTests {
             #expect(!plan.validate().contains("loop.issue.vagueGoal"))
         }
     }
+
+    // MARK: - Lifetime health (cost per accepted change)
+
+    @Test func healthIsNilUntilTheLoopHasRun() {
+        #expect(LoopPlan(name: "x").health == nil)
+    }
+
+    @Test func healthDerivesRateAndCostPerAccepted() {
+        let plan = LoopPlan(name: "x", lifetimeRuns: 4, lifetimeAccepted: 3, lifetimeCostUSD: 6)
+        let h = plan.health
+        #expect(h?.acceptanceRate == 0.75)
+        #expect(h?.costPerAccepted == 2)          // $6 over 3 accepted
+        #expect(h?.isUnderperforming == false)    // 75% ≥ 50%
+    }
+
+    @Test func costPerAcceptedIsNilWhenNothingAccepted() {
+        // Dividing $5 by zero accepted changes must NOT read as "free".
+        let h = LoopPlan(name: "x", lifetimeRuns: 3, lifetimeAccepted: 0, lifetimeCostUSD: 5).health
+        #expect(h?.costPerAccepted == nil)
+        #expect(h?.isUnderperforming == true)     // 0% with enough data
+    }
+
+    @Test func underperformingNeedsEnoughData() {
+        // One failed run isn't yet a verdict on the loop.
+        let one = LoopPlan(name: "x", lifetimeRuns: 1, lifetimeAccepted: 0, lifetimeCostUSD: 1).health
+        #expect(one?.hasEnoughData == false)
+        #expect(one?.isUnderperforming == false)
+    }
+
+    @Test func healthCountersRoundTripAndClampNegative() throws {
+        let json = #"{"name":"x","lifetimeRuns":5,"lifetimeAccepted":2,"lifetimeCostUSD":-9}"#
+        let plan = try JSONDecoder().decode(LoopPlan.self, from: Data(json.utf8))
+        #expect(plan.lifetimeRuns == 5)
+        #expect(plan.lifetimeAccepted == 2)
+        #expect(plan.lifetimeCostUSD == 0)        // negative clamps to 0
+
+        // Absent keys default to zero (older saved plans).
+        let old = try JSONDecoder().decode(LoopPlan.self, from: Data(#"{"name":"x"}"#.utf8))
+        #expect(old.lifetimeRuns == 0)
+        #expect(old.health == nil)
+    }
 }
 
 struct LoopWriterTests {

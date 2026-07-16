@@ -121,6 +121,22 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     /// Outcome of the most recent finished run (nil until a run finishes).
     var lastRun: LoopRunSummary?
 
+    // MARK: Lifetime health (the article's "cost per accepted change")
+    //
+    // The metric that decides whether a loop is worth running is NOT tokens spent or
+    // turns attempted — it's *cost per accepted change*, and if fewer than half the
+    // runs are accepted you're doing the review the loop was meant to remove. Coral's
+    // objective gate IS the verifier, so an "accepted change" = a run that ended in a
+    // verified PASS. These three lifetime counters (updated once per finished run) are
+    // all we need to surface that health; no per-run history is persisted.
+
+    /// Total finished runs over the loop's life.
+    var lifetimeRuns: Int
+    /// Runs that ended in a verified PASS (an accepted change).
+    var lifetimeAccepted: Int
+    /// Total reported spend across all finished runs, USD.
+    var lifetimeCostUSD: Double
+
     /// Clamp the emergency brake to a sane range.
     static func clampTurns(_ n: Int) -> Int { min(max(n, 1), 100) }
 
@@ -143,7 +159,10 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         repoBookmark: Data? = nil,
         updatedAt: Date = Date(),
         lastRunAt: Date? = nil,
-        lastRun: LoopRunSummary? = nil
+        lastRun: LoopRunSummary? = nil,
+        lifetimeRuns: Int = 0,
+        lifetimeAccepted: Int = 0,
+        lifetimeCostUSD: Double = 0
     ) {
         self.id = id
         self.name = name
@@ -164,12 +183,16 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         self.updatedAt = updatedAt
         self.lastRunAt = lastRunAt
         self.lastRun = lastRun
+        self.lifetimeRuns = max(0, lifetimeRuns)
+        self.lifetimeAccepted = max(0, lifetimeAccepted)
+        self.lifetimeCostUSD = max(0, lifetimeCostUSD)
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, kind, goal, neverTouch, stopIf, maxTurns, budgetUSD, effort, intervalMinutes
         case workerModel, verifierEnabled, verifierModel, memoryEnabled
         case repoPath, repoBookmark, updatedAt, lastRunAt, lastRun
+        case lifetimeRuns, lifetimeAccepted, lifetimeCostUSD
     }
 
     // Tolerant decode: missing keys fall back to defaults (mirrors Configuration),
@@ -200,6 +223,9 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
         lastRunAt = try c.decodeIfPresent(Date.self, forKey: .lastRunAt)
         lastRun = ((try? c.decodeIfPresent(LoopRunSummary.self, forKey: .lastRun)) ?? nil)
+        lifetimeRuns = max(0, try c.decodeIfPresent(Int.self, forKey: .lifetimeRuns) ?? 0)
+        lifetimeAccepted = max(0, try c.decodeIfPresent(Int.self, forKey: .lifetimeAccepted) ?? 0)
+        lifetimeCostUSD = max(0, try c.decodeIfPresent(Double.self, forKey: .lifetimeCostUSD) ?? 0)
     }
 
     // MARK: - Validation
@@ -250,4 +276,32 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         (repoPath != nil || repoBookmark != nil)
             && !goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+
+    /// The loop's health, the article's real success metric: cost per accepted change
+    /// and the share of runs that were accepted. `nil` until at least one run finishes.
+    var health: LoopHealth? {
+        guard lifetimeRuns > 0 else { return nil }
+        return LoopHealth(runs: lifetimeRuns, accepted: lifetimeAccepted, costUSD: lifetimeCostUSD)
+    }
+}
+
+/// A loop's running health, derived from its lifetime counters. Pure/testable.
+struct LoopHealth: Hashable {
+    let runs: Int
+    let accepted: Int
+    let costUSD: Double
+
+    /// Share of finished runs that ended in a verified PASS (0…1).
+    var acceptanceRate: Double { runs > 0 ? Double(accepted) / Double(runs) : 0 }
+
+    /// Cost per accepted change — total spend ÷ accepted runs. `nil` when nothing has
+    /// been accepted yet (dividing by zero would read as "free", which is a lie).
+    var costPerAccepted: Double? { accepted > 0 ? costUSD / Double(accepted) : nil }
+
+    /// Enough runs to trust the rate (a single fluke shouldn't raise an alarm).
+    var hasEnoughData: Bool { runs >= 3 }
+
+    /// The article's warning line: below a 50% accept rate, the loop is losing — you're
+    /// doing the review it was meant to remove. Only fires once there's enough data.
+    var isUnderperforming: Bool { hasEnoughData && acceptanceRate < 0.5 }
 }

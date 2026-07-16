@@ -249,5 +249,27 @@ extension L10n {
                                   "Un bucle por objetivo sin verificador independiente califica su propio trabajo — activa el verificador."),
         "loop.issue.vagueGoal": ("This \"done when\" may not be machine-checkable — name a test, build, or check the verifier can actually run.",
                                  "Este «terminado cuando» quizá no sea comprobable por una máquina — nombra un test, build o comprobación que el verificador pueda ejecutar de verdad."),
+
+        // MARK: Health (cost per accepted change)
+        "loop.health.title": ("Is this loop working?", "¿Funciona este bucle?"),
+        "loop.health.subtitle": ("The metric that matters isn't turns or tokens — it's cost per accepted change. Below a 50% accept rate, you're doing the review the loop was meant to remove.",
+                                 "La métrica que importa no son turnos ni tokens — es el coste por cambio aceptado. Por debajo del 50% de aceptación, estás haciendo la revisión que el bucle debía quitarte."),
+        "loop.health.accepted": ("Accepted runs", "Ejecuciones aceptadas"),
+        "loop.health.perAccepted": ("Cost per accepted change", "Coste por cambio aceptado"),
+        "loop.health.warn": ("Fewer than half of the runs passed the verifier. Tighten the goal, the guardrails, or the model before running it again.",
+                             "Menos de la mitad de las ejecuciones pasaron el verificador. Ajusta el objetivo, las barreras o el modelo antes de volver a ejecutarlo."),
+
+        // MARK: "Is a loop worth it?" — the four conditions
+        "loop.conditions.title": ("Is a loop worth it here?", "¿Merece la pena un bucle aquí?"),
+        "loop.conditions.repeats": ("The task repeats — at least weekly. Below that, the setup never pays for itself.",
+                                    "La tarea se repite — al menos cada semana. Por debajo de eso, el montaje nunca se amortiza."),
+        "loop.conditions.autoFail": ("Something can fail the work automatically — a test, type check, lint, or build.",
+                                     "Algo puede rechazar el trabajo automáticamente — un test, type check, lint o build."),
+        "loop.conditions.budget": ("Your budget can absorb the waste — loops re-read context, retry, and explore.",
+                                   "Tu presupuesto absorbe el desperdicio — los bucles releen contexto, reintentan y exploran."),
+        "loop.conditions.tools": ("The agent has senior-engineer tools — logs, a repro environment, and the ability to run what it writes.",
+                                  "El agente tiene herramientas de ingeniero senior — logs, un entorno de reproducción y poder ejecutar lo que escribe."),
+        "loop.conditions.footnote": ("Good first loops are the boring ones: CI triage, dependency bumps, lint-and-fix. Save the interesting ones (rewrites, auth, payments) for when a human still weighs in.",
+                                     "Los mejores primeros bucles son los aburridos: triage de CI, subir dependencias, lint-and-fix. Deja los interesantes (reescrituras, auth, pagos) para cuando aún decida un humano."),
     ]
 }

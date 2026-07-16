@@ -66,6 +66,13 @@ final class LoopStore {
             if let i = self.loops.firstIndex(where: { $0.id == id }) {
                 self.loops[i].lastRun = summary
                 self.loops[i].lastRunAt = summary.date
+                // Roll the lifetime health counters (the article's "cost per accepted
+                // change"): every finished run counts; a verified PASS is an accepted
+                // change. A `nil` pass (done-but-unverified) counts as a run but not an
+                // acceptance, so it can't inflate the health signal.
+                self.loops[i].lifetimeRuns += 1
+                if summary.pass == true { self.loops[i].lifetimeAccepted += 1 }
+                self.loops[i].lifetimeCostUSD += max(0, summary.costUSD)
                 self.save()
             }
             self.onRunFinished?(id, summary)

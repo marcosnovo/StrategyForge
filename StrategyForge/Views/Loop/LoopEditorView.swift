@@ -27,6 +27,8 @@ struct LoopEditorView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                 header
+                healthCard
+                conditionsNudge
                 kindCard
                 goalCard
                 teamCard
@@ -84,6 +86,84 @@ struct LoopEditorView: View {
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.m)
         .glassPanel(cornerRadius: Theme.corner)
+    }
+
+    // MARK: - Health (cost per accepted change)
+
+    /// The loop's running health — only once it has actually run. Surfaces the
+    /// article's real success metric (cost per accepted change + accept rate) and
+    /// warns when the accept rate has slipped below half.
+    @ViewBuilder
+    private var healthCard: some View {
+        if let h = plan.health {
+            VStack(alignment: .leading, spacing: Space.m) {
+                SectionHeader("chart.line.uptrend.xyaxis", model.t("loop.health.title"),
+                              subtitle: model.t("loop.health.subtitle"))
+                HStack(alignment: .top, spacing: Space.xl) {
+                    healthStat(model.t("loop.health.accepted"),
+                               "\(h.accepted)/\(h.runs)",
+                               detail: "\(Int((h.acceptanceRate * 100).rounded()))%",
+                               tint: h.isUnderperforming ? Theme.warning : Theme.success)
+                    if let cpa = h.costPerAccepted {
+                        healthStat(model.t("loop.health.perAccepted"),
+                                   String(format: "$%.2f", cpa), detail: nil, tint: Theme.ink)
+                    }
+                }
+                if h.isUnderperforming {
+                    Label(model.t("loop.health.warn"), systemImage: "exclamationmark.triangle.fill")
+                        .font(.sfCallout).foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .card()
+        }
+    }
+
+    private func healthStat(_ label: String, _ value: String, detail: String?, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label.uppercased())
+                .font(.sfCaption2).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(value).font(.sfCardTitle).foregroundStyle(tint)
+                if let detail { Text(detail).font(.sfCallout).foregroundStyle(.secondary) }
+            }
+        }
+    }
+
+    // MARK: - "Is a loop worth it?" nudge
+
+    /// A quiet, collapsed checklist of the four conditions that make a loop pay off —
+    /// so a first-time builder frames the work before committing to the machinery.
+    private var conditionsNudge: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: Space.s) {
+                conditionRow(model.t("loop.conditions.repeats"))
+                conditionRow(model.t("loop.conditions.autoFail"))
+                conditionRow(model.t("loop.conditions.budget"))
+                conditionRow(model.t("loop.conditions.tools"))
+                Text(model.t("loop.conditions.footnote"))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, Space.s)
+        } label: {
+            Label(model.t("loop.conditions.title"), systemImage: "checklist")
+                .font(.sfCardTitle)
+        }
+        .tint(Theme.accent)
+        .card()
+    }
+
+    private func conditionRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: Space.s) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.sfCallout).foregroundStyle(Theme.success)
+            Text(text).font(.sfCallout)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Card 1 · Kind
