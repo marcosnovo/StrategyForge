@@ -22,12 +22,16 @@ struct StrategyPickerColumn: View {
     @State private var showWizard = false
     @State private var showTaskGen = false
     @State private var activeBucket: AppModel.TopicBucket?
+    /// How the grid is ordered (persisted). "Recommended" is the library's own order.
+    @AppStorage("picker.sortRank") private var sortRankRaw = StrategyRank.recommended.rawValue
+    private var sortRank: StrategyRank { StrategyRank(rawValue: sortRankRaw) ?? .recommended }
     /// Strategy whose generated files are being previewed (context menu).
     @State private var previewStrategy: Strategy?
     /// True once the one-shot entrance cascade has finished (see the grid).
     @State private var introPlayed = false
 
-    private var templates: [Strategy] { StrategyLibrary.all }
+    /// The templates in the chosen order (cheapest / fastest / smartest / best value …).
+    private var templates: [Strategy] { StrategyRanking.sorted(StrategyLibrary.all, by: sortRank) }
 
     /// Entrance stagger, first showing only — afterwards the raw view, so
     /// filter-driven ForEach rebuilds don't blank and re-cascade the grid.
@@ -64,6 +68,7 @@ struct StrategyPickerColumn: View {
             }
             .padding(Space.m)
 
+            sortPills
             topicPills
 
             Divider()
@@ -119,9 +124,48 @@ struct StrategyPickerColumn: View {
 
     /// Topic pills that orient the list by everyday goal. Tapping filters (reorders
     /// + dims) and stars the recommended strategy — it never changes the selection.
+    /// Order the grid by the dimension the user cares about (cost / speed / smarts /
+    /// value). A labelled row of single-select action pills.
+    private var sortPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Space.xs) {
+                Text(model.t("picker.sortBy").uppercased())
+                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6).padding(.trailing, 1)
+                ForEach(StrategyRank.allCases) { rank in
+                    let on = sortRank == rank
+                    Button { sortRankRaw = rank.rawValue } label: {
+                        Label(model.t(rank.labelKey), systemImage: rank.icon)
+                            .font(.sfCaption2.weight(.medium))
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .foregroundStyle(on ? Theme.onAccent : Theme.ink)
+                            .background(Capsule().fill(on ? Theme.accent : Theme.hairline.opacity(0.55)))
+                    }
+                    .buttonStyle(.plain)
+                    .help(model.t(rank.labelKey))
+                }
+            }
+            .padding(.horizontal, Space.m)
+        }
+        .padding(.bottom, Space.xs)
+    }
+
+    /// Narrow the grid to strategies suited to an everyday GOAL (a soft lens, not a hard
+    /// filter — tapping the active pill clears it). Labelled so it's clear what it does.
     private var topicPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Space.xs) {
+                Text(model.t("picker.filterBy").uppercased())
+                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6).padding(.trailing, 1)
+                // An explicit "All" chip to clear the goal filter.
+                let allOn = activeBucket == nil
+                Button { activeBucket = nil } label: {
+                    Text(model.t("picker.all"))
+                        .font(.sfCaption2.weight(.medium))
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .foregroundStyle(allOn ? Theme.onAccent : Theme.ink)
+                        .background(Capsule().fill(allOn ? Theme.accent : Theme.hairline.opacity(0.55)))
+                }
+                .buttonStyle(.plain)
                 ForEach(AppModel.TopicBucket.allCases) { bucket in
                     let on = activeBucket == bucket
                     Button {
@@ -130,8 +174,8 @@ struct StrategyPickerColumn: View {
                         Label(model.t(bucket.labelKey), systemImage: bucket.icon)
                             .font(.sfCaption2.weight(.medium))
                             .padding(.horizontal, 10).padding(.vertical, 4)
-                            .foregroundStyle(on ? Theme.onAccent : .secondary)
-                            .background(Capsule().fill(on ? Theme.accent : Color.clear))
+                            .foregroundStyle(on ? Theme.onAccent : Theme.ink)
+                            .background(Capsule().fill(on ? Theme.accent : Theme.hairline.opacity(0.55)))
                     }
                     .buttonStyle(.plain)
                 }
