@@ -105,15 +105,12 @@ struct NavRail: View {
         // One spring cross-fades the selected pill between sections. Snaps under Reduce Motion.
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8),
                    value: model.navSection)
-        // Pull Claude's REAL 5-hour / week rate-limit % into the rail card (the same
-        // exact fetch the Usage page does), so it's visible without opening Usage. The
-        // exact fetch reads the Keychain (off the main thread; gated to once per session
-        // and may show a one-time macOS prompt), so we defer it briefly to stay out of
-        // the launch / first-paint path.
-        .task {
-            try? await Task.sleep(for: .seconds(1.2))
-            await model.refreshUsage(includeExact: true)
-        }
+        // Populate the rail's usage card from LOCAL logs only — no Keychain read, so the
+        // app never prompts for the Keychain password at launch (a debug build's ad-hoc
+        // signature means "Always Allow" doesn't stick, so it would ask every time). The
+        // exact 5-hour / week rate-limit % (which needs the Keychain token) is fetched
+        // only on deliberate intent — when the user opens the Usage section.
+        .task { await model.refreshUsage() }
     }
 
     /// Brand row: the coral mark (matches the app icon, breathing slowly) + wordmark.

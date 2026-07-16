@@ -215,9 +215,11 @@ private struct DiagramPalette {
             canvas: Theme.insetBg,
             surface: Theme.cardBg,
             accent: Theme.accent,
-            border: Theme.hairline,
-            text: .primary,
-            secondary: .secondary,
+            // A clearly visible node outline — the old faint hairline made white boxes
+            // vanish on the white card. Paired with a soft shadow in drawBox.
+            border: Theme.secondaryOnMaterial.opacity(0.40),
+            text: Theme.ink,                       // strong, always-legible node title
+            secondary: Theme.secondaryOnMaterial,  // readable model / subtitle (was faint .secondary)
             returnArrow: Color.secondary.opacity(0.6),
             loop: Color.secondary.opacity(0.85)
         )
@@ -558,7 +560,13 @@ struct StrategyDiagramView: View {
                 ctx.stroke(shape, with: .color(Theme.teal.opacity(0.85)), lineWidth: 1.4)
             }
         } else {
-            ctx.fill(shape, with: .color(palette.surface))
+            // A plain (non-accent) node: a raised white card. The soft drop shadow makes
+            // it read as a distinct box even on a same-colored (white) card surface —
+            // without it, white-on-white boxes were nearly invisible.
+            ctx.drawLayer { layer in
+                layer.addFilter(.shadow(color: .black.opacity(0.16), radius: 3, x: 0, y: 1))
+                layer.fill(shape, with: .color(palette.surface))
+            }
             ctx.stroke(shape, with: .color(palette.border), lineWidth: 1)
         }
     }

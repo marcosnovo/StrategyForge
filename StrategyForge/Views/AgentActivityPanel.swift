@@ -118,10 +118,10 @@ struct AgentActivityPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Frosted glass panel: a translucent material shows the faint aurora as clean
-        // neutral vibrancy. The dense data stays readable because it sits on opaque
-        // .panelCard() surfaces; the header bar above (.bar) also reads as glass.
-        .background(.ultraThinMaterial)
+        // Same opaque column surface as the chat, so the activity panel reads as one
+        // continuous part of the app — not a separate translucent slab floating over the
+        // aurora. Structure comes from the inner .panelCard() surfaces + the .bar header.
+        .background(Theme.columnBg)
         // Weekly / 5-hour usage figures for the live meter (Claude local logs).
         .task { if model.claudeUsage == nil { await model.refreshUsage() } }
     }
@@ -1105,8 +1105,8 @@ struct SubagentDetailPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Frosted glass column behind the step list (the .bar header stays glass too),
-        // matching the main activity panel — a translucent material shows faint vibrancy.
-        .background(.ultraThinMaterial)
+        // Same opaque column surface as the chat + activity panel, so the drill-down
+        // reads as one continuous surface rather than a separate translucent slab.
+        .background(Theme.columnBg)
     }
 }
