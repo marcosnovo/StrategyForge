@@ -16,8 +16,8 @@ struct AdvisorProvidersTests {
     // MARK: - Helpers
 
     private func role(_ name: String, _ kind: RoleKind, orchestrator: Bool = false,
-                      count: Int = 1) -> AgentRole {
-        AgentRole(name: name, role: kind, model: .sonnet5,
+                      count: Int = 1, model: ClaudeModel = .sonnet5) -> AgentRole {
+        AgentRole(name: name, role: kind, model: model,
                   systemPrompt: "", description: "", count: count, isOrchestrator: orchestrator)
     }
 
@@ -127,8 +127,9 @@ struct AdvisorProvidersTests {
 
     @Test func saverBiasPrefersFasterCheaperWorkers() {
         // Worker under the Economy bias should prefer a fast/cheap coder over the
-        // top-capability one.
-        let s = strategy([role("lead", .orchestrator, orchestrator: true),
+        // top-capability one. The lead is a frontier model (as real templates are), so
+        // the cost cap doesn't reshape the team around it — this isolates the worker.
+        let s = strategy([role("lead", .orchestrator, orchestrator: true, model: .opus48),
                           role("impl", .worker, count: 5)])
         let (saver, _) = AdvisorEngine.assignProviders(to: s, connected: all, bias: .saver)
         let (maxT, _) = AdvisorEngine.assignProviders(to: s, connected: all, bias: .max)
@@ -230,6 +231,43 @@ struct AdvisorProvidersTests {
         let (out, _) = AdvisorEngine.assignProviders(to: s, connected: [.claude, .openai],
                                                      deprioritize: [.claude, .openai])
         #expect(out.roles.first { $0.name == "impl" }?.provider == .openai)
+    }
+
+    // MARK: - Cost band preserved (the cheapest stays cheap)
+
+    @Test func economySoloStaysCheapAcrossProviders() {
+        // The Economy solo is a single Haiku seat. Assigning providers must NOT upgrade
+        // it to a frontier model — otherwise the library's cheapest strategy would show
+        // up as a high-cost Opus card, contradicting its "cheapest" ranking.
+        let (out, _) = AdvisorEngine.assignProviders(to: StrategyLibrary.soloEconomy(), connected: all)
+        // Cost stays in the low tier (the seat is priced by a low-cost model).
+        #expect(CostEstimator.estimate(out).tier == .low)
+        let lead = out.roles[0]
+        let id = lead.provider == .claude ? lead.model.rawValue : (lead.providerModelID ?? lead.model.rawValue)
+        #expect(AdvisorEngine.costBand(ofModelID: id) == 0, "economy seat was upgraded to \(id)")
+    }
+
+    @Test func frontierSoloStaysFrontier() {
+        // The baseline Solo is deliberately a frontier model. Assignment keeps it there.
+        let (out, _) = AdvisorEngine.assignProviders(to: StrategyLibrary.solo(), connected: all)
+        #expect(out.roles[0].provider == .claude)
+        #expect(AdvisorEngine.costBand(ofModelID: out.roles[0].model.rawValue) == 2)
+    }
+
+    @Test func aSwapNeverRaisesARolesCostBand() {
+        // Across every library strategy, no assigned role ends up in a higher cost band
+        // than the template put it in — a provider swap can trade sideways or down, never up.
+        for template in StrategyLibrary.all {
+            let (out, _) = AdvisorEngine.assignProviders(to: template, connected: all)
+            for (before, after) in zip(template.roles, out.roles) {
+                let beforeBand = AdvisorEngine.costBand(ofModelID: before.model.rawValue)
+                let afterID = after.provider == .claude ? after.model.rawValue
+                                                        : (after.providerModelID ?? after.model.rawValue)
+                let afterBand = AdvisorEngine.costBand(ofModelID: afterID)
+                #expect(afterBand <= beforeBand,
+                        "\(template.name)/\(before.name): band \(beforeBand) → \(afterBand)")
+            }
+        }
     }
 
     @Test func emptyDeprioritizeMatchesTheDefault() {

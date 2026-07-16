@@ -136,6 +136,39 @@ extension AdvisorEngine {
         kind == .reviewer || kind == .advisor
     }
 
+    // MARK: - Cost band (keep a swap from inflating a role's price)
+
+    /// Rough cost band of a model: 0 = economy, 1 = mid, 2 = frontier. A cross-provider
+    /// swap must keep a role's COST intent — a deliberately cheap seat (e.g. the Economy
+    /// solo's Haiku) should map to another low-cost model, never be silently upgraded to
+    /// a frontier one. Without this, the library's "cheapest" strategies quietly turn
+    /// expensive the moment a second provider is connected (a Haiku solo would jump to
+    /// Opus because Opus wins on raw reasoning), which is exactly the kind of "cheapest
+    /// card shows a high-cost model" contradiction we want to avoid.
+    static func costBand(ofModelID id: String) -> Int {
+        switch id {
+        case ClaudeModel.haiku45.rawValue, "gpt-5-mini", "gemini-2.5-flash":
+            return 0
+        case ClaudeModel.sonnet5.rawValue, "gpt-5", "gpt-5-codex", "gemini-2.5-pro":
+            return 1
+        default:   // opus48, fable5, and any unknown id → treat as frontier
+            return 2
+        }
+    }
+
+    /// The model id a role currently targets (Claude → `model`, others → `providerModelID`).
+    private static func currentModelID(of role: AgentRole) -> String {
+        role.provider == .claude ? role.model.rawValue
+                                 : (role.providerModelID ?? role.model.rawValue)
+    }
+
+    /// Candidates no more expensive than `band`. Falls back to the full list if none
+    /// qualify, so assignment always finds a model (never returns empty).
+    private static func capped(_ candidates: [ModelProfile], toBand band: Int) -> [ModelProfile] {
+        let within = candidates.filter { costBand(ofModelID: $0.modelID) <= band }
+        return within.isEmpty ? candidates : within
+    }
+
     private static func reasonKey(for axis: Axis) -> String {
         switch axis {
         case .reasoning: return "advisor.provider.reason.reasoning"
@@ -194,10 +227,12 @@ extension AdvisorEngine {
                          isConnected: connected.contains(profile.provider))
         }
 
-        // Pass 1 — every non-review role by its primary axis.
+        // Pass 1 — every non-review role by its primary axis, without exceeding the
+        // role's original cost band (so an economy seat stays economy).
         for i in s.roles.indices where !isReviewRole(s.roles[i].role) {
             let axis = primaryAxis(for: s.roles[i].role)
-            guard let profile = best(from: available, axis: axis, bias: bias, deprioritize: deprioritize) else { continue }
+            let band = costBand(ofModelID: currentModelID(of: s.roles[i]))
+            guard let profile = best(from: capped(available, toBand: band), axis: axis, bias: bias, deprioritize: deprioritize) else { continue }
             apply(profile, to: &s.roles[i])
             ordered.append((i, pick(s.roles[i].name, s.roles[i].role, profile, reasonKey(for: axis))))
             if (s.roles[i].role == .worker || s.roles[i].role == .specialist), coderProvider == nil {
@@ -211,8 +246,9 @@ extension AdvisorEngine {
 
         // Pass 2 — review roles: prefer a DIFFERENT family than the coder (diversity).
         for i in s.roles.indices where isReviewRole(s.roles[i].role) {
+            let band = costBand(ofModelID: currentModelID(of: s.roles[i]))
             let crossFamily = available.filter { $0.provider != coderProvider }
-            let pool = crossFamily.isEmpty ? available : crossFamily
+            let pool = capped(crossFamily.isEmpty ? available : crossFamily, toBand: band)
             guard let profile = best(from: pool, axis: .reasoning, bias: bias, deprioritize: deprioritize) else { continue }
             apply(profile, to: &s.roles[i])
             let reason = crossFamily.isEmpty
@@ -263,7 +299,8 @@ extension AdvisorEngine {
             var choice: (index: Int, profile: ModelProfile, axis: Axis, fit: Int)?
             for i in s.roles.indices where !s.roles[i].isOrchestrator {
                 let axis = primaryAxis(for: s.roles[i].role)
-                let pool = available.filter { $0.provider == provider }
+                let band = costBand(ofModelID: currentModelID(of: s.roles[i]))
+                let pool = capped(available.filter { $0.provider == provider }, toBand: band)
                 guard let cand = best(from: pool, axis: axis, bias: bias) else { continue }
                 let currentVal = currentProfile(for: s.roles[i], in: available)?.value(axis) ?? cand.value(axis)
                 guard currentVal - cand.value(axis) <= 1 else { continue }   // loss ≤ 1
