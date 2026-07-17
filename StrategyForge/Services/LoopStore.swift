@@ -49,6 +49,16 @@ final class LoopStore {
     func isLoopRunning(forChat chatID: UUID) -> Bool {
         loops.contains { $0.sourceChatID == chatID && runningLoopIDs.contains($0.id) }
     }
+
+    /// Keep loops sourced from a chat labelled with its current name when it's renamed.
+    func updateSourceName(forChat chatID: UUID, to name: String) {
+        var changed = false
+        for i in loops.indices where loops[i].sourceChatID == chatID && loops[i].sourceChatName != name {
+            loops[i].sourceChatName = name
+            changed = true
+        }
+        if changed { save() }
+    }
     /// Error sink wired by the app shell: (localization key, %@ detail).
     @ObservationIgnored var onError: ((String, String) -> Void)?
     /// A corrupt-load error parked until the app shell can show it (load()
@@ -229,7 +239,18 @@ final class LoopStore {
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 0
-            loops = try c.decodeIfPresent([LoopPlan].self, forKey: .loops) ?? []
+            // Lossy per-element: one corrupt loop must not empty the whole library.
+            if let all = try? c.decodeIfPresent([LoopPlan].self, forKey: .loops) {
+                loops = all ?? []
+            } else if var u = try? c.nestedUnkeyedContainer(forKey: .loops) {
+                var out: [LoopPlan] = []
+                while !u.isAtEnd {
+                    if let v = try? u.decode(LoopPlan.self) { out.append(v) } else { _ = try? u.decode(DecoderSkip.self) }
+                }
+                loops = out
+            } else {
+                loops = []
+            }
             selectedLoopID = ((try? c.decodeIfPresent(UUID.self, forKey: .selectedLoopID)) ?? nil)
         }
     }

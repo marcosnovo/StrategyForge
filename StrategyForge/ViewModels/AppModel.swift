@@ -12,6 +12,10 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+/// Decodes and discards one element of an unkeyed container — used by the lossy array
+/// decoders to advance past a malformed entry without failing the whole decode.
+struct DecoderSkip: Decodable { init(from decoder: Decoder) throws {} }
+
 @Observable
 @MainActor
 final class AppModel {
@@ -612,8 +616,11 @@ final class AppModel {
     /// title as user-set so auto-titling stops.
     func renameConfiguration(_ id: Configuration.ID, _ title: String) {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
-        configurations[i].name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        configurations[i].name = name
         configurations[i].titleWasManuallySet = true
+        // Keep any loop that came from this chat labelled with its current name.
+        LoopStore.shared.updateSourceName(forChat: id, to: name)
         save()
     }
 
@@ -745,6 +752,10 @@ final class AppModel {
     func deleteConfiguration(_ id: Configuration.ID) {
         invalidateChatVM(id)
         configurations.removeAll { $0.id == id }
+        // Clear dangling "continued from" links so a chat doesn't point at a deleted one.
+        for i in configurations.indices where configurations[i].continuedFrom == id {
+            configurations[i].continuedFrom = nil
+        }
         deletedConfigIDs.insert(id)   // tombstone → sync removes it from iCloud, no resurrection
         liveRepoURLs[id] = nil
         try? FileManager.default.removeItem(at: activityURL(id))     // drop the history sidecar
@@ -1935,10 +1946,25 @@ final class AppModel {
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 0
-            configurations = try c.decodeIfPresent([Configuration].self, forKey: .configurations) ?? []
+            // Lossy per-element: ONE corrupt chat/team must not fail the whole decode and
+            // empty the library — drop the bad element, keep the rest.
+            configurations = Self.lossyArray(Configuration.self, from: c, forKey: .configurations)
             settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
-            savedTeams = try c.decodeIfPresent([SavedTeam].self, forKey: .savedTeams) ?? []
+            savedTeams = Self.lossyArray(SavedTeam.self, from: c, forKey: .savedTeams)
             deletedConfigIDs = try c.decodeIfPresent([UUID].self, forKey: .deletedConfigIDs) ?? []
+        }
+
+        /// Decode an array dropping any single malformed element, so a corrupt entry
+        /// never fails the whole store decode. Absent key → empty.
+        static func lossyArray<T: Decodable>(_ type: T.Type, from c: KeyedDecodingContainer<CodingKeys>,
+                                             forKey key: CodingKeys) -> [T] {
+            if let all = try? c.decodeIfPresent([T].self, forKey: key) { return all ?? [] }
+            guard var u = try? c.nestedUnkeyedContainer(forKey: key) else { return [] }
+            var out: [T] = []
+            while !u.isAtEnd {
+                if let v = try? u.decode(T.self) { out.append(v) } else { _ = try? u.decode(DecoderSkip.self) }
+            }
+            return out
         }
 
         /// Forward-migrate a decoded state to the current schema version.
