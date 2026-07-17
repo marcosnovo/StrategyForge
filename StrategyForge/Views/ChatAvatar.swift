@@ -90,8 +90,11 @@ struct ChatAvatar: View {
 /// `Particle3DSpinner` so callers just pass a size.
 struct CoralSphere: View {
     var size: CGFloat = 28
+    /// Pass `false` on a resting bubble so the globe holds a still frame instead of
+    /// spinning a Canvas at 30fps for the whole transcript's lifetime.
+    var animating: Bool = true
     var body: some View {
-        Particle3DSpinner(size: size, color: Theme.accent, figure: .sphere)
+        Particle3DSpinner(size: size, color: Theme.accent, figure: .sphere, animating: animating)
             .accessibilityHidden(true)
     }
 }

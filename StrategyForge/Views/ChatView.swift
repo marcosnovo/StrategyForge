@@ -862,7 +862,9 @@ struct ChatView: View {
                     if isStreaming {
                         WorkingLogo(size: 20)
                     } else {
-                        CoralSphere(size: 28)
+                        // A finished bubble's globe holds still — no 30fps Canvas per
+                        // message for the whole transcript's lifetime.
+                        CoralSphere(size: 28, animating: false)
                     }
                 }
                 .frame(width: 28, height: 28)

@@ -302,36 +302,49 @@ struct Particle3DSpinner: View {
     var size: CGFloat = 40
     var color: Color = Theme.accent
     var figure: Figure = .sphere
+    /// Drive the rotation. Pass `false` for a resting avatar (e.g. a finished chat
+    /// bubble) so it renders ONE static frame instead of a Canvas redrawing at 30fps
+    /// forever — with many bubbles on screen that idle cost is real.
+    var animating: Bool = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { tl in
-            let t = reduceMotion ? 0 : tl.date.timeIntervalSinceReferenceDate
-            Canvas { ctx, sz in
-                let pts = Self.points(figure)
-                let ax = 0.5 + t * 0.55        // tilt + spin
-                let ay = t * 0.95
-                let c = CGPoint(x: sz.width / 2, y: sz.height / 2)
-                let R = min(sz.width, sz.height) * 0.40
-                let base = max(1.2, sz.width * 0.05)
-                // Rotate + project, then paint back-to-front for depth.
-                let projected = pts.map { p -> (CGPoint, Double) in
-                    let r = Self.rotate(p, ax: ax, ay: ay)
-                    let persp = 1.7 / (1.7 - r.z)                  // nearer → larger
-                    let sp = CGPoint(x: c.x + CGFloat(r.x * persp) * R,
-                                     y: c.y + CGFloat(r.y * persp) * R)
-                    return (sp, r.z)
+        Group {
+            if animating && !reduceMotion {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { tl in
+                    frame(at: tl.date.timeIntervalSinceReferenceDate)
                 }
-                for (sp, z) in projected.sorted(by: { $0.1 < $1.1 }) {
-                    let depth = (z + 1) / 2                        // 0 (back) … 1 (front)
-                    let d = base * (0.55 + 0.9 * depth)
-                    ctx.fill(pfDot(sp, d * 2.2), with: .color(color.opacity(0.10 * depth)))
-                    ctx.fill(pfDot(sp, d), with: .color(color.opacity(0.28 + 0.62 * depth)))
-                }
+            } else {
+                frame(at: 0)   // one still frame, no clock running
             }
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
+    }
+
+    private func frame(at t: Double) -> some View {
+        Canvas { ctx, sz in
+            let pts = Self.points(figure)
+            let ax = 0.5 + t * 0.55        // tilt + spin
+            let ay = t * 0.95
+            let c = CGPoint(x: sz.width / 2, y: sz.height / 2)
+            let R = min(sz.width, sz.height) * 0.40
+            let base = max(1.2, sz.width * 0.05)
+            // Rotate + project, then paint back-to-front for depth.
+            let projected = pts.map { p -> (CGPoint, Double) in
+                let r = Self.rotate(p, ax: ax, ay: ay)
+                let persp = 1.7 / (1.7 - r.z)                  // nearer → larger
+                let sp = CGPoint(x: c.x + CGFloat(r.x * persp) * R,
+                                 y: c.y + CGFloat(r.y * persp) * R)
+                return (sp, r.z)
+            }
+            for (sp, z) in projected.sorted(by: { $0.1 < $1.1 }) {
+                let depth = (z + 1) / 2                        // 0 (back) … 1 (front)
+                let d = base * (0.55 + 0.9 * depth)
+                ctx.fill(pfDot(sp, d * 2.2), with: .color(color.opacity(0.10 * depth)))
+                ctx.fill(pfDot(sp, d), with: .color(color.opacity(0.28 + 0.62 * depth)))
+            }
+        }
     }
 
     /// Rotate a point around the Y then X axes.
