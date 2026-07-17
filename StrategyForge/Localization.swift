@@ -351,6 +351,8 @@ enum L10n {
         "usage.title": ("Usage", "Uso"),
         "usage.subtitle": ("Token usage per connected provider, from your local logs.",
                            "Uso de tokens por proveedor conectado, desde tus registros locales."),
+        "usage.sourceDisclosure": ("Token counts come from each CLI's local logs on this Mac. Claude's plan % is read from your Claude Code login and an endpoint Anthropic doesn't officially document, so it may change or stop; nothing is sent to Coral's servers.",
+                                   "Los tokens salen de los registros locales de cada CLI en este Mac. El % de plan de Claude se lee de tu sesión de Claude Code y de un endpoint no documentado por Anthropic, así que puede cambiar o dejar de funcionar; nada se envía a servidores de Coral."),
         "usage.refresh": ("Refresh", "Actualizar"),
         "usage.fiveHour": ("5-hour window", "Ventana de 5 h"),
         "usage.sevenDay": ("Last 7 days", "Últimos 7 días"),

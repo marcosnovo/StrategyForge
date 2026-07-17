@@ -27,6 +27,7 @@ struct UsageView: View {
                 }
                 // Token Saver: the curated habits that keep the numbers above low.
                 TokenSaverGuideView()
+                sourceDisclosure
             }
             .padding(Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -39,6 +40,20 @@ struct UsageView: View {
             if model.claudeUsage == nil { await model.refreshUsage() }
             await model.refreshExactUsage()
         }
+    }
+
+    /// Honest disclosure of WHERE the numbers come from — the Claude % is read from the
+    /// Claude Code login token via an endpoint Anthropic doesn't document, so it can
+    /// change or stop. Transparency for the privacy policy / ToS posture.
+    private var sourceDisclosure: some View {
+        HStack(alignment: .top, spacing: Space.s) {
+            Image(systemName: "info.circle").font(.system(size: 11)).foregroundStyle(.tertiary)
+            Text(model.t("usage.sourceDisclosure"))
+                .font(.sfCaption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, Space.s)
     }
 
     private var header: some View {
