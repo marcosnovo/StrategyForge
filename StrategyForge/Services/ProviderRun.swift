@@ -16,6 +16,23 @@
 
 import Foundation
 
+/// A process-wide registry of live child CLI processes, so the app can terminate them
+/// on quit instead of orphaning them (a running loop/chat subprocess otherwise survives
+/// the app and keeps burning the user's plan). Thread-safe; register on spawn, deregister
+/// on exit, `terminateAll()` from applicationWillTerminate.
+enum LiveProcesses {
+    private static let lock = NSLock()
+    private static var procs: [ObjectIdentifier: Process] = [:]
+
+    static func register(_ p: Process) { lock.lock(); procs[ObjectIdentifier(p)] = p; lock.unlock() }
+    static func deregister(_ p: Process) { lock.lock(); procs[ObjectIdentifier(p)] = nil; lock.unlock() }
+
+    static func terminateAll() {
+        lock.lock(); let all = Array(procs.values); procs.removeAll(); lock.unlock()
+        for p in all where p.isRunning { p.terminate() }
+    }
+}
+
 /// The result of a single model call.
 struct OneShotResult: Sendable, Equatable {
     var text: String
@@ -272,6 +289,8 @@ struct CLIOneShotRunner: OneShotRunner {
                         DiagnosticsLog.record("Couldn't launch \(bin) (\(args.count) args) — \(error.localizedDescription)")
                         cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return
                     }
+                    LiveProcesses.register(p)
+                    defer { LiveProcesses.deregister(p) }   // and kill-all-on-quit stops tracking it
                     // Watchdog: a stuck CLI shouldn't hang the turn forever. Terminate
                     // after a generous timeout; a timeout is reported distinctly (below).
                     let watchdog = DispatchWorkItem { box.timeOut() }

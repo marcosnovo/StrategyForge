@@ -315,6 +315,7 @@ enum ClaudeRunner {
             }
 
             process.terminationHandler = { proc in
+                LiveProcesses.deregister(proc)
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
                 // The readability handlers race with termination and can miss the
@@ -346,6 +347,7 @@ enum ClaudeRunner {
 
             do {
                 try process.run()
+                LiveProcesses.register(process)   // terminated on app quit, not orphaned
             } catch {
                 // Most commonly: App Sandbox is on, or `claude` isn't found.
                 continuation.yield(.failed(error.localizedDescription))
@@ -424,6 +426,7 @@ enum ClaudeRunner {
                     errBuffer.append(data)
                 }
                 process.terminationHandler = { proc in
+                    LiveProcesses.deregister(proc)
                     stdout.fileHandleForReading.readabilityHandler = nil
                     stderr.fileHandleForReading.readabilityHandler = nil
                     var lines = buffer.append(drainPipe(stdout.fileHandleForReading))
@@ -448,6 +451,7 @@ enum ClaudeRunner {
                 }
                 do {
                     try process.run()
+                    LiveProcesses.register(process)
                     // Send the user's turn as one stream-json message, then leave stdin
                     // open so control_responses can be written during the turn.
                     let userMsg: [String: Any] = ["type": "user",

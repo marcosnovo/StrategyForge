@@ -6,9 +6,19 @@
 //
 
 import SwiftUI
+import AppKit
+
+/// Terminates any live child CLI processes on quit so a running chat/loop subprocess is
+/// never orphaned (it would otherwise survive the app and keep burning the user's plan).
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillTerminate(_ notification: Notification) {
+        LiveProcesses.terminateAll()
+    }
+}
 
 @main
 struct StrategyForgeApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
     @State private var auth = AuthModel()
     @Environment(\.scenePhase) private var scenePhase
