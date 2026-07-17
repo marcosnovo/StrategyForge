@@ -15,16 +15,25 @@ enum KeychainStore {
 
     @discardableResult
     static func set(_ data: Data, for key: String) -> Bool {
-        // Replace any existing item.
-        delete(key)
-        let query: [String: Any] = [
+        let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
         ]
-        return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+        let attrs: [String: Any] = [
+            kSecValueData as String: data,
+            // WhenUnlocked: these secrets are only ever read while the app is in use;
+            // not accessible when the screen is locked.
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
+        ]
+        // Update in place when it exists — no delete→add gap that would lose the secret
+        // if the process died in between.
+        let updateStatus = SecItemUpdate(base as CFDictionary, attrs as CFDictionary)
+        if updateStatus == errSecSuccess { return true }
+        if updateStatus == errSecItemNotFound {
+            return SecItemAdd(base.merging(attrs) { $1 } as CFDictionary, nil) == errSecSuccess
+        }
+        return false
     }
 
     static func data(for key: String) -> Data? {
@@ -53,7 +62,12 @@ enum KeychainStore {
 
     // Convenience for Codable values.
     static func setCodable<T: Encodable>(_ value: T, for key: String) {
-        if let data = try? JSONEncoder().encode(value) { set(data, for: key) }
+        do {
+            let data = try JSONEncoder().encode(value)
+            if !set(data, for: key) { DiagnosticsLog.record("Keychain write failed for “\(key)”.") }
+        } catch {
+            DiagnosticsLog.record("Keychain encode failed for “\(key)”: \(error.localizedDescription)")
+        }
     }
 
     static func codable<T: Decodable>(_ type: T.Type, for key: String) -> T? {

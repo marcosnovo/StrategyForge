@@ -190,6 +190,23 @@ extension Strategy {
                 message: "Role “\(role.name)” has a count below 1.", roleID: role.id))
         }
 
+        // Unknown tool names (typically from an import): warn, since Claude Code silently
+        // ignores tools it doesn't recognize. Scoped patterns — Bash(…), a permission
+        // pattern, or an mcp__ server tool — are legitimate and not flagged.
+        let known = Set(Constants.availableTools)
+        for role in roles {
+            let unknown = role.tools.filter { t in
+                let name = t.trimmingCharacters(in: .whitespaces)
+                guard !name.isEmpty else { return false }
+                return !known.contains(name) && !name.contains("(") && !name.hasPrefix("mcp__")
+            }
+            if !unknown.isEmpty {
+                issues.append(.init(severity: .warning,
+                    message: "“\(role.name)” lists unrecognized tool(s): \(unknown.joined(separator: ", ")). Claude Code may ignore them.",
+                    roleID: role.id))
+            }
+        }
+
         // Reviewers/advisors/researchers should not hold write tools.
         let writeTools: Set<String> = ["Write", "Edit", "Bash"]
         for role in roles where role.role.isReadOnlyByDefault && !role.isOrchestrator {

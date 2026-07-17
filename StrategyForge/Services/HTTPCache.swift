@@ -12,6 +12,15 @@
 import Foundation
 import CryptoKit
 
+/// A real, typed cache error — vs fabricating a `URLError` from an HTTP status code
+/// (which produces a bogus `URLError.Code`, since those are negative NSURLError values).
+enum HTTPCacheError: Error, LocalizedError {
+    case httpStatus(Int)
+    var errorDescription: String? {
+        switch self { case .httpStatus(let code): return "Request failed (HTTP \(code)) and no cached copy is available." }
+    }
+}
+
 enum HTTPCache {
 
     /// A stable, filesystem-safe cache key for a URL (sha256 hex of the absolute URL).
@@ -43,6 +52,29 @@ enum HTTPCache {
     private static func store(_ entry: Entry, for url: URL) {
         guard let data = try? JSONEncoder().encode(entry) else { return }
         try? data.write(to: file(for: url), options: .atomic)
+        purge()   // opportunistic — the dir is tiny (a few catalog entries)
+    }
+
+    /// Drop cache files older than `maxAge`, then trim oldest-first until under
+    /// `maxTotalBytes`, so the cache can't grow without bound.
+    static func purge(maxAge: TimeInterval = 30 * 24 * 3600, maxTotalBytes: Int = 25_000_000) {
+        let fm = FileManager.default
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey]
+        guard let items = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: keys) else { return }
+        let now = Date()
+        var live: [(url: URL, date: Date, size: Int)] = []
+        for u in items {
+            let vals = try? u.resourceValues(forKeys: Set(keys))
+            let date = vals?.contentModificationDate ?? .distantPast
+            let size = vals?.fileSize ?? 0
+            if now.timeIntervalSince(date) > maxAge { try? fm.removeItem(at: u); continue }
+            live.append((u, date, size))
+        }
+        var total = live.reduce(0) { $0 + $1.size }
+        guard total > maxTotalBytes else { return }
+        for e in live.sorted(by: { $0.date < $1.date }) where total > maxTotalBytes {
+            try? fm.removeItem(at: e.url); total -= e.size
+        }
     }
 
     /// Fetch `url`, revalidating against the cached copy. Behavior:
@@ -66,7 +98,7 @@ enum HTTPCache {
             }
             // A non-success status (e.g. 404): prefer a stale copy over an error.
             if let cached { return cached.data }
-            throw URLError(.init(rawValue: http.statusCode))
+            throw HTTPCacheError.httpStatus(http.statusCode)
         } catch {
             if let cached { return cached.data }   // offline / transient → serve stale
             throw error
