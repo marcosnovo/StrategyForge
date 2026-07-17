@@ -215,18 +215,17 @@ struct SettingsView: View {
                 .controlSize(.large)
                 .disabled(auth.isBusy)
 
-                Button {
-                    Task { await auth.signIn(.google) }
-                } label: {
-                    Label(model.t("account.signInGoogle"), systemImage: "g.circle")
-                        .frame(maxWidth: .infinity)
-                }
-                .controlSize(.large)
-                .disabled(auth.isBusy || !Constants.Auth.isGoogleConfigured)
-
-                if !Constants.Auth.isGoogleConfigured {
-                    Text(model.t("account.googleUnconfigured"))
-                        .font(.caption).foregroundStyle(.secondary)
+                // Google sign-in only appears once it's actually configured — no dead
+                // placeholder button in the shipping build (P0 surface trim).
+                if Constants.Auth.isGoogleConfigured {
+                    Button {
+                        Task { await auth.signIn(.google) }
+                    } label: {
+                        Label(model.t("account.signInGoogle"), systemImage: "g.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
+                    .disabled(auth.isBusy)
                 }
             }
 
