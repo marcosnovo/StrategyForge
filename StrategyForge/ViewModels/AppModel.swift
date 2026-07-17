@@ -1307,9 +1307,10 @@ final class AppModel {
 
     /// Force any pending coalesced write to disk immediately (call on background/quit).
     func flushSaves() {
-        guard let work = pendingSave else { return }
-        work.cancel(); pendingSave = nil; pendingSaveSince = nil
-        _ = save(stamp: false)
+        pendingSave?.cancel(); pendingSave = nil; pendingSaveSince = nil
+        // Synchronous: this runs as the app backgrounds/quits, so the write must finish
+        // before the process can exit (a detached task might not).
+        save(stamp: false, sync: true)
     }
 
     /// Write the strategy's `.claude` files into the chat's repo without any UI
@@ -1988,7 +1989,7 @@ final class AppModel {
     /// UI re-writing the whole store synchronously. Returns optimistically; a write
     /// failure surfaces as a banner.
     @discardableResult
-    func save(stamp: Bool = true) -> Bool {
+    func save(stamp: Bool = true, sync: Bool = false) -> Bool {
         // `snapshotConfigurations` only feeds `stampChanges`' next diff, so it's needed
         // only when stamping. Keeping it off the streaming persist path (stamp:false,
         // fired every ~1.5s mid-reply) avoids rebuilding a dictionary of every chat on
@@ -2003,6 +2004,13 @@ final class AppModel {
                                    deletedConfigIDs: Array(deletedConfigIDs))
         let url = storeURL
         writeTask?.cancel()
+        // On quit (flushSaves → sync) write on THIS thread: a detached task might not
+        // finish before the process exits, losing the last few seconds of metadata.
+        if sync {
+            do { try JSONEncoder().encode(state).write(to: url, options: .atomic) }
+            catch { DiagnosticsLog.record("Final save failed: \(error.localizedDescription)") }
+            return true
+        }
         writeTask = Task.detached(priority: .utility) { [weak self] in
             do {
                 let data = try JSONEncoder().encode(state)
