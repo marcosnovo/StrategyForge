@@ -19,6 +19,9 @@ final class AppModel {
     // MARK: - State
 
     var configurations: [Configuration] = []
+    /// Tombstones for chats deleted on this device — persisted so sync deletes them from
+    /// iCloud and never lets the remote copy resurrect them (bug: deletes came back).
+    @ObservationIgnored var deletedConfigIDs: Set<UUID> = []
     var selectedConfigID: Configuration.ID?
     var settings = AppSettings()
 
@@ -742,6 +745,7 @@ final class AppModel {
     func deleteConfiguration(_ id: Configuration.ID) {
         invalidateChatVM(id)
         configurations.removeAll { $0.id == id }
+        deletedConfigIDs.insert(id)   // tombstone → sync removes it from iCloud, no resurrection
         liveRepoURLs[id] = nil
         try? FileManager.default.removeItem(at: activityURL(id))     // drop the history sidecar
         try? FileManager.default.removeItem(at: transcriptURL(id))   // and the transcript sidecar
@@ -1908,18 +1912,23 @@ final class AppModel {
         var configurations: [Configuration]
         var settings: AppSettings
         var savedTeams: [SavedTeam]
+        /// Tombstones: ids of chats deleted locally, so sync can remove them from iCloud
+        /// AND stop the remote copy from resurrecting them on the next merge.
+        var deletedConfigIDs: [UUID]
 
         init(configurations: [Configuration],
              settings: AppSettings,
              savedTeams: [SavedTeam] = [],
+             deletedConfigIDs: [UUID] = [],
              schemaVersion: Int = currentVersion) {
             self.schemaVersion = schemaVersion
             self.configurations = configurations
             self.settings = settings
             self.savedTeams = savedTeams
+            self.deletedConfigIDs = deletedConfigIDs
         }
 
-        enum CodingKeys: String, CodingKey { case schemaVersion, configurations, settings, savedTeams }
+        enum CodingKeys: String, CodingKey { case schemaVersion, configurations, settings, savedTeams, deletedConfigIDs }
 
         // Tolerant decode: older files have no schemaVersion (→ 0). Missing
         // settings/savedTeams default rather than failing the whole load.
@@ -1929,6 +1938,7 @@ final class AppModel {
             configurations = try c.decodeIfPresent([Configuration].self, forKey: .configurations) ?? []
             settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
             savedTeams = try c.decodeIfPresent([SavedTeam].self, forKey: .savedTeams) ?? []
+            deletedConfigIDs = try c.decodeIfPresent([UUID].self, forKey: .deletedConfigIDs) ?? []
         }
 
         /// Forward-migrate a decoded state to the current schema version.
@@ -1963,7 +1973,8 @@ final class AppModel {
         // in-memory configurations keep their transcripts; only this encoded copy is slim.
         var slim = configurations
         for i in slim.indices { slim[i].transcript = [] }
-        let state = PersistedState(configurations: slim, settings: settings, savedTeams: savedTeams)
+        let state = PersistedState(configurations: slim, settings: settings, savedTeams: savedTeams,
+                                   deletedConfigIDs: Array(deletedConfigIDs))
         let url = storeURL
         writeTask?.cancel()
         writeTask = Task.detached(priority: .utility) { [weak self] in
@@ -2018,6 +2029,7 @@ final class AppModel {
         configurations = state.configurations
         settings = state.settings
         savedTeams = state.savedTeams
+        deletedConfigIDs = Set(state.deletedConfigIDs)
         // Hydrate transcripts from their sidecars. For an OLD data.json that still carried
         // transcripts inline, migrate each to a sidecar NOW (synchronously, before any
         // save() can strip the inline copy) so a transcript can never be lost.
@@ -2064,6 +2076,11 @@ final class AppModel {
     /// back. Device-local repo bindings are always preserved (never synced).
     func mergeRemote(_ remote: [PortableConfiguration]) -> [PortableConfiguration] {
         configurations = ConfigMerger.merge(local: configurations, remote: remote)
+        // A chat deleted here must NOT come back because the remote still has it: drop
+        // any tombstoned id the merge re-introduced.
+        if !deletedConfigIDs.isEmpty {
+            configurations.removeAll { deletedConfigIDs.contains($0.id) }
+        }
         if selectedConfigID == nil { selectedConfigID = configurations.first?.id }
         // Don't re-stamp: timestamps are already authoritative after the merge.
         save(stamp: false)

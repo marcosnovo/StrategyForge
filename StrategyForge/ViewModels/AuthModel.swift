@@ -78,6 +78,10 @@ final class AuthModel {
             let remote = try await syncStore.pull()
             let merged = appModel.mergeRemote(remote)
             try await syncStore.push(merged)
+            // Remove locally-deleted chats from iCloud too (tombstones), so a delete on
+            // this Mac propagates instead of resurrecting from the remote copy.
+            let tombstones = Array(appModel.deletedConfigIDs)
+            if !tombstones.isEmpty { try await syncStore.delete(ids: tombstones) }
             lastSyncMessage = appModel.t("sync.done", merged.count)
         } catch {
             lastError = appModel.t("sync.failed", error.localizedDescription)
