@@ -38,6 +38,32 @@ struct LoopFileGeneratorTests {
         }
     }
 
+    // MARK: - Loops-zone hardening (#4)
+
+    @Test func cronLineQuotesTheRepoPath() {
+        // A repo path with a space must be single-quoted in the crontab example, or the
+        // line breaks (or injects). Time-based loops embed the cron line in loop.sh.
+        var plan = makePlan(kind: .timeBased)
+        plan.repoPath = "/Users/me/My Projects/app"
+        let sh = script(LoopFileGenerator.generate(for: plan))
+        #expect(sh.contains("cd '/Users/me/My Projects/app'"))
+    }
+
+    @Test func capturedVerifyIsFaultTolerantUnderSetE() {
+        // The judge is captured with `|| true` so a transient failure can't trip set -e
+        // and kill the whole goal loop.
+        let sh = script(LoopFileGenerator.generate(for: makePlan(kind: .goalBased)))
+        #expect(sh.contains("VERDICT=\"$("))
+        #expect(sh.contains("|| true)\""))
+    }
+
+    @Test func worktreeTrapDoesNotMergeErrLog() {
+        var plan = makePlan(kind: .goalBased)
+        plan.useWorktree = true
+        let sh = script(LoopFileGenerator.generate(for: plan))
+        #expect(sh.contains("git reset -q -- err.log"))
+    }
+
     // MARK: - Worktree isolation (opt-in)
 
     private func script(_ files: [GeneratedFile]) -> String {
@@ -139,7 +165,7 @@ struct LoopFileGeneratorTests {
         plan.repoPath = "/Users/me/repo"
         let loopMd = LoopFileGenerator.generate(for: plan)
             .first { $0.relativePath == "LOOP.md" }!.contents
-        #expect(loopMd.contains("*/30 * * * * cd /Users/me/repo && ./loop.sh >> logs/loop.log 2>&1"))
+        #expect(loopMd.contains("*/30 * * * * cd '/Users/me/repo' && ./loop.sh >> logs/loop.log 2>&1"))
     }
 
     @Test func goalBasedLaunchCommandUsesModelAndGoal() {

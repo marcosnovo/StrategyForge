@@ -127,6 +127,12 @@ struct LoopSelectorColumn: View {
                     .help(model.t("loop.delete"))
                 } else if store.runningLoopIDs.contains(loop.id) {
                     WorkingLogo(size: 12)
+                } else if LoopScheduler.isScheduled(loop.id) {
+                    // Scheduled to run unattended on a cadence — mark it so the list shows
+                    // which loops are "armed" even when idle.
+                    Image(systemName: "clock.badge.checkmark")
+                        .font(.system(size: 11)).foregroundStyle(Theme.teal)
+                        .help(model.t("loop.schedule.on"))
                 } else {
                     Text(model.t("loop.list.turns", loop.maxTurns))
                         .font(.sfCaption2).monospacedDigit()

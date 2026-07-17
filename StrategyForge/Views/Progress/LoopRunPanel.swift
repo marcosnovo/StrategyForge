@@ -60,6 +60,20 @@ struct LoopRunPanel: View {
             Button(model.t("common.cancel"), role: .cancel) { confirmRestore = nil }
         }
         .onAppear { scheduled = LoopScheduler.isScheduled(plan.id) }
+        // Keep a live schedule in sync with edits: a changed interval/kind must rewrite
+        // the LaunchAgent plist, and switching to a non-schedulable kind (goal) tears it
+        // down — otherwise the job keeps firing with stale settings.
+        .onChange(of: plan.intervalMinutes) { syncScheduleWithEdits() }
+        .onChange(of: plan.kind) { syncScheduleWithEdits() }
+    }
+
+    private func syncScheduleWithEdits() {
+        guard scheduled else { return }
+        if LoopScheduler.canSchedule(plan), repoURL != nil {
+            setSchedule(true)    // rewrite the plist with the new interval/kind
+        } else {
+            setSchedule(false)   // kind no longer schedulable → remove the job
+        }
     }
 
     /// Non-destructive rewind points captured after each iteration's work.

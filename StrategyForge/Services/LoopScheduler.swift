@@ -29,6 +29,15 @@ enum LoopScheduler {
         FileManager.default.fileExists(atPath: plistURL(for: id).path)
     }
 
+    /// Per-user log directory for scheduled runs — NOT /tmp, which is world-readable
+    /// (a loop's stderr can carry repo paths and error detail). Created on demand.
+    static func logDirectory() -> URL {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/Coral", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
     /// Loops that launch via `./loop.sh` can run unattended on a schedule.
     static func canSchedule(_ plan: LoopPlan) -> Bool { plan.kind != .goalBased }
 
@@ -67,9 +76,10 @@ enum LoopScheduler {
             "WorkingDirectory": repoURL.path,
             "RunAtLoad": false,
             "ProcessType": "Background",
-            "StandardOutPath": "/tmp/\(label).out",
-            "StandardErrorPath": "/tmp/\(label).err",
+            "StandardOutPath": outLogPath(for: plan.id),
+            "StandardErrorPath": errLogPath(for: plan.id),
         ]
+        _ = logDirectory()   // ensure the log dir exists before launchd writes to it
         let url = plistURL(for: plan.id)
         do {
             try FileManager.default.createDirectory(
@@ -106,8 +116,12 @@ enum LoopScheduler {
 
     // MARK: - Health of the last background run
 
-    static func outLogPath(for id: UUID) -> String { "/tmp/\(label(for: id)).out" }
-    static func errLogPath(for id: UUID) -> String { "/tmp/\(label(for: id)).err" }
+    static func outLogPath(for id: UUID) -> String {
+        logDirectory().appendingPathComponent("\(label(for: id)).out").path
+    }
+    static func errLogPath(for id: UUID) -> String {
+        logDirectory().appendingPathComponent("\(label(for: id)).err").path
+    }
 
     /// Tail of the last scheduled run's stderr, if it wrote anything — so a silent
     /// background failure (e.g. an expired provider sign-in) becomes visible.
