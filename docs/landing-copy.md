@@ -1,4 +1,4 @@
-# StrategyForge — Landing copy (A/B, weeks 1–2)
+# Coral — Landing copy (A/B, weeks 1–2)
 
 Three landing variants, one per hypothesis. Same product, same CTA target
 (waitlist), different headline promise. Run them as an even A/B/C split; the
@@ -10,7 +10,7 @@ Shared elements across all three:
 - **Sub-badge (top):** *Your subscription. No API keys. No backend.*
 - **Primary CTA:** `Join the waitlist` → email field.
 - **Secondary CTA:** `Watch the 60-sec demo` → the real demo-path video.
-- **Trust line (footer):** *StrategyForge runs the CLIs you already pay for
+- **Trust line (footer):** *Coral runs the CLIs you already pay for
   (Claude Code, Codex, Gemini) on your Mac. Your keys and code never leave it.*
 - **Two demo videos** embedded: (1) "describe a task → team runs → mission
   report", (2) "share a team, someone imports it in one click".
@@ -21,7 +21,7 @@ Shared elements across all three:
 
 **Headline:** See exactly what your AI agents did — and what it cost.
 
-**Sub-headline:** StrategyForge turns a run into a live timeline: every agent,
+**Sub-headline:** Coral turns a run into a live timeline: every agent,
 every step, tokens and dollars per turn. Stop flying blind through multi-agent
 work.
 
@@ -48,7 +48,7 @@ copy in one click. Import a proven setup, tweak it, run it on your own plan.
 **Body bullets:**
 - **One-click share & import** — a whole agent team as a link/file, not a blog post.
 - **Start from a proven strategy** instead of a blank page.
-- **Drag your repo** and StrategyForge shows your current `.claude/` setup as an
+- **Drag your repo** and Coral shows your current `.claude/` setup as an
   editable team.
 - Runs on your subscription — no keys, no backend.
 
@@ -64,7 +64,7 @@ them from scratch.
 **Headline:** One team. GPT, Gemini and Claude — together.
 
 **Sub-headline:** Let a GPT orchestrator delegate to Gemini workers and a Claude
-advisor, on your own subscriptions. No single vendor CLI can do this. StrategyForge
+advisor, on your own subscriptions. No single vendor CLI can do this. Coral
 does.
 
 **Body bullets:**

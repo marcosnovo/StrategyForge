@@ -1,0 +1,61 @@
+# CI: runs the repo's only automated gate (see CLAUDE.md) on every push/PR.
+# The suite is unit tests only — the shared StrategyForge scheme already skips
+# the UITests target in its TestAction, so `xcodebuild test` stays fast.
+#
+# Notes for reliability:
+# - MACOSX_DEPLOYMENT_TARGET is 26.5 (project.pbxproj), so the Coral.app test
+#   host only LAUNCHES on macOS 26.5+. If the `macos-26` image is unavailable
+#   for this account, either lower the deployment target (README claims
+#   macOS 14+) or point `runs-on` at a self-hosted Mac.
+# - Signing is disabled: the runner has no Developer ID cert, and the app's
+#   iCloud / Sign in with Apple entitlements would otherwise demand a
+#   provisioning profile. Unit tests never touch CloudKit for real (the
+#   CloudKit-related tests construct CKError locally), so an unsigned test
+#   host is fine.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode on the image
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -n 1)/Contents/Developer"
+          sw_vers
+          xcodebuild -version
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          FORMAT=cat
+          command -v xcbeautify >/dev/null 2>&1 && FORMAT=xcbeautify
+          xcodebuild test \
+            -project StrategyForge.xcodeproj \
+            -scheme StrategyForge \
+            -destination 'platform=macOS' \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY= \
+            DEVELOPMENT_TEAM= \
+            | "$FORMAT"
+
+      - name: Upload result bundle on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults.xcresult
+          path: TestResults.xcresult
+          if-no-files-found: ignore

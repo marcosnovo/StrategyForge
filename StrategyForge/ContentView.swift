@@ -282,8 +282,10 @@ struct ContentView: View {
             Divider()
             ChatInspector(config: model.configurationBinding(id))
         }
-        .frame(minWidth: 820, idealWidth: 1040, maxWidth: .infinity,
-               minHeight: 640, idealHeight: 820, maxHeight: .infinity)
+        // Min must fit inside the window's own minimum (720×480) — a sheet larger
+        // than its window gets clipped by macOS. ChatInspector scrolls, so small is OK.
+        .frame(minWidth: 680, idealWidth: 1040, maxWidth: .infinity,
+               minHeight: 460, idealHeight: 820, maxHeight: .infinity)
         // Sheets cover the window's banner overlay, so the sheet hosts its own.
         .bannerOverlay()
     }

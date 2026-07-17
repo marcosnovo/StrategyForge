@@ -13,6 +13,10 @@ struct SidebarView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var showSidebar: Bool
     @State private var pendingDelete: Configuration.ID?
+    /// Regenerate asked from the context menu while agent files already exist on disk —
+    /// holds the chat id + the conflicting paths for the same confirmation the editor uses.
+    @State private var pendingRegenerate: Configuration.ID?
+    @State private var regenerateConflicts: [String] = []
     @State private var searchText = ""
     /// Debounced copy of `searchText` used for the COSTLY filter (full transcript scan
     /// across every chat). Typing updates `searchText` instantly (responsive field) but
@@ -75,7 +79,18 @@ struct SidebarView: View {
                                 Button(model.t("config.duplicate")) { model.duplicateConfiguration(config.id) }
                                 Button(model.t("doc.export")) { model.exportStrategyDocument(config) }
                                 if config.repoPath != nil {
-                                    Button(model.t("config.regenerate")) { model.generate(config) }
+                                    Button(model.t("config.regenerate")) {
+                                        // Same overwrite gate as the editor's Generate button —
+                                        // a context-menu click must not silently clobber agent
+                                        // files the user edited by hand.
+                                        let conflicts = model.overwriteConflicts(for: config)
+                                        if conflicts.isEmpty {
+                                            model.generate(config)
+                                        } else {
+                                            regenerateConflicts = conflicts
+                                            pendingRegenerate = config.id
+                                        }
+                                    }
                                 }
                                 Divider()
                                 Button(model.t("sidebar.delete"), role: .destructive) {
@@ -123,6 +138,23 @@ struct SidebarView: View {
             Button(model.t("common.cancel"), role: .cancel) { pendingDelete = nil }
         } message: {
             Text(model.t("sidebar.deleteMsg"))
+        }
+        // Overwrite confirmation for context-menu Regenerate (mirrors the editor's).
+        .confirmationDialog(
+            model.t("preview.overwriteTitle"),
+            isPresented: Binding(get: { pendingRegenerate != nil }, set: { if !$0 { pendingRegenerate = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(model.t("preview.overwrite"), role: .destructive) {
+                if let id = pendingRegenerate,
+                   let config = model.configurations.first(where: { $0.id == id }) {
+                    model.generate(config)
+                }
+                pendingRegenerate = nil
+            }
+            Button(model.t("common.cancel"), role: .cancel) { pendingRegenerate = nil }
+        } message: {
+            Text(model.t("preview.overwriteMsg", regenerateConflicts.joined(separator: "\n")))
         }
         // Rename a chat inline via a small dialog (also on the row's ✎ / context menu).
         .alert(model.t("sidebar.rename.title"),

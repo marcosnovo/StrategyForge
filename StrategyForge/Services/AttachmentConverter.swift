@@ -95,7 +95,9 @@ enum AttachmentConverter {
         process.arguments = args
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        // Discard stderr via /dev/null — an unread Pipe() blocks the child once it
+        // writes ~64KB of warnings, which would hang the stdout read below.
+        process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()

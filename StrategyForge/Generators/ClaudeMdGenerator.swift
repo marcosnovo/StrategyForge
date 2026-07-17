@@ -208,9 +208,19 @@ enum ClaudeMdGenerator {
             return result
         }
 
-        // Append, ensuring a blank line separator.
-        let separator = existing.hasSuffix("\n") ? "\n" : "\n\n"
-        return existing + separator + block
+        // Append, ensuring a blank line separator. Any stray marker left behind
+        // (a START whose END was deleted by hand or eaten by a merge conflict) is
+        // neutralized first: otherwise the NEXT merge would pair the stray START
+        // with the appended block's END and wipe the user's content in between.
+        var base = existing
+        for marker in [startMarker, endMarker, legacyStartMarker, legacyEndMarker]
+        where base.contains(marker) {
+            base = base.replacingOccurrences(
+                of: marker,
+                with: marker.replacingOccurrences(of: " -->", with: " (stray) -->"))
+        }
+        let separator = base.hasSuffix("\n") ? "\n" : "\n\n"
+        return base + separator + block
     }
 
     /// The range covering the marked block (inclusive of both markers), or nil.

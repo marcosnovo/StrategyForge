@@ -67,6 +67,10 @@ struct StrategyWriter {
         }
         var pruned: [String] = []
         for entry in entries where entry.pathExtension == "md" {
+            // The loop verifier carries the same managed signature but belongs to the
+            // Loops feature (LoopFileGenerator) — writing a team must not dismantle a
+            // configured loop, so it is never pruned here.
+            if entry.lastPathComponent == "loop-verifier.md" { continue }
             let rel = "\(AgentFileGenerator.agentsDirectory)/\(entry.lastPathComponent)"
             guard !newPaths.contains(rel),
                   let content = try? String(contentsOf: entry, encoding: .utf8),

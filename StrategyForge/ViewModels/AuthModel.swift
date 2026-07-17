@@ -11,6 +11,7 @@
 import Foundation
 import Observation
 
+@MainActor
 @Observable
 final class AuthModel {
     private(set) var account: Account?

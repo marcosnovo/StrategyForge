@@ -51,6 +51,10 @@ struct NavRail: View {
                  running: !LoopStore.shared.runningLoopIDs.isEmpty) {
                 model.guardedLeave { model.navSection = .loops }
             }
+            item("wand.and.rays", "rail.advisor",
+                 active: model.navSection == .advisor) {
+                model.guardedLeave { model.navSection = .advisor }
+            }
             item("puzzlepiece.extension.fill", "rail.skills",
                  active: model.navSection == .skills) {
                 model.guardedLeave { model.navSection = .skills }

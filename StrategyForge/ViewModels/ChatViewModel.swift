@@ -481,7 +481,7 @@ final class ChatViewModel {
         // Fail clearly if the chosen project folder was moved/deleted, instead of
         // spawning the CLI in a missing directory and getting a cryptic error.
         if repoFolderMissing {
-            errorText = "The project folder for this chat is missing (moved or deleted). Pick it again in Setup."
+            errorText = L10n.string("chat.error.missingFolder", langCode: narrationLang)
             return
         }
         // Allow sending attachments alone with a sensible default ask.

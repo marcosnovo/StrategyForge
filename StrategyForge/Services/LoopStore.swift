@@ -126,6 +126,14 @@ final class LoopStore {
         runControllers[id]?.stop()
         runControllers[id] = nil
         runningLoopIDs.remove(id)
+        // Tear down the LaunchAgent too (idempotent no-op when none exists) —
+        // otherwise a scheduled loop keeps running loop.sh against the user's
+        // repo forever, with no surface left in the app to see or stop it.
+        LoopScheduler.disable(id)
+        // And drop the private per-loop scratch workspace, if one was created.
+        try? FileManager.default.removeItem(
+            at: AppPaths.supportDirectory()
+                .appendingPathComponent("loop-workspaces/\(id.uuidString)", isDirectory: true))
         loops.removeAll { $0.id == id }
         liveRepoURLs[id] = nil
         if selectedLoopID == id { selectedLoopID = loops.first?.id }
@@ -141,8 +149,11 @@ final class LoopStore {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose repository"
-        panel.message = "Select the local repository where Coral will write the loop files."
+        // Same locale heuristic as ChatViewModel.narrationLang: the store has no
+        // AppSettings handle, and the panel copy should still follow the system.
+        let lang = (Locale.preferredLanguages.first?.hasPrefix("es") == true) ? "es" : "en"
+        panel.prompt = L10n.string("repo.picker.prompt", langCode: lang)
+        panel.message = L10n.string("loop.repo.picker.message", langCode: lang)
 
         guard panel.runModal() == .OK, let url = panel.url,
               let i = loops.firstIndex(where: { $0.id == id }) else { return }
