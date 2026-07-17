@@ -1355,13 +1355,54 @@ final class AppModel {
     /// (one chat, not all) — and crash-safe: the sidecar exists before save() strips the
     /// inline copy from data.json.
     private func writeTranscript(_ id: Configuration.ID, _ messages: [ChatMessage]) {
-        guard let data = try? JSONEncoder().encode(messages) else { return }
-        try? data.write(to: transcriptURL(id), options: .atomic)
+        do {
+            let data = try JSONEncoder().encode(messages)
+            try data.write(to: transcriptURL(id), options: .atomic)
+        } catch {
+            // Streaming hot path — never surface a banner, but don't lose the failure
+            // silently either (a full disk / permission issue is otherwise invisible).
+            DiagnosticsLog.record("Couldn't write transcript sidecar for \(id): \(error.localizedDescription)")
+        }
     }
 
     private func loadTranscript(_ id: Configuration.ID) -> [ChatMessage]? {
-        guard let data = try? Data(contentsOf: transcriptURL(id)) else { return nil }
-        return try? JSONDecoder().decode([ChatMessage].self, from: data)
+        let url = transcriptURL(id)
+        guard let data = try? Data(contentsOf: url) else { return nil }   // no file = normal
+        if let msgs = Self.decodeMessagesTolerantly(data) { return msgs }
+        // The file exists but can't be parsed at all. Back it up BEFORE returning nil —
+        // otherwise the next writeTranscript would overwrite (destroy) recoverable history.
+        backupCorruptSidecar(url, kind: "transcript")
+        return nil
+    }
+
+    /// Decode a transcript, dropping any single malformed message instead of losing the
+    /// whole history. Returns nil only when the data isn't a decodable array at all.
+    nonisolated static func decodeMessagesTolerantly(_ data: Data) -> [ChatMessage]? {
+        let dec = JSONDecoder()
+        if let msgs = try? dec.decode([ChatMessage].self, from: data) { return msgs }
+        struct Lossy: Decodable {
+            let messages: [ChatMessage]
+            struct Skip: Decodable { init(from decoder: Decoder) throws {} }
+            init(from decoder: Decoder) throws {
+                var c = try decoder.unkeyedContainer()
+                var out: [ChatMessage] = []
+                while !c.isAtEnd {
+                    if let m = try? c.decode(ChatMessage.self) { out.append(m) }
+                    else { _ = try? c.decode(Skip.self) }   // advance past the bad element
+                }
+                messages = out
+            }
+        }
+        return (try? dec.decode(Lossy.self, from: data))?.messages
+    }
+
+    /// Move an unreadable sidecar aside (never delete it) so it's recoverable, and log
+    /// where it went — mirrors the corrupt-data.json handling in load().
+    private func backupCorruptSidecar(_ url: URL, kind: String) {
+        let stamp = String(Int(Date().timeIntervalSince1970))
+        let dest = url.deletingPathExtension().appendingPathExtension("corrupt-\(stamp).json")
+        try? FileManager.default.moveItem(at: url, to: dest)
+        DiagnosticsLog.record("Unreadable \(kind) sidecar parked at \(dest.lastPathComponent)")
     }
 
     // MARK: - Agent activity history (device-local, per-chat sidecar — never synced)
@@ -1374,8 +1415,12 @@ final class AppModel {
 
     /// The persisted turn-by-turn agent history for a chat (empty if none).
     func loadActivity(_ id: Configuration.ID) -> [TurnActivity] {
-        guard let data = try? Data(contentsOf: activityURL(id)) else { return [] }
-        return (try? JSONDecoder().decode([TurnActivity].self, from: data)) ?? []
+        let url = activityURL(id)
+        guard let data = try? Data(contentsOf: url) else { return [] }   // no file = normal
+        if let turns = try? JSONDecoder().decode([TurnActivity].self, from: data) { return turns }
+        // Unreadable → park it (don't let the next append destroy it) and start fresh.
+        backupCorruptSidecar(url, kind: "activity")
+        return []
     }
 
     /// Append one finished turn, capped to the last 50, written atomically. Does NOT
@@ -1384,8 +1429,11 @@ final class AppModel {
         var all = loadActivity(id)
         all.append(turn)
         if all.count > 50 { all = Array(all.suffix(50)) }
-        if let data = try? JSONEncoder().encode(all) {
-            try? data.write(to: activityURL(id), options: .atomic)
+        do {
+            let data = try JSONEncoder().encode(all)
+            try data.write(to: activityURL(id), options: .atomic)
+        } catch {
+            DiagnosticsLog.record("Couldn't write activity sidecar for \(id): \(error.localizedDescription)")
         }
     }
 

@@ -11,6 +11,31 @@ import Testing
 import Foundation
 @testable import Coral
 
+/// Tolerant transcript decode (#18): one malformed message must not lose the history.
+struct TranscriptDecodeTests {
+    @Test func dropsOneBadMessageKeepsTheRest() throws {
+        // Middle element is missing the required `role` → it's dropped, the others survive.
+        let json = #"""
+        [{"id":"11111111-1111-1111-1111-111111111111","role":"user","text":"hi"},
+         {"id":"22222222-2222-2222-2222-222222222222","text":"no role"},
+         {"id":"33333333-3333-3333-3333-333333333333","role":"assistant","text":"hey"}]
+        """#
+        let msgs = try #require(AppModel.decodeMessagesTolerantly(Data(json.utf8)))
+        #expect(msgs.count == 2)
+        #expect(msgs.first?.text == "hi")
+        #expect(msgs.last?.text == "hey")
+    }
+
+    @Test func cleanTranscriptDecodesWhole() throws {
+        let json = #"[{"id":"11111111-1111-1111-1111-111111111111","role":"user","text":"a"}]"#
+        #expect(AppModel.decodeMessagesTolerantly(Data(json.utf8))?.count == 1)
+    }
+
+    @Test func totalGarbageReturnsNil() {
+        #expect(AppModel.decodeMessagesTolerantly(Data("not json".utf8)) == nil)
+    }
+}
+
 /// Pure parsing of `git status --porcelain -z` + `--numstat` (CodeGit #13): path edge
 /// cases (spaces, non-ASCII, renames, binaries) must survive without a real repo.
 struct CodeGitParseTests {
