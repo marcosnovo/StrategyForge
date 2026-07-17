@@ -136,12 +136,13 @@ struct StrategyWriter {
             written.append(".claude/skills/\(slug)")
         }
 
-        // 3. .mcp.json — external tool servers Claude Code auto-loads. Written only
-        // when the strategy defines servers (never clobbers a hand-authored file
-        // with an empty one).
-        if let mcp = McpConfigGenerator.json(for: strategy.mcpServers) {
-            let url = repoURL.appendingPathComponent(McpConfigGenerator.fileName)
-            try mcp.write(to: url, atomically: true, encoding: .utf8)
+        // 3. .mcp.json — external tool servers Claude Code auto-loads. MERGE into any
+        // existing file so a hand-authored server list is preserved (ours win only on a
+        // name collision); an unparseable existing file is left untouched.
+        let mcpURL = repoURL.appendingPathComponent(McpConfigGenerator.fileName)
+        let existingMcp = try? String(contentsOf: mcpURL, encoding: .utf8)
+        if let mcp = McpConfigGenerator.mergedJSON(existing: existingMcp, for: strategy.mcpServers) {
+            try mcp.write(to: mcpURL, atomically: true, encoding: .utf8)
             written.append(McpConfigGenerator.fileName)
         }
 

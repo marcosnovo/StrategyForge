@@ -101,6 +101,29 @@ struct StrategyPackageTests {
         #expect((try? StrategyPackage.importText("not a share string!!")) == nil)
     }
 
+    @Test func mcpMergePreservesUserServersOursWinOnCollision() throws {
+        let existing = """
+        { "mcpServers": {
+            "userTool": { "command": "npx", "args": ["-y", "user-server"] },
+            "shared":   { "command": "old" }
+        } }
+        """
+        let ours = [McpServer(name: "shared", command: "new"),
+                    McpServer(name: "coralTool", command: "run")]
+        let merged = try #require(McpConfigGenerator.mergedJSON(existing: existing, for: ours))
+        let obj = try JSONSerialization.jsonObject(with: Data(merged.utf8)) as! [String: Any]
+        let servers = obj["mcpServers"] as! [String: Any]
+        #expect(servers["userTool"] != nil)                              // the user's server survives
+        #expect(servers["coralTool"] != nil)                             // ours is added
+        #expect((servers["shared"] as? [String: Any])?["command"] as? String == "new")  // ours wins
+    }
+
+    @Test func mcpMergeLeavesUnparseableFileUntouched() {
+        // A hand-authored but invalid .mcp.json must NOT be clobbered.
+        #expect(McpConfigGenerator.mergedJSON(existing: "{ not json",
+                                              for: [McpServer(name: "x", command: "y")]) == nil)
+    }
+
     @Test func exportRedactsMcpEnvSecrets() throws {
         // A strategy carrying an MCP server with an API key in env must NOT leak it when
         // shared — the export blanks env values (keeping keys) so the recipient refills.
