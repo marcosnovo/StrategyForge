@@ -473,7 +473,9 @@ struct CoralThinkingSpinner: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
+            // Under Reduce Motion freeze the clock too — otherwise the "breath"
+            // term below keeps pulsing at 30 fps (its siblings already do this).
+            let t = reduceMotion ? 0 : tl.date.timeIntervalSinceReferenceDate
             Canvas { ctx, sz in
                 let base = max(1.2, sz.width * 0.05)
                 // Growth cycles: sweep root→tips, hold, then fade + rebuild.

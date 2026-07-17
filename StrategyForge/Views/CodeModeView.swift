@@ -3,8 +3,9 @@
 //  StrategyForge
 //
 //  A developer workspace shown in place of the chat transcript when Code Mode is
-//  on: the files the agent changed on the left, the selected file's contents on the
-//  right. Phase 1 (browse + view). Diffs, terminal and git land in later phases.
+//  on: the files the agent changed on the left (with per-file +/− and change kind),
+//  the selected file's contents or diff on the right, plus git actions — branch bar,
+//  one-tap Commit + PR and opt-in Auto-PR when a run finishes.
 //
 
 import SwiftUI

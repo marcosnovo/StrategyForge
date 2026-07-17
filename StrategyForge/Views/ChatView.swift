@@ -233,6 +233,9 @@ struct ChatView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         model.settings.claudeBinary = url.path
         model.save()
+        // The cached ChatViewModel captured the OLD binary path at init — drop it
+        // (when idle) so the next turn actually uses the binary just located.
+        if !vm.isRunning { model.invalidateChatVM(config.id) }
         Task { await checkEngine() }
     }
 

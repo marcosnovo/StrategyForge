@@ -56,10 +56,16 @@ enum AgentFileGenerator {
         frontmatter += "name: \(instanceName)\n"
         frontmatter += "description: \(escapedScalar(role.description))\n"
         // Omit `tools` entirely when empty so the subagent inherits all tools.
-        // Strip newlines from each entry: a tool name with "\n" would break out
-        // of the scalar and inject its own frontmatter lines.
+        // Strip newlines from each entry: a tool name with "\n" (or a raw "\r" —
+        // YAML treats CR as a line break too) would break out of the scalar and
+        // inject its own frontmatter lines.
         let tools = role.tools
-            .map { $0.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces) }
+            .map {
+                $0.replacingOccurrences(of: "\r\n", with: " ")
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .replacingOccurrences(of: "\r", with: " ")
+                    .trimmingCharacters(in: .whitespaces)
+            }
             .filter { !$0.isEmpty }
         if !tools.isEmpty {
             frontmatter += "tools: \(tools.joined(separator: ", "))\n"
@@ -76,12 +82,17 @@ enum AgentFileGenerator {
     /// YAML-safe rendering of a single-line scalar. `description` can contain colons
     /// and other YAML-significant characters, so quote it when needed.
     private static func escapedScalar(_ value: String) -> String {
-        let flat = value.replacingOccurrences(of: "\n", with: " ")
+        // \r\n and bare \r count as line breaks in YAML — flatten them all, or an
+        // imported description with raw CRs injects its own frontmatter lines.
+        let flat = value.replacingOccurrences(of: "\r\n", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
             .trimmingCharacters(in: .whitespaces)
+        // YAML-reserved leading characters (alias/anchor/tag/directive/etc.) force quoting.
+        let reservedPrefixes = ["'", "\"", ">", "|", "-", "[", "{",
+                                "*", "&", "!", "%", "@", "`", "?", "~"]
         let needsQuoting = flat.contains(":") || flat.contains("#")
-            || flat.hasPrefix("'") || flat.hasPrefix("\"")
-            || flat.hasPrefix(">") || flat.hasPrefix("|")
-            || flat.hasPrefix("-") || flat.hasPrefix("[") || flat.hasPrefix("{")
+            || reservedPrefixes.contains(where: { flat.hasPrefix($0) })
         guard needsQuoting else { return flat }
         // Double-quote and escape embedded double quotes/backslashes.
         let escaped = flat

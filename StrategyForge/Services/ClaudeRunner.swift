@@ -409,8 +409,11 @@ enum ClaudeRunner {
                         for event in ClaudeStreamParser.events(from: line) {
                             continuation.yield(event)
                             // Print-mode with stream-json input keeps stdin open; once the
-                            // turn's result lands, close it so the CLI exits cleanly.
+                            // turn's result lands — success OR error — close it so the CLI
+                            // exits cleanly (an error result would otherwise leave the CLI
+                            // waiting for the next message and the turn spinning forever).
                             if case .finished = event { try? stdin.fileHandleForWriting.close() }
+                            if case .failed = event { try? stdin.fileHandleForWriting.close() }
                         }
                     }
                 }

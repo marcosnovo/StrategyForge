@@ -337,6 +337,10 @@ final class AppModel {
     /// Stable key prefix for a built-in strategy, derived from its English name.
     private func strategyKey(_ name: String) -> String? {
         let n = name.lowercased()
+        // "Solo · Economy" also contains "solo" — economy must match FIRST, or the
+        // picker shows two rows with identical names/descriptions.
+        if n.contains("economy") { return "strat.economy" }
+        if n.contains("explore") && n.contains("plan") { return "strat.pipeline" }
         if n.contains("fan-out") && n.contains("worker") { return "strat.fanout" }
         if n.contains("advisor") { return "strat.execadv" }
         if n.contains("scout") { return "strat.scout" }
@@ -368,7 +372,7 @@ final class AppModel {
     // MARK: - Beginner guidance
 
     /// Strategies simple enough to recommend to a newcomer.
-    private static let beginnerKeys: Set<String> = ["strat.solo", "strat.execadv", "strat.planner"]
+    private static let beginnerKeys: Set<String> = ["strat.solo", "strat.economy", "strat.execadv", "strat.planner"]
 
     func isBeginnerStrategy(_ strategy: Strategy) -> Bool {
         guard let key = strategyKey(strategy.name) else { return false }

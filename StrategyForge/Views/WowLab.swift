@@ -24,7 +24,7 @@ struct WowLiquidLight: View {
         GeometryReader { geo in
             TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !active)) { tl in
                 let e = startDate.map { tl.date.timeIntervalSince($0) } ?? -1
-                let prog = e >= 0 ? min(e / duration, 1) : (reduceMotion ? -1 : -1)
+                let prog = e >= 0 ? min(e / duration, 1) : -1
                 Rectangle()
                     .fill(.black)
                     .colorEffect(ShaderLibrary.liquidLight(
@@ -137,11 +137,15 @@ struct WowSphereResolve: View {
     private let duration: Double = 1.7
     @State private var startDate: Date?
     @State private var active = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let n = 90
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !active)) { tl in
             Canvas { ctx, size in
+                // Purely decorative celebration — skip it entirely under Reduce Motion
+                // (90 particles with trails is exactly what that setting asks to avoid).
+                guard !reduceMotion else { return }
                 guard let s = startDate else { return }
                 let e = tl.date.timeIntervalSince(s); guard e >= 0, e <= duration else { return }
                 draw(&ctx, size, e)

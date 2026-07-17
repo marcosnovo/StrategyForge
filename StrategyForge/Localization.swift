@@ -546,6 +546,10 @@ enum L10n {
         "repo.picker.prompt": ("Choose folder", "Elegir carpeta"),
         "repo.picker.message": ("Pick the project folder Coral will work in. Setup files are written here — your other files aren't touched.",
                                 "Elige la carpeta de proyecto en la que trabajará Coral. Aquí se escriben los archivos de configuración — el resto de tus archivos no se toca."),
+        "loop.repo.picker.message": ("Select the local repository where Coral will write the loop files.",
+                                     "Elige el repositorio local donde Coral escribirá los archivos del loop."),
+        "chat.error.missingFolder": ("The project folder for this chat is missing (moved or deleted). Pick it again in Setup.",
+                                     "La carpeta de proyecto de este chat no existe (se movió o se borró). Vuelve a elegirla en Configuración."),
         "editor.save": ("Save", "Guardar"),
         "editor.save.help": ("Keep this setup in the sidebar. This does not write any files.",
                              "Guarda esta configuración en la barra lateral. No escribe ningún archivo."),
@@ -768,6 +772,12 @@ enum L10n {
         "strat.solo.name": ("Solo (baseline)", "En solitario (base)"),
         "strat.solo.desc": ("A single agent with no subagents — a baseline to compare cost and quality against multi-agent strategies.",
                             "Un único agente sin subagentes: una base para comparar coste y calidad frente a estrategias multiagente."),
+        "strat.economy.name": ("Solo · Economy (Haiku)", "En solitario · Económico (Haiku)"),
+        "strat.economy.desc": ("One low-cost agent (Haiku) for simple, well-scoped tasks — merges, small edits, quick answers. The cheapest option; use it when a frontier model would be overkill.",
+                               "Un agente de bajo coste (Haiku) para tareas simples y acotadas — merges, ediciones pequeñas, respuestas rápidas. La opción más barata; úsala cuando un modelo de frontera sería excesivo."),
+        "strat.pipeline.name": ("Explore → Plan → Build → Review", "Explorar → Planificar → Construir → Revisar"),
+        "strat.pipeline.desc": ("A read-only scout maps an unfamiliar area, the orchestrator turns findings into a plan, an implementer builds it, and a read-only reviewer verifies the result — the deepest pipeline for big, risky work.",
+                                "Un explorador de solo lectura mapea un terreno desconocido, el orquestador convierte lo hallado en un plan, un implementador lo construye y un revisor de solo lectura verifica el resultado — el pipeline más profundo para trabajo grande y arriesgado."),
 
         // MARK: Assistant explainer — derived trigger + topology (mirrors loop legend)
         "strat.trigger.oneShot": ("One request, one response.", "Una petición, una respuesta."),
@@ -799,6 +809,10 @@ enum L10n {
         "strat.sparring.not": ("simple or throwaway work.", "trabajo simple o desechable."),
         "strat.solo.good": ("small tasks or trying the app out. One assistant — simplest and cheapest.", "tareas pequeñas o probar la app. Un asistente — lo más simple y barato."),
         "strat.solo.not": ("large jobs that benefit from a team.", "trabajos grandes que se benefician de un equipo."),
+        "strat.economy.good": ("simple, well-scoped chores — merges, small edits, quick answers — at the lowest possible cost.", "recados simples y acotados — merges, ediciones pequeñas, respuestas rápidas — al menor coste posible."),
+        "strat.economy.not": ("complex or ambiguous work that deserves a stronger model.", "trabajo complejo o ambiguo que merece un modelo más potente."),
+        "strat.pipeline.good": ("big, unfamiliar, high-stakes changes worth scouting, planning, building and reviewing as separate phases.", "cambios grandes, desconocidos y de alto riesgo que merecen explorar, planificar, construir y revisar como fases separadas."),
+        "strat.pipeline.not": ("quick or familiar tasks — the extra phases just add cost.", "tareas rápidas o conocidas — las fases extra solo añaden coste."),
 
         // MARK: Glossary (plain-language analogies)
         "glossary.strategy": ("Strategy = the shape of your team. It decides how many Claude assistants you get and how they split the work.",
@@ -894,6 +908,8 @@ enum L10n {
         "strat.debate.tag": ("Decision", "Decisión"),
         "strat.sparring.tag": ("Stress-test", "Poner a prueba"),
         "strat.solo.tag": ("Quick task", "Tarea rápida"),
+        "strat.economy.tag": ("Cheapest", "El más barato"),
+        "strat.pipeline.tag": ("Deep pipeline", "Pipeline profundo"),
 
         "strat.scout.name": ("Scout first, then act", "Explorar primero, actuar después"),
         "strat.scout.desc": ("A cheap scout maps the terrain first; then an implementer acts on a precise brief — so expensive tokens go to the change, not exploration.",

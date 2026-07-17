@@ -83,11 +83,14 @@ struct CLIOneShotRunner: OneShotRunner {
         let (out, err, status) = try await Self.launch(bin: bin, args: args, cwd: cwd, extraEnv: extraEnv)
         if status != 0 {
             let msg = err.trimmingCharacters(in: .whitespacesAndNewlines)
-            // Record the full invocation + output so an exported log pinpoints the cause
+            // Record the invocation + stderr so an exported log pinpoints the cause
             // (the CLI's stderr is otherwise lost once the one-line banner is dismissed).
+            // The prompt itself is redacted: the diagnostics log is designed to be
+            // exported and shared, and the prompt carries the user's conversation.
+            let safeArgs = args.map { $0 == prompt ? "<prompt: \($0.count) chars>" : $0 }
             DiagnosticsLog.record("""
                 \(provider.displayName) CLI exited \(status)
-                cmd: \(bin) \(args.joined(separator: " "))
+                cmd: \(bin) \(safeArgs.joined(separator: " "))
                 cwd: \(cwd ?? "(none)")
                 stderr: \(msg.isEmpty ? "(empty)" : msg)
                 stdout: \(out.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
@@ -198,8 +201,12 @@ struct CLIOneShotRunner: OneShotRunner {
         private var process: Process?
         private var cancelled = false
         private var timedOut = false
-        func adopt(_ p: Process) { lock.lock(); defer { lock.unlock() }
-            if cancelled { p.terminate() } else { process = p } }
+        /// Returns false when the run was already cancelled — the caller must NOT
+        /// launch the process then (terminate() on a never-launched Process raises
+        /// NSInvalidArgumentException, and launching would leak an ownerless CLI).
+        func adopt(_ p: Process) -> Bool { lock.lock(); defer { lock.unlock() }
+            if cancelled { return false }
+            process = p; return true }
         func terminate() { lock.lock(); defer { lock.unlock() }
             cancelled = true; if let p = process, p.isRunning { p.terminate() } }
         /// The watchdog fired: mark it (so the SIGTERM reads as a timeout, not an opaque
@@ -248,9 +255,11 @@ struct CLIOneShotRunner: OneShotRunner {
                     // hang or misbehave when stdin is a non-TTY pipe with no writer —
                     // openai/codex#20919 — so give them an immediate EOF.
                     p.standardInput = FileHandle.nullDevice
-                    box.adopt(p)
+                    guard box.adopt(p) else {
+                        cont.resume(throwing: CancellationError()); return
+                    }
                     do { try p.run() } catch {
-                        DiagnosticsLog.record("Couldn't launch \(bin) \(args.joined(separator: " ")) — \(error.localizedDescription)")
+                        DiagnosticsLog.record("Couldn't launch \(bin) (\(args.count) args) — \(error.localizedDescription)")
                         cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return
                     }
                     // Watchdog: a stuck CLI shouldn't hang the turn forever. Terminate
