@@ -126,11 +126,14 @@ Beyond team configs, Coral ships four self-improving-agent features:
 - [x] **Phase 5 — Persistence & closeout.** JSON store in Application Support, settings,
   smoke test.
 
-### Out of scope (prepared hooks only)
+### Formerly "out of scope" — both shipped since
 
-See `Generators/CostEstimationHooks.swift`:
-- TokenIA cost estimation per strategy.
-- Import / export of strategies as shareable packages.
+- Cost estimation per strategy: `Generators/CostEstimationHooks.swift`
+  (`CostEstimator`) — used live in the strategy picker, editor, Team canvas,
+  Advisor and activity panel. Approximate/relative, not a billing figure.
+- Import / export of strategies as shareable packages:
+  `Generators/StrategyPackage.swift` (`.sfstrategy` text/file) plus the
+  team catalog (`Services/TeamCatalogStore.swift`).
 
 ## Project structure
 
