@@ -152,9 +152,12 @@ enum CodeGit {
     nonisolated static func stagedFiles(repo: String) async -> Set<String> {
         await Task.detached(priority: .userInitiated) {
             guard let git = gitPath() else { return [] }
-            let r = runResult(git, ["-C", repo, "diff", "--cached", "--name-only"])
+            // NUL-separated + quotePath off so non-ASCII / spaced paths stay intact (they
+            // key stage/unstage, so a mangled path would silently no-op).
+            let r = runResult(git, ["-C", repo, "-c", "core.quotePath=false",
+                                    "diff", "--cached", "--name-only", "-z"])
             guard r.ok else { return [] }
-            return Set(r.out.split(separator: "\n")
+            return Set(r.out.split(separator: "\0", omittingEmptySubsequences: true)
                 .map { (repo as NSString).appendingPathComponent(String($0)) })
         }.value
     }
@@ -255,44 +258,59 @@ enum CodeGit {
     nonisolated static func changedFiles(repo: String) async -> [ChangedFile] {
         await Task.detached(priority: .userInitiated) {
             guard let git = gitPath() else { return [] }
-            var stats: [String: (add: Int, del: Int)] = [:]
-            let numstat = runResult(git, ["-C", repo, "diff", "HEAD", "--numstat"])
-            if numstat.ok {
-                for line in numstat.out.split(separator: "\n") {
-                    let p = line.split(separator: "\t", maxSplits: 2).map(String.init)
-                    guard p.count == 3 else { continue }
-                    // Binary files show "-" for the counts → treat as 0.
-                    stats[p[2]] = (Int(p[0]) ?? 0, Int(p[1]) ?? 0)
-                }
-            }
-            let porcelain = runResult(git, ["-C", repo, "status", "--porcelain"])
-            guard porcelain.ok else { return [] }
-            var files: [ChangedFile] = []
-            for raw in porcelain.out.split(separator: "\n") {
-                let line = String(raw)
-                guard line.count > 3 else { continue }
-                let xy = String(line.prefix(2))
-                var path = String(line.dropFirst(3))
-                if let arrow = path.range(of: " -> ") { path = String(path[arrow.upperBound...]) }  // renamed
-                path = path.trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
-                guard !path.isEmpty else { continue }
-                let kind: ChangedFile.Kind
-                if xy == "??" { kind = .untracked }
-                else if xy.contains("R") { kind = .renamed }
-                else if xy.contains("D") { kind = .deleted }
-                else if xy.contains("A") { kind = .added }
-                else { kind = .modified }
-                var (add, del) = stats[path] ?? (0, 0)
-                if kind == .untracked, add == 0, del == 0 {
-                    let full = (repo as NSString).appendingPathComponent(path)
-                    if let content = try? String(contentsOfFile: full, encoding: .utf8), !content.isEmpty {
-                        add = content.split(separator: "\n", omittingEmptySubsequences: false).count
-                    }
-                }
-                files.append(ChangedFile(path: path, insertions: add, deletions: del, kind: kind))
+            // `-c core.quotePath=false` keeps non-ASCII paths intact (no octal escaping);
+            // `-z` NUL-separates records so spaces/newlines in paths don't split a row —
+            // otherwise stage/revert would operate on mangled, non-existent paths.
+            let numstat = runResult(git, ["-C", repo, "-c", "core.quotePath=false",
+                                          "diff", "HEAD", "--numstat"])
+            let status = runResult(git, ["-C", repo, "-c", "core.quotePath=false",
+                                         "status", "--porcelain", "-z"])
+            guard status.ok else { return [] }
+            var files = parseChangedFiles(numstat: numstat.ok ? numstat.out : "", statusZ: status.out)
+            // Fill untracked new-file line counts (they're not in `diff HEAD`).
+            files = files.map { f in
+                guard f.kind == .untracked, f.insertions == 0, f.deletions == 0 else { return f }
+                let full = (repo as NSString).appendingPathComponent(f.path)
+                guard let content = try? String(contentsOfFile: full, encoding: .utf8), !content.isEmpty
+                else { return f }
+                let lines = content.split(separator: "\n", omittingEmptySubsequences: false).count
+                return ChangedFile(path: f.path, insertions: lines, deletions: 0, kind: .untracked)
             }
             return files.sorted { $0.path < $1.path }
         }.value
+    }
+
+    /// Pure parser for `git diff HEAD --numstat` + `git status --porcelain -z`, so path
+    /// edge cases (spaces, non-ASCII, renames, binaries) are unit-testable without a repo.
+    /// Untracked files come back with 0/0 (the caller fills their line counts).
+    static func parseChangedFiles(numstat: String, statusZ: String) -> [ChangedFile] {
+        var stats: [String: (add: Int, del: Int)] = [:]
+        for line in numstat.split(separator: "\n") {
+            let p = line.split(separator: "\t", maxSplits: 2).map(String.init)
+            guard p.count == 3 else { continue }
+            // Binary files show "-" for the counts → treat as 0.
+            stats[p[2]] = (Int(p[0]) ?? 0, Int(p[1]) ?? 0)
+        }
+        // NUL-separated records; a rename/copy is TWO records (new path, then old path).
+        let fields = statusZ.split(separator: "\0", omittingEmptySubsequences: false).map(String.init)
+        var files: [ChangedFile] = []
+        var i = 0
+        while i < fields.count {
+            let entry = fields[i]; i += 1
+            guard entry.count > 3 else { continue }
+            let xy = String(entry.prefix(2))
+            let path = String(entry.dropFirst(3))
+            if xy.contains("R") || xy.contains("C"), i < fields.count { i += 1 }   // consume the old path
+            let kind: ChangedFile.Kind
+            if xy == "??" { kind = .untracked }
+            else if xy.contains("R") { kind = .renamed }
+            else if xy.contains("D") { kind = .deleted }
+            else if xy.contains("A") { kind = .added }
+            else { kind = .modified }
+            let (add, del) = stats[path] ?? (0, 0)
+            files.append(ChangedFile(path: path, insertions: add, deletions: del, kind: kind))
+        }
+        return files
     }
 
     // MARK: - Worktree isolation (loops)

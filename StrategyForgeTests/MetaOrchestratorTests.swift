@@ -11,6 +11,37 @@ import Testing
 import Foundation
 @testable import Coral
 
+/// Pure parsing of `git status --porcelain -z` + `--numstat` (CodeGit #13): path edge
+/// cases (spaces, non-ASCII, renames, binaries) must survive without a real repo.
+struct CodeGitParseTests {
+    @Test func parsesKindsCountsSpacesAndUnicode() {
+        let numstat = "12\t3\tsrc/app.swift\n-\t-\tbin.dat\n5\t0\tdir/á é.txt\n"
+        let statusZ = " M src/app.swift\u{0}?? new file.txt\u{0}D  gone.swift\u{0}A  added.swift\u{0} M dir/á é.txt\u{0}"
+        let files = CodeGit.parseChangedFiles(numstat: numstat, statusZ: statusZ)
+        let byPath = Dictionary(files.map { ($0.path, $0) }, uniquingKeysWith: { a, _ in a })
+        #expect(byPath["src/app.swift"]?.insertions == 12)
+        #expect(byPath["src/app.swift"]?.deletions == 3)
+        #expect(byPath["src/app.swift"]?.kind == .modified)
+        #expect(byPath["new file.txt"]?.kind == .untracked)       // space in name survived
+        #expect(byPath["gone.swift"]?.kind == .deleted)
+        #expect(byPath["added.swift"]?.kind == .added)
+        #expect(byPath["dir/á é.txt"]?.insertions == 5)           // unicode + space survived
+    }
+
+    @Test func binaryFileCountsAsZero() {
+        let files = CodeGit.parseChangedFiles(numstat: "-\t-\tbin.dat\n", statusZ: " M bin.dat\u{0}")
+        #expect(files.first?.insertions == 0 && files.first?.deletions == 0)
+    }
+
+    @Test func renameConsumesTwoFieldsWithoutDuplicating() {
+        let statusZ = "R  new.txt\u{0}old.txt\u{0} M other.swift\u{0}"
+        let files = CodeGit.parseChangedFiles(numstat: "", statusZ: statusZ)
+        #expect(files.count == 2)                                 // old path isn't a 3rd entry
+        #expect(files.contains { $0.kind == .renamed })
+        #expect(files.contains { $0.path == "other.swift" })
+    }
+}
+
 /// Records every call and returns canned text based on the prompt kind. Thread-safe
 /// because delegated workers now run concurrently.
 private final class MockRunner: OneShotRunner, @unchecked Sendable {
