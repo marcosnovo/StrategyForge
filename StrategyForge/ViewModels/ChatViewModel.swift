@@ -287,6 +287,11 @@ final class ChatViewModel {
     /// Whether a Claude Code session already exists in the repo (→ use `--continue`).
     private var hasSession = false
     @ObservationIgnored private var runTask: Task<Void, Never>?
+    /// Monotonic run id. Bumped when a run starts; a run's epilogue (unlock, snapshot,
+    /// drop-empty-placeholder, flush queue) only fires when its epoch is still current —
+    /// so a stop→send race can't let the OLD run's epilogue clobber the NEW run's state
+    /// (stale `assistantIndex`, a spurious `isRunning = false`, or a double flush).
+    @ObservationIgnored private var runEpoch = 0
     /// Called to persist the transcript after it changes (device-local).
     @ObservationIgnored private let persist: ([ChatMessage]) -> Void
     /// Called with the text of the very first user message (for auto-titling).
@@ -578,7 +583,9 @@ final class ChatViewModel {
         let providerName = config.provider.rawValue
         let startTokens = totalTokens, startCost = totalCostUSD
         Analytics.log(.runStarted(provider: providerName, agents: agents, meta: useMeta))
-        runTask = Task { [binary, model, useMeta] in
+        runEpoch += 1
+        let epoch = runEpoch
+        runTask = Task { [binary, model, useMeta, epoch] in
             if useMeta {
                 // Cross-provider run: our orchestrator drives each role's CLI.
                 await runMetaTurn(task: promptText, repo: repo, assistantIndex: assistantIndex)
@@ -598,6 +605,9 @@ final class ChatViewModel {
                                             extraDirs: extraDirs)
                 }
             }
+            // A newer run superseded this one (stop→send): it now owns isRunning, the
+            // message list and the queue — this stale epilogue must not touch any of them.
+            guard epoch == runEpoch else { return }
             isRunning = false
             hasSession = true
             Analytics.log(.runFinished(provider: providerName, agents: agents,
@@ -970,7 +980,9 @@ final class ChatViewModel {
         let sessionID = config.id.uuidString.lowercased()
         let useMeta = usesMetaOrchestrator
         let startTokens = totalTokens, startCost = totalCostUSD
-        runTask = Task { [binary, model, useMeta] in
+        runEpoch += 1
+        let epoch = runEpoch
+        runTask = Task { [binary, model, useMeta, epoch] in
             if useMeta {
                 // Cross-provider runs are one-shot; permissions don't apply — just re-run.
                 await runMetaTurn(task: prompt, repo: repo, assistantIndex: assistantIndex)
@@ -988,6 +1000,7 @@ final class ChatViewModel {
                                             permissionMode: "bypassPermissions", extraDirs: lastExtraDirs)
                 }
             }
+            guard epoch == runEpoch else { return }   // a newer run owns the state now
             isRunning = false
             hasSession = true
             snapshotTurn(prompt: prompt, tokens: totalTokens - startTokens,
