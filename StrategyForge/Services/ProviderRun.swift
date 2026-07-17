@@ -60,6 +60,11 @@ struct CLIOneShotRunner: OneShotRunner {
     var apiKeys: [AIProvider: String] = [:]
     /// Codex reasoning effort ("" = leave to the account/CLI default).
     var reasoningEffort: String = ""
+    /// Read-only: forbid the file-editing tools so this call can READ and run commands
+    /// (tests, greps) but never modify the repo. Used by the loop verifier — an
+    /// independent judge that can edit the code it's judging (and whose PASS triggers an
+    /// auto-merge) is the exact opposite of a verifier.
+    var readOnly: Bool = false
 
     func run(prompt: String, provider: AIProvider, model: String, cwd: String?) async throws -> OneShotResult {
         let configured = binaries[provider] ?? provider.binaryName
@@ -69,7 +74,7 @@ struct CLIOneShotRunner: OneShotRunner {
         let apiKey = apiKeys[provider].flatMap { $0.isEmpty ? nil : $0 }
         let (args, mode) = Self.command(for: provider, prompt: prompt, model: model,
                                         permissionMode: permissionMode, reasoningEffort: reasoningEffort,
-                                        hasAPIKey: apiKey != nil)
+                                        hasAPIKey: apiKey != nil, readOnly: readOnly)
         // Auth/keys travel via the environment, never the argv.
         var extraEnv: [String: String] = [:]
         if provider == .openai, let apiKey { extraEnv["OPENAI_API_KEY"] = apiKey }
@@ -123,11 +128,16 @@ struct CLIOneShotRunner: OneShotRunner {
     /// go BEFORE the positional prompt (robust across arg parsers).
     static func command(for provider: AIProvider, prompt: String, model: String,
                         permissionMode: String, reasoningEffort: String = "",
-                        hasAPIKey: Bool = false) -> (args: [String], mode: OutputMode) {
+                        hasAPIKey: Bool = false, readOnly: Bool = false) -> (args: [String], mode: OutputMode) {
         switch provider {
         case .claude:
             // Claude uses real, full model ids (e.g. claude-opus-4-8).
             var a = ["--output-format", "json", "--permission-mode", permissionMode]
+            // Read-only: still allow reads + Bash (to run tests/greps) but forbid every
+            // file-editing tool, so a verifier can't modify the repo it's judging.
+            if readOnly {
+                a.append(contentsOf: ["--disallowedTools", "Edit Write MultiEdit NotebookEdit"])
+            }
             if !model.isEmpty { a.append(contentsOf: ["--model", model]) }
             a.append(contentsOf: ["-p", prompt])
             return (a, .claudeJSON)

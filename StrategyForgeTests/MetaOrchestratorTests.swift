@@ -54,6 +54,22 @@ private func makeStrategy() -> Strategy {
 }
 
 struct MetaOrchestratorPureTests {
+    @Test func readOnlyClaudeCommandForbidsEditTools() {
+        // The loop verifier runs read-only: it must be able to read + run tests, but the
+        // file-editing tools are forbidden so it can't modify the code it's judging.
+        let normal = CLIOneShotRunner.command(for: .claude, prompt: "judge", model: "claude-haiku-4-5",
+                                              permissionMode: "acceptEdits").args
+        #expect(!normal.contains("--disallowedTools"))
+        let ro = CLIOneShotRunner.command(for: .claude, prompt: "judge", model: "claude-haiku-4-5",
+                                          permissionMode: "acceptEdits", readOnly: true).args
+        guard let i = ro.firstIndex(of: "--disallowedTools") else {
+            Issue.record("read-only claude command should disallow tools"); return
+        }
+        let forbidden = ro[i + 1]
+        #expect(forbidden.contains("Edit") && forbidden.contains("Write")
+                && forbidden.contains("MultiEdit") && forbidden.contains("NotebookEdit"))
+    }
+
     @Test func resolvesModelIdPerProvider() {
         let claude = AgentRole(name: "a", role: .worker, model: .sonnet5, systemPrompt: "", description: "")
         #expect(MetaOrchestrator.modelID(for: claude) == "claude-sonnet-5")

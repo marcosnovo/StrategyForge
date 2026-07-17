@@ -265,7 +265,10 @@ final class LoopRunController {
                 stage = .verify
                 statusKey = "progress.status.verifying"
                 do {
-                    let runner = CLIOneShotRunner(binaries: [.claude: resolved])
+                    // The judge runs READ-ONLY: it may read the repo and run tests, but
+                    // never edit — otherwise it could "fix" the very code it's grading, and
+                    // a bogus PASS would auto-merge unreviewed work.
+                    let runner = CLIOneShotRunner(binaries: [.claude: resolved], readOnly: true)
                     let result = try await runner.run(prompt: Self.verifierPrompt(plan: plan),
                                                       provider: .claude,
                                                       model: plan.verifierModel.rawValue,
