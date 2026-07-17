@@ -32,6 +32,9 @@ struct CodeModeView: View {
     // Push & PR
     @State private var pushing = false
     @State private var prURL: String?
+    /// When on, a finished run auto-commits its changes, pushes, and opens (or updates)
+    /// a PR — the "ship it while I sleep" flow. Off by default; per-app.
+    @AppStorage("code.autoPR") private var autoPR = false
     /// The pull request for the current branch (open/merged/closed), if any — so Code
     /// Mode shows the generated PR, its state, links to its diff, and a merge button.
     @State private var pr: GitHubCLI.PRInfo?
@@ -75,9 +78,17 @@ struct CodeModeView: View {
             if selected == nil || !(new.contains(selected ?? "")) { selected = new.first }
             Task { await loadChangeStats() }
         }
-        // Refresh the +/− once a run settles (the agent finished editing).
+        // Refresh the +/− once a run settles (the agent finished editing), and — when
+        // Auto-PR is on — commit, push and open/update the PR automatically.
         .onChange(of: vm.isRunning) { _, running in
-            if !running { Task { await loadChangeStats() } }
+            if !running {
+                Task {
+                    await loadChangeStats()
+                    if autoPR, isRepo, GitHubCLI.isInstalled, !changeStats.isEmpty {
+                        commitAndPR(auto: true)
+                    }
+                }
+            }
         }
         .onChange(of: selected) { Task { await loadDiff() } }
         .confirmationDialog(model.t("code.revertConfirm"), isPresented: revertBinding, titleVisibility: .visible) {
@@ -413,18 +424,27 @@ struct CodeModeView: View {
                     .onSubmit { if !commitMessage.trimmingCharacters(in: .whitespaces).isEmpty { confirmCommit = true } }
                 if gitBusy || pushing { WorkingLogo(size: 16) }
                 Button(model.t("code.commit")) { confirmCommit = true }
-                    .buttonStyle(.moon)
-                    .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty || gitBusy || pushing)
-                // One tap to push the branch and open a PR (needs the gh CLI).
-                if GitHubCLI.isInstalled {
-                    Button { pushAndPR() } label: {
-                        Label(model.t("code.pushPR"), systemImage: "arrow.up.right.circle")
-                    }
                     .buttonStyle(.bordered)
+                    .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty || gitBusy || pushing)
+                // One tap: commit everything, push, and open/update the PR (needs gh).
+                if GitHubCLI.isInstalled {
+                    Button { commitAndPR() } label: {
+                        Label(model.t("code.commitPR"), systemImage: "arrow.up.right.circle.fill")
+                    }
+                    .buttonStyle(.moon)
                     .disabled(gitBusy || pushing)
                 }
             }
             .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+            // Auto-PR: ship a finished run automatically (commit → push → PR).
+            if GitHubCLI.isInstalled {
+                Toggle(isOn: $autoPR) {
+                    Text(model.t("code.autoPR")).font(.sfCaption2)
+                }
+                .toggleStyle(.switch).controlSize(.mini)
+                .padding(.horizontal, Space.m).padding(.bottom, Space.xs)
+                .help(model.t("code.autoPR.help"))
+            }
             if let prURL {
                 HStack(spacing: Space.xs) {
                     Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.success)
@@ -487,6 +507,44 @@ struct CodeModeView: View {
             let r = await CodeGit.createBranch(repo: repo, name: name)
             if r.ok { branch = name; branches = await CodeGit.branches(repo: repo) } else { gitError = r.out }
             gitBusy = false
+        }
+    }
+
+    /// One tap: commit everything with the drafted message, push, then open — or update,
+    /// if one already exists — the branch's PR. Also the engine behind Auto-PR.
+    private func commitAndPR(auto: Bool = false) {
+        guard let repo = vm.config.repoPath, !pushing, !gitBusy else { return }
+        let drafted = commitMessage.trimmingCharacters(in: .whitespaces).isEmpty ? draftMessage() : commitMessage
+        let message = drafted.isEmpty ? "Update" : drafted
+        let hadPR = pr != nil
+        pushing = true; gitError = nil
+        Task {
+            // Auto flow always commits all; a manual tap respects staging when the user set it.
+            let commit = (auto || staged.isEmpty)
+                ? await CodeGit.commit(repo: repo, message: message)
+                : await CodeGit.commitStaged(repo: repo, message: message)
+            // "nothing to commit" is fine (there may already be commits to PR); only a
+            // real error stops us.
+            if !commit.ok, !commit.out.localizedCaseInsensitiveContains("nothing to commit") {
+                gitError = commit.out; pushing = false; return
+            }
+            commitMessage = ""
+            let push = await CodeGit.push(repo: repo)
+            guard push.ok else { gitError = push.out; pushing = false; return }
+            // A PR already open for this branch? The push updated it — don't try to open a
+            // second (gh would error). Otherwise open one.
+            if hadPR {
+                model.flashSuccess(model.t("code.pr.updated"))
+            } else {
+                let pr = await GitHubCLI.createPR(repo: repo, title: message, body: prBody())
+                if pr.ok { prURL = pr.url; model.flashSuccess(model.t("code.pr.opened")) }
+                else { gitError = pr.out }
+            }
+            await loadDiff(); await loadChangeStats()
+            staged = await CodeGit.stagedFiles(repo: repo)
+            branch = await CodeGit.currentBranch(repo: repo)
+            await refreshPR()
+            pushing = false
         }
     }
 
