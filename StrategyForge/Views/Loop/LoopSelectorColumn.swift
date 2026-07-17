@@ -102,8 +102,17 @@ struct LoopSelectorColumn: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(loop.name.isEmpty ? model.t("loop.untitled") : loop.name)
                         .font(.sfCallout.weight(.medium)).foregroundStyle(Theme.ink).lineLimit(1)
-                    Text(model.t(loop.kind.labelKey))
-                        .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+                    HStack(spacing: 4) {
+                        Text(model.t(loop.kind.labelKey))
+                            .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+                        // Where it came from — a chat or a code chat — so a loop and its
+                        // origin stay visibly linked in the list.
+                        if let source = loop.sourceChatName, !source.isEmpty {
+                            Image(systemName: loop.sourceIsCode ? "chevron.left.forwardslash.chevron.right" : "bubble.left")
+                                .font(.system(size: 8)).foregroundStyle(.tertiary)
+                            Text(source).font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
+                        }
+                    }
                 }
                 Spacer(minLength: 0)
                 if hoveredID == loop.id {

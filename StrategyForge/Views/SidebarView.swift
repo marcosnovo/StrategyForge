@@ -173,6 +173,9 @@ struct SidebarView: View {
     private func chatRow(_ config: Configuration) -> some View {
         let hovering = hoveredID == config.id
         let running = model.runningChatIDs.contains(config.id)
+        // A loop born from this chat is running "over" it (in the Loops section) — surface
+        // it here so the chat and its loop stay visibly connected.
+        let loopRunning = LoopStore.shared.isLoopRunning(forChat: config.id)
         let selected = model.selectedConfigID == config.id
         return HStack(spacing: Space.s) {
             ChatAvatar(config: config, size: 38, running: running,
@@ -232,6 +235,12 @@ struct SidebarView: View {
                         Text(model.t("sidebar.working"))
                             .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.teal)
                             .lineLimit(1).truncationMode(.tail)
+                    } else if loopRunning {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.accent)
+                        Text(model.t("sidebar.loopRunning"))
+                            .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+                            .lineLimit(1).truncationMode(.tail)
                     } else {
                         if let repo = config.repoPath, !repo.isEmpty {
                             Image(systemName: "chevron.left.forwardslash.chevron.right")
@@ -247,6 +256,10 @@ struct SidebarView: View {
                     // its own activity, so there it's just the time.
                     if running && !selected {
                         WorkingLogo(size: 12)
+                    } else if loopRunning {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 11, weight: .bold)).foregroundStyle(Theme.accent)
+                            .help(model.t("sidebar.loopRunning"))
                     } else {
                         Text(config.recency.formatted(.relative(presentation: .named)))
                             .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1).fixedSize()

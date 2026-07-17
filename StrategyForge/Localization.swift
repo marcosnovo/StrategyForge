@@ -216,6 +216,7 @@ enum L10n {
         "sidebar.rename": ("Rename", "Renombrar"),
         "sidebar.needsAttention": ("Needs your attention", "Requiere tu atención"),
         "sidebar.working": ("Working…", "Trabajando…"),
+        "sidebar.loopRunning": ("Loop running…", "Bucle en marcha…"),
         // Sidebar usage card + profile row (reference-style)
         "rail.usage.tokens": ("%@ this block · %@ / wk", "%@ este bloque · %@ / sem"),
         "rail.usage.view": ("View usage", "Ver uso"),

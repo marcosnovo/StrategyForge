@@ -38,6 +38,17 @@ final class LoopStore {
     /// Loops with a run in flight (observed — drives global running indicators).
     /// Mutated only from onRunningChanged callbacks (action context).
     var runningLoopIDs: Set<LoopPlan.ID> = []
+
+    /// Source-chat ids of every loop currently running — so a chat row can show that a
+    /// loop is running "over" it. Empty when nothing's running.
+    var runningLoopSourceChatIDs: Set<UUID> {
+        Set(loops.filter { runningLoopIDs.contains($0.id) }.compactMap(\.sourceChatID))
+    }
+
+    /// Is a loop from `chatID` currently running?
+    func isLoopRunning(forChat chatID: UUID) -> Bool {
+        loops.contains { $0.sourceChatID == chatID && runningLoopIDs.contains($0.id) }
+    }
     /// Error sink wired by the app shell: (localization key, %@ detail).
     @ObservationIgnored var onError: ((String, String) -> Void)?
     /// A corrupt-load error parked until the app shell can show it (load()

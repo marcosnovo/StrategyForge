@@ -117,6 +117,15 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     /// and the worktree removed; otherwise the branch is left for review. Opt-in — off
     /// keeps the loop running directly in the repo (today's behavior) untouched.
     var useWorktree: Bool
+    /// The chat this loop was created from (nil for loops made straight in the Loops
+    /// section). Lets the UI show "a loop is running over this chat" and label a loop by
+    /// its origin — the chat and the loop that came from it stay visibly linked.
+    var sourceChatID: UUID?
+    /// A human label for the source chat (its title at creation time), so the loop list
+    /// can show where it came from without resolving the chat.
+    var sourceChatName: String?
+    /// Whether the source chat was a Code-mode chat (vs a plain chat) — drives the icon.
+    var sourceIsCode: Bool
     /// POSIX path of the target repo, for display. Nil until the user picks one.
     var repoPath: String?
     /// Security-scoped bookmark for the repo folder, so write access persists.
@@ -161,6 +170,9 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         verifierModel: ClaudeModel = .haiku45,
         memoryEnabled: Bool = true,
         useWorktree: Bool = false,
+        sourceChatID: UUID? = nil,
+        sourceChatName: String? = nil,
+        sourceIsCode: Bool = false,
         repoPath: String? = nil,
         repoBookmark: Data? = nil,
         updatedAt: Date = Date(),
@@ -185,6 +197,9 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         self.verifierModel = verifierModel
         self.memoryEnabled = memoryEnabled
         self.useWorktree = useWorktree
+        self.sourceChatID = sourceChatID
+        self.sourceChatName = sourceChatName
+        self.sourceIsCode = sourceIsCode
         self.repoPath = repoPath
         self.repoBookmark = repoBookmark
         self.updatedAt = updatedAt
@@ -198,6 +213,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, name, kind, goal, neverTouch, stopIf, maxTurns, budgetUSD, effort, intervalMinutes
         case workerModel, verifierEnabled, verifierModel, memoryEnabled, useWorktree
+        case sourceChatID, sourceChatName, sourceIsCode
         case repoPath, repoBookmark, updatedAt, lastRunAt, lastRun
         case lifetimeRuns, lifetimeAccepted, lifetimeCostUSD
     }
@@ -226,6 +242,9 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         verifierModel = ClaudeModel(rawValue: verifierRaw) ?? .haiku45
         memoryEnabled = try c.decodeIfPresent(Bool.self, forKey: .memoryEnabled) ?? true
         useWorktree = try c.decodeIfPresent(Bool.self, forKey: .useWorktree) ?? false
+        sourceChatID = try c.decodeIfPresent(UUID.self, forKey: .sourceChatID)
+        sourceChatName = try c.decodeIfPresent(String.self, forKey: .sourceChatName)
+        sourceIsCode = try c.decodeIfPresent(Bool.self, forKey: .sourceIsCode) ?? false
         repoPath = try c.decodeIfPresent(String.self, forKey: .repoPath)
         repoBookmark = try c.decodeIfPresent(Data.self, forKey: .repoBookmark)
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()

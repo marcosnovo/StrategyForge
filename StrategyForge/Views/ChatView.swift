@@ -443,6 +443,9 @@ struct ChatView: View {
                             kind: advice.loopKind,
                             goal: advice.goalSuggestion,
                             workerModel: advice.model,
+                            sourceChatID: config.id,
+                            sourceChatName: config.name.isEmpty ? loopNameFromSource() : config.name,
+                            sourceIsCode: !(config.repoPath ?? "").isEmpty,
                             repoPath: config.repoPath,
                             repoBookmark: config.repoBookmark)
         LoopStore.shared.addLoop(prefill: plan)
@@ -468,6 +471,9 @@ struct ChatView: View {
             createLoop(from: AdvisorEngine.advise(task: source))
         } else {
             let plan = LoopPlan(name: config.name,
+                                sourceChatID: config.id,
+                                sourceChatName: config.name,
+                                sourceIsCode: !(config.repoPath ?? "").isEmpty,
                                 repoPath: config.repoPath,
                                 repoBookmark: config.repoBookmark)
             LoopStore.shared.addLoop(prefill: plan)
