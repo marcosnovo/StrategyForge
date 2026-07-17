@@ -857,7 +857,8 @@ final class AppModel {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try StrategyPackage.export(config.strategy).write(to: url, options: .atomic)
-            flashSuccess(t("doc.exported"))
+            flashSuccess(t(StrategyPackage.hasRedactableSecrets(config.strategy)
+                           ? "doc.exportedRedacted" : "doc.exported"))
         } catch {
             show(.failure(t("banner.writeFailed", error.localizedDescription)))
         }
@@ -1157,7 +1158,8 @@ final class AppModel {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         Analytics.log(.strategyShared(kind: "text"))
-        flashSuccess(t("team.share.copied"))
+        flashSuccess(t(StrategyPackage.hasRedactableSecrets(team.strategy)
+                       ? "team.share.copiedRedacted" : "team.share.copied"))
     }
 
     /// Export a team to a shareable `.sfstrategy` file.
@@ -1169,7 +1171,8 @@ final class AppModel {
         do {
             try StrategyPackage.export(team.strategy).write(to: url, options: .atomic)
             Analytics.log(.strategyShared(kind: "file"))
-            flashSuccess(t("doc.exported"))
+            flashSuccess(t(StrategyPackage.hasRedactableSecrets(team.strategy)
+                           ? "doc.exportedRedacted" : "doc.exported"))
         } catch {
             show(.failure(t("banner.writeFailed", error.localizedDescription)))
         }

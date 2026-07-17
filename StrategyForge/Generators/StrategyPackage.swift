@@ -5,9 +5,10 @@
 //  A portable, shareable single-strategy document (`.sfstrategy`). This is the
 //  export/import unit for custom strategies and the seed of a future library.
 //
-//  Safe by construction: a Strategy contains ONLY the topology (roles, models,
-//  prompts, tools, counts). Repo paths and security-scoped bookmarks live on
-//  Configuration, never on Strategy — so they can't leak into a shared package.
+//  Repo paths and security-scoped bookmarks live on Configuration, never on Strategy,
+//  so they can't leak. But a Strategy DOES carry MCP server `env` maps, which can hold
+//  API keys / tokens — so every share path here REDACTS those env values (keeping the
+//  keys) before encoding. Nothing else in a Strategy is secret.
 //
 
 import Foundation
@@ -29,11 +30,32 @@ enum StrategyPackage {
         var strategy: Strategy
     }
 
-    /// Encode a strategy to a pretty-printed, shareable document.
+    /// Encode a strategy to a pretty-printed, shareable document — with MCP env secrets
+    /// redacted (see `redactingSecrets`).
     static func export(_ strategy: Strategy) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(Document(schemaVersion: currentVersion, strategy: strategy))
+        return try encoder.encode(Document(schemaVersion: currentVersion, strategy: redactingSecrets(strategy)))
+    }
+
+    /// A copy safe to SHARE: MCP server `env` VALUES (which can hold API keys / tokens)
+    /// are blanked, keeping the keys so an importer knows which vars to fill in. Nothing
+    /// else in a Strategy is secret.
+    static func redactingSecrets(_ strategy: Strategy) -> Strategy {
+        guard strategy.mcpServers.contains(where: { !$0.env.isEmpty }) else { return strategy }
+        var s = strategy
+        s.mcpServers = s.mcpServers.map { server in
+            var m = server
+            m.env = m.env.mapValues { _ in "" }
+            return m
+        }
+        return s
+    }
+
+    /// True when a strategy carries MCP env values that a share would blank — so the UI
+    /// can warn the user before they export/copy it.
+    static func hasRedactableSecrets(_ strategy: Strategy) -> Bool {
+        strategy.mcpServers.contains { $0.env.values.contains { !$0.isEmpty } }
     }
 
     /// Decode a strategy document. Ids are regenerated so an imported strategy can

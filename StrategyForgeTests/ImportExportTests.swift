@@ -100,6 +100,20 @@ struct StrategyPackageTests {
     @Test func importTextRejectsGarbage() {
         #expect((try? StrategyPackage.importText("not a share string!!")) == nil)
     }
+
+    @Test func exportRedactsMcpEnvSecrets() throws {
+        // A strategy carrying an MCP server with an API key in env must NOT leak it when
+        // shared — the export blanks env values (keeping keys) so the recipient refills.
+        var s = StrategyLibrary.solo()
+        s.mcpServers = [McpServer(name: "github", command: "npx",
+                                  args: ["-y", "@modelcontextprotocol/server-github"],
+                                  env: ["GITHUB_TOKEN": "ghp_supersecret"])]
+        #expect(StrategyPackage.hasRedactableSecrets(s))
+        let restored = try StrategyPackage.import(StrategyPackage.export(s))
+        // The key survives (so the importer knows what to set) but the value is gone.
+        #expect(restored.mcpServers.first?.env["GITHUB_TOKEN"] == "")
+        #expect(!StrategyPackage.hasRedactableSecrets(restored))
+    }
 }
 
 struct AutoFixTests {
