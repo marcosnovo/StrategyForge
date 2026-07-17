@@ -22,6 +22,16 @@ enum ClaudeMdGenerator {
 
     // MARK: - Section content
 
+    /// Break any Coral marker that appears inside user-authored content, so a name /
+    /// description containing `<!-- CORAL:END -->` can't prematurely close the managed
+    /// block and corrupt the next merge.
+    static func neutralizeMarkers(_ s: String) -> String {
+        s.replacingOccurrences(of: startMarker, with: "<!-- coral start -->")
+         .replacingOccurrences(of: endMarker, with: "<!-- coral end -->")
+         .replacingOccurrences(of: legacyStartMarker, with: "<!-- sf start -->")
+         .replacingOccurrences(of: legacyEndMarker, with: "<!-- sf end -->")
+    }
+
     /// The StrategyForge-managed section (WITHOUT the markers). This is the part
     /// that gets regenerated on every write.
     static func section(for strategy: Strategy, binary: String = "claude") -> String {
@@ -117,7 +127,9 @@ enum ClaudeMdGenerator {
         out += "- **Orchestrator model is a launch setting**, documented above — not "
         out += "agent frontmatter.\n"
 
-        return out
+        // The section is wrapped in CORAL:START/END markers by the merge; make sure the
+        // body can never contain a real marker (injected via a name/description/notes).
+        return neutralizeMarkers(out)
     }
 
     /// How to delegate *well* — not just that you must. The Task-tool rule above

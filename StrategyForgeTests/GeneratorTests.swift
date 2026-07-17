@@ -274,6 +274,31 @@ struct StrategyValidationTests {
         strategy.roles[1].name = strategy.roles[0].name
         #expect(!strategy.isValid)
     }
+
+    @Test func detectsExpandedNameCollision() {
+        // A "worker" with count 3 writes worker-1…worker-3; a literal "worker-1" writes
+        // the same file — different names, so the plain duplicate check misses it.
+        var strategy = StrategyLibrary.orchestratorWorkers()
+        let orch = strategy.roles.first { $0.isOrchestrator }!
+        strategy.roles = [orch,
+                          AgentRole(name: "worker", role: .worker, model: .haiku45,
+                                    systemPrompt: "", description: "", count: 3),
+                          AgentRole(name: "worker-1", role: .worker, model: .haiku45,
+                                    systemPrompt: "", description: "", count: 1)]
+        #expect(!strategy.isValid)
+        #expect(strategy.validate().contains { $0.message.contains("worker-1.md") })
+    }
+}
+
+struct ClaudeMdMarkerTests {
+    @Test func neutralizesInjectedEndMarker() {
+        // A name/description carrying the end marker must not survive into the section
+        // body (it would prematurely close the managed block on the next merge).
+        var s = StrategyLibrary.solo()
+        s.description = "Sneaky <!-- CORAL:END --> injection"
+        let section = ClaudeMdGenerator.section(for: s)
+        #expect(!section.contains(ClaudeMdGenerator.endMarker))
+    }
 }
 
 struct StrategyWriterTests {

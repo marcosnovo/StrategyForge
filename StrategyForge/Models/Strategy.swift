@@ -169,6 +169,21 @@ extension Strategy {
                 message: "Duplicate role name “\(name)”. Subagent names must be unique."))
         }
 
+        // Expanded-name collisions: a role "worker" with count 3 writes worker-1…worker-3,
+        // and a SEPARATE literal role "worker-1" writes the SAME file — different role
+        // names, same generated `.md`, so one agent is silently lost. Mirror the file
+        // expansion (name-N for count>1, name for count 1) and flag any clash.
+        var expanded: [String: Int] = [:]
+        for role in roles where !role.isOrchestrator {
+            let count = max(role.count, 1)
+            if count == 1 { expanded[role.name, default: 0] += 1 }
+            else { for i in 1...count { expanded["\(role.name)-\(i)", default: 0] += 1 } }
+        }
+        for (name, freq) in expanded where freq > 1 {
+            issues.append(.init(severity: .error,
+                message: "Two subagents both generate “\(name).md” — a numbered role collides with another name. Rename one."))
+        }
+
         // Counts must be positive.
         for role in roles where role.count < 1 {
             issues.append(.init(severity: .error,

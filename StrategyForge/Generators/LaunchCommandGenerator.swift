@@ -18,7 +18,10 @@ enum LaunchCommandGenerator {
     ///   - binary: the `claude` binary name or absolute path (default `claude`).
     static func command(for strategy: Strategy, binary: String = "claude") -> String {
         let model = strategy.orchestrator?.model.rawValue ?? ClaudeModel.fable5.rawValue
-        return "\(binary) --model \(model)"
+        // Quote an absolute binary path that contains spaces so the copyable command
+        // still runs (e.g. "/Users/me/My Tools/claude").
+        let bin = binary.contains(" ") ? "'\(binary.replacingOccurrences(of: "'", with: "'\\''"))'" : binary
+        return "\(bin) --model \(model)"
     }
 
     /// Shell command that stages, commits AND pushes the generated config, so the
