@@ -1749,6 +1749,14 @@ final class AppModel {
             show(.failure(t("banner.needRepo")))
             return false
         }
+        // Never write into the home folder: `.claude/agents/*` there become GLOBAL
+        // subagents for every project on the machine — almost never intended.
+        if url.standardizedFileURL == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL {
+            show(.failure(t("banner.generateHome")))
+            return false
+        }
+        let isGitRepo = FileManager.default.fileExists(
+            atPath: url.appendingPathComponent(".git").path)
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
         do {
@@ -1766,7 +1774,10 @@ final class AppModel {
             Analytics.log(.diffApplied(created: diffs.filter { $0.change == .created }.count,
                                        modified: diffs.filter { $0.change == .modified }.count,
                                        deleted: diffs.filter { $0.change == .deleted }.count))
-            show(.success(t("banner.wrote", written.count, url.lastPathComponent)))
+            // Not a git repo → the generated config won't be versioned (and can't be
+            // shared/committed). Say so, but still generate — it's a valid local setup.
+            show(.success(t(isGitRepo ? "banner.wrote" : "banner.wroteNoGit",
+                            written.count, url.lastPathComponent)))
             return true
         } catch {
             show(.failure(t("banner.writeFailed", error.localizedDescription)))

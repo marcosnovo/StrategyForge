@@ -564,8 +564,13 @@ final class ChatViewModel {
                               repo: String, useMeta: Bool, extraDirs: [String]) {
         // Put the strategy's .claude files in the working folder so the team applies.
         if config.repoPath?.isEmpty ?? true {
-            try? StrategyWriter(repoURL: URL(fileURLWithPath: repo), binary: binary)
-                .write(strategy: config.strategy)
+            do {
+                _ = try StrategyWriter(repoURL: URL(fileURLWithPath: repo), binary: binary)
+                    .write(strategy: config.strategy)
+            } catch {
+                // Scratch-folder write failed → the run would use no/stale team files.
+                DiagnosticsLog.record("Couldn't write scratch team files: \(error.localizedDescription)")
+            }
         } else {
             ensureStrategyFiles()
         }
