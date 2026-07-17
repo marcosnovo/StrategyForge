@@ -42,6 +42,8 @@ struct CodeModeView: View {
     @State private var newBranchName = ""
     // Per-file staging (absolute paths, matching editedFiles)
     @State private var staged: Set<String> = []
+    /// Per-file +insertions / −deletions + change kind, keyed by repo-relative path.
+    @State private var changeStats: [String: CodeGit.ChangedFile] = [:]
 
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
@@ -60,6 +62,7 @@ struct CodeModeView: View {
             if selected == nil { selected = files.first }
             Task { await loadDiff() }
             Task { await loadStaged() }
+            Task { await loadChangeStats() }
             Task {
                 if let repo = vm.config.repoPath {
                     branch = await CodeGit.currentBranch(repo: repo)
@@ -70,6 +73,11 @@ struct CodeModeView: View {
         }
         .onChange(of: vm.editedFiles) { _, new in
             if selected == nil || !(new.contains(selected ?? "")) { selected = new.first }
+            Task { await loadChangeStats() }
+        }
+        // Refresh the +/− once a run settles (the agent finished editing).
+        .onChange(of: vm.isRunning) { _, running in
+            if !running { Task { await loadChangeStats() } }
         }
         .onChange(of: selected) { Task { await loadDiff() } }
         .confirmationDialog(model.t("code.revertConfirm"), isPresented: revertBinding, titleVisibility: .visible) {
@@ -188,13 +196,54 @@ struct CodeModeView: View {
                     Text((path as NSString).lastPathComponent)
                         .font(.sfCaption2.weight(isSel ? .semibold : .regular))
                         .foregroundStyle(isSel ? .primary : .secondary).lineLimit(1).truncationMode(.middle)
-                    Spacer(minLength: 0)
+                    Spacer(minLength: Space.xs)
+                    // Per-file change size + kind — the "how much did each change" signal.
+                    if let s = stat(for: path) {
+                        changeBadge(s)
+                    }
                 }
                 .padding(.horizontal, Space.s).padding(.vertical, 5)
                 .background(RoundedRectangle(cornerRadius: 7).fill(isSel ? Theme.accentSoft : .clear))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    /// A compact "+12 −3" with an M/A/D/U kind letter, so each file shows how much it
+    /// changed at a glance (Claude-style).
+    @ViewBuilder
+    private func changeBadge(_ s: CodeGit.ChangedFile) -> some View {
+        HStack(spacing: 4) {
+            if s.insertions > 0 {
+                Text("+\(s.insertions)").font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.success)
+            }
+            if s.deletions > 0 {
+                Text("−\(s.deletions)").font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.danger)
+            }
+            Text(kindLetter(s.kind))
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .foregroundStyle(kindColor(s.kind))
+                .frame(width: 12, height: 12)
+                .background(RoundedRectangle(cornerRadius: 3).fill(kindColor(s.kind).opacity(0.15)))
+        }
+    }
+
+    private func kindLetter(_ k: CodeGit.ChangedFile.Kind) -> String {
+        switch k {
+        case .modified: return "M"
+        case .added, .untracked: return "A"
+        case .deleted: return "D"
+        case .renamed: return "R"
+        }
+    }
+    private func kindColor(_ k: CodeGit.ChangedFile.Kind) -> Color {
+        switch k {
+        case .modified, .renamed: return Theme.accent
+        case .added, .untracked: return Theme.success
+        case .deleted: return Theme.danger
         }
     }
 
@@ -210,6 +259,23 @@ struct CodeModeView: View {
     private func loadStaged() async {
         guard let repo = vm.config.repoPath else { staged = []; return }
         staged = await CodeGit.stagedFiles(repo: repo)
+    }
+
+    private func loadChangeStats() async {
+        guard let repo = vm.config.repoPath else { changeStats = [:]; return }
+        let files = await CodeGit.changedFiles(repo: repo)
+        changeStats = Dictionary(files.map { ($0.path, $0) }, uniquingKeysWith: { a, _ in a })
+    }
+
+    /// The git +/− stats for an absolute file path (matches on the repo-relative tail,
+    /// falling back to the filename so agent-reported paths still line up).
+    private func stat(for absPath: String) -> CodeGit.ChangedFile? {
+        if let repo = vm.config.repoPath, absPath.hasPrefix(repo) {
+            let rel = String(absPath.dropFirst(repo.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            if let hit = changeStats[rel] { return hit }
+        }
+        let name = (absPath as NSString).lastPathComponent
+        return changeStats.values.first { ($0.path as NSString).lastPathComponent == name }
     }
 
     private var emptyFiles: some View {

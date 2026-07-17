@@ -235,6 +235,66 @@ enum CodeGit {
         }.value
     }
 
+    // MARK: - Changed files (list + per-file +/−)
+
+    /// One changed file in the working tree, with its insertions/deletions vs HEAD and
+    /// what kind of change it is — for a Claude-style "files changed" list.
+    struct ChangedFile: Identifiable, Hashable {
+        enum Kind: String { case modified, added, deleted, untracked, renamed }
+        var id: String { path }
+        let path: String        // repo-relative
+        let insertions: Int
+        let deletions: Int
+        let kind: Kind
+    }
+
+    /// Every changed file in `repo` (working tree + index vs HEAD, plus untracked), each
+    /// with +insertions / −deletions and a change kind. `git diff HEAD --numstat` gives
+    /// the counts for tracked files; `status --porcelain` supplies the kind and untracked
+    /// files (whose lines we count directly, since they're not in the diff yet).
+    nonisolated static func changedFiles(repo: String) async -> [ChangedFile] {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return [] }
+            var stats: [String: (add: Int, del: Int)] = [:]
+            let numstat = runResult(git, ["-C", repo, "diff", "HEAD", "--numstat"])
+            if numstat.ok {
+                for line in numstat.out.split(separator: "\n") {
+                    let p = line.split(separator: "\t", maxSplits: 2).map(String.init)
+                    guard p.count == 3 else { continue }
+                    // Binary files show "-" for the counts → treat as 0.
+                    stats[p[2]] = (Int(p[0]) ?? 0, Int(p[1]) ?? 0)
+                }
+            }
+            let porcelain = runResult(git, ["-C", repo, "status", "--porcelain"])
+            guard porcelain.ok else { return [] }
+            var files: [ChangedFile] = []
+            for raw in porcelain.out.split(separator: "\n") {
+                let line = String(raw)
+                guard line.count > 3 else { continue }
+                let xy = String(line.prefix(2))
+                var path = String(line.dropFirst(3))
+                if let arrow = path.range(of: " -> ") { path = String(path[arrow.upperBound...]) }  // renamed
+                path = path.trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
+                guard !path.isEmpty else { continue }
+                let kind: ChangedFile.Kind
+                if xy == "??" { kind = .untracked }
+                else if xy.contains("R") { kind = .renamed }
+                else if xy.contains("D") { kind = .deleted }
+                else if xy.contains("A") { kind = .added }
+                else { kind = .modified }
+                var (add, del) = stats[path] ?? (0, 0)
+                if kind == .untracked, add == 0, del == 0 {
+                    let full = (repo as NSString).appendingPathComponent(path)
+                    if let content = try? String(contentsOfFile: full, encoding: .utf8), !content.isEmpty {
+                        add = content.split(separator: "\n", omittingEmptySubsequences: false).count
+                    }
+                }
+                files.append(ChangedFile(path: path, insertions: add, deletions: del, kind: kind))
+            }
+            return files.sorted { $0.path < $1.path }
+        }.value
+    }
+
     // MARK: - Worktree isolation (loops)
 
     /// Add a git worktree at `path` on a new `branch` off the repo's HEAD. Used to run
