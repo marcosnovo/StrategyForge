@@ -254,12 +254,11 @@ final class AppModel {
         didSet { if showActivity != oldValue { settings.showActivity = showActivity; save(stamp: false) } }
     }
 
-    /// Transient banner shown after actions.
-    enum Banner: Equatable {
-        case success(String)
-        case failure(String)
-    }
-    var banner: Banner?
+    /// The banner state + auto-dismiss now lives in BannerCenter (#35 extraction); these
+    /// forwarders keep every existing call site (`model.banner`, `flashSuccess`, …) working.
+    let bannerCenter = BannerCenter()
+    typealias Banner = BannerCenter.Banner
+    var banner: Banner? { bannerCenter.banner }
 
     /// Live security-scoped URLs from this session's folder pickers, keyed by the
     /// owning configuration id. Avoids re-resolving bookmarks mid-session. This is
@@ -268,9 +267,6 @@ final class AppModel {
     /// state mid-render.
     @ObservationIgnored
     private var liveRepoURLs: [Configuration.ID: URL] = [:]
-
-    /// Token used to cancel a pending auto-dismiss when a new banner appears.
-    @ObservationIgnored private var bannerDismissTask: Task<Void, Never>?
 
     // MARK: - Chat run lifetime (AppModel-owned VM cache)
 
@@ -491,18 +487,14 @@ final class AppModel {
     // MARK: - Banner helper
 
     /// Public helper for views to show an auto-dismissing success banner.
-    func flashSuccess(_ message: String) { show(.success(message)) }
+    func flashSuccess(_ message: String) { bannerCenter.success(message) }
 
-    /// Public helper for views/services to show a sticky failure banner. Every
-    /// failure is also written to the diagnostics log so it can be exported later.
-    func flashFailure(_ message: String) {
-        DiagnosticsLog.record(message)
-        show(.failure(message))
-    }
+    /// Public helper for views/services to show a sticky failure banner (also logged).
+    func flashFailure(_ message: String) { bannerCenter.failure(message) }
 
     /// True while the current banner is a failure — the capsule then offers the
     /// "Export log" / "Fix" actions.
-    var bannerIsFailure: Bool { if case .failure = banner { return true } else { return false } }
+    var bannerIsFailure: Bool { bannerCenter.isFailure }
 
     /// Save the diagnostics log to a user-chosen file (for sharing when something
     /// went wrong). Shared by Settings and the failure banner.
@@ -529,31 +521,11 @@ final class AppModel {
     }
 
     /// Dismiss the current banner (the capsule's close button).
-    func dismissBanner() {
-        withAnimation {
-            banner = nil
-            bannerDismissTask?.cancel()
-        }
-    }
+    func dismissBanner() { bannerCenter.dismiss() }
 
-    /// Show a banner and always schedule its auto-dismiss — success after a few seconds,
-    /// failures after a longer window (long enough to read + hit Fix/Export, short enough
-    /// that a stuck error banner never lingers reading as "the app is frozen"). The ✕
-    /// still dismisses either immediately.
+    /// Forwarder so AppModel's own `show(.success/.failure(...))` call sites are unchanged.
     private func show(_ banner: Banner) {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            self.banner = banner
-        }
-        bannerDismissTask?.cancel()
-        let delay: Duration = { if case .success = banner { return .seconds(4) } else { return .seconds(12) } }()
-        bannerDismissTask = Task { @MainActor in
-            try? await Task.sleep(for: delay)
-            if self.banner == banner {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    self.banner = nil
-                }
-            }
-        }
+        bannerCenter.show(banner)
     }
 
     // MARK: - Selection helpers
