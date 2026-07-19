@@ -199,3 +199,7 @@ o dime qué ajustar. Todos son fáciles de revertir.
 **Sellos nuevos (del artículo):**
 - [ ] Editor de loop con verificador activado: aparece el sello **"Comprobación independiente"**.
 - [ ] Rol (subagente) → toggle **"Memoria persistente"**; al generar, se crea `.claude/memory/<agente>.md`.
+
+**#41 — Undo de borrado:**
+- [ ] Borra un chat → aparece banner **"Chat eliminado" + "Deshacer"** ~10s. Pulsa Deshacer → el chat
+  vuelve con su historial. Si esperas 10s, se borra de verdad.
