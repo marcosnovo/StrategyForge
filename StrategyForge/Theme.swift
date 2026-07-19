@@ -67,6 +67,10 @@ enum Theme {
     static let focusGlow = Theme.accent.opacity(0.18)
 
     /// Readable text/foreground to place ON a solid accent (coral) fill.
+    /// Contrast rule (WCAG AA): any fill that carries `onAccent` (white) text — the coral
+    /// gradients below, `success`/`danger` when filled — must keep white ≥ 4.5:1 across the
+    /// WHOLE fill, including a gradient's lightest stop. The coral gradients were darkened
+    /// from #FF8A6E (only ~2.3:1 with white) to meet this.
     static let onAccent = Color.white
 
     /// Primary/body text — warm "ink" (identity), instead of cool system black/gray.
@@ -79,15 +83,16 @@ enum Theme {
 
     /// Primary button fill — the identity CTA gradient (158°, coral-lo → coral-hi).
     static let primaryFill = LinearGradient(
-        colors: [Color(red: 1.000, green: 0.541, blue: 0.431),   // #FF8A6E coral-lo
-                 Color(red: 0.941, green: 0.243, blue: 0.153)],  // #F03E27 coral-hi
+        colors: [Color(red: 0.835, green: 0.235, blue: 0.141),   // #D53C24 coral-lo (white 4.6:1)
+                 Color(red: 0.784, green: 0.196, blue: 0.110)],  // #C8321C coral-hi (white 5.2:1)
         startPoint: .topLeading, endPoint: .bottomTrailing)
 
     /// Vivid coral gradient for the user's chat bubble — the reference's bold pill,
-    /// rendered in the Coral identity instead of blue/purple. White text sits on it.
+    /// rendered in the Coral identity instead of blue/purple. White text sits on it, so
+    /// both stops keep white ≥ 4.5:1 (see the onAccent contrast rule above).
     static let userBubbleFill = LinearGradient(
-        colors: [Color(red: 1.000, green: 0.502, blue: 0.400),   // #FF8066 coral-lo
-                 Color(red: 0.898, green: 0.220, blue: 0.145)],  // #E53825 coral-hi
+        colors: [Color(red: 0.835, green: 0.235, blue: 0.141),   // #D53C24 coral-lo (white 4.6:1)
+                 Color(red: 0.761, green: 0.188, blue: 0.102)],  // #C2301A coral-hi (white 5.5:1)
         startPoint: .topLeading, endPoint: .bottomTrailing)
 
     // MARK: Surfaces — near-white (a whisper of warmth) in light, "reef ink" in dark
@@ -126,7 +131,7 @@ enum Theme {
 
     // MARK: Status (aligned to the Coral identity)
     static let success = Color(
-        light: Color(red: 0.208, green: 0.690, blue: 0.416),   // #35B06A green
+        light: Color(red: 0.090, green: 0.518, blue: 0.263),   // #178443 (was #35B06A ≈2.5:1 as text)
         dark:  Color(red: 0.306, green: 0.796, blue: 0.557))   // #4ECB8E
     static let warning = Color(
         light: Color(red: 0.898, green: 0.631, blue: 0.227),   // #E5A13A amber
