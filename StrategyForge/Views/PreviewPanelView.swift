@@ -93,13 +93,22 @@ struct FilePreviewSheet: View {
             }
             .padding(.horizontal, Space.l).padding(.top, Space.m)
 
-            Picker("", selection: Binding(get: { effective }, set: { selectedFile = $0 })) {
-                ForEach(diffs) { diff in
-                    Text(diff.displayName).tag(Optional(diff.id))
+            // A segmented control crams unreadably with a large team (10–20 files);
+            // past 6, switch to a dropdown menu that stays legible.
+            Group {
+                let picker = Picker("", selection: Binding(get: { effective }, set: { selectedFile = $0 })) {
+                    ForEach(diffs) { diff in
+                        Text(diff.displayName).tag(Optional(diff.id))
+                    }
+                }
+                .labelsHidden()
+                if diffs.count > 6 {
+                    picker.pickerStyle(.menu).fixedSize()
+                } else {
+                    picker.pickerStyle(.segmented)
                 }
             }
-            .labelsHidden()
-            .pickerStyle(.segmented)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Space.l)
 
             if let current {
