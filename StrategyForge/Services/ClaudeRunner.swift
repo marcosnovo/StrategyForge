@@ -293,10 +293,18 @@ enum ClaudeRunner {
             process.standardOutput = stdout
             process.standardError = stderr
 
+            // Inactivity watchdog: an unattended loop can wedge on a hung turn and sit
+            // forever holding the user's plan. Terminate after a long silence — reset by
+            // any output, so a legit long tool run (a multi-minute test) is safe.
+            let watchdog = InactivityWatchdog(timeout: 600) { [weak process] in
+                if process?.isRunning == true { process?.terminate() }
+            }
+
             let buffer = LineBuffer()
             stdout.fileHandleForReading.readabilityHandler = { handle in
                 let data = handle.availableData
                 guard !data.isEmpty else { handle.readabilityHandler = nil; return }
+                watchdog.bump()
                 for line in buffer.append(data) {
                     for event in ClaudeStreamParser.events(from: line) {
                         continuation.yield(event)
@@ -311,11 +319,13 @@ enum ClaudeRunner {
             stderr.fileHandleForReading.readabilityHandler = { handle in
                 let data = handle.availableData
                 guard !data.isEmpty else { handle.readabilityHandler = nil; return }
+                watchdog.bump()
                 errBuffer.append(data)
             }
 
             process.terminationHandler = { proc in
                 LiveProcesses.deregister(proc)
+                watchdog.cancel()
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
                 // The readability handlers race with termination and can miss the
@@ -327,7 +337,11 @@ enum ClaudeRunner {
                 for line in lines {
                     for event in ClaudeStreamParser.events(from: line) { continuation.yield(event) }
                 }
-                if proc.terminationStatus != 0 {
+                if watchdog.didFire {
+                    // The watchdog killed a wedged turn — say so plainly rather than
+                    // reporting it as a generic SIGTERM exit.
+                    continuation.yield(.failed("The turn stalled with no output for 10 minutes and was stopped."))
+                } else if proc.terminationStatus != 0 {
                     errBuffer.append(drainPipe(stderr.fileHandleForReading))
                     let errText = String(data: errBuffer.contents(), encoding: .utf8) ?? ""
                     let trimmed = errText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -340,6 +354,7 @@ enum ClaudeRunner {
 
             continuation.onTermination = { _ in
                 // Break the read handlers' hold on the continuation, then stop claude.
+                watchdog.cancel()
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
                 if process.isRunning { process.terminate() }
@@ -348,6 +363,7 @@ enum ClaudeRunner {
             do {
                 try process.run()
                 LiveProcesses.register(process)   // terminated on app quit, not orphaned
+                watchdog.start()                  // begin the idle clock only once it's live
             } catch {
                 // Most commonly: App Sandbox is on, or `claude` isn't found.
                 continuation.yield(.failed(error.localizedDescription))
@@ -625,6 +641,53 @@ private final class ByteBuffer: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         return buffer
     }
+}
+
+/// Fires `onTimeout` when no output has arrived for `timeout` seconds — an INACTIVITY
+/// watchdog, not a total cap: every `bump()` (from a stdout/stderr read) resets the
+/// clock, so a legitimately long turn (a multi-minute test/build with a quiet CLI
+/// stream) is never killed; only genuine silence — a hung, wedged turn — trips it.
+/// The window is deliberately generous (10 min) for exactly that reason.
+private final class InactivityWatchdog: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "com.marcosnovo.coral.runner.watchdog")
+    private let timeout: TimeInterval
+    private let onTimeout: () -> Void
+    private let lock = NSLock()
+    private var lastActivity = DispatchTime.now()
+    private var timer: DispatchSourceTimer?
+    private var fired = false
+
+    init(timeout: TimeInterval, onTimeout: @escaping () -> Void) {
+        self.timeout = timeout
+        self.onTimeout = onTimeout
+    }
+
+    func start() {
+        let t = DispatchSource.makeTimerSource(queue: queue)
+        // Poll at half the window so the worst-case detection lag is timeout×1.5.
+        t.schedule(deadline: .now() + timeout, repeating: timeout / 2)
+        t.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.lock.lock()
+            let idleNs = DispatchTime.now().uptimeNanoseconds &- self.lastActivity.uptimeNanoseconds
+            let already = self.fired
+            if !already && Double(idleNs) / 1_000_000_000 >= self.timeout { self.fired = true }
+            let shouldFire = !already && self.fired
+            self.lock.unlock()
+            if shouldFire { self.onTimeout() }
+        }
+        timer = t
+        t.resume()
+    }
+
+    func bump() {
+        lock.lock(); lastActivity = .now(); lock.unlock()
+    }
+
+    /// Whether the watchdog (not the user/CLI) is what stopped the run.
+    var didFire: Bool { lock.lock(); defer { lock.unlock() }; return fired }
+
+    func cancel() { timer?.cancel(); timer = nil }
 }
 
 /// Accumulates streamed bytes and emits complete lines. Thread-safe: the process
