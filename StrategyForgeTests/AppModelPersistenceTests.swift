@@ -52,6 +52,19 @@ struct AppModelPersistenceTests {
         }
     }
 
+    @Test func savedTeamsRoundTripThroughTheLibrary() throws {
+        try withTempDir { dir in
+            let model = AppModel(storeDirectory: dir)
+            let team = SavedTeam(name: "My preset", strategy: StrategyLibrary.researchFanout())
+            model.savedTeams.append(team)                 // writes through TeamLibrary
+            #expect(model.teamLibrary.teams.contains { $0.id == team.id })
+            model.save(stamp: false, sync: true)
+
+            let reloaded = AppModel(storeDirectory: dir)
+            #expect(reloaded.savedTeams.contains { $0.name == "My preset" })
+        }
+    }
+
     @Test func corruptStoreIsBackedUpNotFatal() throws {
         try withTempDir { dir in
             // A garbage data.json must not crash load; the model just starts empty and

@@ -32,15 +32,28 @@ final class AppModel {
     var selectedConfigID: Configuration.ID?
     var settings = AppSettings()
 
+    /// The team collection lives in TeamLibrary (#35 phase 3); these forwarders keep every
+    /// call site (`savedTeams`, `selectedTeamID`, `draftTeam`, incl. `savedTeams[i].x = y`)
+    /// working, and data.json still co-persists the teams via `savedTeams` below.
+    let teamLibrary = TeamLibrary()
     /// Global library of named team presets, reusable across chats.
-    var savedTeams: [SavedTeam] = []
+    var savedTeams: [SavedTeam] {
+        get { teamLibrary.teams }
+        set { teamLibrary.teams = newValue }
+    }
     /// The team currently open in the Team section (independent of the selected chat).
-    var selectedTeamID: SavedTeam.ID?
+    var selectedTeamID: SavedTeam.ID? {
+        get { teamLibrary.selectedID }
+        set { teamLibrary.selectedID = newValue }
+    }
 
     /// A team being configured but NOT yet saved: picking a strategy opens this
     /// draft in the editor; it only joins `savedTeams` when the user hits "Create".
     /// Navigating away with a draft prompts a discard confirmation.
-    var draftTeam: SavedTeam?
+    var draftTeam: SavedTeam? {
+        get { teamLibrary.draft }
+        set { teamLibrary.draft = newValue }
+    }
     /// A pending navigation deferred while the discard-draft confirmation is shown.
     @ObservationIgnored private var pendingLeave: (() -> Void)?
     /// Drives the "discard this draft team?" confirmation.
