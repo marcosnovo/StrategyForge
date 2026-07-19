@@ -60,6 +60,16 @@ enum LoopFileGenerator {
         out += "## Done when\n\n"
         out += (goal.isEmpty ? "(a condition that can be checked mechanically — tests, grep, build output; not vibes)" : goal) + "\n\n"
 
+        // The Goodhart guardrail: a PASS also requires these counter-conditions to hold,
+        // so the loop can't "win" by gaming its goal (loops-to-graphs). Only emitted when set.
+        let mustHold = plan.mustHold.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !mustHold.isEmpty {
+            out += "## Must still hold\n\n"
+            out += "A PASS requires the goal above AND all of these still true — if any is "
+            out += "violated, the verdict is FAIL even when \"Done when\" looks met:\n\n"
+            out += bulleted(mustHold, ifEmpty: "") + "\n\n"
+        }
+
         out += "## Never touch\n\n"
         out += bulleted(plan.neverTouch, ifEmpty: "- (nothing listed)") + "\n\n"
 
@@ -166,10 +176,18 @@ enum LoopFileGenerator {
         fm += "\(AgentFileGenerator.managedSignature)\n"
         fm += "---\n"
 
+        // When a counter-condition ("## Must still hold") is set, the verifier must check
+        // it too — a Goodhart guardrail so a goal met the cheap way still FAILs.
+        let mustHoldClause = plan.mustHold.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? ""
+            : " Then check '## Must still hold': if LOOP.md lists it and ANY item is "
+              + "violated, the verdict is FAIL even if 'Done when' is met — a goal reached by "
+              + "gaming it (deleting tests, weakening rules) is not a PASS."
+
         let body = """
 
         You are an independent verifier. Read LOOP.md. Judge ONLY the artifact against
-        '## Done when'. You did not write this work; do not trust its reasoning.
+        '## Done when'. You did not write this work; do not trust its reasoning.\(mustHoldClause)
 
         Reply with exactly `VERDICT: PASS` or `VERDICT: FAIL` on the first line, then
         bullet reasons. Never propose fixes. Never be polite.

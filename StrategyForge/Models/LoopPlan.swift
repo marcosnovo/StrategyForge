@@ -93,6 +93,11 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     var neverTouch: String
     /// Extra stop conditions beyond the turn limit. May be empty.
     var stopIf: String
+    /// The "but never" counter-condition — a Goodhart guardrail (loops-to-graphs).
+    /// A PASS requires the goal met AND this still holding, so the loop can't win the
+    /// cheap way by gaming its own goal (e.g. goal "tests pass" + mustHold "no test was
+    /// deleted or skipped"). The independent verifier checks it too. May be empty.
+    var mustHold: String
     /// Hard emergency brake. Clamped to 1...100 on init/decode.
     var maxTurns: Int
     /// Optional spend cap in USD for a goal loop's `loop.sh`: it tallies each turn's
@@ -161,6 +166,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         goal: String = "",
         neverTouch: String = "",
         stopIf: String = "",
+        mustHold: String = "",
         maxTurns: Int = 20,
         budgetUSD: Double? = nil,
         effort: CostEffort = .medium,
@@ -188,6 +194,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         self.goal = goal
         self.neverTouch = neverTouch
         self.stopIf = stopIf
+        self.mustHold = mustHold
         self.maxTurns = Self.clampTurns(maxTurns)
         self.budgetUSD = budgetUSD.map { max(0, $0) }
         self.effort = effort
@@ -211,7 +218,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, goal, neverTouch, stopIf, maxTurns, budgetUSD, effort, intervalMinutes
+        case id, name, kind, goal, neverTouch, stopIf, mustHold, maxTurns, budgetUSD, effort, intervalMinutes
         case workerModel, verifierEnabled, verifierModel, memoryEnabled, useWorktree
         case sourceChatID, sourceChatName, sourceIsCode
         case repoPath, repoBookmark, updatedAt, lastRunAt, lastRun
@@ -230,6 +237,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         goal = try c.decodeIfPresent(String.self, forKey: .goal) ?? ""
         neverTouch = try c.decodeIfPresent(String.self, forKey: .neverTouch) ?? ""
         stopIf = try c.decodeIfPresent(String.self, forKey: .stopIf) ?? ""
+        mustHold = try c.decodeIfPresent(String.self, forKey: .mustHold) ?? ""
         maxTurns = Self.clampTurns(try c.decodeIfPresent(Int.self, forKey: .maxTurns) ?? 20)
         budgetUSD = (try? c.decodeIfPresent(Double.self, forKey: .budgetUSD) ?? nil).map { max(0, $0) }
         let effortRaw = ((try? c.decodeIfPresent(String.self, forKey: .effort)) ?? nil) ?? ""

@@ -159,6 +159,41 @@ struct LoopFileGeneratorTests {
         #expect(loopMd.contains("Read STATE.md before starting. Update STATE.md before finishing."))
     }
 
+    @Test func mustHoldGuardrailAppearsInLoopMdAndVerifier() {
+        var plan = makePlan()
+        plan.mustHold = "no test was deleted or skipped\ncoverage did not drop"
+        let files = LoopFileGenerator.generate(for: plan)
+        let loopMd = files.first { $0.relativePath == "LOOP.md" }!.contents
+        // The counter-conditions land under a dedicated section, as bullets.
+        #expect(loopMd.contains("## Must still hold"))
+        #expect(loopMd.contains("- no test was deleted or skipped"))
+        #expect(loopMd.contains("- coverage did not drop"))
+        // The verifier is told to FAIL a gamed goal.
+        let verifier = files.first { $0.relativePath == ".claude/agents/loop-verifier.md" }!.contents
+        #expect(verifier.contains("## Must still hold"))
+        #expect(verifier.contains("FAIL even if 'Done when' is met"))
+    }
+
+    @Test func noMustHoldSectionWhenEmpty() {
+        let files = LoopFileGenerator.generate(for: makePlan())   // mustHold defaults to ""
+        let loopMd = files.first { $0.relativePath == "LOOP.md" }!.contents
+        #expect(!loopMd.contains("## Must still hold"))
+        let verifier = files.first { $0.relativePath == ".claude/agents/loop-verifier.md" }!.contents
+        #expect(!verifier.contains("Must still hold"))
+    }
+
+    @Test func mustHoldDecodesTolerantlyAndDefaultsEmpty() throws {
+        // A plan JSON without mustHold (older version) decodes with an empty guardrail.
+        let json = #"{"name":"L","goal":"g"}"#
+        let plan = try JSONDecoder().decode(LoopPlan.self, from: Data(json.utf8))
+        #expect(plan.mustHold == "")
+        // Round-trips when set.
+        var withGuard = plan
+        withGuard.mustHold = "x holds"
+        let round = try JSONDecoder().decode(LoopPlan.self, from: JSONEncoder().encode(withGuard))
+        #expect(round.mustHold == "x holds")
+    }
+
     @Test func timeBasedLoopMdIncludesCronLine() {
         var plan = makePlan(kind: .timeBased)
         plan.intervalMinutes = 30
