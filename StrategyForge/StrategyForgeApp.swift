@@ -11,6 +11,14 @@ import AppKit
 /// Terminates any live child CLI processes on quit so a running chat/loop subprocess is
 /// never orphaned (it would otherwise survive the app and keep burning the user's plan).
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Local-only crash/hang reporting: MetricKit delivers last run's diagnostics
+        // now, and CrashReporter summarizes them into the exportable DiagnosticsLog.
+        #if canImport(MetricKit)
+        CrashReporter.shared.start()
+        #endif
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         LiveProcesses.terminateAll()
     }

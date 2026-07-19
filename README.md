@@ -75,7 +75,9 @@ Coral drives each provider's own CLI on your subscription login:
 
 The app can **install** missing CLIs for you (Connect → Install) and sign you in without
 leaving the app. Nothing is sent to Coral's servers; token counts come from each CLI's
-local logs, and Claude's plan % from your Claude Code login.
+local logs, and Claude's plan % from your Claude Code login. Crash and hang diagnostics
+(via MetricKit) are summarized into a local, exportable log and **stay on your Mac** —
+there is no automatic upload and no analytics backend.
 
 ## Requirements & distribution
 
