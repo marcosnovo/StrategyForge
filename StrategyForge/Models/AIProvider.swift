@@ -95,6 +95,24 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Version this Coral release pins each CLI to, as a supply-chain guard: a bare
+    /// `npm install -g <pkg>` resolves `@latest`, so a compromised newest publish would
+    /// run on the user's machine with no gate. Pinning to a version we've vetted for a
+    /// given Coral release closes that window. Empty string = unpinned (track latest);
+    /// bump these per release once a new CLI version is vetted.
+    static let pinnedCLIVersions: [AIProvider: String] = [
+        .claude: "",
+        .openai: "",
+        .gemini: "",
+    ]
+
+    /// The exact `npm install -g` spec: the package, plus a pinned `@version` when this
+    /// release vets one (see `pinnedCLIVersions`). Falls back to the bare package.
+    var npmInstallSpec: String {
+        let pin = (Self.pinnedCLIVersions[self] ?? "").trimmingCharacters(in: .whitespaces)
+        return pin.isEmpty ? npmPackage : "\(npmPackage)@\(pin)"
+    }
+
     /// The command that starts the provider's browser sign-in with the user's
     /// subscription account (run in Terminal so the OAuth flow completes normally).
     var loginCommand: String {

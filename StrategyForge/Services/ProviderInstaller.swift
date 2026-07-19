@@ -69,7 +69,7 @@ enum ProviderInstaller {
 
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: npm)
-                process.arguments = ["install", "-g", "--prefix", prefix, provider.npmPackage]
+                process.arguments = ["install", "-g", "--prefix", prefix, provider.npmInstallSpec]
 
                 var env = ProcessInfo.processInfo.environment
                 let binDir = (npm as NSString).deletingLastPathComponent
@@ -274,7 +274,12 @@ enum ProviderInstaller {
     /// a real TTY), then the app re-detects the connected CLI.
     @MainActor
     static func launchSignIn(_ provider: AIProvider) {
+        // Escape the command for embedding in an AppleScript string literal: backslashes
+        // first, then double quotes. loginCommand is a constant today, but escaping keeps
+        // this safe if it ever carries a path or flag with a quote.
         let cmd = provider.loginCommand
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
         let script = "tell application \"Terminal\" to do script \"\(cmd)\"\n" +
                      "tell application \"Terminal\" to activate"
         let osa = Process()
