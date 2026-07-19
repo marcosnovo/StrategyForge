@@ -177,7 +177,7 @@ struct MetaOrchestratorRunTests {
 
         // Usage is emitted as a per-step DELTA (so the live counter climbs during the
         // run, not just at the end) — one event per call, summing to the total.
-        let usageDeltas = box.events.compactMap { if case .usage(let t, let c) = $0 { return (t, c) } else { return nil } }
+        let usageDeltas = box.events.compactMap { if case .usage(let t, let c, _) = $0 { return (t, c) } else { return nil } }
         #expect(usageDeltas.count == 4)
         #expect(usageDeltas.reduce(0) { $0 + $1.0 } == 40)
         #expect(abs(usageDeltas.reduce(0.0) { $0 + $1.1 } - 0.04) < 0.0001)
@@ -196,5 +196,28 @@ struct MetaOrchestratorRunTests {
                                                runner: runner) { box.append($0) }
         #expect(final == "result:claude-opus-4-8")
         #expect(runner.calls.count == 1)   // no plan/synthesize, just one answer
+    }
+}
+
+struct ProviderUsageEstimateTests {
+
+    @Test func estimatesTokensFromTextLength() {
+        // ~4 chars/token across prompt + output.
+        let n = estimateTokens(prompt: String(repeating: "a", count: 400),
+                               output: String(repeating: "b", count: 400))
+        #expect(n == 200)
+        // Never zero, even for empty text.
+        #expect(estimateTokens(prompt: "", output: "") == 1)
+    }
+
+    @Test func estimatedCostUsesRealPriceWhenKnown() {
+        // A Claude model has a real price → blended (input+output)/2 per M.
+        let cost = CLIOneShotRunner.estimatedCostUSD(tokens: 1_000_000, model: "claude-sonnet-5")
+        #expect(cost == (3.0 + 15.0) / 2)   // blended per-M for 1M tokens
+    }
+
+    @Test func estimatedCostFallsBackForUnknownModel() {
+        let cost = CLIOneShotRunner.estimatedCostUSD(tokens: 1_000_000, model: "some-codex-model")
+        #expect(cost == Constants.CostModel.estimatedBlendedFallbackPerM)
     }
 }

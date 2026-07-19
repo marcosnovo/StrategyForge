@@ -309,6 +309,10 @@ final class ChatViewModel {
     /// Running token total + cost for this chat, grows per turn.
     var totalTokens = 0
     var totalCostUSD = 0.0
+    /// True once any usage in this chat was ESTIMATED (a cross-provider CLI that reports
+    /// no real token count — Codex plain output, Gemini), so the UI can prefix cost/tokens
+    /// with "~" instead of implying an exact figure.
+    var costEstimated = false
 
     /// Whether a Claude Code session already exists in the repo (→ use `--continue`).
     private var hasSession = false
@@ -903,9 +907,10 @@ final class ChatViewModel {
             narrationStepSince = nil
             if messages.indices.contains(assistantIndex) { messages[assistantIndex].text = text }
             persistStreaming()
-        case .usage(let tokens, let cost):
+        case .usage(let tokens, let cost, let estimated):
             totalTokens += tokens
             totalCostUSD += cost
+            if estimated { costEstimated = true }
             persistUsage(totalTokens, totalCostUSD)
         case .failed(let message):
             DiagnosticsLog.record(message)

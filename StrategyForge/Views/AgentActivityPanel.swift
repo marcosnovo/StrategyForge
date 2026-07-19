@@ -205,8 +205,8 @@ struct AgentActivityPanel: View {
                         stat("clock", elapsed(from: start, to: ctx.date))
                     }
                 }
-                if vm.totalTokens > 0 { stat("circle.hexagongrid", formatTokens(vm.totalTokens)) }
-                if vm.totalCostUSD > 0 { stat("dollarsign.circle", String(format: "$%.2f", vm.totalCostUSD)) }
+                if vm.totalTokens > 0 { stat("circle.hexagongrid", (vm.costEstimated ? "~" : "") + formatTokens(vm.totalTokens)) }
+                if vm.totalCostUSD > 0 { stat("dollarsign.circle", String(format: "\(vm.costEstimated ? "~" : "")$%.2f", vm.totalCostUSD)) }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -295,10 +295,11 @@ struct AgentActivityPanel: View {
                     .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
                 Spacer(minLength: Space.xs)
                 if vm.totalCostUSD > 0 {
-                    Text(String(format: "$%.2f", vm.totalCostUSD))
+                    Text(String(format: "\(vm.costEstimated ? "~" : "")$%.2f", vm.totalCostUSD))
                         .font(.sfMono).foregroundStyle(.primary)
                         .contentTransition(.numericText())
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: vm.totalCostUSD)
+                        .help(vm.costEstimated ? model.t("usage.estimated.help") : "")
                 }
             }
             // This chat's live tokens as a % of the 5-hour window + week — its own line

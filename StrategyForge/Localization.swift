@@ -1351,6 +1351,8 @@ enum L10n {
         "sync.unavailable": ("iCloud isn't available. Sign into iCloud in System Settings to sync.", "iCloud no está disponible. Inicia sesión en iCloud en Ajustes del sistema para sincronizar."),
         "sync.done": ("Synced %lld configurations.", "Sincronizadas %lld configuraciones."),
         "sync.failed": ("Sync failed: %@", "Falló la sincronización: %@"),
+        "usage.estimated.help": ("Estimated — this provider's CLI doesn't report exact token usage, so tokens and cost are approximated from the text length.",
+                                 "Estimado — el CLI de este proveedor no informa del uso exacto de tokens, así que tokens y coste se aproximan por la longitud del texto."),
         "sync.conflictSuffix": ("(conflict)", "(conflicto)"),
         "sync.conflictKept": ("%lld chat edited on two Macs at once — your local version was kept as a “(conflict)” copy.",
                               "%lld chat editado en dos Macs a la vez — tu versión local se conservó como copia «(conflicto)»."),

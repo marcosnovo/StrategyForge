@@ -648,9 +648,10 @@ struct ChatView: View {
             HStack(spacing: 6) {
                 ContextWeightPill(tokens: vm.totalTokens)
                 if vm.totalCostUSD > 0 {
-                    Text(String(format: "$%.2f", vm.totalCostUSD))
+                    Text(String(format: "\(vm.costEstimated ? "~" : "")$%.2f", vm.totalCostUSD))
                         .font(.sfCaption2)
                         .foregroundStyle(.secondary)
+                        .help(vm.costEstimated ? model.t("usage.estimated.help") : "")
                 }
             }
             // Mission report — the shareable summary of the finished run.

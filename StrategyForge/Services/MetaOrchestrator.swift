@@ -22,7 +22,7 @@ enum MetaEvent: Sendable, Equatable {
     case roleFinished(role: String, tokens: Int)
     case roleFailed(role: String, message: String)       // one worker failed; others go on
     case assistantText(String)                           // the final synthesized answer
-    case usage(tokens: Int, costUSD: Double)             // totals across every call
+    case usage(tokens: Int, costUSD: Double, estimated: Bool = false)  // totals across every call
     case failed(String)
     case finished
 }
@@ -167,7 +167,7 @@ struct MetaOrchestrator {
                 onEvent(.roleFinished(role: orchestrator.name, tokens: r.tokens))
                 // Usage is emitted as a DELTA per step so the live counter climbs during
                 // the run (not just at the end); ChatViewModel accumulates the deltas.
-                onEvent(.usage(tokens: r.tokens, costUSD: r.costUSD))
+                onEvent(.usage(tokens: r.tokens, costUSD: r.costUSD, estimated: r.estimated))
                 onEvent(.assistantText(r.text))
                 onEvent(.finished)
                 return r.text
@@ -179,7 +179,7 @@ struct MetaOrchestrator {
             let planRes = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider,
                                             model: orchModel, prompt: planPrompt(task: task, workers: workers), cwd: cwd)
             onEvent(.roleFinished(role: orchestrator.name, tokens: planRes.tokens))
-            onEvent(.usage(tokens: planRes.tokens, costUSD: planRes.costUSD))
+            onEvent(.usage(tokens: planRes.tokens, costUSD: planRes.costUSD, estimated: planRes.estimated))
             let subtasks = parsePlan(planRes.text, workers: workers, task: task)
 
             // 2) DELEGATE — run subtasks CONCURRENTLY (cheap parallel labor), honoring
@@ -207,7 +207,7 @@ struct MetaOrchestrator {
                             do {
                                 let r = try await runStep(runner, role: role.name, provider: role.provider, model: m, prompt: prompt, cwd: cwd)
                                 onEvent(.roleFinished(role: role.name, tokens: r.tokens))
-                                onEvent(.usage(tokens: r.tokens, costUSD: r.costUSD))
+                                onEvent(.usage(tokens: r.tokens, costUSD: r.costUSD, estimated: r.estimated))
                                 return WorkerResult(order: thisOrder, role: role.name, text: r.text, tokens: r.tokens, cost: r.costUSD)
                             } catch {
                                 if Task.isCancelled { return nil }
@@ -240,7 +240,7 @@ struct MetaOrchestrator {
             let synth = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider,
                                           model: orchModel, prompt: synthesisPrompt(task: task, results: results), cwd: cwd)
             onEvent(.roleFinished(role: orchestrator.name, tokens: synth.tokens))
-            onEvent(.usage(tokens: synth.tokens, costUSD: synth.costUSD))
+            onEvent(.usage(tokens: synth.tokens, costUSD: synth.costUSD, estimated: synth.estimated))
             onEvent(.assistantText(synth.text))
             onEvent(.finished)
             return synth.text

@@ -40,6 +40,16 @@ struct OneShotResult: Sendable, Equatable {
     var costUSD: Double
     var provider: AIProvider
     var model: String
+    /// True when `tokens`/`costUSD` are an ESTIMATE (the CLI reported no usage — Codex's
+    /// plain output, Gemini), so the UI can mark them "~" instead of implying a real count.
+    var estimated: Bool = false
+}
+
+/// Rough token estimate for a CLI that reports no usage: ~4 characters per token across
+/// the prompt + the model's output. Coarse but honest — enough to stop cross-provider
+/// runs reading as "0 tokens / $0", and always surfaced with a "~".
+func estimateTokens(prompt: String, output: String) -> Int {
+    max(1, (prompt.count + output.count) / 4)
 }
 
 enum OneShotError: Error, LocalizedError, Equatable {
@@ -132,8 +142,14 @@ struct CLIOneShotRunner: OneShotRunner {
             }
             return parsed
         case .plainText:
-            return OneShotResult(text: out.trimmingCharacters(in: .whitespacesAndNewlines),
-                                 tokens: 0, costUSD: 0, provider: provider, model: model)
+            // Codex's plain output and Gemini report no usage, so estimate tokens from the
+            // text length and flag it. Cost uses the model's price when we have one (else 0),
+            // and is likewise flagged as an estimate.
+            let cleanText = out.trimmingCharacters(in: .whitespacesAndNewlines)
+            let estTokens = estimateTokens(prompt: prompt, output: cleanText)
+            let estCost = Self.estimatedCostUSD(tokens: estTokens, model: model)
+            return OneShotResult(text: cleanText, tokens: estTokens, costUSD: estCost,
+                                 provider: provider, model: model, estimated: true)
         }
     }
 
@@ -217,6 +233,18 @@ struct CLIOneShotRunner: OneShotRunner {
         }
         let cost = (obj["total_cost_usd"] as? Double) ?? 0
         return OneShotResult(text: result, tokens: tokens, costUSD: cost, provider: provider, model: model)
+    }
+
+    /// A rough "~$" for an estimated token count: the model's real blended price when we
+    /// have one, else a mid-tier fallback. Always an estimate (the caller flags it).
+    static func estimatedCostUSD(tokens: Int, model: String) -> Double {
+        let perM: Double
+        if let price = Constants.pricing[model] {
+            perM = (price.inputPerM + price.outputPerM) / 2   // blended: we don't split in/out here
+        } else {
+            perM = Constants.CostModel.estimatedBlendedFallbackPerM
+        }
+        return Double(tokens) / 1_000_000 * perM
     }
 
     // MARK: Process

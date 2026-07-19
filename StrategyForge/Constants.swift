@@ -148,6 +148,11 @@ enum Constants {
 
         /// Cache reads cost about a tenth of fresh input at both labs (~90% off).
         static let cacheReadMultiplier = 0.1
+
+        /// Blended $/M-token used ONLY to turn an estimated token count into a rough
+        /// "~$" for a model we don't have a real price for (Codex/Gemini). A mid-tier
+        /// placeholder, always shown with a "~". Not a billing figure.
+        static let estimatedBlendedFallbackPerM = 5.0
     }
 
     // MARK: - Auth & sync
