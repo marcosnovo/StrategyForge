@@ -349,6 +349,9 @@ final class ChatViewModel {
     @ObservationIgnored private var turnIndexCounter = 0
     /// Last time we flushed the transcript mid-stream (throttles disk writes).
     @ObservationIgnored private var lastStreamPersist = Date.distantPast
+    /// Produces each turn's event stream (#12 seam). Real = the `claude` CLI; a fake in
+    /// tests emits scripted events to exercise the event-handling logic.
+    @ObservationIgnored private let turnRunner: ChatTurnRunner
 
     init(config: Configuration,
          binary: String,
@@ -357,6 +360,7 @@ final class ChatViewModel {
          codexReasoningEffort: String = "",
          permissionMode: String = "acceptEdits",
          liveSettings: (() -> ChatRunSettings)? = nil,
+         turnRunner: ChatTurnRunner = CLIChatTurnRunner(),
          persist: @escaping ([ChatMessage]) -> Void = { _ in },
          onFirstUserMessage: @escaping (String) -> Void = { _ in },
          autoRecommendStrategy: @escaping (String) async -> Strategy? = { _ in nil },
@@ -366,6 +370,7 @@ final class ChatViewModel {
          initialHistory: [TurnActivity] = []) {
         self.config = config
         self.liveSettings = liveSettings
+        self.turnRunner = turnRunner
         self.snapshotBinary = binary
         self.snapshotProviderBinaries = providerBinaries
         self.snapshotProviderAPIKeys = providerAPIKeys
@@ -666,9 +671,12 @@ final class ChatViewModel {
 
     /// Run one streamed turn into `assistantIndex`. Returns true if it failed
     /// specifically because the CLI session was missing (so the caller can retry fresh).
-    private func runTurn(text: String, repo: String, sessionID: String, resume: Bool,
-                         assistantIndex: Int, binary: String, model: String,
-                         permissionMode: String, extraDirs: [String] = []) async -> Bool {
+    /// Internal (not private) so tests can drive it directly through a fake ChatTurnRunner
+    /// (the #12 seam) — the whole point of the seam is to exercise this event handling
+    /// without spawning `claude`.
+    func runTurn(text: String, repo: String, sessionID: String, resume: Bool,
+                 assistantIndex: Int, binary: String, model: String,
+                 permissionMode: String, extraDirs: [String] = []) async -> Bool {
         var gotDelta = false          // did live streaming deliver text this turn?
         var separatorPending = false  // insert a blank line before the next text
         var sessionMissing = false
@@ -678,13 +686,13 @@ final class ChatViewModel {
         if permissionMode == "ask" {
             let responder = PermissionResponder()
             permissionResponder = responder
-            stream = ClaudeRunner.streamAsking(binary: binary, repoPath: repo, prompt: text,
-                                               model: model, sessionID: sessionID, resume: resume,
-                                               extraDirs: extraDirs, responder: responder)
+            stream = turnRunner.streamAsking(binary: binary, repoPath: repo, prompt: text,
+                                             model: model, sessionID: sessionID, resume: resume,
+                                             extraDirs: extraDirs, responder: responder)
         } else {
-            stream = ClaudeRunner.stream(binary: binary, repoPath: repo, prompt: text, model: model,
-                                         sessionID: sessionID, resume: resume,
-                                         permissionMode: permissionMode, extraDirs: extraDirs)
+            stream = turnRunner.stream(binary: binary, repoPath: repo, prompt: text, model: model,
+                                       sessionID: sessionID, resume: resume,
+                                       permissionMode: permissionMode, extraDirs: extraDirs)
         }
         for await event in stream {
             guard messages.indices.contains(assistantIndex) else { continue }
