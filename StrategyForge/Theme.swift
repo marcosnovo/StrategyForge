@@ -402,6 +402,26 @@ extension View {
             )
     }
 
+    // MARK: Glass language (the three tiers — keep surfaces on the right one)
+    //
+    // The app has THREE glass treatments; new surfaces must pick the matching tier
+    // rather than inventing a fourth. They are intentionally distinct — the goal of the
+    // #38 convergence is that each surface uses the RIGHT one consistently, not that they
+    // all look identical:
+    //
+    //  1. `.glassEffect(.regular…)` — native Liquid Glass (macOS 26). FLOATING, often
+    //     INTERACTIVE chrome that sits over content and should refract it: the composer
+    //     send button, floating chips/pills, the running badge. Prefer `.interactive()`
+    //     for anything tappable. This is the canonical target; migrate a surface here
+    //     once it's been re-validated rendered on 26 in light AND dark.
+    //  2. `glassPanel()` — a STATIC frosted card/sheet (material + top sheen + hairline).
+    //     Panels that hold content and shouldn't visually float or refract: sheets,
+    //     onboarding cards, the advisor card, loop editor sections.
+    //  3. `translucentColumn()` — the fixed SIDE COLUMNS (nav rail, chat list). Reads as a
+    //     flat neutral column that shares the chat surface's color, NOT floating glass;
+    //     do not swap these to `.glassEffect` (they must not refract the content beside
+    //     them or the two-column layout stops reading as one surface).
+    //
     /// A translucent side-column surface tinted to the app's neutral CHAT color
     /// (`Theme.columnBg`) instead of the aurora: a frosted material for the glassy feel,
     /// with a `columnBg` wash over it so the left columns read as the SAME color as the
