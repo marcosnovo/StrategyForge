@@ -118,7 +118,7 @@ struct MetaOrchestrator {
             guard let roleRaw = item["role"] as? String,
                   let t = item["task"] as? String, !t.isEmpty else { continue }
             // Map the model's role name onto a real worker (loose match).
-            let match = workers.first { StrategyDiagramView.titlesMatch($0.name, roleRaw) }
+            let match = workers.first { AgentNameMatcher.titlesMatch($0.name, roleRaw) }
                 ?? workers.first { $0.name.caseInsensitiveCompare(roleRaw) == .orderedSame }
             if let role = match {
                 subtasks.append(Subtask(roleName: role.name, task: t))

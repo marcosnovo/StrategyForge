@@ -20,7 +20,7 @@ enum AgentFocus: Hashable {
     func matches(_ step: ActivityStep) -> Bool {
         switch self {
         case .orchestrator: return step.agent == nil
-        case .sub(let name): return StrategyDiagramView.titlesMatch(step.agent ?? "", name)
+        case .sub(let name): return AgentNameMatcher.titlesMatch(step.agent ?? "", name)
         case .allSteps: return true
         }
     }
@@ -472,18 +472,18 @@ struct AgentActivityPanel: View {
         // is what keeps the panel in lockstep with the chat — a finished worker no longer
         // shows "working" here while the chat shows it done.
         let active = vm.isRunning && (
-            vm.rolesInProgress.contains { StrategyDiagramView.titlesMatch($0, name) }
-            || (vm.rolesInProgress.isEmpty && StrategyDiagramView.titlesMatch(vm.activeSubagent ?? "", name))
+            vm.rolesInProgress.contains { AgentNameMatcher.titlesMatch($0, name) }
+            || (vm.rolesInProgress.isEmpty && AgentNameMatcher.titlesMatch(vm.activeSubagent ?? "", name))
         )
         if active { return .active }
-        let hasWork = vm.timeline.contains { StrategyDiagramView.titlesMatch($0.agent ?? "", name) }
+        let hasWork = vm.timeline.contains { AgentNameMatcher.titlesMatch($0.agent ?? "", name) }
         return hasWork ? .done : .idle
     }
 
     /// What a role is ACTUALLY doing this turn (the orchestrator's assigned task) when
     /// known, else its generic role description — so the panel shows live intent.
     private func objective(forSubagent name: String, fallback: String) -> String {
-        for (role, task) in vm.roleTasks where StrategyDiagramView.titlesMatch(role, name) {
+        for (role, task) in vm.roleTasks where AgentNameMatcher.titlesMatch(role, name) {
             return task
         }
         return fallback
@@ -496,7 +496,7 @@ struct AgentActivityPanel: View {
             guard !step.isDelegation else { return false }
             switch target {
             case .orchestrator: return step.agent == nil
-            case .sub(let n): return StrategyDiagramView.titlesMatch(step.agent ?? "", n)
+            case .sub(let n): return AgentNameMatcher.titlesMatch(step.agent ?? "", n)
             case .allSteps: return true
             }
         }
@@ -1088,8 +1088,8 @@ struct SubagentDetailPanel: View {
         switch focus {
         case .orchestrator: return vm.activeSubagent == nil && vm.rolesInProgress.isEmpty
         case .sub(let name):
-            return vm.rolesInProgress.contains { StrategyDiagramView.titlesMatch($0, name) }
-                || (vm.rolesInProgress.isEmpty && StrategyDiagramView.titlesMatch(vm.activeSubagent ?? "", name))
+            return vm.rolesInProgress.contains { AgentNameMatcher.titlesMatch($0, name) }
+                || (vm.rolesInProgress.isEmpty && AgentNameMatcher.titlesMatch(vm.activeSubagent ?? "", name))
         case .allSteps: return true
         }
     }

@@ -263,7 +263,7 @@ struct StrategyDiagramView: View {
         let activeID: UUID? = {
             guard isLive else { return nil }
             if let a = activeAgent {
-                return spec.subagents.first { Self.titlesMatch($0.title, a) }?.id
+                return spec.subagents.first { AgentNameMatcher.titlesMatch($0.title, a) }?.id
             }
             return spec.orchestrator.id
         }()
@@ -626,15 +626,6 @@ struct StrategyDiagramView: View {
                      at: CGPoint(x: rect.maxX, y: max(rect.minY - 10, 10)),
                      color: palette.secondary, anchor: .trailing)
         }
-    }
-
-    /// Loose match between a diagram node title and a streamed agent name (which may
-    /// be a subagent_type slug or a free-text description).
-    static func titlesMatch(_ a: String, _ b: String) -> Bool {
-        func norm(_ s: String) -> String { String(s.lowercased().filter { $0.isLetter || $0.isNumber }) }
-        let na = norm(a), nb = norm(b)
-        guard !na.isEmpty, !nb.isEmpty else { return false }
-        return na.contains(nb) || nb.contains(na)
     }
 
     /// Rough width of a string at a font size (same heuristic as `truncated`), used

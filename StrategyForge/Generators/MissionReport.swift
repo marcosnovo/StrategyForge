@@ -50,7 +50,7 @@ enum MissionReport {
         }
         for role in strategy.subagentRoles {
             let name = titleCase(role.name)
-            let (n, span) = stats { StrategyDiagramView.titlesMatch($0.agent ?? "", name) }
+            let (n, span) = stats { AgentNameMatcher.titlesMatch($0.agent ?? "", name) }
             lines.append(AgentLine(name: name, role: role.role.displayName,
                                    model: role.modelDisplayName, steps: n, span: span))
         }

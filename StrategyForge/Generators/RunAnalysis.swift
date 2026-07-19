@@ -106,11 +106,11 @@ enum RunAnalysis {
     /// Whether a role did any attributable work this run (loose name match against
     /// the per-agent token map and the involved-agents list).
     private static func contributed(_ roleName: String, in turn: TurnActivity) -> Bool {
-        if turn.agentsInvolved.contains(where: { StrategyDiagramView.titlesMatch($0, roleName) }) {
+        if turn.agentsInvolved.contains(where: { AgentNameMatcher.titlesMatch($0, roleName) }) {
             return true
         }
         return turn.byAgent.contains { key, tokens in
-            tokens > 0 && StrategyDiagramView.titlesMatch(key, roleName)
+            tokens > 0 && AgentNameMatcher.titlesMatch(key, roleName)
         }
     }
 

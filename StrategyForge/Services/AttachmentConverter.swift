@@ -19,11 +19,15 @@ enum AttachmentConverter {
     /// this runs only when the user taps the "convert to text" saver tip.
     /// Returns nil for non-PDFs, image-only PDFs, or extraction failures.
     static func extractPDFText(_ url: URL) async -> URL? {
-        guard url.pathExtension.lowercased() == "pdf",
-              let doc = PDFDocument(url: url),
-              let text = doc.string,
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return write(text, basename: url.deletingPathExtension().lastPathComponent)
+        // PDFKit parsing + disk write are blocking; run OFF the caller's actor (these are
+        // awaited from the main actor) so a big PDF never janks the UI.
+        await Task.detached(priority: .userInitiated) {
+            guard url.pathExtension.lowercased() == "pdf",
+                  let doc = PDFDocument(url: url),
+                  let text = doc.string,
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return write(text, basename: url.deletingPathExtension().lastPathComponent)
+        }.value
     }
 
     /// Extensions the model reads fine as-is (no conversion).
@@ -41,16 +45,20 @@ enum AttachmentConverter {
         let ext = url.pathExtension.lowercased()
         if ext.isEmpty || passthrough.contains(ext) { return url }
 
-        switch ext {
-        case "doc", "docx", "rtf", "odt", "rtfd", "webarchive", "htm", "wordml":
-            return convertWithTextutil(url) ?? url
-        case "pptx":
-            return convertPptx(url) ?? url
-        default:
-            // Unknown binary (e.g. .key, .xlsx, .pages) — pass through; Claude will
-            // report if it can't read it. Conversion for these can be added later.
-            return url
-        }
+        // The converters spawn textutil/unzip and block waiting for them; run OFF the
+        // caller's actor so attaching an Office doc never freezes the UI.
+        return await Task.detached(priority: .userInitiated) {
+            switch ext {
+            case "doc", "docx", "rtf", "odt", "rtfd", "webarchive", "htm", "wordml":
+                return convertWithTextutil(url) ?? url
+            case "pptx":
+                return convertPptx(url) ?? url
+            default:
+                // Unknown binary (e.g. .key, .xlsx, .pages) — pass through; Claude will
+                // report if it can't read it. Conversion for these can be added later.
+                return url
+            }
+        }.value
     }
 
     // MARK: - Converters
