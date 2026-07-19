@@ -315,8 +315,14 @@ final class AppModel {
 
     // MARK: - Init
 
-    init() {
-        load()
+    /// Base directory for this model's on-disk state (data.json + transcript/activity
+    /// sidecars). Injectable so tests can point at a temp dir instead of the real
+    /// Application Support — the testability seam (#12). Defaults to the app's real dir.
+    @ObservationIgnored let storeDirectory: URL
+
+    init(storeDirectory: URL = AppPaths.supportDirectory(), autoLoad: Bool = true) {
+        self.storeDirectory = storeDirectory
+        if autoLoad { load() }
     }
 
     // MARK: - Localization
@@ -1368,7 +1374,7 @@ final class AppModel {
     // strip it) so nothing is ever lost.
 
     private func transcriptURL(_ id: Configuration.ID) -> URL {
-        let dir = AppPaths.supportDirectory().appendingPathComponent("transcripts", isDirectory: true)
+        let dir = storeDirectory.appendingPathComponent("transcripts", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("\(id.uuidString).json")
     }
@@ -1430,7 +1436,7 @@ final class AppModel {
     // MARK: - Agent activity history (device-local, per-chat sidecar — never synced)
 
     private func activityURL(_ id: Configuration.ID) -> URL {
-        let dir = AppPaths.supportDirectory().appendingPathComponent("activity", isDirectory: true)
+        let dir = storeDirectory.appendingPathComponent("activity", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("\(id.uuidString).json")
     }
@@ -2023,7 +2029,7 @@ final class AppModel {
     }
 
     private var storeURL: URL {
-        AppPaths.supportDirectory().appendingPathComponent("data.json")
+        storeDirectory.appendingPathComponent("data.json")
     }
 
     /// Coalesces rapid saves; a new save supersedes an in-flight write.
