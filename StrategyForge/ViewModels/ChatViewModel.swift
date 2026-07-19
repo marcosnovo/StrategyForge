@@ -178,21 +178,47 @@ struct QueuedMessage: Identifiable, Hashable {
     var attachments: [Attachment]
 }
 
+/// The infrastructure settings a run reads FRESH each turn — CLI binary paths, API
+/// keys, Codex effort — so changing them in Settings takes effect in an already-open
+/// chat instead of being frozen at the VM's creation (a cached VM lives for the whole
+/// session). See ChatViewModel.liveSettings.
+struct ChatRunSettings {
+    var claudeBinary: String
+    var providerBinaries: [AIProvider: String]
+    var providerAPIKeys: [AIProvider: String]
+    var codexReasoningEffort: String
+}
+
 @Observable
 @MainActor
 final class ChatViewModel {
     /// AppModel refreshes it on lookup; views must not write.
     var config: Configuration
-    private let binary: String
+    /// Reads the current run settings each turn (nil in previews → use the snapshot the
+    /// init captured). This is what makes a Settings change reach an open chat.
+    @ObservationIgnored private let liveSettings: (() -> ChatRunSettings)?
+    @ObservationIgnored private let snapshotBinary: String
+    @ObservationIgnored private let snapshotProviderBinaries: [AIProvider: String]
+    @ObservationIgnored private let snapshotProviderAPIKeys: [AIProvider: String]
+    @ObservationIgnored private let snapshotCodexEffort: String
+
+    /// The Claude CLI path — live from Settings when available, else the init snapshot.
+    private var binary: String { liveSettings?().claudeBinary ?? snapshotBinary }
     /// Configured CLI binaries per provider (from AppSettings), so a cross-provider
     /// meta run can resolve Codex/Gemini via the same paths that marked them
     /// connected. Empty in previews → the meta run uses just the Claude binary.
-    private let providerBinaries: [AIProvider: String]
+    private var providerBinaries: [AIProvider: String] {
+        liveSettings?().providerBinaries ?? snapshotProviderBinaries
+    }
     /// Optional per-provider API keys (OpenAI) so a cross-provider meta run can use
     /// the API (which re-enables model selection) instead of the subscription default.
-    private let providerAPIKeys: [AIProvider: String]
+    private var providerAPIKeys: [AIProvider: String] {
+        liveSettings?().providerAPIKeys ?? snapshotProviderAPIKeys
+    }
     /// Codex reasoning effort ("" = account default), passed to the meta runner.
-    private let codexReasoningEffort: String
+    private var codexReasoningEffort: String {
+        liveSettings?().codexReasoningEffort ?? snapshotCodexEffort
+    }
 
     var messages: [ChatMessage] = []
     /// Tools the agent used during the current turn (shown as a status line).
@@ -326,6 +352,7 @@ final class ChatViewModel {
          providerAPIKeys: [AIProvider: String] = [:],
          codexReasoningEffort: String = "",
          permissionMode: String = "acceptEdits",
+         liveSettings: (() -> ChatRunSettings)? = nil,
          persist: @escaping ([ChatMessage]) -> Void = { _ in },
          onFirstUserMessage: @escaping (String) -> Void = { _ in },
          autoRecommendStrategy: @escaping (String) async -> Strategy? = { _ in nil },
@@ -334,10 +361,11 @@ final class ChatViewModel {
          persistActivity: @escaping (TurnActivity) -> Void = { _ in },
          initialHistory: [TurnActivity] = []) {
         self.config = config
-        self.binary = binary
-        self.providerBinaries = providerBinaries
-        self.providerAPIKeys = providerAPIKeys
-        self.codexReasoningEffort = codexReasoningEffort
+        self.liveSettings = liveSettings
+        self.snapshotBinary = binary
+        self.snapshotProviderBinaries = providerBinaries
+        self.snapshotProviderAPIKeys = providerAPIKeys
+        self.snapshotCodexEffort = codexReasoningEffort
         self.permissionMode = permissionMode
         self.persist = persist
         self.onFirstUserMessage = onFirstUserMessage

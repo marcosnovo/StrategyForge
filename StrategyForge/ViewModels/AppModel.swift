@@ -1483,6 +1483,20 @@ final class AppModel {
             providerAPIKeys: providerAPIKeys(),
             codexReasoningEffort: settings.codexReasoningEffort,
             permissionMode: settings.chatAutonomy.permissionMode,
+            // Read the infra settings FRESH each turn so changing a CLI path / API key /
+            // Codex effort in Settings reaches this already-open (cached) chat.
+            liveSettings: { [weak self] in
+                guard let self else {
+                    return ChatRunSettings(claudeBinary: "claude", providerBinaries: [:],
+                                           providerAPIKeys: [:], codexReasoningEffort: "")
+                }
+                return ChatRunSettings(
+                    claudeBinary: self.settings.claudeBinary,
+                    providerBinaries: Dictionary(uniqueKeysWithValues:
+                        AIProvider.allCases.map { ($0, self.settings.binary(for: $0)) }),
+                    providerAPIKeys: self.providerAPIKeys(),
+                    codexReasoningEffort: self.settings.codexReasoningEffort)
+            },
             persist: { [weak self] messages in self?.updateTranscript(id, messages) },
             onFirstUserMessage: { [weak self] text in self?.autoTitleIfNeeded(id, fromFirstMessage: text) },
             autoRecommendStrategy: { [weak self] text in
