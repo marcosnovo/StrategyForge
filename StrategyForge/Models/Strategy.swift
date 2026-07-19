@@ -25,6 +25,10 @@ struct Strategy: Codable, Identifiable, Hashable {
     /// .claude/skills). On generate, StrategyWriter copies them into the project's
     /// .claude/skills and CLAUDE.md lists them so agents know they're available.
     var skills: [String]
+    /// Optional eval suite: reusable test scenarios the team is scored against (the
+    /// "reviewer ≠ author" judge grades each), so you can measure a team BEFORE trusting
+    /// it. Travels with the team (sync/export) like the rest of the portable shape.
+    var evalSuite: EvalSuite?
 
     init(
         id: UUID = UUID(),
@@ -33,7 +37,8 @@ struct Strategy: Codable, Identifiable, Hashable {
         roles: [AgentRole],
         orchestrationNotes: String,
         mcpServers: [McpServer] = [],
-        skills: [String] = []
+        skills: [String] = [],
+        evalSuite: EvalSuite? = nil
     ) {
         self.id = id
         self.name = name
@@ -42,12 +47,13 @@ struct Strategy: Codable, Identifiable, Hashable {
         self.orchestrationNotes = orchestrationNotes
         self.mcpServers = mcpServers
         self.skills = skills
+        self.evalSuite = evalSuite
     }
 
-    // Tolerant decode: `mcpServers`/`skills` are new, so strategies saved by older
-    // versions (Configuration/SavedTeam JSON) simply default to none. Encode stays synthesized.
+    // Tolerant decode: `mcpServers`/`skills`/`evalSuite` are new, so strategies saved by
+    // older versions (Configuration/SavedTeam JSON) simply default to none. Encode stays synthesized.
     enum CodingKeys: String, CodingKey {
-        case id, name, description, roles, orchestrationNotes, mcpServers, skills
+        case id, name, description, roles, orchestrationNotes, mcpServers, skills, evalSuite
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -58,6 +64,7 @@ struct Strategy: Codable, Identifiable, Hashable {
         orchestrationNotes = try c.decode(String.self, forKey: .orchestrationNotes)
         mcpServers = try c.decodeIfPresent([McpServer].self, forKey: .mcpServers) ?? []
         skills = try c.decodeIfPresent([String].self, forKey: .skills) ?? []
+        evalSuite = try? c.decodeIfPresent(EvalSuite.self, forKey: .evalSuite) ?? nil
     }
 
     // MARK: - Convenience
