@@ -125,6 +125,19 @@ struct RoleEditorForm: View {
                 labeled("field.tools") { toolsMenu }
                 Spacer(minLength: 0)
             }
+            // Persistent per-agent memory (subagents only — the orchestrator has no
+            // agent file). Off by default; on, the role carries learnings across runs.
+            if !role.isOrchestrator {
+                Toggle(isOn: $role.memoryEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.t("role.memory")).font(.sfCallout.weight(.medium))
+                        Text(model.t("role.memory.why"))
+                            .font(.sfCaption2).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .toggleStyle(.switch)
+            }
             DisclosureGroup(isExpanded: $showInstructions) {
                 VStack(alignment: .leading, spacing: Space.m) {
                     labeled("role.systemPrompt") {

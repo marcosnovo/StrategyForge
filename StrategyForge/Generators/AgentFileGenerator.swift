@@ -75,8 +75,55 @@ enum AgentFileGenerator {
         frontmatter += "\(managedSignature)\n"
         frontmatter += "---\n"
 
-        let body = role.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        var body = role.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Persistent per-agent memory: instruct this instance to read its notes first
+        // and append durable learnings last, so run N+1 builds on run N (unlike the
+        // per-loop STATE.md, this is scoped to THIS agent and survives across teams/runs).
+        if role.memoryEnabled {
+            body += "\n\n" + memoryInstructions(memoryPath: role.memoryPath(instanceName: instanceName))
+        }
         return frontmatter + "\n" + body + "\n"
+    }
+
+    /// The "## Memory" block appended to a memory-enabled subagent's instructions.
+    static func memoryInstructions(memoryPath: String) -> String {
+        """
+        ## Memory
+
+        You keep a persistent memory file at `\(memoryPath)`. At the START of every task,
+        read it to recall what earlier runs learned. At the END, append any DURABLE
+        learnings — decisions made, conventions in this codebase, dead ends to avoid — in
+        a concise line or two. Don't repeat what's already there, and prune anything now
+        wrong. This file carries across runs, so keep it short and high-signal.
+        """
+    }
+
+    /// Seed memory files for roles with persistent memory ON. These are written ONCE and
+    /// then owned by the agent (StrategyWriter never overwrites an existing one), so the
+    /// accumulated notes are never clobbered by a re-generate. One per expanded instance.
+    static func memorySeedFiles(for strategy: Strategy) -> [GeneratedFile] {
+        var files: [GeneratedFile] = []
+        for role in strategy.subagentRoles where role.memoryEnabled {
+            guard Strategy.isValidRoleName(role.name) else { continue }
+            let count = max(role.count, 1)
+            for index in 1...count {
+                let instanceName = count == 1 ? role.name : "\(role.name)-\(index)"
+                files.append(GeneratedFile(
+                    relativePath: role.memoryPath(instanceName: instanceName),
+                    contents: memorySeed(instanceName: instanceName)))
+            }
+        }
+        return files
+    }
+
+    private static func memorySeed(instanceName: String) -> String {
+        """
+        # Memory — \(instanceName)
+
+        Durable notes this agent keeps across runs. It reads this first and appends
+        concise, lasting learnings last (decisions, conventions found, dead ends). Keep it
+        short and high-signal; prune anything stale.
+        """
     }
 
     /// YAML-safe rendering of a single-line scalar. `description` can contain colons

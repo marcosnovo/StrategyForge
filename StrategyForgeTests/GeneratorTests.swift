@@ -73,6 +73,34 @@ struct AgentFileGeneratorTests {
         let md = AgentFileGenerator.markdown(for: role, instanceName: "x")
         #expect(md.contains("description: \"Use this: after building\""))
     }
+
+    @Test func memoryOffEmitsNoMemorySectionOrSeed() {
+        let role = AgentRole(name: "w", role: .worker, model: .sonnet5,
+                             systemPrompt: "body", description: "d")
+        let md = AgentFileGenerator.markdown(for: role, instanceName: "w")
+        #expect(!md.contains("## Memory"))
+        let strategy = Strategy(name: "T", description: "", roles: [role], orchestrationNotes: "")
+        #expect(AgentFileGenerator.memorySeedFiles(for: strategy).isEmpty)
+    }
+
+    @Test func memoryOnAddsSectionPointingAtItsFile() {
+        var role = AgentRole(name: "w", role: .worker, model: .sonnet5,
+                             systemPrompt: "body", description: "d")
+        role.memoryEnabled = true
+        let md = AgentFileGenerator.markdown(for: role, instanceName: "w")
+        #expect(md.contains("## Memory"))
+        #expect(md.contains(".claude/memory/w.md"))
+    }
+
+    @Test func memorySeedIsOnePerExpandedInstance() {
+        var role = AgentRole(name: "w", role: .worker, model: .sonnet5,
+                             systemPrompt: "body", description: "d", count: 3)
+        role.memoryEnabled = true
+        let strategy = Strategy(name: "T", description: "", roles: [role], orchestrationNotes: "")
+        let seeds = AgentFileGenerator.memorySeedFiles(for: strategy)
+        #expect(seeds.map(\.relativePath).sorted() == [
+            ".claude/memory/w-1.md", ".claude/memory/w-2.md", ".claude/memory/w-3.md"])
+    }
 }
 
 struct ClaudeMdGeneratorTests {

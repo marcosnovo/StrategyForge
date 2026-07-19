@@ -103,6 +103,11 @@ struct AgentRole: Codable, Identifiable, Hashable {
     var count: Int
     /// Whether this role is the single orchestrator (the main session).
     var isOrchestrator: Bool
+    /// Persistent per-agent memory: when on, this role reads + appends a durable notes
+    /// file (`.claude/memory/<slug>.md`) so it carries learnings ACROSS runs, not just
+    /// within one (that's the per-loop STATE.md). The generated subagent `.md` gets the
+    /// read-first / append-last instructions, and the memory file is created on write.
+    var memoryEnabled: Bool
 
     init(
         id: UUID = UUID(),
@@ -115,7 +120,8 @@ struct AgentRole: Codable, Identifiable, Hashable {
         description: String,
         tools: [String] = [],
         count: Int = 1,
-        isOrchestrator: Bool = false
+        isOrchestrator: Bool = false,
+        memoryEnabled: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -128,12 +134,13 @@ struct AgentRole: Codable, Identifiable, Hashable {
         self.tools = tools
         self.count = count
         self.isOrchestrator = isOrchestrator
+        self.memoryEnabled = memoryEnabled
     }
 
     // Tolerant decode: roles saved before multi-provider default to Claude.
     enum CodingKeys: String, CodingKey {
         case id, name, role, model, provider, providerModelID
-        case systemPrompt, description, tools, count, isOrchestrator
+        case systemPrompt, description, tools, count, isOrchestrator, memoryEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -156,7 +163,12 @@ struct AgentRole: Codable, Identifiable, Hashable {
         tools = try c.decodeIfPresent([String].self, forKey: .tools) ?? []
         count = try c.decodeIfPresent(Int.self, forKey: .count) ?? 1
         isOrchestrator = try c.decodeIfPresent(Bool.self, forKey: .isOrchestrator) ?? false
+        memoryEnabled = try c.decodeIfPresent(Bool.self, forKey: .memoryEnabled) ?? false
     }
+
+    /// The repo-relative path of this role's persistent memory file (per expanded
+    /// instance, so `worker-2` keeps its own notes).
+    func memoryPath(instanceName: String) -> String { ".claude/memory/\(instanceName).md" }
 
     /// The model name to display for this role, honoring the provider choice.
     var modelDisplayName: String {

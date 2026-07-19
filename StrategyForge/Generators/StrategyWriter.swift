@@ -33,6 +33,13 @@ struct StrategyWriter {
         if let mcp = McpConfigGenerator.json(for: strategy.mcpServers) {
             files.append(GeneratedFile(relativePath: McpConfigGenerator.fileName, contents: mcp))
         }
+        // Per-agent memory seeds are created ONCE and then owned by the agent, so only
+        // show (and later write) the ones that don't exist yet — an existing memory file
+        // is never overwritten, and the preview must reflect exactly that.
+        for seed in AgentFileGenerator.memorySeedFiles(for: strategy)
+        where !fm.fileExists(atPath: repoURL.appendingPathComponent(seed.relativePath).path) {
+            files.append(seed)
+        }
         return files
     }
 
@@ -121,6 +128,16 @@ struct StrategyWriter {
         let merged = ClaudeMdGenerator.merged(existing: existing, strategy: strategy, binary: binary)
         try merged.write(to: claudeMdURL, atomically: true, encoding: .utf8)
         written.append(ClaudeMdGenerator.fileName)
+
+        // 2a. Per-agent memory seeds — create ONLY if absent so the agent's accumulated
+        // notes are never clobbered by a re-generate (same create-once rule as skills).
+        for seed in AgentFileGenerator.memorySeedFiles(for: strategy) {
+            let url = repoURL.appendingPathComponent(seed.relativePath)
+            if fm.fileExists(atPath: url.path) { continue }
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try seed.contents.write(to: url, atomically: true, encoding: .utf8)
+            written.append(seed.relativePath)
+        }
 
         // 2b. Skills — copy each attached skill folder into the repo's .claude/skills
         // so Claude Code discovers it. A slug already present in the repo is left as
