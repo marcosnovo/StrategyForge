@@ -204,6 +204,13 @@ o dime qué ajustar. Todos son fáciles de revertir.
 - [ ] Borra un chat → aparece banner **"Chat eliminado" + "Deshacer"** ~10s. Pulsa Deshacer → el chat
   vuelve con su historial. Si esperas 10s, se borra de verdad.
 
+**Feature nueva — Guardarraíl "debe seguir siendo cierto"** (del artículo loops→graphs, zona vetada):
+- [ ] **Revisa el diff** del commit `[Loops] Counter-metric guardrail` (toca `LoopPlan.swift` +
+  `LoopFileGenerator.swift`, ficheros vetados).
+- [ ] En el editor de un loop → Guardarraíles → campo **"debe seguir siendo cierto"**. Pon algo como
+  "ningún test borrado ni saltado". En `LOOP.md` aparece "## Must still hold" y el verificador da FAIL si
+  el objetivo se cumple pero se viola la contra-condición.
+
 **Feature nueva — Evals** (del artículo de Karpathy):
 - [ ] En el editor de un **Equipo**, baja hasta la tarjeta **"Evals"**. Pulsa **"Generar escenarios"**
   (necesita el proveedor del equipo conectado) → aparece un suite de ~12 escenarios.
