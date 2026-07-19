@@ -363,6 +363,40 @@ extension Font {
     static let sfCode = Font.system(.callout, design: .monospaced)                      // ~12
     /// Monospaced wordmark / model tags.
     static let sfMono = Font.system(.body, design: .monospaced).weight(.semibold)       // ~13
+
+    /// Accessibility floor: no text should render below this. Fixed `.system(size:)`
+    /// fonts don't scale with Dynamic Type and several sat at 7–9pt; use `.scaledFont`
+    /// (below) which both clamps to this floor AND scales with the user's text size.
+    static let minFontSize: CGFloat = 10
+}
+
+/// A fixed-size system font that (a) never renders below `Theme.minFontSize` and (b)
+/// scales with Dynamic Type — the drop-in for `.font(.system(size:))` at small sizes.
+private struct ScaledSystemFont: ViewModifier {
+    let weight: Font.Weight
+    let design: Font.Design
+    @ScaledMetric private var size: CGFloat
+
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design) {
+        self.weight = weight
+        self.design = design
+        // @ScaledMetric scales the (floored) base size with the user's Dynamic Type setting.
+        self._size = ScaledMetric(wrappedValue: max(size, Font.minFontSize))
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight, design: design))
+    }
+}
+
+extension View {
+    /// Dynamic-Type-scaling system font with a 10pt accessibility floor. Prefer this over
+    /// `.font(.system(size:))` for fixed sizes so tiny labels can't drop below 10pt and
+    /// still grow with the user's text-size setting.
+    func scaledFont(_ size: CGFloat, weight: Font.Weight = .regular,
+                    design: Font.Design = .default) -> some View {
+        modifier(ScaledSystemFont(size: size, weight: weight, design: design))
+    }
 }
 
 // MARK: - Card surface

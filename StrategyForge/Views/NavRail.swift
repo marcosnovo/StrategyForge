@@ -313,7 +313,7 @@ struct NavRail: View {
             Text(p.displayName).font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
             Spacer(minLength: 0)
             if let right, !right.isEmpty {
-                Text(right).font(.system(size: 8, weight: .semibold)).foregroundStyle(Theme.secondaryOnMaterial)
+                Text(right).scaledFont(8, weight: .semibold).foregroundStyle(Theme.secondaryOnMaterial)
             }
         }
     }
@@ -327,10 +327,10 @@ struct NavRail: View {
                 Circle().trim(from: 0, to: max(0.02, min(fraction, 1)))
                     .stroke(Theme.teal, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Text(center).font(.system(size: 9, weight: .semibold, design: .rounded)).foregroundStyle(Theme.ink)
+                Text(center).scaledFont(9, weight: .semibold, design: .rounded).foregroundStyle(Theme.ink)
             }
             .frame(width: 34, height: 34)
-            Text(caption).font(.system(size: 7, weight: .semibold)).tracking(0.4)
+            Text(caption).scaledFont(7, weight: .semibold).tracking(0.4)
                 .foregroundStyle(Theme.secondaryOnMaterial)
         }
     }
@@ -338,10 +338,10 @@ struct NavRail: View {
     private func miniBar(_ label: String, fraction: Double, value: String) -> some View {
         VStack(spacing: 1) {
             HStack(spacing: 4) {
-                Text(label).font(.system(size: 8, weight: .semibold)).tracking(0.3)
+                Text(label).scaledFont(8, weight: .semibold).tracking(0.3)
                     .foregroundStyle(Theme.secondaryOnMaterial)
                 Spacer(minLength: 0)
-                Text(value).font(.system(size: 8, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
+                Text(value).scaledFont(8, weight: .medium).foregroundStyle(Theme.secondaryOnMaterial)
             }
             GeometryReader { geo in
                 Capsule().fill(Theme.hairline)
