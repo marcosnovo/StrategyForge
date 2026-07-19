@@ -183,12 +183,26 @@ final class LoopStore {
     /// else the raw path.
     func repoURL(for plan: LoopPlan) -> URL? {
         if let live = liveRepoURLs[plan.id] { return live }
-        if let data = plan.repoBookmark, let url = resolveBookmark(data) {
-            liveRepoURLs[plan.id] = url
-            return url
+        if let data = plan.repoBookmark, let res = SecurityScopedBookmark.resolve(data) {
+            liveRepoURLs[plan.id] = res.url
+            // A stale bookmark was regenerated — persist the fresh data out of the render
+            // pass (repoURL is called from view bodies).
+            if let fresh = res.refreshedData {
+                let id = plan.id
+                Task { @MainActor in self.persistRefreshedBookmark(fresh, forPlan: id) }
+            }
+            return res.url
         }
         if let path = plan.repoPath { return URL(fileURLWithPath: path) }
         return nil
+    }
+
+    /// Store a regenerated security-scoped bookmark for a plan and persist it.
+    private func persistRefreshedBookmark(_ data: Data, forPlan id: LoopPlan.ID) {
+        guard let i = loops.firstIndex(where: { $0.id == id }),
+              loops[i].repoBookmark != data else { return }
+        loops[i].repoBookmark = data
+        save()
     }
 
     /// Where a run actually works: the user's chosen project folder, or a private
@@ -206,16 +220,6 @@ final class LoopStore {
     /// True when the loop targets the user's OWN folder (needs security-scoped access),
     /// vs an app-owned scratch workspace (which doesn't).
     func hasUserFolder(for plan: LoopPlan) -> Bool { repoURL(for: plan) != nil }
-
-    private func resolveBookmark(_ data: Data) -> URL? {
-        var stale = false
-        return try? URL(
-            resolvingBookmarkData: data,
-            options: [.withSecurityScope],
-            relativeTo: nil,
-            bookmarkDataIsStale: &stale
-        )
-    }
 
     // MARK: - Persistence (JSON in Application Support)
 

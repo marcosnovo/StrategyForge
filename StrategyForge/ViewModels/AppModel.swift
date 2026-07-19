@@ -1673,28 +1673,39 @@ final class AppModel {
     /// bookmark, else the raw path.
     func repoURL(for config: Configuration) -> URL? {
         if let live = liveRepoURLs[config.id] { return live }
-        if let data = config.repoBookmark, let url = resolveBookmark(data) {
-            liveRepoURLs[config.id] = url
-            return url
+        if let data = config.repoBookmark, let res = SecurityScopedBookmark.resolve(data) {
+            liveRepoURLs[config.id] = res.url
+            // A stale bookmark was regenerated — persist the fresh data OUT of this render
+            // pass (repoURL runs inside view bodies; mutating + saving here would be a
+            // mid-render observed-state write).
+            if let fresh = res.refreshedData {
+                let id = config.id
+                Task { @MainActor in self.persistRefreshedBookmark(fresh, forConfig: id) }
+            }
+            return res.url
         }
         if let path = config.repoPath { return URL(fileURLWithPath: path) }
         return nil
     }
 
-    private func resolvedDefaultReposURL() -> URL? {
-        if let data = settings.defaultReposBookmark, let url = resolveBookmark(data) { return url }
-        if let path = settings.defaultReposPath { return URL(fileURLWithPath: path) }
-        return nil
+    /// Store a regenerated security-scoped bookmark for a config and persist it.
+    private func persistRefreshedBookmark(_ data: Data, forConfig id: Configuration.ID) {
+        guard let i = configurations.firstIndex(where: { $0.id == id }),
+              configurations[i].repoBookmark != data else { return }
+        configurations[i].repoBookmark = data
+        save(stamp: false)   // device-local binding refresh, not a content edit
     }
 
-    private func resolveBookmark(_ data: Data) -> URL? {
-        var stale = false
-        return try? URL(
-            resolvingBookmarkData: data,
-            options: [.withSecurityScope],
-            relativeTo: nil,
-            bookmarkDataIsStale: &stale
-        )
+    private func resolvedDefaultReposURL() -> URL? {
+        if let data = settings.defaultReposBookmark, let res = SecurityScopedBookmark.resolve(data) {
+            if let fresh = res.refreshedData, settings.defaultReposBookmark != fresh {
+                settings.defaultReposBookmark = fresh
+                save(stamp: false)
+            }
+            return res.url
+        }
+        if let path = settings.defaultReposPath { return URL(fileURLWithPath: path) }
+        return nil
     }
 
     // MARK: - Preview
