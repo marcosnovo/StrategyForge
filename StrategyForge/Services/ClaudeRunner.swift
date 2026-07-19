@@ -691,8 +691,9 @@ private final class InactivityWatchdog: @unchecked Sendable {
 }
 
 /// Accumulates streamed bytes and emits complete lines. Thread-safe: the process
-/// readability handler is called on a background queue.
-private final class LineBuffer: @unchecked Sendable {
+/// readability handler is called on a background queue. Shared with ProviderInstaller's
+/// streamed-output handling (it previously carried its own O(n²) copy).
+final class LineBuffer: @unchecked Sendable {
     private var data = Data()
     private let lock = NSLock()
 

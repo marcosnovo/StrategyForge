@@ -80,7 +80,7 @@ enum ProviderInstaller {
                 let out = Pipe()
                 process.standardOutput = out
                 process.standardError = out
-                let buffer = LineAccumulator()
+                let buffer = LineBuffer()
                 out.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     guard !data.isEmpty else { return }
@@ -151,7 +151,7 @@ enum ProviderInstaller {
                 let masterHandle = FileHandle(fileDescriptor: master, closeOnDealloc: true)
                 input?.attach(masterHandle)   // lets the sheet paste the browser code back in
 
-                let buffer = LineAccumulator()
+                let buffer = LineBuffer()
                 var openedURL = false
                 masterHandle.readabilityHandler = { handle in
                     let data = handle.availableData
@@ -289,24 +289,3 @@ enum ProviderInstaller {
     }
 }
 
-/// Line splitter for streamed installer output (drains a trailing partial line).
-private final class LineAccumulator: @unchecked Sendable {
-    private var data = Data()
-    private let lock = NSLock()
-    func append(_ chunk: Data) -> [String] {
-        lock.lock(); defer { lock.unlock() }
-        data.append(chunk)
-        var lines: [String] = []
-        while let nl = data.firstIndex(of: 0x0A) {
-            if let s = String(data: data[data.startIndex..<nl], encoding: .utf8) { lines.append(s) }
-            data.removeSubrange(data.startIndex...nl)
-        }
-        return lines
-    }
-    func drain() -> [String] {
-        lock.lock(); defer { lock.unlock() }
-        defer { data.removeAll() }
-        guard let s = String(data: data, encoding: .utf8), !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
-        return [s]
-    }
-}
