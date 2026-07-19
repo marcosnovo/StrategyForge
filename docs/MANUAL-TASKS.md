@@ -203,3 +203,10 @@ o dime qué ajustar. Todos son fáciles de revertir.
 **#41 — Undo de borrado:**
 - [ ] Borra un chat → aparece banner **"Chat eliminado" + "Deshacer"** ~10s. Pulsa Deshacer → el chat
   vuelve con su historial. Si esperas 10s, se borra de verdad.
+
+**Feature nueva — Evals** (del artículo de Karpathy):
+- [ ] En el editor de un **Equipo**, baja hasta la tarjeta **"Evals"**. Pulsa **"Generar escenarios"**
+  (necesita el proveedor del equipo conectado) → aparece un suite de ~12 escenarios.
+- [ ] Pulsa **"Ejecutar evals"** → cada escenario se puntúa con el juez independiente; sale el **%**,
+  el badge **Listo / Por debajo del umbral**, y por escenario PASS (círculo verde) / FAIL (cuadrado
+  rojo + razón). El suite viaja con el equipo (sync/export).
