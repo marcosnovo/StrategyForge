@@ -147,16 +147,14 @@ final class AppModel {
     /// ChatView consumes it once on appear).
     var openInCodeMode: Configuration.ID?
 
-    // MARK: - Usage (real Claude token usage from local logs)
-    /// Aggregated Claude usage read from ~/.claude logs (nil until first refresh).
-    var claudeUsage: UsageSummary?
-    /// Real Codex usage (authoritative % + reset) read from ~/.codex logs.
-    var codexUsage: CodexUsage?
-    /// Real Claude rate-limit percentages from Claude's own usage endpoint (needs a
-    /// valid login). nil when signed out or the request fails.
-    var claudeExact: ClaudeUsageAPI.Exact?
-    /// True while a usage refresh is in flight.
-    var isRefreshingUsage = false
+    // MARK: - Usage (real provider usage — extracted to UsageStore, #35 phase 2)
+    /// Owns the usage state + refresh; these forwarders keep every call site
+    /// (`model.claudeUsage`, `model.refreshUsage()`, …) working unchanged.
+    let usageStore = UsageStore()
+    var claudeUsage: UsageSummary? { usageStore.claudeUsage }
+    var codexUsage: CodexUsage? { usageStore.codexUsage }
+    var claudeExact: ClaudeUsageAPI.Exact? { usageStore.claudeExact }
+    var isRefreshingUsage: Bool { usageStore.isRefreshingUsage }
 
     // MARK: - App updates
     /// A newer release than this build, when one is available (nil = up to date /
@@ -186,52 +184,14 @@ final class AppModel {
     /// Keychain token) is fetched separately, only on deliberate intent — see
     /// `refreshExactUsage()`. That's why the app no longer asks for the Keychain password
     /// on every launch.
+    /// Forwarders to UsageStore (see #35 phase 2) — call sites are unchanged.
     func refreshUsage(includeExact: Bool = false) async {
-        isRefreshingUsage = true
-        // Seed the exact rate-limit % from the last cached fetch so the rail / activity
-        // panel show it at a glance immediately — no Keychain touch. A fresh fetch (on
-        // deliberate intent) replaces it.
-        if claudeExact == nil { claudeExact = Self.loadCachedExact() }
-        async let claude = Task.detached(priority: .utility) { ClaudeUsageStore.load() }.value
-        async let codex = Task.detached(priority: .utility) { CodexUsageStore.load() }.value
-        claudeUsage = await claude
-        codexUsage = await codex
-        isRefreshingUsage = false
-        if includeExact { await refreshExactUsage() }
+        await usageStore.refreshUsage(includeExact: includeExact)
     }
-
-    /// UserDefaults key for the cached exact-usage snapshot.
-    private static let exactCacheKey = "claude.exactUsage.cache.v1"
-
-    /// The last fetched exact usage, if it was cached recently enough to still be a
-    /// useful "last known" figure (windows are 5h / weekly, so we cap staleness at 12h).
-    private static func loadCachedExact() -> ClaudeUsageAPI.Exact? {
-        guard let data = UserDefaults.standard.data(forKey: exactCacheKey),
-              let exact = try? JSONDecoder().decode(ClaudeUsageAPI.Exact.self, from: data),
-              Date().timeIntervalSince(exact.computedAt) < 12 * 3600 else { return nil }
-        return exact
-    }
-
-    /// Whether we've already attempted the Keychain-backed exact-usage fetch this session
-    /// — so a missing/expired token prompts (or no-ops) at most ONCE, never repeatedly.
-    @ObservationIgnored private var didAttemptExactUsage = false
-
-    /// Fetch Claude's authoritative rate-limit % from its usage endpoint. This reads the
-    /// Claude Code login token from the Keychain (which can prompt for the password), so
-    /// it runs ONLY on deliberate intent — opening the Usage section or an explicit
-    /// refresh — never at launch. Attempted once per session unless `force` is set (the
-    /// manual "refresh" / just-signed-in cases). Cached in `claudeExact` once it lands.
     func refreshExactUsage(force: Bool = false) async {
-        guard force || !didAttemptExactUsage else { return }
-        didAttemptExactUsage = true
-        if let exact = await Task.detached(priority: .utility, operation: { await ClaudeUsageAPI.fetch() }).value {
-            claudeExact = exact
-            // Cache it so the next launch can show the % immediately, no Keychain touch.
-            if let data = try? JSONEncoder().encode(exact) {
-                UserDefaults.standard.set(data, forKey: Self.exactCacheKey)
-            }
-        }
+        await usageStore.refreshExactUsage(force: force)
     }
+
     /// The service shown in the main area while in the Services section.
     var selectedService: AIProvider = .claude
     /// A developer TOOL (GitHub/Git) selected in the Services section — when set, the

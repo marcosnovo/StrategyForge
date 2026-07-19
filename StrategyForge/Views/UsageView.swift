@@ -454,7 +454,7 @@ struct UsageRing: View {
 private struct UsagePreviewHost: View {
     @State private var model: AppModel = {
         let m = AppModel()
-        m.claudeUsage = UsageSummary(
+        m.usageStore.claudeUsage = UsageSummary(
             blockStart: Date().addingTimeInterval(-2 * 3600),
             blockResetAt: Date().addingTimeInterval(3 * 3600),
             blockTokens: 128_000,
