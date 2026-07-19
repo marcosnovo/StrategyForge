@@ -60,9 +60,13 @@ final class AppModel {
     var showDiscardDraftConfirm = false
 
     // MARK: - Providers
-    /// Providers whose CLI is currently installed/detected. Drives locked vs
-    /// selectable state in the model/provider pickers.
-    var connectedProviders: Set<AIProvider> = [.claude]
+    /// The detected-CLIs state lives in ProviderRegistry (#35 phase 4); this forwarder
+    /// keeps every `connectedProviders` call site working. Transient (not persisted).
+    let providerRegistry = ProviderRegistry()
+    var connectedProviders: Set<AIProvider> {
+        get { providerRegistry.connected }
+        set { providerRegistry.connected = newValue }
+    }
 
     /// Re-show the first-run onboarding on demand (from the Lab), so it can be
     /// reviewed without wiping the `didOnboard` flag / reinstalling.
@@ -70,18 +74,11 @@ final class AppModel {
 
     /// Re-detect which provider CLIs are installed (off the main thread).
     func refreshConnectedProviders() async {
-        var found: Set<AIProvider> = []
-        for p in AIProvider.allCases {
-            let name = settings.binary(for: p)
-            if await Task.detached(operation: { ClaudeRunner.resolveBinary(name) }).value != nil {
-                found.insert(p)
-            }
-        }
-        connectedProviders = found
+        await providerRegistry.refresh { [weak self] p in self?.settings.binary(for: p) ?? "" }
     }
 
     /// Whether a provider can be selected right now (its CLI is installed).
-    func isConnected(_ provider: AIProvider) -> Bool { connectedProviders.contains(provider) }
+    func isConnected(_ provider: AIProvider) -> Bool { providerRegistry.isConnected(provider) }
 
     /// Providers currently near their usage limit. The recommender steers role
     /// assignment AWAY from these when a comparable alternative exists (it never hard-
