@@ -234,7 +234,7 @@ struct SkillsView: View {
                     HStack(spacing: 5) {
                         Text(c.name).font(.sfCallout.weight(.medium)).lineLimit(1)
                         if c.verified {
-                            Image(systemName: "checkmark.seal.fill").font(.system(size: 9)).foregroundStyle(Theme.teal)
+                            Image(systemName: "checkmark.seal.fill").scaledFont(9).foregroundStyle(Theme.teal)
                         }
                     }
                     Text(c.description).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(2)
@@ -478,7 +478,7 @@ struct SkillsView: View {
             ? (model.t("skills.kind.code"), "terminal", Theme.accent)
             : (model.t("skills.kind.knowledge"), "book", Theme.teal)
         return Label(label, systemImage: icon)
-            .font(.system(size: 9, weight: .medium)).foregroundStyle(tint)
+            .scaledFont(9, weight: .medium).foregroundStyle(tint)
             .padding(.horizontal, 6).padding(.vertical, 2)
             .background(Capsule().fill(tint.opacity(0.12)))
     }

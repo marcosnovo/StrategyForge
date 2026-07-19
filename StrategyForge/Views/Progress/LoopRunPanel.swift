@@ -501,7 +501,7 @@ struct LoopRunPanel: View {
 
     private func statCaption(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 3) {
-            Image(systemName: icon).font(.system(size: 9))
+            Image(systemName: icon).scaledFont(9)
             Text(text).font(.sfCaption2.weight(.medium))
                 .monospacedDigit()
         }

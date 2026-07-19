@@ -132,7 +132,7 @@ struct ContextWindowPopover: View {
             .padding(Space.m)
             .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg))
 
-            Text(model.t("context.estimate")).font(.system(size: 9)).foregroundStyle(.tertiary)
+            Text(model.t("context.estimate")).scaledFont(9).foregroundStyle(.tertiary)
 
             // Real plan limits from the local logs.
             if let u = model.claudeUsage, u.hasData {

@@ -73,7 +73,7 @@ struct DecisionPathView: View {
     private func answerChip(_ yes: Bool) -> some View {
         HStack(spacing: 3) {
             Image(systemName: yes ? "checkmark" : "xmark")
-                .font(.system(size: 8, weight: .bold))
+                .scaledFont(8, weight: .bold)
             Text(model.t(yes ? "advisor.chip.yes" : "advisor.chip.no").uppercased())
                 .font(.sfFieldLabel)
         }
@@ -90,7 +90,7 @@ struct DecisionPathView: View {
                 .fill(Theme.coral)
                 .frame(width: 2, height: 16)
             Image(systemName: "arrowtriangle.down.fill")
-                .font(.system(size: 7))
+                .scaledFont(7)
                 .foregroundStyle(Theme.coral)
         }
         .padding(.leading, Space.l)

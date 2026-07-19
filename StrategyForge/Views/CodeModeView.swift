@@ -228,15 +228,15 @@ struct CodeModeView: View {
     private func changeBadge(_ s: CodeGit.ChangedFile) -> some View {
         HStack(spacing: 4) {
             if s.insertions > 0 {
-                Text("+\(s.insertions)").font(.system(size: 9, weight: .semibold, design: .monospaced))
+                Text("+\(s.insertions)").scaledFont(9, weight: .semibold, design: .monospaced)
                     .foregroundStyle(Theme.success)
             }
             if s.deletions > 0 {
-                Text("−\(s.deletions)").font(.system(size: 9, weight: .semibold, design: .monospaced))
+                Text("−\(s.deletions)").scaledFont(9, weight: .semibold, design: .monospaced)
                     .foregroundStyle(Theme.danger)
             }
             Text(kindLetter(s.kind))
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .scaledFont(8, weight: .bold, design: .monospaced)
                 .foregroundStyle(kindColor(s.kind))
                 .frame(width: 12, height: 12)
                 .background(RoundedRectangle(cornerRadius: 3).fill(kindColor(s.kind).opacity(0.15)))
@@ -373,7 +373,7 @@ struct CodeModeView: View {
                     Text(model.t("code.terminal")).font(.sfFieldLabel).tracking(0.8)
                     Text("\(vm.commandLog.count)").font(.sfCaption2).foregroundStyle(.secondary)
                     Spacer()
-                    Image(systemName: showTerminal ? "chevron.down" : "chevron.up").font(.system(size: 9))
+                    Image(systemName: showTerminal ? "chevron.down" : "chevron.up").scaledFont(9)
                 }
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, Space.m).padding(.vertical, Space.s)
@@ -480,9 +480,9 @@ struct CodeModeView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "arrow.triangle.branch").font(.system(size: 9))
+                Image(systemName: "arrow.triangle.branch").scaledFont(9)
                 Text(branch ?? model.t("code.branch.none")).font(.sfCaption2.weight(.medium)).lineLimit(1)
-                Image(systemName: "chevron.down").font(.system(size: 7))
+                Image(systemName: "chevron.down").scaledFont(7)
             }
             .foregroundStyle(Theme.accent)
         }

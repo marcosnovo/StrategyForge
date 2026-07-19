@@ -154,7 +154,7 @@ struct AgentActivityPanel: View {
 
     private func compareColumn(tag: String, tint: Color, name: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(tag.uppercased()).font(.system(size: 9, weight: .bold)).foregroundStyle(tint).tracking(0.5)
+            Text(tag.uppercased()).scaledFont(9, weight: .bold).foregroundStyle(tint).tracking(0.5)
             Text(name).font(.sfCaption2.weight(.semibold)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
             Text(detail).font(.sfCaption2).foregroundStyle(.secondary)
         }
@@ -254,7 +254,7 @@ struct AgentActivityPanel: View {
 
     private func stat(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 3) {
-            Image(systemName: icon).font(.system(size: 9))
+            Image(systemName: icon).scaledFont(9)
             Text(text).font(.sfCaption2.weight(.medium))
                 .contentTransition(.numericText())
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: text)
@@ -277,7 +277,7 @@ struct AgentActivityPanel: View {
                     // agent header above, so here it's just a small green dot + label.
                     HStack(spacing: 4) {
                         Circle().fill(Theme.teal).frame(width: 6, height: 6)
-                        Text(model.t("activity.usage.live")).font(.system(size: 9, weight: .semibold))
+                        Text(model.t("activity.usage.live")).scaledFont(9, weight: .semibold)
                             .foregroundStyle(Theme.teal)
                     }
                     .padding(.horizontal, 6).padding(.vertical, 2)
@@ -316,7 +316,7 @@ struct AgentActivityPanel: View {
             // plan is left" figure is visible here — not only on the Usage page.
             if let e = model.claudeExact {
                 HStack(spacing: 6) {
-                    Image(systemName: "gauge.with.needle").font(.system(size: 9)).foregroundStyle(Theme.accent)
+                    Image(systemName: "gauge.with.needle").scaledFont(9).foregroundStyle(Theme.accent)
                     Text(model.t("activity.usage.claudePlan",
                                  Int(e.fiveHourPercent.rounded()), Int(e.weekPercent.rounded())))
                         .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
@@ -329,7 +329,7 @@ struct AgentActivityPanel: View {
                 runTokenBreakdown
             } else if !runModelSummary(shownStrategy).isEmpty {
                 HStack(spacing: 5) {
-                    Image(systemName: "cpu").font(.system(size: 9)).foregroundStyle(Theme.tertiaryOnMaterial)
+                    Image(systemName: "cpu").scaledFont(9).foregroundStyle(Theme.tertiaryOnMaterial)
                     Text(runModelSummary(shownStrategy))
                         .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
                         .lineLimit(1).truncationMode(.tail)
@@ -374,8 +374,8 @@ struct AgentActivityPanel: View {
         case .high:   color = Theme.danger;  key = "cost.tier.high"
         }
         return HStack(spacing: 3) {
-            Image(systemName: "bolt.fill").font(.system(size: 8))
-            Text(model.t(key)).font(.system(size: 9, weight: .semibold))
+            Image(systemName: "bolt.fill").scaledFont(8)
+            Text(model.t(key)).scaledFont(9, weight: .semibold)
         }
         .foregroundStyle(color)
         .padding(.horizontal, 6).padding(.vertical, 1)
@@ -394,7 +394,7 @@ struct AgentActivityPanel: View {
                     diagramCostPill
                     Spacer()
                     Image(systemName: showDiagram ? "chevron.down" : "chevron.up")
-                        .font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                        .scaledFont(9, weight: .semibold).foregroundStyle(.secondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -441,7 +441,7 @@ struct AgentActivityPanel: View {
                         .background(Capsule().fill(Theme.hairline.opacity(0.6)))
                     Spacer()
                     Image(systemName: showTeam ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                        .scaledFont(9, weight: .semibold).foregroundStyle(.secondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -570,19 +570,19 @@ struct AgentActivityPanel: View {
                         .lineLimit(2).truncationMode(.tail)
                 }
                 HStack(spacing: Space.s) {
-                    Label("\(turn.steps.count)", systemImage: "list.bullet").font(.system(size: 9, weight: .medium))
+                    Label("\(turn.steps.count)", systemImage: "list.bullet").scaledFont(9, weight: .medium)
                     if turn.tokensUsed > 0 {
-                        Label(formatTokens(turn.tokensUsed), systemImage: "circle.hexagongrid").font(.system(size: 9, weight: .medium))
+                        Label(formatTokens(turn.tokensUsed), systemImage: "circle.hexagongrid").scaledFont(9, weight: .medium)
                     }
                     if turn.costUSD > 0 {
-                        Text(String(format: "$%.2f", turn.costUSD)).font(.system(size: 9, design: .monospaced))
+                        Text(String(format: "$%.2f", turn.costUSD)).scaledFont(9, design: .monospaced)
                     }
                 }
                 .foregroundStyle(Theme.tertiaryOnMaterial)
                 if !turn.byModel.isEmpty {
                     Text(turn.byModel.map { "\(friendlyModelName($0.model)) \(formatTokens($0.tokens))" }
                         .joined(separator: " · "))
-                        .font(.system(size: 9)).foregroundStyle(Theme.secondaryOnMaterial)
+                        .scaledFont(9).foregroundStyle(Theme.secondaryOnMaterial)
                         .lineLimit(1).truncationMode(.tail)
                 }
             }
@@ -601,7 +601,7 @@ struct AgentActivityPanel: View {
         let byAgent = vm.tokensByAgent.sorted { $0.value > $1.value }
         return VStack(alignment: .leading, spacing: 3) {
             Text(model.t("activity.usage.thisRun"))
-                .font(.system(size: 8.5, weight: .semibold)).foregroundStyle(Theme.tertiaryOnMaterial)
+                .scaledFont(8.5, weight: .semibold).foregroundStyle(Theme.tertiaryOnMaterial)
                 .tracking(0.6)
             ForEach(byModel, id: \.key) { m in
                 spendBar(label: friendlyModelName(m.key), tokens: m.value, total: total)
@@ -609,10 +609,10 @@ struct AgentActivityPanel: View {
             if !byAgent.isEmpty {
                 ForEach(byAgent, id: \.key) { a in
                     HStack(spacing: 5) {
-                        Image(systemName: "person.fill").font(.system(size: 8)).foregroundStyle(Theme.secondaryOnMaterial)
-                        Text(a.key).font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
+                        Image(systemName: "person.fill").scaledFont(8).foregroundStyle(Theme.secondaryOnMaterial)
+                        Text(a.key).scaledFont(9, weight: .medium).foregroundStyle(Theme.secondaryOnMaterial)
                         Spacer()
-                        Text(pctOf(a.value, total)).font(.system(size: 9, design: .monospaced)).foregroundStyle(Theme.tertiaryOnMaterial)
+                        Text(pctOf(a.value, total)).scaledFont(9, design: .monospaced).foregroundStyle(Theme.tertiaryOnMaterial)
                     }
                 }
             }
@@ -624,10 +624,10 @@ struct AgentActivityPanel: View {
         let frac = Double(tokens) / Double(total)
         return VStack(spacing: 2) {
             HStack {
-                Text(label).font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
+                Text(label).scaledFont(9, weight: .medium).foregroundStyle(Theme.secondaryOnMaterial)
                 Spacer()
                 // Each model's share of THIS chat, as a percentage (not raw tokens).
-                Text(pctOf(tokens, total)).font(.system(size: 9, design: .monospaced)).foregroundStyle(Theme.tertiaryOnMaterial)
+                Text(pctOf(tokens, total)).scaledFont(9, design: .monospaced).foregroundStyle(Theme.tertiaryOnMaterial)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -763,7 +763,7 @@ struct AgentActivityPanel: View {
                 if !vm.timeline.isEmpty {
                     Button { focus = .allSteps } label: {
                         HStack(spacing: 2) {
-                            Text(model.t("activity.seeAll")); Image(systemName: "chevron.right").font(.system(size: 8))
+                            Text(model.t("activity.seeAll")); Image(systemName: "chevron.right").scaledFont(8)
                         }
                         .font(.sfCaption2.weight(.medium))
                     }
@@ -799,7 +799,7 @@ struct AgentActivityPanel: View {
                     Spacer(minLength: Space.xs)
                     statusBadge(status)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
+                        .scaledFont(9, weight: .semibold)
                         .foregroundStyle(isOpen ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
                         .rotationEffect(.degrees(isOpen ? 90 : 0))
                 }
@@ -813,11 +813,11 @@ struct AgentActivityPanel: View {
                 if stats.tools > 0 {
                     HStack(spacing: Space.s) {
                         Label("\(stats.tools)", systemImage: "wrench.and.screwdriver")
-                            .font(.system(size: 9, weight: .medium))
+                            .scaledFont(9, weight: .medium)
                             .contentTransition(.numericText())
                         if let span = stats.span {
                             Label(span, systemImage: "clock")
-                                .font(.system(size: 9, weight: .medium))
+                                .scaledFont(9, weight: .medium)
                         }
                     }
                     .foregroundStyle(Theme.tertiaryOnMaterial)
@@ -853,19 +853,19 @@ struct AgentActivityPanel: View {
             HStack(spacing: 3) {
                 Image(systemName: "circle.fill").font(.system(size: 5))
                     .symbolEffect(.pulse, options: .repeating)
-                Text(model.t("activity.running")).font(.system(size: 9, weight: .semibold))
+                Text(model.t("activity.running")).scaledFont(9, weight: .semibold)
             }
             .foregroundStyle(Theme.teal)
             .padding(.horizontal, 6).padding(.vertical, 2)
             .background(Capsule().fill(Theme.tealSoft))
         case .done:
             Label(model.t("activity.done"), systemImage: "checkmark.circle.fill")
-                .font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.success)
+                .scaledFont(9, weight: .medium).foregroundStyle(Theme.success)
                 .padding(.horizontal, 6).padding(.vertical, 2)
                 .background(Capsule().fill(Theme.success.opacity(0.14)))
         case .idle:
             Label(model.t("activity.idle"), systemImage: "hourglass")
-                .font(.system(size: 9, weight: .medium)).foregroundStyle(Theme.secondaryOnMaterial)
+                .scaledFont(9, weight: .medium).foregroundStyle(Theme.secondaryOnMaterial)
         }
     }
 
@@ -987,7 +987,7 @@ struct ActivityStepRow: View {
             // Which agent performed this step (subagents only; orchestrator is implicit).
             if let agent = step.agent, !agent.isEmpty, !step.isDelegation {
                 Text(agent)
-                    .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                    .scaledFont(8.5, weight: .semibold, design: .monospaced)
                     .foregroundStyle(Theme.teal).lineLimit(1)
                     .padding(.horizontal, 5).padding(.vertical, 1)
                     .background(Capsule().fill(Theme.tealSoft))
@@ -995,7 +995,7 @@ struct ActivityStepRow: View {
             Spacer(minLength: Space.xs)
             if let start = startedAt {
                 Text(activityElapsed(from: start, to: step.at))
-                    .font(.system(size: 9, design: .monospaced)).foregroundStyle(Theme.tertiaryOnMaterial)
+                    .scaledFont(9, design: .monospaced).foregroundStyle(Theme.tertiaryOnMaterial)
             }
         }
         .padding(.vertical, step.isDelegation ? 6 : 2)

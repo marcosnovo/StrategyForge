@@ -90,7 +90,7 @@ struct LoopProgressView: View {
 
     private var arrow: some View {
         Image(systemName: "chevron.right")
-            .font(.system(size: 7, weight: .semibold)).foregroundStyle(.quaternary)
+            .scaledFont(7, weight: .semibold).foregroundStyle(.quaternary)
     }
 
     private func stageSegment(_ key: String, active: Bool, tint: Color) -> some View {

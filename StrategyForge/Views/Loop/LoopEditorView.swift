@@ -559,7 +559,7 @@ struct LoopEditorView: View {
                             .foregroundStyle(selected ? .primary : .secondary)
                             .lineLimit(1)
                         Text(m.displayName)
-                            .font(.system(size: 8)).foregroundStyle(.tertiary).lineLimit(1)
+                            .scaledFont(8).foregroundStyle(.tertiary).lineLimit(1)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 7)

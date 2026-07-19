@@ -311,7 +311,7 @@ struct AdvisorView: View {
         case .high: color = Theme.danger
         }
         return HStack(spacing: 5) {
-            Image(systemName: "bolt.fill").font(.system(size: 9))
+            Image(systemName: "bolt.fill").scaledFont(9)
             Text(cost.headline)
                 .font(.sfCaption2.weight(.semibold))
         }

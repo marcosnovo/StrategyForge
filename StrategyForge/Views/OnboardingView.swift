@@ -126,7 +126,7 @@ struct OnboardingView: View {
                     let on = model.isConnected(p)
                     HStack(spacing: 5) {
                         Image(systemName: on ? "circle.fill" : "circle")
-                            .font(.system(size: 8))
+                            .scaledFont(8)
                             .foregroundStyle(on ? Theme.success : Theme.secondaryOnMaterial)
                         Text(p.displayName).font(.sfCaption2)
                             .foregroundStyle(on ? .primary : .secondary)

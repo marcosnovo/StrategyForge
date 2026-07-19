@@ -49,7 +49,7 @@ struct TokenSaverBanner: View {
 
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
+                    .scaledFont(9, weight: .semibold)
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)

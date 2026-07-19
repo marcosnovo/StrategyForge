@@ -250,7 +250,7 @@ struct RoleEditorForm: View {
                 ProviderLogo(provider: p, size: 24, templateTint: connected ? p.tint : Theme.inkDim)
                     .frame(maxWidth: .infinity)
                 if !connected {
-                    Image(systemName: "lock.fill").font(.system(size: 8)).foregroundStyle(Theme.inkDim)
+                    Image(systemName: "lock.fill").scaledFont(8).foregroundStyle(Theme.inkDim)
                 }
             }
             Text(p.displayName)
@@ -282,7 +282,7 @@ struct RoleEditorForm: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(selected ? .primary : .secondary).lineLimit(1)
                         Text(m.displayName)
-                            .font(.system(size: 8)).foregroundStyle(.tertiary).lineLimit(1)
+                            .scaledFont(8).foregroundStyle(.tertiary).lineLimit(1)
                     }
                     .frame(maxWidth: .infinity).padding(.vertical, 7)
                     .background(RoundedRectangle(cornerRadius: 9)
@@ -315,7 +315,7 @@ struct RoleEditorForm: View {
                         .foregroundStyle(selected ? Theme.accent : .secondary)
                     if m.safeguardNoteKey != nil {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 7)).foregroundStyle(Theme.warning)
+                            .scaledFont(7).foregroundStyle(Theme.warning)
                     }
                 }
                 Text(model.t(m.tierNameKey))
@@ -323,7 +323,7 @@ struct RoleEditorForm: View {
                     .foregroundStyle(selected ? .primary : .secondary)
                     .lineLimit(1)
                 Text(m.displayName)
-                    .font(.system(size: 8)).foregroundStyle(.tertiary).lineLimit(1)
+                    .scaledFont(8).foregroundStyle(.tertiary).lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)

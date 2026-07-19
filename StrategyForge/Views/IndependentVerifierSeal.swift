@@ -44,7 +44,7 @@ struct IndependentVerifierSeal: View {
         case .compact:
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.shield.fill")
-                    .font(.system(size: 9, weight: .semibold))
+                    .scaledFont(9, weight: .semibold)
                 Text(model.t("seal.verifier.compact"))
                     .font(.sfCaption2.weight(.medium))
             }

@@ -215,7 +215,7 @@ struct StrategyPickerColumn: View {
                 }
                 // What SHAPE is this team — answered at a glance, derived from roles.
                 HStack(spacing: 5) {
-                    Image(systemName: "arrow.triangle.branch").font(.system(size: 9))
+                    Image(systemName: "arrow.triangle.branch").scaledFont(9)
                         .foregroundStyle(Theme.accent)
                     Text(model.strategyTopologyLine(template))
                         .font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
@@ -232,7 +232,7 @@ struct StrategyPickerColumn: View {
                 HStack(spacing: 5) {
                     if let bucket = activeBucket, model.isRecommended(template, for: bucket) {
                         HStack(spacing: 3) {
-                            Image(systemName: "star.fill").font(.system(size: 8))
+                            Image(systemName: "star.fill").scaledFont(8)
                             Text(model.t("picker.recommended")).font(.sfCaption2.weight(.semibold))
                         }
                         .foregroundStyle(Theme.accent)
@@ -286,7 +286,7 @@ struct StrategyPickerColumn: View {
         case .high: color = Theme.danger; label = model.t("cost.tier.high")
         }
         return HStack(spacing: 4) {
-            Image(systemName: "bolt.fill").font(.system(size: 8))
+            Image(systemName: "bolt.fill").scaledFont(8)
             Text(label).font(.sfCaption2.weight(.semibold))
         }
         .foregroundStyle(color)

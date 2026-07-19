@@ -233,7 +233,7 @@ struct SidebarView: View {
                     }
                     // Marks a chat that continues a summarized one, so the link reads.
                     if config.continuedFrom != nil {
-                        Image(systemName: "arrow.turn.down.right").font(.system(size: 9, weight: .semibold))
+                        Image(systemName: "arrow.turn.down.right").scaledFont(9, weight: .semibold)
                             .foregroundStyle(Theme.accent).help(model.t("chat.continuedFrom"))
                     }
                     Text(config.name.isEmpty ? model.t("chat.untitled") : config.name)
@@ -277,14 +277,14 @@ struct SidebarView: View {
                             .lineLimit(1).truncationMode(.tail)
                     } else if loopRunning {
                         Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.accent)
+                            .scaledFont(9, weight: .semibold).foregroundStyle(Theme.accent)
                         Text(model.t("sidebar.loopRunning"))
                             .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
                             .lineLimit(1).truncationMode(.tail)
                     } else {
                         if let repo = config.repoPath, !repo.isEmpty {
                             Image(systemName: "chevron.left.forwardslash.chevron.right")
-                                .font(.system(size: 8, weight: .semibold)).foregroundStyle(.tertiary)
+                                .scaledFont(8, weight: .semibold).foregroundStyle(.tertiary)
                         }
                         Text(subtitleLine(config))
                             .font(.sfCaption2).foregroundStyle(.secondary)

@@ -97,7 +97,7 @@ struct UsageView: View {
             Spacer(minLength: 0)
             if let last {
                 Text(model.t("usage.lastActivity", relative(last)))
-                    .font(.system(size: 9)).foregroundStyle(.tertiary).lineLimit(1)
+                    .scaledFont(9).foregroundStyle(.tertiary).lineLimit(1)
             }
         }
     }
@@ -344,7 +344,7 @@ struct UsageView: View {
             }
         } label: {
             HStack(spacing: 3) {
-                Image(systemName: "person.text.rectangle").font(.system(size: 9))
+                Image(systemName: "person.text.rectangle").scaledFont(9)
                 Text(current ?? model.t("usage.plan.set")).font(.sfCaption2.weight(.medium))
             }
             .foregroundStyle(current == nil ? Theme.secondaryOnMaterial : p.tint)
@@ -444,7 +444,7 @@ struct UsageRing: View {
                 Text(label).font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.accent)
                     .contentTransition(.numericText())
-                Text(caption).font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                Text(caption).scaledFont(9, weight: .medium).foregroundStyle(.secondary)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: fraction)

@@ -109,7 +109,7 @@ struct LoopSelectorColumn: View {
                         // origin stay visibly linked in the list.
                         if let source = loop.sourceChatName, !source.isEmpty {
                             Image(systemName: loop.sourceIsCode ? "chevron.left.forwardslash.chevron.right" : "bubble.left")
-                                .font(.system(size: 8)).foregroundStyle(.tertiary)
+                                .scaledFont(8).foregroundStyle(.tertiary)
                             Text(source).font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
                         }
                     }

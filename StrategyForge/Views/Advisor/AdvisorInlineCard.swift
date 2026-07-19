@@ -88,7 +88,7 @@ struct AdvisorInlineCard: View {
             }
 
             Button(action: onDismiss) {
-                Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
+                Image(systemName: "xmark").scaledFont(9, weight: .semibold)
             }
             .buttonStyle(.plain).foregroundStyle(.secondary)
             .accessibilityLabel(model.t("advisor.inline.dismiss"))
@@ -201,10 +201,10 @@ struct AdvisorInlineCard: View {
                                 .opacity(pick.isConnected ? 1 : 0.4)
                             Text(pick.roleName).font(.sfCaption2)
                                 .foregroundStyle(pick.isConnected ? .primary : .secondary).lineLimit(1)
-                            Text(pick.modelDisplayName).font(.system(size: 9, design: .monospaced))
+                            Text(pick.modelDisplayName).scaledFont(9, design: .monospaced)
                                 .foregroundStyle(.secondary).lineLimit(1)
                             if !pick.isConnected {
-                                Image(systemName: "lock.fill").font(.system(size: 7)).foregroundStyle(.tertiary)
+                                Image(systemName: "lock.fill").scaledFont(7).foregroundStyle(.tertiary)
                             }
                         }
                         .help(model.t(pick.reasonKey))

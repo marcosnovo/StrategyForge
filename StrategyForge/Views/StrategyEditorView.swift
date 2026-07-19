@@ -289,7 +289,7 @@ struct StrategyEditorView: View {
         }
         return Button { showCostInfo = true } label: {
             HStack(spacing: 5) {
-                Image(systemName: "bolt.fill").font(.system(size: 9))
+                Image(systemName: "bolt.fill").scaledFont(9)
                 Text(model.t("cost.perRun", String(format: "$%.2f", cost.perRun)))
                     .font(.sfCaption2.weight(.semibold))
             }
@@ -336,7 +336,7 @@ struct StrategyEditorView: View {
             }
             if model.isBeginnerStrategy(config.strategy) {
                 HStack(spacing: 5) {
-                    Image(systemName: "leaf.fill").font(.system(size: 9))
+                    Image(systemName: "leaf.fill").scaledFont(9)
                     Text(model.t("strat.badge.beginner")).font(.sfCaption2.weight(.semibold))
                 }
                 .foregroundStyle(Theme.success)

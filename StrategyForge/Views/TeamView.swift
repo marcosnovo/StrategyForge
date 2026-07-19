@@ -249,7 +249,7 @@ struct TeamView: View {
         case .high: color = Theme.danger
         }
         return HStack(spacing: 5) {
-            Image(systemName: "bolt.fill").font(.system(size: 9))
+            Image(systemName: "bolt.fill").scaledFont(9)
             Text(model.t("cost.perRun", String(format: "$%.2f", cost.perRun)))
                 .font(.sfCaption2.weight(.semibold))
         }
@@ -301,7 +301,7 @@ struct TeamView: View {
                 HStack(spacing: 4) {
                     ProviderLogo(provider: role.provider, size: 12, templateTint: role.provider.tint)
                     if role.provider == .claude {
-                        Image(systemName: role.model.tierIcon).font(.system(size: 9)).foregroundStyle(.secondary)
+                        Image(systemName: role.model.tierIcon).scaledFont(9).foregroundStyle(.secondary)
                     }
                     Text(role.modelDisplayName).font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
                 }

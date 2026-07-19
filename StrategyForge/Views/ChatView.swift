@@ -207,7 +207,7 @@ struct ChatView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Space.s)
             Button { vm.mixedProvidersNote = false } label: {
-                Image(systemName: "xmark").font(.system(size: 9))
+                Image(systemName: "xmark").scaledFont(9)
             }
             .buttonStyle(.plain).foregroundStyle(.secondary)
             .accessibilityLabel(model.t("common.done"))
@@ -382,7 +382,7 @@ struct ChatView: View {
             }
             .controlSize(.small).buttonStyle(.moon)
             Button { withAnimation { suggestionDismissed = true } } label: {
-                Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
+                Image(systemName: "xmark").scaledFont(9, weight: .semibold)
             }
             .buttonStyle(.plain).foregroundStyle(.tertiary)
             .help(model.t("common.dismiss"))
@@ -590,7 +590,7 @@ struct ChatView: View {
                             // (a wand), not a concrete strategy that looks pre-decided.
                             if config.strategyIsAuto {
                                 Image(systemName: "wand.and.stars")
-                                    .font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.accent)
+                                    .scaledFont(9, weight: .semibold).foregroundStyle(Theme.accent)
                                 Text(model.t("chat.autoTeam.badge"))
                                     .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
                             } else {
@@ -600,7 +600,7 @@ struct ChatView: View {
                             }
                             // Explicit disclosure cue: the capsule is a menu, not a label.
                             Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .semibold))
+                                .scaledFont(9, weight: .semibold)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, 9).padding(.vertical, 3)
@@ -1072,7 +1072,7 @@ struct ChatView: View {
             if let sub = vm.activeSubagent {
                 // Show the strategy at work: which teammate the orchestrator called.
                 HStack(spacing: 4) {
-                    Image(systemName: "arrow.turn.down.right").font(.system(size: 9))
+                    Image(systemName: "arrow.turn.down.right").scaledFont(9)
                     Text(model.t("chat.delegating", sub)).font(.sfCaption2.weight(.medium))
                 }
                 .foregroundStyle(Theme.accent)
@@ -1668,7 +1668,7 @@ struct ChatView: View {
             HStack(spacing: 4) {
                 Image(systemName: currentMode.icon).font(.system(size: 10))
                 Text(model.t(currentMode.labelKey)).font(.sfCaption2.weight(.medium))
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 7)).foregroundStyle(.tertiary)
+                Image(systemName: "chevron.up.chevron.down").scaledFont(7).foregroundStyle(.tertiary)
             }
             .foregroundStyle(.secondary)
         }
@@ -1722,7 +1722,7 @@ struct ChatView: View {
     private var queuedChips: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {
-                Image(systemName: "clock.arrow.circlepath").font(.system(size: 9))
+                Image(systemName: "clock.arrow.circlepath").scaledFont(9)
                 Text(model.t("chat.queued.count", vm.queued.count)).font(.sfCaption2)
             }
             .foregroundStyle(Theme.accent)
@@ -1731,11 +1731,11 @@ struct ChatView: View {
                     Text(q.text.isEmpty ? model.t("chat.queued.attachmentsOnly") : q.text)
                         .font(.sfCaption2).lineLimit(1).foregroundStyle(Theme.ink)
                     if !q.attachments.isEmpty {
-                        Image(systemName: "paperclip").font(.system(size: 8)).foregroundStyle(.secondary)
+                        Image(systemName: "paperclip").scaledFont(8).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 4)
                     Button { vm.removeQueued(q.id) } label: {
-                        Image(systemName: "xmark").font(.system(size: 8))
+                        Image(systemName: "xmark").scaledFont(8)
                     }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
                 }
@@ -1752,10 +1752,10 @@ struct ChatView: View {
             HStack(spacing: Space.s) {
                 ForEach(vm.attachments) { att in
                     HStack(spacing: 4) {
-                        Image(systemName: "doc").font(.system(size: 9))
+                        Image(systemName: "doc").scaledFont(9)
                         Text(att.name).font(.sfCaption2).lineLimit(1)
                         Button { vm.attachments.removeAll { $0.id == att.id } } label: {
-                            Image(systemName: "xmark").font(.system(size: 8))
+                            Image(systemName: "xmark").scaledFont(8)
                         }
                         .buttonStyle(.plain)
                     }
