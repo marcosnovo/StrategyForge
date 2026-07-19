@@ -74,6 +74,14 @@ struct SidebarView: View {
                             .hoverTint(cornerRadius: Theme.rowCorner)
                             .contentShape(Rectangle())
                             .onTapGesture { model.selectedConfigID = config.id }
+                            // VoiceOver: one focusable button per chat, carrying its
+                            // selected state and a live "running / loop running" value so
+                            // the state isn't conveyed by color/spinner alone.
+                            .accessibilityElement(children: .combine)
+                            .accessibilityAddTraits(model.selectedConfigID == config.id
+                                                    ? [.isButton, .isSelected] : .isButton)
+                            .accessibilityLabel(config.name.isEmpty ? model.t("chat.untitled") : config.name)
+                            .accessibilityValue(rowAccessibilityValue(config))
                             .contextMenu {
                                 Button(model.t("sidebar.rename")) { beginRename(config) }
                                 Button(model.t("config.duplicate")) { model.duplicateConfiguration(config.id) }
@@ -304,6 +312,15 @@ struct SidebarView: View {
             if h { hoveredID = config.id }
             else if hoveredID == config.id { hoveredID = nil }
         }
+    }
+
+    /// VoiceOver value for a chat row: the live state a sighted user reads from the
+    /// teal "Working" text / spinner or the loop glyph, spoken instead.
+    private func rowAccessibilityValue(_ config: Configuration) -> String {
+        if model.attentionChatIDs.contains(config.id) { return model.t("sidebar.needsAttention") }
+        if model.runningChatIDs.contains(config.id) { return model.t("sidebar.working") }
+        if LoopStore.shared.isLoopRunning(forChat: config.id) { return model.t("sidebar.loopRunning") }
+        return ""
     }
 
     /// Open the rename dialog for a chat, seeded with its current name.

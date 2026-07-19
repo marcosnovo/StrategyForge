@@ -50,8 +50,14 @@ struct LoopProgressView: View {
         HStack(spacing: spacing) {
             ForEach(0..<min(maxTurns, cap), id: \.self) { i in
                 if i < verdicts.count {
-                    Circle().fill(verdicts[i] ? Theme.success : Theme.danger)
-                        .frame(width: size, height: size)
+                    // Pass = green circle, fail = red rounded SQUARE — a distinct silhouette,
+                    // so the verdict reads by shape and isn't carried by color alone.
+                    if verdicts[i] {
+                        Circle().fill(Theme.success).frame(width: size, height: size)
+                    } else {
+                        RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                            .fill(Theme.danger).frame(width: size, height: size)
+                    }
                 } else if i == iteration - 1 && running {
                     PulsingDot(size: size)
                 } else {
