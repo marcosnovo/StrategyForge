@@ -510,6 +510,8 @@ struct LoopEditorView: View {
             if plan.verifierEnabled {
                 FieldLabel(text: model.t("loop.editor.verifier.model"))
                 modelChips($plan.verifierModel, enabled: plan.verifierEnabled)
+                // Surface the "reviewer ≠ author" guarantee as a quality seal.
+                IndependentVerifierSeal(style: .full)
             }
 
             Divider()

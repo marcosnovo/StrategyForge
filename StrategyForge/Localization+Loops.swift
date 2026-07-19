@@ -221,6 +221,12 @@ extension L10n {
         "loop.editor.worktree.why": ("Run each loop on its own branch in a separate worktree, so parallel loops never clash. On a verified PASS it merges back and cleans up; otherwise the branch is left for you to review.",
                                      "Ejecuta cada bucle en su propia rama, en un worktree aparte, para que los bucles en paralelo no choquen. Con un PASS verificado fusiona y limpia; si no, deja la rama para que la revises."),
 
+        // The "reviewer ≠ author" quality seal (IndependentVerifierSeal).
+        "seal.verifier.title": ("Independent check", "Comprobación independiente"),
+        "seal.verifier.body": ("The verifier runs read-only — it can read files and run tests, but can't edit the code it grades. So the judge can't quietly \"fix\" what it's judging.",
+                               "El verificador se ejecuta en solo lectura — puede leer archivos y correr tests, pero no editar el código que califica. Así el juez no puede \"arreglar\" en silencio lo que juzga."),
+        "seal.verifier.compact": ("Read-only judge", "Juez de solo lectura"),
+
         "loop.editor.kind.details": ("How this type works", "Cómo funciona este tipo"),
         "loop.editor.changeType": ("Change type", "Cambiar tipo"),
         "loop.editor.customize": ("Customize (team, guardrails, limits)",

@@ -324,11 +324,18 @@ struct LoopRunPanel: View {
     private func lastRunVerdict(_ last: LoopRunSummary) -> some View {
         switch last.pass {
         case .some(true):
-            Text(model.t("progress.verdict.pass"))
-                .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.success)
+            HStack(spacing: Space.xs) {
+                Text(model.t("progress.verdict.pass"))
+                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.success)
+                // A verified verdict earns the seal — it was an independent read-only judge.
+                IndependentVerifierSeal(style: .compact)
+            }
         case .some(false):
-            Text(model.t("progress.verdict.fail"))
-                .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.danger)
+            HStack(spacing: Space.xs) {
+                Text(model.t("progress.verdict.fail"))
+                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.danger)
+                IndependentVerifierSeal(style: .compact)
+            }
         case .none:
             Text(model.t("progress.status.doneUnverified"))
                 .font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
