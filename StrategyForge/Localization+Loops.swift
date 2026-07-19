@@ -219,7 +219,7 @@ extension L10n {
                                    "Un archivo de notas que el bucle lee al empezar y actualiza al terminar, para que la ejecución N+1 retome en vez de empezar de cero."),
         "loop.editor.worktree": ("Isolate in a git worktree", "Aislar en un worktree de git"),
         "loop.editor.worktree.why": ("Run each loop on its own branch in a separate worktree, so parallel loops never clash. On a verified PASS it merges back and cleans up; otherwise the branch is left for you to review.",
-                                     "Ejecuta cada bucle en su propia rama, en un worktree aparte, para que los bucles en paralelo no choquen. Con un PASS verificado hace merge y limpia; si no, deja la rama para que la revises."),
+                                     "Ejecuta cada bucle en su propia rama, en un worktree aparte, para que los bucles en paralelo no choquen. Con un PASS verificado fusiona y limpia; si no, deja la rama para que la revises."),
 
         "loop.editor.kind.details": ("How this type works", "Cómo funciona este tipo"),
         "loop.editor.changeType": ("Change type", "Cambiar tipo"),
