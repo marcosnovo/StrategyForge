@@ -448,9 +448,10 @@ extension View {
     //     send button, floating chips/pills, the running badge. Prefer `.interactive()`
     //     for anything tappable. This is the canonical target; migrate a surface here
     //     once it's been re-validated rendered on 26 in light AND dark.
-    //  2. `glassPanel()` — a STATIC frosted card/sheet (material + top sheen + hairline).
-    //     Panels that hold content and shouldn't visually float or refract: sheets,
-    //     onboarding cards, the advisor card, loop editor sections.
+    //  2. `glassPanel()` — STATIC cards/sheets: sheets, onboarding cards, the advisor
+    //     card, loop editor sections. Now routes through the SAME native `.glassEffect`
+    //     (converged in #38), so it's really tier 1 for non-interactive surfaces — one
+    //     glass engine, not a hand-rolled material that drifts from the real thing.
     //  3. `translucentColumn()` — the fixed SIDE COLUMNS (nav rail, chat list). Reads as a
     //     flat neutral column that shares the chat surface's color, NOT floating glass;
     //     do not swap these to `.glassEffect` (they must not refract the content beside
@@ -465,26 +466,15 @@ extension View {
             .background(.ultraThinMaterial)
     }
 
-    /// A frosted glass panel (reference aesthetic): a translucent material fill under
-    /// a whisper-white top sheen and a soft hairline edge, on a rounded rect. Use for
-    /// surfaces that should let the aurora glow read faintly through — sidebars,
-    /// suggestion chips, the composer, floating cards.
+    /// A frosted glass panel for static cards/sheets. Converged (#38) onto the SAME
+    /// native Liquid Glass engine as `.glassEffect` so the app speaks one glass language
+    /// instead of three, rather than a hand-rolled material + sheen + hairline that drifts
+    /// from the real thing. `material`/`strokeOpacity` are kept for source compatibility
+    /// with existing call sites but no longer apply — native glass owns the edge + sheen.
     func glassPanel(cornerRadius: CGFloat = Theme.corner,
                     material: Material = .regularMaterial,
                     strokeOpacity: Double = 0.55) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        return self
-            .background(shape.fill(material))
-            .overlay(
-                shape.fill(LinearGradient(colors: [.white.opacity(0.14), .clear],
-                                          startPoint: .top, endPoint: .center))
-                    .allowsHitTesting(false)
-            )
-            .overlay(
-                shape.strokeBorder(.white.opacity(strokeOpacity * 0.25), lineWidth: 1)
-                    .allowsHitTesting(false)
-            )
-            .clipShape(shape)
+        glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 
