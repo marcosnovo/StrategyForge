@@ -192,6 +192,17 @@ final class AppModel {
         await usageStore.refreshExactUsage(force: force)
     }
 
+    /// A CLI-backed single-shot runner configured from current settings — used by the
+    /// eval engine (answer = editing off but not read-only; judge = readOnly, the
+    /// independent grader). Reads binaries/keys/effort live from settings.
+    func oneShotRunner(readOnly: Bool) -> CLIOneShotRunner {
+        CLIOneShotRunner(
+            binaries: Dictionary(uniqueKeysWithValues: AIProvider.allCases.map { ($0, settings.binary(for: $0)) }),
+            apiKeys: providerAPIKeys(),
+            reasoningEffort: settings.codexReasoningEffort,
+            readOnly: readOnly)
+    }
+
     /// The service shown in the main area while in the Services section.
     var selectedService: AIProvider = .claude
     /// A developer TOOL (GitHub/Git) selected in the Services section — when set, the

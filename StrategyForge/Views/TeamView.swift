@@ -143,6 +143,10 @@ struct TeamView: View {
                     }
 
                     connectionNote
+
+                    // Evals: measure the team against a scenario suite before trusting it.
+                    EvalsView(strategy: $team.strategy)
+                        .staggeredAppear(index: strategy.subagentRoles.count + 2)
                 }
                 .padding(Space.xl)
                 .frame(maxWidth: .infinity, alignment: .leading)
