@@ -690,18 +690,53 @@ final class AppModel {
         return s
     }
 
+    /// Chats deleted in the last ~10s, kept in memory (the config with its transcript) so
+    /// the "Undo" banner can restore them. The IRREVERSIBLE parts (sidecar deletion,
+    /// continuedFrom cleanup) are deferred until the window closes; the tombstone is set
+    /// now to prevent a mid-window sync resurrecting the chat, and undone on Undo.
+    @ObservationIgnored private var pendingHardDelete: [Configuration.ID: (config: Configuration, task: Task<Void, Never>)] = [:]
+
     func deleteConfiguration(_ id: Configuration.ID) {
+        guard let removed = configurations.first(where: { $0.id == id }) else { return }
         invalidateChatVM(id)
         configurations.removeAll { $0.id == id }
-        // Clear dangling "continued from" links so a chat doesn't point at a deleted one.
+        deletedConfigIDs.insert(id)   // tombstone now → a sync in the window can't resurrect it
+        liveRepoURLs[id] = nil
+        if selectedConfigID == id { selectedConfigID = configurations.first?.id }
+        // Defer the irreversible cleanup so a mis-click can be undone for 10s.
+        let task = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled else { return }
+            self.finalizeDelete(id)
+        }
+        pendingHardDelete[id] = (removed, task)
+        save()   // data.json drops the chat; its sidecars stay on disk until finalize
+        bannerCenter.showWithUndo(t("chat.deleted"), undoLabel: t("banner.undo")) { [weak self] in
+            self?.undoDelete(id)
+        }
+    }
+
+    /// The point of no return: clear dangling links + delete the sidecars.
+    private func finalizeDelete(_ id: Configuration.ID) {
+        guard pendingHardDelete.removeValue(forKey: id) != nil else { return }
         for i in configurations.indices where configurations[i].continuedFrom == id {
             configurations[i].continuedFrom = nil
         }
-        deletedConfigIDs.insert(id)   // tombstone → sync removes it from iCloud, no resurrection
-        liveRepoURLs[id] = nil
         try? FileManager.default.removeItem(at: activityURL(id))     // drop the history sidecar
         try? FileManager.default.removeItem(at: transcriptURL(id))   // and the transcript sidecar
-        if selectedConfigID == id { selectedConfigID = configurations.first?.id }
+        save()
+    }
+
+    /// Restore a chat deleted within the undo window (its transcript is still in memory
+    /// and its sidecars were never touched).
+    func undoDelete(_ id: Configuration.ID) {
+        guard let pending = pendingHardDelete.removeValue(forKey: id) else { return }
+        pending.task.cancel()
+        deletedConfigIDs.remove(id)          // un-tombstone
+        if !configurations.contains(where: { $0.id == id }) {
+            configurations.append(pending.config)
+        }
+        selectedConfigID = id
         save()
     }
 
@@ -1249,6 +1284,12 @@ final class AppModel {
     /// Force any pending coalesced write to disk immediately (call on background/quit).
     func flushSaves() {
         pendingSave?.cancel(); pendingSave = nil; pendingSaveSince = nil
+        // Finalize any chats still in their undo window so their sidecars aren't left
+        // orphaned after quit (the chat is already gone from data.json).
+        for id in Array(pendingHardDelete.keys) {
+            pendingHardDelete[id]?.task.cancel()
+            finalizeDelete(id)
+        }
         // Synchronous: this runs as the app backgrounds/quits, so the write must finish
         // before the process can exit (a detached task might not).
         save(stamp: false, sync: true)

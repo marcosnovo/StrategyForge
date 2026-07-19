@@ -50,4 +50,28 @@ struct AppModelPersistenceTests {
             #expect(model.configurations.isEmpty)
         }
     }
+
+    @Test func undoRestoresADeletedChatWithinTheWindow() throws {
+        try withTempDir { dir in
+            let model = AppModel(storeDirectory: dir)
+            var config = Configuration(name: "Keep me", strategy: StrategyLibrary.solo())
+            config.transcript = [ChatMessage(role: .user, text: "hello")]
+            model.configurations.append(config)
+            let id = config.id
+
+            model.deleteConfiguration(id)
+            // Gone from the list, tombstoned, and an Undo is offered.
+            #expect(!model.configurations.contains { $0.id == id })
+            #expect(model.deletedConfigIDs.contains(id))
+            #expect(model.bannerCenter.pendingUndo != nil)
+
+            model.undoDelete(id)
+            // Restored with its transcript, un-tombstoned, and reselected.
+            let restored = model.configurations.first { $0.id == id }
+            #expect(restored != nil)
+            #expect(restored?.transcript.first?.text == "hello")
+            #expect(!model.deletedConfigIDs.contains(id))
+            #expect(model.selectedConfigID == id)
+        }
+    }
 }

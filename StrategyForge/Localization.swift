@@ -464,8 +464,10 @@ enum L10n {
         "sidebar.settings": ("Settings", "Ajustes"),
         "sidebar.delete": ("Delete", "Eliminar"),
         "sidebar.deleteTitle": ("Delete this chat?", "¿Eliminar este chat?"),
-        "sidebar.deleteMsg": ("This removes the chat and its history from this list. Files already written to your project folder are not deleted.",
-                              "Elimina el chat y su historial de esta lista. Los archivos ya escritos en tu carpeta de proyecto no se borran."),
+        "sidebar.deleteMsg": ("This removes the chat and its history — you'll have 10 seconds to undo. Files already written to your project folder are not deleted.",
+                              "Elimina el chat y su historial — tendrás 10 segundos para deshacerlo. Los archivos ya escritos en tu carpeta de proyecto no se borran."),
+        "chat.deleted": ("Chat deleted", "Chat eliminado"),
+        "banner.undo": ("Undo", "Deshacer"),
 
         // MARK: Onboarding
         "onboard.title": ("Welcome to Coral", "Te damos la bienvenida a Coral"),

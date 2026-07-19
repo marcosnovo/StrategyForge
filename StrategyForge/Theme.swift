@@ -800,6 +800,15 @@ struct BannerCapsule: View {
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(.white.opacity(0.22)))
                 }
+                // Undo (e.g. after deleting a chat) — restores it and clears the banner.
+                if let undo = model.bannerCenter.pendingUndo {
+                    Button { model.bannerCenter.performUndo() } label: {
+                        Text(undo.label).font(.sfCaption2.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(.white.opacity(0.22)))
+                }
                 Button { model.dismissBanner() } label: {
                     Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
                         .padding(6)                    // a comfortable hit target, not a 10pt speck
