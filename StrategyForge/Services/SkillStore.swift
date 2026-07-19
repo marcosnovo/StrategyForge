@@ -201,32 +201,45 @@ final class SkillStore {
         let folder = root.appendingPathComponent(preview.slug, isDirectory: true)
         let fm = FileManager.default
         // Clean reinstall only over a Coral-managed folder; never clobber hand-authored.
-        if fm.fileExists(atPath: folder.path) {
+        let exists = fm.fileExists(atPath: folder.path)
+        if exists {
             let existing = (try? String(contentsOf: folder.appendingPathComponent("SKILL.md"), encoding: .utf8)) ?? ""
             guard existing.contains(Self.signature) else { throw FetchError.network("A skill named “\(preview.slug)” already exists here (not installed by Coral).") }
-            try? fm.removeItem(at: folder)
         }
+        // Build the whole skill into a STAGING folder (a sibling of the target, so the swap
+        // stays on one volume) and only swap it in on full success — a failed download must
+        // never delete the working copy first (the old bug: remove-then-download).
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        let staging = root.appendingPathComponent(".\(preview.slug).coral-staging-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: staging) }
+
         if case .github(let o, let r, let ref, let path) = preview.source {
-            try await downloadTree(owner: o, repo: r, ref: ref, remotePath: path, into: folder)
+            try await downloadTree(owner: o, repo: r, ref: ref, remotePath: path, into: staging)
             // Stamp SKILL.md so uninstall is safe.
-            let md = folder.appendingPathComponent("SKILL.md")
+            let md = staging.appendingPathComponent("SKILL.md")
             if var t = try? String(contentsOf: md, encoding: .utf8), !t.contains(Self.signature) {
                 t += "\n\n\(Self.signature)\n"; try? t.write(to: md, atomically: true, encoding: .utf8)
             }
             // Scripts arrive without their +x bit — restore it so the CLI can run them.
-            let scripts = folder.appendingPathComponent("scripts")
+            let scripts = staging.appendingPathComponent("scripts")
             if let files = try? fm.subpathsOfDirectory(atPath: scripts.path) {
                 for f in files { try? fm.setAttributes([.posixPermissions: 0o755],
                                                        ofItemAtPath: scripts.appendingPathComponent(f).path) }
             }
         } else {
-            try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+            try fm.createDirectory(at: staging, withIntermediateDirectories: true)
             var front = "---\nname: \(preview.name)\ndescription: \(preview.description)\n"
             if let lic = preview.license { front += "license: \(lic)\n" }
             if let tools = preview.allowedTools, !tools.isEmpty { front += "allowed-tools: \(tools.joined(separator: ", "))\n" }
             front += "---\n\n"
             try (front + preview.body + "\n\n\(Self.signature)\n").write(
-                to: folder.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+                to: staging.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+        }
+        // Swap staging into place. Only now is the previously-installed copy touched.
+        if exists {
+            _ = try fm.replaceItemAt(folder, withItemAt: staging)
+        } else {
+            try fm.moveItem(at: staging, to: folder)
         }
         scan(projectRepo: { if case .project(let r) = scope { return r } else { return nil } }())
         return folder
