@@ -26,6 +26,9 @@ final class AppModel {
     /// Tombstones for chats deleted on this device — persisted so sync deletes them from
     /// iCloud and never lets the remote copy resurrect them (bug: deletes came back).
     @ObservationIgnored var deletedConfigIDs: Set<UUID> = []
+    /// Per-config `updatedAt` captured at the last successful sync — the baseline that
+    /// lets the merge tell an independent local edit (real conflict) from a stale copy.
+    @ObservationIgnored var syncBaseline: [UUID: Date] = [:]
     var selectedConfigID: Configuration.ID?
     var settings = AppSettings()
 
@@ -1938,20 +1941,25 @@ final class AppModel {
         /// Tombstones: ids of chats deleted locally, so sync can remove them from iCloud
         /// AND stop the remote copy from resurrecting them on the next merge.
         var deletedConfigIDs: [UUID]
+        /// Per-config `updatedAt` at the last successful sync (see AppModel.syncBaseline),
+        /// so conflict detection survives a relaunch.
+        var syncBaseline: [String: Date]
 
         init(configurations: [Configuration],
              settings: AppSettings,
              savedTeams: [SavedTeam] = [],
              deletedConfigIDs: [UUID] = [],
+             syncBaseline: [String: Date] = [:],
              schemaVersion: Int = currentVersion) {
             self.schemaVersion = schemaVersion
             self.configurations = configurations
             self.settings = settings
             self.savedTeams = savedTeams
             self.deletedConfigIDs = deletedConfigIDs
+            self.syncBaseline = syncBaseline
         }
 
-        enum CodingKeys: String, CodingKey { case schemaVersion, configurations, settings, savedTeams, deletedConfigIDs }
+        enum CodingKeys: String, CodingKey { case schemaVersion, configurations, settings, savedTeams, deletedConfigIDs, syncBaseline }
 
         // Tolerant decode: older files have no schemaVersion (→ 0). Missing
         // settings/savedTeams default rather than failing the whole load.
@@ -1964,6 +1972,7 @@ final class AppModel {
             settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
             savedTeams = Self.lossyArray(SavedTeam.self, from: c, forKey: .savedTeams)
             deletedConfigIDs = try c.decodeIfPresent([UUID].self, forKey: .deletedConfigIDs) ?? []
+            syncBaseline = (try? c.decodeIfPresent([String: Date].self, forKey: .syncBaseline) ?? [:]) ?? [:]
         }
 
         /// Decode an array dropping any single malformed element, so a corrupt entry
@@ -2012,7 +2021,9 @@ final class AppModel {
         var slim = configurations
         for i in slim.indices { slim[i].transcript = [] }
         let state = PersistedState(configurations: slim, settings: settings, savedTeams: savedTeams,
-                                   deletedConfigIDs: Array(deletedConfigIDs))
+                                   deletedConfigIDs: Array(deletedConfigIDs),
+                                   syncBaseline: Dictionary(syncBaseline.map { ($0.key.uuidString, $0.value) },
+                                                            uniquingKeysWith: { a, _ in a }))
         let url = storeURL
         writeTask?.cancel()
         // On quit (flushSaves → sync) write on THIS thread: a detached task might not
@@ -2075,6 +2086,9 @@ final class AppModel {
         settings = state.settings
         savedTeams = state.savedTeams
         deletedConfigIDs = Set(state.deletedConfigIDs)
+        syncBaseline = Dictionary(uniqueKeysWithValues: state.syncBaseline.compactMap { key, value in
+            UUID(uuidString: key).map { ($0, value) }
+        })
         // Hydrate transcripts from their sidecars. For an OLD data.json that still carried
         // transcripts inline, migrate each to a sidecar NOW (synchronously, before any
         // save() can strip the inline copy) so a transcript can never be lost.
@@ -2120,12 +2134,24 @@ final class AppModel {
     /// last-writer-wins by `updatedAt`, then return the merged portable set to push
     /// back. Device-local repo bindings are always preserved (never synced).
     func mergeRemote(_ remote: [PortableConfiguration]) -> [PortableConfiguration] {
-        configurations = ConfigMerger.merge(local: configurations, remote: remote)
+        let outcome = ConfigMerger.merge(local: configurations, remote: remote,
+                                         baseline: syncBaseline,
+                                         conflictSuffix: " " + t("sync.conflictSuffix"))
+        configurations = outcome.configurations
         // A chat deleted here must NOT come back because the remote still has it: drop
         // any tombstoned id the merge re-introduced.
         if !deletedConfigIDs.isEmpty {
             configurations.removeAll { deletedConfigIDs.contains($0.id) }
         }
+        // A real divergent edit was preserved (not overwritten): tell the user so they
+        // can reconcile the "(conflict)" copy instead of it vanishing silently.
+        if outcome.conflictCount > 0 {
+            show(.success(t("sync.conflictKept", outcome.conflictCount)))
+        }
+        // Record the post-merge timestamps as the new sync baseline, so the NEXT merge
+        // can tell an independent local edit from a merely-stale copy.
+        syncBaseline = Dictionary(configurations.map { ($0.id, $0.updatedAt) },
+                                  uniquingKeysWith: { a, _ in a })
         if selectedConfigID == nil { selectedConfigID = configurations.first?.id }
         // Don't re-stamp: timestamps are already authoritative after the merge.
         save(stamp: false)
