@@ -8,7 +8,19 @@
 
 import Testing
 import Foundation
+import UniformTypeIdentifiers
 @testable import Coral
+
+/// A file-panel presenter that returns preset URLs instead of showing a modal.
+@MainActor
+private struct FakeFilePanels: FilePanelPresenting {
+    var directory: URL?
+    var file: URL?
+    var saveURL: URL?
+    func chooseDirectory(prompt: String?, message: String?, startingAt: URL?) -> URL? { directory }
+    func chooseFile(contentTypes: [UTType], prompt: String?) -> URL? { file }
+    func save(suggestedName: String, contentTypes: [UTType]) -> URL? { saveURL }
+}
 
 @MainActor
 struct AppModelPersistenceTests {
@@ -48,6 +60,23 @@ struct AppModelPersistenceTests {
             try Data("{ this is not json".utf8).write(to: bad)
             let model = AppModel(storeDirectory: dir)
             #expect(model.configurations.isEmpty)
+        }
+    }
+
+    @Test func pickRepoBindsTheFolderFromTheInjectedPanel() throws {
+        try withTempDir { dir in
+            // A fake panel returns a preset folder — no modal — so repo-binding is testable.
+            let picked = dir.appendingPathComponent("MyRepo", isDirectory: true)
+            try FileManager.default.createDirectory(at: picked, withIntermediateDirectories: true)
+            let model = AppModel(storeDirectory: dir, filePanels: FakeFilePanels(directory: picked))
+
+            var config = Configuration(name: "Bind me", strategy: StrategyLibrary.solo())
+            model.configurations.append(config)
+            config = model.configurations[0]
+
+            let bound = model.pickRepo(for: config.id)
+            #expect(bound)
+            #expect(model.configurations[0].repoPath == picked.path)
         }
     }
 

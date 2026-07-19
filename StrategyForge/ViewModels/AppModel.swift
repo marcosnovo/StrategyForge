@@ -287,8 +287,14 @@ final class AppModel {
     /// Application Support — the testability seam (#12). Defaults to the app's real dir.
     @ObservationIgnored let storeDirectory: URL
 
-    init(storeDirectory: URL = AppPaths.supportDirectory(), autoLoad: Bool = true) {
+    /// Presents open/save panels (#12 seam) — real AppKit by default; a fake in tests
+    /// returns a preset URL so folder/file-picking code runs without a modal.
+    @ObservationIgnored let filePanels: FilePanelPresenting
+
+    init(storeDirectory: URL = AppPaths.supportDirectory(), autoLoad: Bool = true,
+         filePanels: FilePanelPresenting? = nil) {
         self.storeDirectory = storeDirectory
+        self.filePanels = filePanels ?? AppKitFilePanels()
         if autoLoad { load() }
     }
 
@@ -471,11 +477,7 @@ final class AppModel {
     /// went wrong). Shared by Settings and the failure banner.
     func exportDiagnostics() {
         let contents = DiagnosticsLog.contents()
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "coral-diagnostics.txt"
-        panel.allowedContentTypes = [.plainText]
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = filePanels.save(suggestedName: "coral-diagnostics.txt", contentTypes: [.plainText]) else { return }
         do {
             try (contents.isEmpty ? t("settings.diagnostics.empty") : contents)
                 .write(to: url, atomically: true, encoding: .utf8)
@@ -775,14 +777,9 @@ final class AppModel {
     /// Import an existing repo's `.claude/` config back into an editable Strategy,
     /// binding the new configuration to that repo (so it round-trips / re-exports).
     func importFromRepo() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = t("common.choose")
-        panel.message = t("import.pickMessage")
-        if let base = resolvedDefaultReposURL() { panel.directoryURL = base }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = filePanels.chooseDirectory(prompt: t("common.choose"),
+                                                   message: t("import.pickMessage"),
+                                                   startingAt: resolvedDefaultReposURL()) else { return }
 
         guard let strategy = repoStrategy(at: url) else {
             show(.failure(t("import.notFound")))
@@ -837,14 +834,9 @@ final class AppModel {
 
     /// Pick a repo folder and import its `.claude/` config as a new team.
     func importTeamFromRepoPanel() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = t("common.choose")
-        panel.message = t("import.pickMessage")
-        if let base = resolvedDefaultReposURL() { panel.directoryURL = base }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = filePanels.chooseDirectory(prompt: t("common.choose"),
+                                                   message: t("import.pickMessage"),
+                                                   startingAt: resolvedDefaultReposURL()) else { return }
         importTeamFromRepo(at: url)
     }
 
@@ -853,10 +845,8 @@ final class AppModel {
     /// Export a configuration's strategy as a shareable `.sfstrategy` document
     /// (topology only — never repo paths/bookmarks).
     func exportStrategyDocument(_ config: Configuration) {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = StrategyPackage.fileName(for: config.strategy)
-        panel.allowedContentTypes = [.sfStrategy]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = filePanels.save(suggestedName: StrategyPackage.fileName(for: config.strategy),
+                                        contentTypes: [.sfStrategy]) else { return }
         do {
             try StrategyPackage.export(config.strategy).write(to: url, options: .atomic)
             flashSuccess(t(StrategyPackage.hasRedactableSecrets(config.strategy)
@@ -868,13 +858,7 @@ final class AppModel {
 
     /// Import a `.sfstrategy` document as a new (repo-less) configuration.
     func importStrategyDocument() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.sfStrategy]
-        panel.prompt = t("common.choose")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = filePanels.chooseFile(contentTypes: [.sfStrategy], prompt: t("common.choose")) else { return }
         do {
             let data = try Data(contentsOf: url)
             let strategy = try StrategyPackage.import(data).autoFixed()   // apply safe fixes
@@ -1166,10 +1150,8 @@ final class AppModel {
 
     /// Export a team to a shareable `.sfstrategy` file.
     func exportTeamDocument(_ team: SavedTeam) {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = StrategyPackage.fileName(for: team.strategy)
-        panel.allowedContentTypes = [.sfStrategy]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = filePanels.save(suggestedName: StrategyPackage.fileName(for: team.strategy),
+                                        contentTypes: [.sfStrategy]) else { return }
         do {
             try StrategyPackage.export(team.strategy).write(to: url, options: .atomic)
             Analytics.log(.strategyShared(kind: "file"))
@@ -1199,13 +1181,7 @@ final class AppModel {
 
     /// Create a team from a `.sfstrategy` file.
     func importTeamFromFile() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.sfStrategy]
-        panel.prompt = t("common.choose")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = filePanels.chooseFile(contentTypes: [.sfStrategy], prompt: t("common.choose")) else { return }
         do {
             let strategy = try StrategyPackage.import(Data(contentsOf: url)).autoFixed()
             guard strategy.isValid, !strategy.roles.isEmpty else { show(.failure(t("doc.importInvalid"))); return }
@@ -1608,13 +1584,8 @@ final class AppModel {
 
     /// Pick a local folder and open it in Code Mode.
     func pickAndOpenCodeChat() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = t("repo.picker.prompt")
-        if let base = resolvedDefaultReposURL() { panel.directoryURL = base }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = filePanels.chooseDirectory(prompt: t("repo.picker.prompt"), message: nil,
+                                                   startingAt: resolvedDefaultReposURL()) else { return }
         openCodeChat(repoURL: url)
     }
 
@@ -1624,15 +1595,9 @@ final class AppModel {
     /// Returns true iff the user actually picked a folder.
     @discardableResult
     func pickRepo(for id: Configuration.ID) -> Bool {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = t("repo.picker.prompt")
-        panel.message = t("repo.picker.message")
-        if let base = resolvedDefaultReposURL() { panel.directoryURL = base }
-
-        guard panel.runModal() == .OK, let url = panel.url,
+        guard let url = filePanels.chooseDirectory(prompt: t("repo.picker.prompt"),
+                                                   message: t("repo.picker.message"),
+                                                   startingAt: resolvedDefaultReposURL()),
               let i = configurations.firstIndex(where: { $0.id == id }) else { return false }
 
         configurations[i].repoPath = url.path
@@ -1656,12 +1621,8 @@ final class AppModel {
 
     /// Present an open panel to choose the default repos folder (Settings).
     func pickDefaultReposFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = t("repo.picker.prompt")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = filePanels.chooseDirectory(prompt: t("repo.picker.prompt"), message: nil,
+                                                   startingAt: nil) else { return }
         settings.defaultReposPath = url.path
         settings.defaultReposBookmark = try? url.bookmarkData(
             options: [.withSecurityScope],
@@ -1864,10 +1825,8 @@ final class AppModel {
     /// Save the strategy as a single self-contained `.md` the user can drag into a
     /// Claude chat (no repo/Terminal needed).
     func downloadBrief(_ config: Configuration) {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = StandaloneBriefGenerator.fileName(for: config.strategy)
-        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = filePanels.save(suggestedName: StandaloneBriefGenerator.fileName(for: config.strategy),
+                                        contentTypes: [UTType(filenameExtension: "md") ?? .plainText]) else { return }
         do {
             try StandaloneBriefGenerator.brief(for: config.strategy)
                 .write(to: url, atomically: true, encoding: .utf8)
@@ -1912,12 +1871,9 @@ final class AppModel {
     /// Create a throwaway practice folder (user picks where) with a starter file,
     /// so a beginner can experiment end-to-end with zero risk.
     func trySampleFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.prompt = t("common.choose")
-        panel.message = t("setup.sample.sub")
-        guard panel.runModal() == .OK, let parent = panel.url else { return }
+        guard let parent = filePanels.chooseDirectory(prompt: t("common.choose"),
+                                                      message: t("setup.sample.sub"),
+                                                      startingAt: nil) else { return }
 
         let didAccess = parent.startAccessingSecurityScopedResource()
         defer { if didAccess { parent.stopAccessingSecurityScopedResource() } }
