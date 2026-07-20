@@ -204,6 +204,12 @@ o dime qué ajustar. Todos son fáciles de revertir.
 - [ ] Borra un chat → aparece banner **"Chat eliminado" + "Deshacer"** ~10s. Pulsa Deshacer → el chat
   vuelve con su historial. Si esperas 10s, se borra de verdad.
 
+**Feature nueva — Dynamic workflow generado** (del artículo "graph engineering"):
+- [ ] Genera los ficheros de un **equipo con compañeros** (Generar ficheros). Además de `.claude/agents/*`
+  y `CLAUDE.md`, se escribe **`.claude/workflows/<equipo>.mjs`**.
+- [ ] En ese repo, con Claude Code: el equipo es ahora un **workflow ejecutable** (plan → trabajo en
+  paralelo → síntesis). Ábrelo para ver el programa; se regenera al volver a Generar.
+
 **Feature nueva — Guardarraíl "debe seguir siendo cierto"** (del artículo loops→graphs, zona vetada):
 - [ ] **Revisa el diff** del commit `[Loops] Counter-metric guardrail` (toca `LoopPlan.swift` +
   `LoopFileGenerator.swift`, ficheros vetados).

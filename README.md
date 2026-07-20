@@ -31,7 +31,10 @@ agents run against your own subscriptions on your own hardware.
   and opt-in **Auto-PR** when a run finishes.
 - **Generate the config files.** Coral can also just write the Claude Code configuration
   (`.claude/agents/*.md` + an orchestration `CLAUDE.md`) into a repo, so a team you
-  designed here runs in a plain `claude` session too.
+  designed here runs in a plain `claude` session too. A team with teammates also gets a
+  runnable **dynamic workflow** (`.claude/workflows/<team>.mjs`) — the team's topology as
+  a program Claude Code executes (plan → parallel work → synthesize), giving the design a
+  deterministic runtime, not just turn-by-turn delegation.
 - **Sync** your teams/config across Macs via CloudKit (device-local transcripts stay
   local); **Usage** shows real token usage and your Claude plan headroom.
 

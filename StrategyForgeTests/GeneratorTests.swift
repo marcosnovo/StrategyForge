@@ -361,3 +361,42 @@ struct StrategyWriterTests {
         #expect(markerCount == 1)
     }
 }
+
+struct WorkflowGeneratorTests {
+
+    @Test func teamProducesRunnableWorkflowWithPhasesAndParallel() {
+        let strategy = StrategyLibrary.orchestratorWorkers()   // orchestrator + 3 workers
+        let js = WorkflowGenerator.workflow(for: strategy)!
+        // Valid dynamic-workflow shape.
+        #expect(js.contains("export const meta = {"))
+        #expect(js.contains("phases: [{ title: 'Plan' }, { title: 'Work' }, { title: 'Synthesize' }]"))
+        #expect(js.contains("phase('Plan')"))
+        #expect(js.contains("await parallel(["))
+        #expect(js.contains("return final"))
+        // One agent() branch per teammate.
+        let branches = js.components(separatedBy: "() => agent(").count - 1
+        #expect(branches == strategy.subagentRoles.count)
+        // Pins each teammate's model.
+        #expect(js.contains("model: 'claude-fable-5'") || js.contains("model: 'claude-sonnet-5'"))
+        // The task is read from args.
+        #expect(js.contains("typeof args === 'string'"))
+    }
+
+    @Test func soloTeamHasNoWorkflow() {
+        #expect(WorkflowGenerator.workflow(for: StrategyLibrary.solo()) == nil)
+    }
+
+    @Test func fileNameSlugIsFilesystemSafe() {
+        var s = StrategyLibrary.solo()
+        s.name = "My Team / v2!"
+        #expect(WorkflowGenerator.fileName(for: s) == ".claude/workflows/my-team-v2.mjs")
+    }
+
+    @Test func personaBackticksCannotBreakOutOfTheTemplate() {
+        var s = StrategyLibrary.orchestratorWorkers()
+        s.roles[1].systemPrompt = "do `x` and ${danger}"
+        let js = WorkflowGenerator.workflow(for: s)!
+        // The backtick and ${ are escaped so they can't terminate/interpolate the literal.
+        #expect(js.contains("do \\`x\\` and \\${danger}"))
+    }
+}

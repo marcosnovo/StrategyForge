@@ -40,6 +40,11 @@ struct StrategyWriter {
         where !fm.fileExists(atPath: repoURL.appendingPathComponent(seed.relativePath).path) {
             files.append(seed)
         }
+        // A team (with teammates) also gets a runnable dynamic workflow — the team's
+        // topology as a program Claude Code can execute (plan → parallel work → synthesize).
+        if let workflow = WorkflowGenerator.workflow(for: strategy) {
+            files.append(GeneratedFile(relativePath: WorkflowGenerator.fileName(for: strategy), contents: workflow))
+        }
         return files
     }
 
@@ -137,6 +142,15 @@ struct StrategyWriter {
             try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try seed.contents.write(to: url, atomically: true, encoding: .utf8)
             written.append(seed.relativePath)
+        }
+
+        // 2a-bis. Dynamic workflow — the team's topology as a runnable Claude Code program.
+        // Regenerated like the agent files (reflects the current team), so it's overwritten.
+        if let workflow = WorkflowGenerator.workflow(for: strategy) {
+            let url = repoURL.appendingPathComponent(WorkflowGenerator.fileName(for: strategy))
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try workflow.write(to: url, atomically: true, encoding: .utf8)
+            written.append(WorkflowGenerator.fileName(for: strategy))
         }
 
         // 2b. Skills — copy each attached skill folder into the repo's .claude/skills
