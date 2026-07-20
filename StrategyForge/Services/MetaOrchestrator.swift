@@ -106,12 +106,7 @@ struct MetaOrchestrator {
         func fallback() -> [Subtask] { workers.map { Subtask(roleName: $0.name, task: task) } }
         guard !workers.isEmpty else { return [] }
 
-        guard let start = text.firstIndex(of: "["), let end = text.lastIndex(of: "]"),
-              start < end,
-              let data = String(text[start...end]).data(using: .utf8),
-              let arr = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else {
-            return fallback()
-        }
+        guard let arr = ModelJSON.firstArray(in: text) else { return fallback() }
 
         var subtasks: [Subtask] = []
         for item in arr {

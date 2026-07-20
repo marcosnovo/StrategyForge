@@ -17,6 +17,12 @@ final class LoopStore {
 
     static let shared = LoopStore()
 
+    /// Where loops.json lives — injectable so tests can use a scratch directory.
+    @ObservationIgnored private let storeDirectory: URL
+    /// The file-panel seam (FilePanelPresenting), injected like AppModel's so the
+    /// repo-binding path is testable without a modal.
+    @ObservationIgnored private let filePanels: FilePanelPresenting
+
     // MARK: - State
 
     var loops: [LoopPlan] = []
@@ -67,7 +73,10 @@ final class LoopStore {
     /// Called after a run finishes (any terminal state) with its summary.
     @ObservationIgnored var onRunFinished: ((LoopPlan.ID, LoopRunSummary) -> Void)?
 
-    init() {
+    init(storeDirectory: URL = AppPaths.supportDirectory(),
+         filePanels: FilePanelPresenting? = nil) {
+        self.storeDirectory = storeDirectory
+        self.filePanels = filePanels ?? AppKitFilePanels()
         load()
     }
 
@@ -155,17 +164,13 @@ final class LoopStore {
     /// Present an open panel to choose the target repo folder for a plan.
     /// Mirrors AppModel.pickRepo (security-scoped bookmark + live URL cache).
     func pickRepo(for id: LoopPlan.ID) {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
         // Same locale heuristic as ChatViewModel.narrationLang: the store has no
         // AppSettings handle, and the panel copy should still follow the system.
         let lang = (Locale.preferredLanguages.first?.hasPrefix("es") == true) ? "es" : "en"
-        panel.prompt = L10n.string("repo.picker.prompt", langCode: lang)
-        panel.message = L10n.string("loop.repo.picker.message", langCode: lang)
-
-        guard panel.runModal() == .OK, let url = panel.url,
+        guard let url = filePanels.chooseDirectory(
+                prompt: L10n.string("repo.picker.prompt", langCode: lang),
+                message: L10n.string("loop.repo.picker.message", langCode: lang),
+                startingAt: nil),
               let i = loops.firstIndex(where: { $0.id == id }) else { return }
 
         loops[i].repoPath = url.path
@@ -260,7 +265,7 @@ final class LoopStore {
     }
 
     private var storeURL: URL {
-        AppPaths.supportDirectory().appendingPathComponent("loops.json")
+        storeDirectory.appendingPathComponent("loops.json")
     }
 
     /// Persist the store. Loops are small, so a synchronous atomic write keeps

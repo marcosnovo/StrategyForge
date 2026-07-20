@@ -17,9 +17,16 @@ import Foundation
 
 enum WorkflowGenerator {
 
+    /// Repo-relative directory generated workflows live in.
+    static let workflowsDirectory = ".claude/workflows"
+
+    /// Signature marking a workflow file WE generated — pruning only ever touches
+    /// files carrying it, so hand-written workflows are never removed.
+    static let managedSignature = "// coral: generated dynamic workflow"
+
     /// Repo-relative path for a team's generated workflow.
     static func fileName(for strategy: Strategy) -> String {
-        ".claude/workflows/\(slug(strategy)).mjs"
+        "\(workflowsDirectory)/\(slug(strategy)).mjs"
     }
 
     /// A stable, filesystem-safe slug from the team name (falls back to "team").
@@ -38,7 +45,7 @@ enum WorkflowGenerator {
         let name = slug(strategy)
         let description = jsLine(strategy.description.isEmpty ? strategy.name : strategy.description)
 
-        var out = "// coral: generated dynamic workflow for the team \"\(jsLine(strategy.name))\".\n"
+        var out = "\(managedSignature) for the team \"\(jsLine(strategy.name))\".\n"
         out += "// Run it with Claude Code: pass your task as args. Regenerated on Generate.\n\n"
 
         // meta — a pure literal, phase titles matched in the body.
@@ -68,7 +75,7 @@ enum WorkflowGenerator {
 
         // Synthesize.
         out += "phase('Synthesize')\n"
-        out += "const final = await agent(`\(jsTemplate(synthesisPrompt(orchestrator)))\n\n"
+        out += "const final = await agent(`\(jsTemplate(synthesisPrompt))\n\n"
         out += "TASK:\n${task}\n\nTEAMMATE RESULTS:\n${results.filter(Boolean).join('\\n\\n---\\n\\n')}`, "
         out += "{ label: 'synthesize' })\n\n"
         out += "return final\n"
@@ -91,7 +98,7 @@ enum WorkflowGenerator {
             : persona
     }
 
-    private static func synthesisPrompt(_ orchestrator: AgentRole) -> String {
+    private static var synthesisPrompt: String {
         "You are the orchestrator. Combine the teammates' results into one coherent, "
             + "actionable final answer. Resolve conflicts, remove redundancy."
     }

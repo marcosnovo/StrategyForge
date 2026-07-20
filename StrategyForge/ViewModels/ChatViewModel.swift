@@ -419,7 +419,11 @@ final class ChatViewModel {
     }
 
     deinit {
-        // If the chat is torn down mid-run, stop the subprocess/stream.
+        // NOTE: the run tasks capture self strongly, so this deinit can never fire
+        // while a turn is in flight — cancelling a live run from here is unreachable.
+        // Teardown MUST go through stop() (AppModel.invalidateChatVM does), which
+        // kills the subprocess via the stream's onTermination. The cancels below are
+        // only belt-and-braces for the idle case (e.g. a parked narration ticker).
         runTask?.cancel()
         narrationTicker?.cancel()
     }

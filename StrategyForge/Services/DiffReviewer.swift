@@ -35,9 +35,13 @@ struct ReviewFinding: Identifiable, Hashable, Sendable {
 /// The outcome of reviewing a diff.
 struct DiffReview: Sendable {
     var findings: [ReviewFinding]
+    /// Set when the reviewer itself failed to run (CLI missing, timeout, crash) —
+    /// distinct from a clean pass, so the UI never shows "no issues found" for a
+    /// review that never happened.
+    var error: String? = nil
     /// A high-severity finding = something you'd want fixed before merging.
     var hasBlocking: Bool { findings.contains { $0.severity == .high } }
-    var isClean: Bool { findings.isEmpty }
+    var isClean: Bool { findings.isEmpty && error == nil }
 }
 
 enum DiffReviewer {
@@ -62,12 +66,7 @@ enum DiffReviewer {
     /// Tolerant parse: extract the first JSON array even if wrapped; drop malformed
     /// entries; clamp unknown severities to medium; sort high-severity first.
     static func parseFindings(_ text: String) -> [ReviewFinding] {
-        guard let start = text.firstIndex(of: "["), let end = text.lastIndex(of: "]"),
-              start < end,
-              let data = String(text[start...end]).data(using: .utf8),
-              let arr = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else {
-            return []
-        }
+        guard let arr = ModelJSON.firstArray(in: text) else { return [] }
         let findings: [ReviewFinding] = arr.compactMap { item in
             guard let title = (item["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !title.isEmpty else { return nil }
@@ -82,14 +81,20 @@ enum DiffReviewer {
         return findings.sorted { $0.severity.rank < $1.severity.rank }
     }
 
-    /// Review a diff via the (independent, read-only) runner. An empty/whitespace diff or
-    /// a failed run yields a clean review.
+    /// Review a diff via the (independent, read-only) runner. An empty/whitespace diff
+    /// yields a clean review; a failed run yields a review carrying `error`, so callers
+    /// can't mistake "the reviewer never ran" for "no issues found".
     static func review(diff: String, runner: OneShotRunner) async -> DiffReview {
         guard !diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return DiffReview(findings: [])
         }
-        let text = (try? await runner.run(prompt: reviewPrompt(diff: diff),
-                                          provider: .claude, model: "", cwd: nil))?.text ?? ""
-        return DiffReview(findings: parseFindings(text))
+        do {
+            let result = try await runner.run(prompt: reviewPrompt(diff: diff),
+                                              provider: .claude, model: "", cwd: nil)
+            return DiffReview(findings: parseFindings(result.text))
+        } catch {
+            let message = (error as? OneShotError)?.errorDescription ?? error.localizedDescription
+            return DiffReview(findings: [], error: message)
+        }
     }
 }

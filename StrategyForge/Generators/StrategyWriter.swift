@@ -8,8 +8,8 @@
 //
 //  Safety rules:
 //   • Only ever writes `.claude/agents/*.md` and the repo-root CLAUDE.md.
-//   • Deletes ONLY agent files it previously generated (managed-signature) that are
-//     no longer part of the strategy; hand-written agent files are never touched.
+//   • Deletes ONLY agent/workflow files it previously generated (managed-signature)
+//     that are no longer part of the strategy; hand-written files are never touched.
 //   • CLAUDE.md is merged, never clobbered: only the marked section changes.
 //
 
@@ -64,6 +64,12 @@ struct StrategyWriter {
             let existing = try? String(contentsOf: repoURL.appendingPathComponent(rel), encoding: .utf8)
             diffs.append(FileDiff.deleted(relativePath: rel, existing: existing))
         }
+        // Same for generated workflows: renaming the team (or editing it down to
+        // solo) would otherwise leave a stale runnable .mjs behind.
+        for rel in prunedWorkflowPaths(for: strategy) {
+            let existing = try? String(contentsOf: repoURL.appendingPathComponent(rel), encoding: .utf8)
+            diffs.append(FileDiff.deleted(relativePath: rel, existing: existing))
+        }
         return diffs
     }
 
@@ -88,6 +94,31 @@ struct StrategyWriter {
                   let content = try? String(contentsOf: entry, encoding: .utf8),
                   content.contains(AgentFileGenerator.managedSignature)
                     || content.contains(AgentFileGenerator.legacyManagedSignature) else { continue }
+            pruned.append(rel)
+        }
+        return pruned
+    }
+
+    /// Managed workflow files we previously generated that no longer match the
+    /// team: the slug changed (rename) or the team no longer yields a workflow
+    /// at all (edited down to solo / no valid roles). `write()` deletes exactly
+    /// these; the preview uses the same list so the two never diverge. Only
+    /// files bearing the generated-workflow signature qualify — hand-written
+    /// workflows are never touched.
+    func prunedWorkflowPaths(for strategy: Strategy) -> [String] {
+        let workflowsDir = repoURL.appendingPathComponent(WorkflowGenerator.workflowsDirectory,
+                                                          isDirectory: true)
+        let expected: Set<String> = WorkflowGenerator.workflow(for: strategy) == nil
+            ? [] : [WorkflowGenerator.fileName(for: strategy)]
+        guard let entries = try? fm.contentsOfDirectory(at: workflowsDir, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        var pruned: [String] = []
+        for entry in entries where entry.pathExtension == "mjs" {
+            let rel = "\(WorkflowGenerator.workflowsDirectory)/\(entry.lastPathComponent)"
+            guard !expected.contains(rel),
+                  let content = try? String(contentsOf: entry, encoding: .utf8),
+                  content.contains(WorkflowGenerator.managedSignature) else { continue }
             pruned.append(rel)
         }
         return pruned
@@ -146,6 +177,11 @@ struct StrategyWriter {
 
         // 2a-bis. Dynamic workflow — the team's topology as a runnable Claude Code program.
         // Regenerated like the agent files (reflects the current team), so it's overwritten.
+        // Prune stale generated workflows first (renamed team / solo downgrade), using
+        // the SAME list the preview diff surfaces (prunedWorkflowPaths).
+        for rel in prunedWorkflowPaths(for: strategy) {
+            try? fm.removeItem(at: repoURL.appendingPathComponent(rel))
+        }
         if let workflow = WorkflowGenerator.workflow(for: strategy) {
             let url = repoURL.appendingPathComponent(WorkflowGenerator.fileName(for: strategy))
             try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

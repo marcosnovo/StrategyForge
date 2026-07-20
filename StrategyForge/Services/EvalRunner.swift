@@ -41,12 +41,7 @@ enum EvalRunner {
     /// array even if wrapped in prose/fences; drop malformed entries; map unknown
     /// categories to `answersCorrectly`.
     static func parseScenarios(_ text: String) -> [EvalScenario] {
-        guard let start = text.firstIndex(of: "["), let end = text.lastIndex(of: "]"),
-              start < end,
-              let data = String(text[start...end]).data(using: .utf8),
-              let arr = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else {
-            return []
-        }
+        guard let arr = ModelJSON.firstArray(in: text) else { return [] }
         return arr.compactMap { item in
             guard let prompt = (item["prompt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !prompt.isEmpty,
@@ -82,10 +77,7 @@ enum EvalRunner {
     /// Tolerant parse of a judge verdict → (passed, reason). Defaults to a failed verdict
     /// when the judge output can't be understood (never a false "pass").
     static func parseVerdict(_ text: String) -> (passed: Bool, reason: String) {
-        guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"),
-              start < end,
-              let data = String(text[start...end]).data(using: .utf8),
-              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+        guard let obj = ModelJSON.firstObject(in: text) else {
             return (false, "Couldn't read the judge's verdict.")
         }
         // Accept bool or "true"/"yes" strings, tolerant of model formatting.

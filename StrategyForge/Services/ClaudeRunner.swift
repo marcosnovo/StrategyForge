@@ -352,16 +352,25 @@ enum ClaudeRunner {
                 continuation.finish()
             }
 
+            // The consumer can cancel while setup is still running (resolveBinary can
+            // take hundreds of ms), firing onTermination BEFORE process.run(). The gate
+            // makes launch-vs-cancel mutually exclusive so a cancelled turn never
+            // spawns an orphan `claude` nobody can stop (see ProviderRun's ProcessBox).
+            let gate = LaunchGate()
             continuation.onTermination = { _ in
                 // Break the read handlers' hold on the continuation, then stop claude.
                 watchdog.cancel()
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
-                if process.isRunning { process.terminate() }
+                gate.cancel()
             }
 
             do {
-                try process.run()
+                guard try gate.launch(process) else {
+                    // Cancelled before launch — the consumer is gone; don't spawn.
+                    continuation.finish()
+                    return
+                }
                 LiveProcesses.register(process)   // terminated on app quit, not orphaned
                 watchdog.start()                  // begin the idle clock only once it's live
             } catch {
@@ -460,13 +469,21 @@ enum ClaudeRunner {
                     }
                     continuation.finish()
                 }
+                // Same launch-vs-cancel gate as `stream`: a cancellation during setup
+                // must not fall through to process.run() and orphan the CLI (worse
+                // here — with no watchdog, a blocked permission ask never exits).
+                let gate = LaunchGate()
                 continuation.onTermination = { _ in
                     stdout.fileHandleForReading.readabilityHandler = nil
                     stderr.fileHandleForReading.readabilityHandler = nil
-                    if process.isRunning { process.terminate() }
+                    gate.cancel()
                 }
                 do {
-                    try process.run()
+                    guard try gate.launch(process) else {
+                        // Cancelled before launch — the consumer is gone; don't spawn.
+                        continuation.finish()
+                        return
+                    }
                     LiveProcesses.register(process)
                     // Send the user's turn as one stream-json message, then leave stdin
                     // open so control_responses can be written during the turn.
@@ -590,7 +607,8 @@ enum ClaudeRunner {
     /// Read whatever is currently buffered in a pipe without blocking. Used at
     /// termination, where `readDataToEndOfFile` could hang forever if a grandchild
     /// process (an MCP server claude spawned) still holds the write end open.
-    private nonisolated static func drainPipe(_ handle: FileHandle) -> Data {
+    /// Internal so LoopRunner's mechanical gate can reuse it for the same hazard.
+    nonisolated static func drainPipe(_ handle: FileHandle) -> Data {
         let fd = handle.fileDescriptor
         let flags = fcntl(fd, F_GETFL)
         if flags != -1 { _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK) }
@@ -627,8 +645,40 @@ enum ClaudeRunner {
     }
 }
 
+/// Makes launching the `claude` subprocess and cancelling the stream mutually
+/// exclusive. The stream's setup runs on a background queue, so a consumer
+/// cancellation (stop, new turn, chat teardown) can fire `onTermination` before
+/// `Process.run()` — the old `if process.isRunning { terminate() }` was a no-op
+/// then, and the launch fell through anyway, spawning an orphan run feeding a dead
+/// continuation. Mirrors ProviderRun's ProcessBox. Internal (not private) so the
+/// launch/cancel ordering is unit-testable without spawning `claude` itself.
+final class LaunchGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+    private var process: Process?
+
+    /// Launch `p` under the lock. Returns false WITHOUT launching when the stream
+    /// was already cancelled; rethrows whatever `Process.run()` throws.
+    func launch(_ p: Process) throws -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        if cancelled { return false }
+        try p.run()
+        process = p
+        return true
+    }
+
+    /// Mark the stream cancelled; stops the process if it was already launched,
+    /// and makes any not-yet-run `launch` refuse to spawn.
+    func cancel() {
+        lock.lock(); defer { lock.unlock() }
+        cancelled = true
+        if let p = process, p.isRunning { p.terminate() }
+    }
+}
+
 /// Thread-safe raw byte accumulator (for stderr, which has no line semantics).
-private final class ByteBuffer: @unchecked Sendable {
+/// Internal so LoopRunner's mechanical gate can reuse it for the same job.
+final class ByteBuffer: @unchecked Sendable {
     private var buffer = Data()
     private let lock = NSLock()
 
@@ -648,13 +698,18 @@ private final class ByteBuffer: @unchecked Sendable {
 /// clock, so a legitimately long turn (a multi-minute test/build with a quiet CLI
 /// stream) is never killed; only genuine silence — a hung, wedged turn — trips it.
 /// The window is deliberately generous (10 min) for exactly that reason.
-private final class InactivityWatchdog: @unchecked Sendable {
+/// All `timer` access goes through `lock`: cancel() is called from BOTH the process
+/// terminationHandler (arbitrary Foundation thread) and continuation.onTermination
+/// (the consumer's cancelling thread), which race on a user stop landing alongside
+/// a natural exit. Internal (not private) so the start/cancel ordering is testable.
+final class InactivityWatchdog: @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.marcosnovo.coral.runner.watchdog")
     private let timeout: TimeInterval
     private let onTimeout: () -> Void
     private let lock = NSLock()
     private var lastActivity = DispatchTime.now()
     private var timer: DispatchSourceTimer?
+    private var cancelled = false
     private var fired = false
 
     init(timeout: TimeInterval, onTimeout: @escaping () -> Void) {
@@ -663,12 +718,19 @@ private final class InactivityWatchdog: @unchecked Sendable {
     }
 
     func start() {
+        lock.lock()
+        // cancel() can land first (a child that exits before start(), or a consumer
+        // cancellation racing the launch) — don't arm a timer nobody will stop.
+        if cancelled { lock.unlock(); return }
         let t = DispatchSource.makeTimerSource(queue: queue)
         // Poll at half the window so the worst-case detection lag is timeout×1.5.
         t.schedule(deadline: .now() + timeout, repeating: timeout / 2)
         t.setEventHandler { [weak self] in
             guard let self else { return }
             self.lock.lock()
+            // A cancel() that landed while this tick was already dequeued must
+            // still win: never fire for a watchdog its owner has stopped.
+            if self.cancelled { self.lock.unlock(); return }
             let idleNs = DispatchTime.now().uptimeNanoseconds &- self.lastActivity.uptimeNanoseconds
             let already = self.fired
             if !already && Double(idleNs) / 1_000_000_000 >= self.timeout { self.fired = true }
@@ -677,6 +739,10 @@ private final class InactivityWatchdog: @unchecked Sendable {
             if shouldFire { self.onTimeout() }
         }
         timer = t
+        lock.unlock()
+        // Resuming outside the lock is safe: a racing cancel() already took the
+        // source out of `timer` and called .cancel() on it, and resuming a
+        // cancelled source just lets it deallocate without ever firing.
         t.resume()
     }
 
@@ -687,7 +753,15 @@ private final class InactivityWatchdog: @unchecked Sendable {
     /// Whether the watchdog (not the user/CLI) is what stopped the run.
     var didFire: Bool { lock.lock(); defer { lock.unlock() }; return fired }
 
-    func cancel() { timer?.cancel(); timer = nil }
+    /// Idempotent; safe to call from multiple threads concurrently and before start().
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let t = timer
+        timer = nil
+        lock.unlock()
+        t?.cancel()
+    }
 }
 
 /// Accumulates streamed bytes and emits complete lines. Thread-safe: the process

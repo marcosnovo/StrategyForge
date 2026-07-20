@@ -16,8 +16,6 @@ struct EvalsView: View {
     @State private var run: EvalRun?
     @State private var isBusy = false
     @State private var progress: (done: Int, total: Int)?
-    @State private var phase: Phase = .idle
-    private enum Phase { case idle, generating, running }
 
     private var suite: EvalSuite { strategy.evalSuite ?? EvalSuite() }
     private var scenarios: [EvalScenario] { suite.scenarios }
@@ -33,7 +31,7 @@ struct EvalsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 summaryRow
-                if let run { verdictList(run) }
+                if run != nil { thresholdCaption }
                 ForEach(scenarios) { scenario in scenarioRow(scenario, run: run) }
             }
 
@@ -64,7 +62,7 @@ struct EvalsView: View {
         }
     }
 
-    @ViewBuilder private func verdictList(_ run: EvalRun) -> some View {
+    private var thresholdCaption: some View {
         Text(model.t("eval.threshold", Int((suite.passThreshold * 100).rounded())))
             .font(.sfCaption2).foregroundStyle(.tertiary)
     }
@@ -126,7 +124,7 @@ struct EvalsView: View {
     // MARK: Drive the engine
 
     private func generate() async {
-        isBusy = true; phase = .generating; defer { isBusy = false; phase = .idle }
+        isBusy = true; defer { isBusy = false }
         let scenarios = await EvalRunner.generate(team: strategy, count: 12,
                                                   runner: model.oneShotRunner(readOnly: false))
         guard !scenarios.isEmpty else { model.flashFailure(model.t("eval.generateFailed")); return }
@@ -138,8 +136,8 @@ struct EvalsView: View {
     }
 
     private func runEvals() async {
-        isBusy = true; phase = .running; progress = (0, scenarios.count)
-        defer { isBusy = false; phase = .idle; progress = nil }
+        isBusy = true; progress = (0, scenarios.count)
+        defer { isBusy = false; progress = nil }
         let outcome = await EvalRunner.run(
             team: strategy, suite: suite, cwd: nil,
             answerRunner: model.oneShotRunner(readOnly: false),

@@ -833,6 +833,22 @@ struct ChatView: View {
         }
     }
 
+    /// Artifact scans are memoized by message text (same pattern as MarkdownView's
+    /// block cache): `vm.messages` mutates on every streamed delta, so every visible
+    /// finished bubble re-renders per chunk — without this, each of those renders
+    /// re-line-splits the whole message just to decide whether to show the button.
+    private static let artifactCache = NSCache<NSString, ArtifactBox>()
+    private final class ArtifactBox { let artifacts: [Artifact]; init(_ a: [Artifact]) { artifacts = a } }
+
+    private func cachedArtifacts(for text: String) -> [Artifact] {
+        let key = text as NSString
+        if let hit = Self.artifactCache.object(forKey: key) { return hit.artifacts }
+        let extracted = Artifact.extract(from: text)
+        Self.artifactCache.countLimit = 400
+        Self.artifactCache.setObject(ArtifactBox(extracted), forKey: key)
+        return extracted
+    }
+
     @ViewBuilder
     private func bubble(_ message: ChatMessage, isStreaming: Bool) -> some View {
         if message.role == .user {
@@ -908,7 +924,7 @@ struct ChatView: View {
                             // Substantial code / HTML / SVG blocks open in a focused
                             // artifact viewer instead of scrolling inline.
                             if !isStreaming {
-                                let arts = Artifact.extract(from: message.text)
+                                let arts = cachedArtifacts(for: message.text)
                                 if !arts.isEmpty {
                                     Button { shownArtifacts = arts; showArtifacts = true } label: {
                                         Label(model.t("artifact.open"), systemImage: "rectangle.on.rectangle.angled")

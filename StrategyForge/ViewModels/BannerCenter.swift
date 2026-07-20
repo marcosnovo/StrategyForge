@@ -45,9 +45,12 @@ final class BannerCenter {
     }
 
     /// A success banner that also offers an Undo action for its lifetime (e.g. delete).
-    func showWithUndo(_ message: String, undoLabel: String, undo: @escaping () -> Void) {
+    /// Pass `dismissAfter` matching the caller's undo window so the Undo button never
+    /// disappears while the action is still undoable (or lingers after it isn't).
+    func showWithUndo(_ message: String, undoLabel: String, dismissAfter: Duration? = nil,
+                      undo: @escaping () -> Void) {
         pendingUndo = UndoAction(label: undoLabel, perform: undo)
-        show(.success(message))
+        show(.success(message), dismissAfter: dismissAfter)
     }
 
     /// Run the pending Undo (if any) and clear the banner.
@@ -69,13 +72,14 @@ final class BannerCenter {
     /// Show a banner and always schedule its auto-dismiss — success after a few seconds,
     /// failures after a longer window (long enough to read + hit Fix/Export, short enough
     /// that a stuck error banner never lingers reading as "the app is frozen"). The ✕
-    /// still dismisses either immediately.
-    func show(_ banner: Banner) {
+    /// still dismisses either immediately. An explicit `dismissAfter` overrides the
+    /// defaults (e.g. an Undo banner must live as long as its undo window).
+    func show(_ banner: Banner, dismissAfter: Duration? = nil) {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             self.banner = banner
         }
         dismissTask?.cancel()
-        let delay: Duration = { if case .success = banner { return .seconds(4) } else { return .seconds(12) } }()
+        let delay = Self.dismissDelay(for: banner, override: dismissAfter)
         dismissTask = Task { @MainActor in
             try? await Task.sleep(for: delay)
             if self.banner == banner {
@@ -85,5 +89,14 @@ final class BannerCenter {
                 }
             }
         }
+    }
+
+    /// The auto-dismiss delay for a banner: an explicit override wins; otherwise
+    /// success reads fast (4s) and failures get longer (12s). Split out so tests can
+    /// pin the undo banner's lifetime to the undo window without waiting it out.
+    static func dismissDelay(for banner: Banner, override: Duration?) -> Duration {
+        if let override { return override }
+        if case .success = banner { return .seconds(4) }
+        return .seconds(12)
     }
 }

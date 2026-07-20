@@ -161,22 +161,33 @@ struct LoopFileGeneratorTests {
 
     @Test func mechanicalGateRunsBeforeTheJudgeAndFailsOnNonZeroExit() {
         var plan = makePlan(kind: .goalBased)
-        plan.verifyCommand = "swift build\nswift test"     // two lines → joined with &&
+        plan.verifyCommand = "swift build\nswift test"     // two lines → both must pass
         let files = LoopFileGenerator.generate(for: plan)
         let loopMd = files.first { $0.relativePath == "LOOP.md" }!.contents
-        // Documented as the mechanical gate.
+        // Documented as the mechanical gate, lines verbatim.
         #expect(loopMd.contains("## Verify command (mechanical gate)"))
-        #expect(loopMd.contains("swift build && swift test"))
-        // The script gates on the command's exit code: only exit 0 reaches the judge,
+        #expect(loopMd.contains("```\nswift build\nswift test\n```"))
+        // The script gates on the gate's exit code: only exit 0 reaches the judge,
         // a non-zero exit is FAIL with no LLM call.
         let sh = script(files)
-        #expect(sh.contains("if { swift build && swift test ; } >/dev/null 2>&1; then"))
+        #expect(sh.contains("if bash -e >/dev/null 2>&1 <<'CORAL_VERIFY'\nswift build\nswift test\nCORAL_VERIFY\nthen"))
         #expect(sh.contains("VERDICT: FAIL"))
+    }
+
+    @Test func mechanicalGateKeepsHostileCommandLinesVerbatim() {
+        // A `#` comment or trailing `&&` in the user's command must not be able to
+        // break loop.sh's own syntax: each line lands verbatim inside the heredoc,
+        // never flattened onto one line where a comment would eat the rest.
+        var plan = makePlan(kind: .goalBased)
+        plan.verifyCommand = "make build   # quick\nmake test &&"
+        let sh = script(LoopFileGenerator.generate(for: plan))
+        #expect(sh.contains("<<'CORAL_VERIFY'\nmake build   # quick\nmake test &&\nCORAL_VERIFY\n"))
+        #expect(!sh.contains("# quick && make test"))
     }
 
     @Test func noVerifyCommandKeepsTheJudgeOnlyGate() {
         let sh = script(LoopFileGenerator.generate(for: makePlan(kind: .goalBased)))  // verifyCommand = ""
-        #expect(!sh.contains(">/dev/null 2>&1; then"))     // no mechanical wrapper
+        #expect(!sh.contains("CORAL_VERIFY"))              // no mechanical wrapper
     }
 
     @Test func verifyCommandDecodesTolerantlyAndDefaultsEmpty() throws {
@@ -240,7 +251,26 @@ struct LoopFileGeneratorTests {
         plan.repoPath = "/Users/me/repo"
         let loopMd = LoopFileGenerator.generate(for: plan)
             .first { $0.relativePath == "LOOP.md" }!.contents
-        #expect(loopMd.contains("*/30 * * * * cd '/Users/me/repo' && ./loop.sh >> logs/loop.log 2>&1"))
+        // mkdir -p makes the line self-sufficient on a fresh install, where loop.sh
+        // hasn't yet created logs/ — otherwise cron's redirect fails silently forever.
+        #expect(loopMd.contains("*/30 * * * * cd '/Users/me/repo' && mkdir -p logs && ./loop.sh >> logs/loop.log 2>&1"))
+    }
+
+    @Test func cronLineNeverRoundsToAMoreFrequentSchedule() {
+        // 90 min isn't a whole-hour multiple (only hand-edited persistence produces
+        // it): the instruction rounds UP to 2 hours instead of over-firing at */30.
+        var plan = makePlan(kind: .timeBased)
+        plan.intervalMinutes = 90
+        plan.repoPath = "/Users/me/repo"
+        let loopMd = LoopFileGenerator.generate(for: plan)
+            .first { $0.relativePath == "LOOP.md" }!.contents
+        #expect(loopMd.contains("0 */2 * * * cd '/Users/me/repo'"))
+        #expect(!loopMd.contains("*/30 * * * *"))
+        // Whole-hour multiples keep their exact cadence.
+        plan.intervalMinutes = 120
+        let twoHours = LoopFileGenerator.generate(for: plan)
+            .first { $0.relativePath == "LOOP.md" }!.contents
+        #expect(twoHours.contains("0 */2 * * * cd '/Users/me/repo'"))
     }
 
     @Test func goalBasedLaunchCommandUsesModelAndGoal() {
@@ -262,8 +292,23 @@ struct LoopFileGeneratorTests {
         #expect(script.hasPrefix("#!/bin/bash"))
         #expect(script.contains("set -euo pipefail"))
         #expect(script.contains("MAX_TURNS=12"))
-        #expect(script.contains("VERDICT: PASS"))
+        #expect(script.contains("grep -m1 \"VERDICT:\" | grep -q \"PASS\""))
         #expect(script.contains("loop-verifier"))
+    }
+
+    @Test func passDetectionReadsTheFirstVerdictLineOnly() {
+        // A FAIL reply that merely QUOTES 'VERDICT: PASS' in its bullet reasons must
+        // not read as a PASS: detection anchors on the first line carrying VERDICT:
+        // (mirroring the in-app parseVerdict), never a substring of the whole reply.
+        let sh = script(LoopFileGenerator.generate(for: makePlan(kind: .goalBased)))
+        #expect(sh.contains("if printf '%s\\n' \"$VERDICT\" | grep -m1 \"VERDICT:\" | grep -q \"PASS\"; then"))
+        #expect(!sh.contains("*\"VERDICT: PASS\"*"))       // the old whole-reply match
+
+        // The worktree trap gates its merge with the same first-verdict-line pipeline.
+        var wt = makePlan(kind: .goalBased)
+        wt.useWorktree = true
+        let wtSh = script(LoopFileGenerator.generate(for: wt))
+        #expect(wtSh.contains("[ \"$code\" -eq 0 ] && printf '%s\\n' \"$VERDICT\" | grep -m1 \"VERDICT:\" | grep -q \"PASS\""))
     }
 
     // MARK: - Effort (gap #3)

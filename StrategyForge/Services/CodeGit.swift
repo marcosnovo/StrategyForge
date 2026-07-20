@@ -12,7 +12,9 @@ import Foundation
 
 struct DiffLine: Identifiable, Hashable {
     enum Kind { case hunk, add, del, context }
-    let id = UUID()
+    /// Stable identity = position in the parsed diff, so re-parsing an unchanged diff
+    /// yields the same ids and SwiftUI reuses rows instead of rebuilding them all.
+    let id: Int
     let kind: Kind
     let oldNumber: Int?
     let newNumber: Int?
@@ -40,14 +42,48 @@ enum CodeGit {
         }.value
     }
 
-    /// The WHOLE uncommitted diff against HEAD as raw unified-diff text (nil if none /
-    /// not a repo). Used by the automated diff reviewer.
+    /// The WHOLE uncommitted diff as raw unified-diff text (nil if none / not a repo):
+    /// tracked changes (`git diff HEAD`) PLUS each untracked file diffed against
+    /// /dev/null — never-staged new files (the typical agent output) are invisible to
+    /// `diff HEAD` but WILL be committed by the default `add -A` commit path, so the
+    /// automated diff reviewer must see them too.
     nonisolated static func fullDiff(repo: String) async -> String? {
         await Task.detached(priority: .userInitiated) {
             guard let git = gitPath() else { return nil }
-            let out = run(git, ["-C", repo, "diff", "--no-color", "HEAD"])
-            guard let out, !out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-            return out
+            var pieces: [String] = []
+            // Tracked changes (index + working tree vs HEAD). This fails on an unborn
+            // HEAD — treat that as "no tracked changes" and still report untracked files.
+            if let tracked = run(git, ["-C", repo, "diff", "--no-color", "HEAD"]),
+               !tracked.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                pieces.append(tracked)
+            }
+            // Untracked files, .gitignore honored — the same set `add -A` would commit.
+            let untracked = runResult(git, ["-C", repo, "-c", "core.quotePath=false",
+                                            "ls-files", "--others", "--exclude-standard", "-z"])
+            if untracked.ok {
+                // Cap what one untracked file can contribute: a huge generated or
+                // vendored file would balloon the reviewer prompt far past useful
+                // size (and spawn an expensive diff) without improving the review —
+                // note it with a stub hunk instead so it's still visibly new.
+                let maxFileBytes = 256 * 1024
+                for path in untracked.out.split(separator: "\0", omittingEmptySubsequences: true) {
+                    let rel = String(path)
+                    let abs = (repo as NSString).appendingPathComponent(rel)
+                    let size = (try? FileManager.default.attributesOfItem(atPath: abs))?[.size] as? Int ?? 0
+                    if size > maxFileBytes {
+                        pieces.append("diff --git a/\(rel) b/\(rel)\nnew file, \(size) bytes — too large to inline for review\n")
+                        continue
+                    }
+                    // `--no-index` exits 1 when the files differ — that's success here,
+                    // so consult the raw status instead of run()/runResult. Binary files
+                    // yield a one-line "Binary files … differ", never raw bytes.
+                    let r = runStatus(git, ["-C", repo, "diff", "--no-color", "--no-index",
+                                            "--", "/dev/null", rel])
+                    if r.status == 0 || r.status == 1, !r.out.isEmpty { pieces.append(r.out) }
+                }
+            }
+            let out = pieces.joined()
+            return out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : out
         }.value
     }
 
@@ -60,14 +96,21 @@ enum CodeGit {
 
     /// Run git and return whether it succeeded plus combined output.
     private static func runResult(_ path: String, _ args: [String]) -> (ok: Bool, out: String) {
+        let r = runStatus(path, args)
+        return (r.status == 0, r.out)
+    }
+
+    /// Run git and return the raw exit status plus combined output — for commands where
+    /// nonzero isn't failure (`diff --no-index` exits 1 to mean "files differ").
+    private static func runStatus(_ path: String, _ args: [String]) -> (status: Int32, out: String) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = args
         let out = Pipe(); p.standardOutput = out; p.standardError = out
-        do { try p.run() } catch { return (false, "git \(args.joined(separator: " ")) failed") }
+        do { try p.run() } catch { return (-1, "git \(args.joined(separator: " ")) failed") }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
-        return (p.terminationStatus == 0, String(data: data, encoding: .utf8) ?? "")
+        return (p.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
 
     // MARK: - Write operations (Code Mode git panel)
@@ -413,18 +456,18 @@ enum CodeGit {
             if raw.hasPrefix("@@") {
                 // @@ -oldStart,oldLen +newStart,newLen @@
                 if let nums = hunkStarts(raw) { oldNum = nums.0; newNum = nums.1 }
-                lines.append(DiffLine(kind: .hunk, oldNumber: nil, newNumber: nil, text: raw))
+                lines.append(DiffLine(id: lines.count, kind: .hunk, oldNumber: nil, newNumber: nil, text: raw))
                 continue
             }
             if raw.hasPrefix("+") {
-                lines.append(DiffLine(kind: .add, oldNumber: nil, newNumber: newNum, text: String(raw.dropFirst())))
+                lines.append(DiffLine(id: lines.count, kind: .add, oldNumber: nil, newNumber: newNum, text: String(raw.dropFirst())))
                 newNum += 1
             } else if raw.hasPrefix("-") {
-                lines.append(DiffLine(kind: .del, oldNumber: oldNum, newNumber: nil, text: String(raw.dropFirst())))
+                lines.append(DiffLine(id: lines.count, kind: .del, oldNumber: oldNum, newNumber: nil, text: String(raw.dropFirst())))
                 oldNum += 1
             } else {
                 let t = raw.hasPrefix(" ") ? String(raw.dropFirst()) : raw
-                lines.append(DiffLine(kind: .context, oldNumber: oldNum, newNumber: newNum, text: t))
+                lines.append(DiffLine(id: lines.count, kind: .context, oldNumber: oldNum, newNumber: newNum, text: t))
                 oldNum += 1; newNum += 1
             }
         }
