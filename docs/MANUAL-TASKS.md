@@ -215,6 +215,13 @@ o dime qué ajustar. Todos son fáciles de revertir.
 - [ ] En ese repo, con Claude Code: el equipo es ahora un **workflow ejecutable** (plan → trabajo en
   paralelo → síntesis). Ábrelo para ver el programa; se regenera al volver a Generar.
 
+**Feature nueva — Gate mecánico del loop** (del artículo de Hanako, zona vetada):
+- [ ] **Revisa el diff** del commit `[Loops] Mechanical verify-command gate` (toca `LoopPlan.swift` +
+  `LoopFileGenerator.swift`).
+- [ ] En el editor de un loop → Guardarraíles → **"comando de verificación (gate mecánico)"**. Pon
+  p. ej. `swift build && swift test`. En `LOOP.md` aparece "## Verify command" y el `loop.sh` lo corre
+  primero: exit ≠0 = FAIL inmediato (sin llamar al juez LLM); solo exit 0 pasa al verificador semántico.
+
 **Feature nueva — Guardarraíl "debe seguir siendo cierto"** (del artículo loops→graphs, zona vetada):
 - [ ] **Revisa el diff** del commit `[Loops] Counter-metric guardrail` (toca `LoopPlan.swift` +
   `LoopFileGenerator.swift`, ficheros vetados).

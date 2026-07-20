@@ -60,6 +60,14 @@ enum LoopFileGenerator {
         out += "## Done when\n\n"
         out += (goal.isEmpty ? "(a condition that can be checked mechanically — tests, grep, build output; not vibes)" : goal) + "\n\n"
 
+        // The mechanical gate (the "dumber gate"): a command whose exit code is the verdict.
+        let mech = mechVerify(plan)
+        if !mech.isEmpty {
+            out += "## Verify command (mechanical gate)\n\n"
+            out += "Each turn this runs FIRST — a non-zero exit is an immediate FAIL, no judge:\n\n"
+            out += "```\n\(mech)\n```\n\n"
+        }
+
         // The Goodhart guardrail: a PASS also requires these counter-conditions to hold,
         // so the loop can't "win" by gaming its goal (loops-to-graphs). Only emitted when set.
         let mustHold = plan.mustHold.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -333,7 +341,25 @@ enum LoopFileGenerator {
         // Capture form: `|| true` so a transient judge failure (rate-limit, network) can't
         // trip `set -e` and kill the whole loop — an empty $VERDICT just reads as "not a
         // PASS" and the loop retries next turn.
-        return capture ? "VERDICT=\"$(\(call) || true)\"" : call
+        let semantic = capture ? "VERDICT=\"$(\(call) || true)\"" : call
+
+        // Mechanical gate first (the "dumber gate" with no opinion): its EXIT CODE is the
+        // verdict. Only exit 0 lets the semantic verifier run; a non-zero exit is FAIL
+        // outright, so a loop can't declare itself done on work the tests reject.
+        let mech = mechVerify(plan)
+        guard !mech.isEmpty else { return semantic }
+        let fail = capture ? "VERDICT=\"VERDICT: FAIL\"" : "echo \"VERDICT: FAIL\""
+        return "if { \(mech) ; } >/dev/null 2>&1; then\n  \(semantic)\nelse\n  \(fail)\nfi"
+    }
+
+    /// The user's mechanical verify command flattened to one shell line (multiple lines
+    /// join with `&&`, so every step must pass). Empty when none is set.
+    private static func mechVerify(_ plan: LoopPlan) -> String {
+        plan.verifyCommand
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " && ")
     }
 
     private static func goalScript(_ plan: LoopPlan) -> String {

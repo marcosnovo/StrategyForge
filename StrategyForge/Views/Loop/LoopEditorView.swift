@@ -374,6 +374,12 @@ struct LoopEditorView: View {
 
             DisclosureGroup(isExpanded: $showGuardrails) {
                 VStack(alignment: .leading, spacing: Space.m) {
+                    FieldLabel(text: model.t("loop.editor.verifyCommand.label"))
+                    textEditor($plan.verifyCommand,
+                               placeholder: model.t("loop.editor.verifyCommand.placeholder"), height: 44)
+                    Text(model.t("loop.editor.verifyCommand.why"))
+                        .font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     FieldLabel(text: model.t("loop.editor.mustHold.label"))
                     textEditor($plan.mustHold,
                                placeholder: model.t("loop.editor.mustHold.placeholder"), height: 56)

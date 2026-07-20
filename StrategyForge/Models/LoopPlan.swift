@@ -98,6 +98,12 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     /// cheap way by gaming its own goal (e.g. goal "tests pass" + mustHold "no test was
     /// deleted or skipped"). The independent verifier checks it too. May be empty.
     var mustHold: String
+    /// A MECHANICAL gate command whose EXIT CODE is the verdict — the "dumber gate" with
+    /// no opinion (a test/build/lint, e.g. `swift build && swift test`). When set, the
+    /// loop runs it FIRST each turn: exit ≠ 0 → FAIL immediately, no LLM judge (the fix
+    /// for a loop declaring itself done on half-finished work). Only exit 0 lets the
+    /// semantic verifier confirm the goal. Empty = LLM-judge-only (today's behavior).
+    var verifyCommand: String
     /// Hard emergency brake. Clamped to 1...100 on init/decode.
     var maxTurns: Int
     /// Optional spend cap in USD for a goal loop's `loop.sh`: it tallies each turn's
@@ -167,6 +173,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         neverTouch: String = "",
         stopIf: String = "",
         mustHold: String = "",
+        verifyCommand: String = "",
         maxTurns: Int = 20,
         budgetUSD: Double? = nil,
         effort: CostEffort = .medium,
@@ -195,6 +202,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         self.neverTouch = neverTouch
         self.stopIf = stopIf
         self.mustHold = mustHold
+        self.verifyCommand = verifyCommand
         self.maxTurns = Self.clampTurns(maxTurns)
         self.budgetUSD = budgetUSD.map { max(0, $0) }
         self.effort = effort
@@ -218,7 +226,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, kind, goal, neverTouch, stopIf, mustHold, maxTurns, budgetUSD, effort, intervalMinutes
+        case id, name, kind, goal, neverTouch, stopIf, mustHold, verifyCommand, maxTurns, budgetUSD, effort, intervalMinutes
         case workerModel, verifierEnabled, verifierModel, memoryEnabled, useWorktree
         case sourceChatID, sourceChatName, sourceIsCode
         case repoPath, repoBookmark, updatedAt, lastRunAt, lastRun
@@ -238,6 +246,7 @@ struct LoopPlan: Codable, Identifiable, Hashable {
         neverTouch = try c.decodeIfPresent(String.self, forKey: .neverTouch) ?? ""
         stopIf = try c.decodeIfPresent(String.self, forKey: .stopIf) ?? ""
         mustHold = try c.decodeIfPresent(String.self, forKey: .mustHold) ?? ""
+        verifyCommand = try c.decodeIfPresent(String.self, forKey: .verifyCommand) ?? ""
         maxTurns = Self.clampTurns(try c.decodeIfPresent(Int.self, forKey: .maxTurns) ?? 20)
         budgetUSD = (try? c.decodeIfPresent(Double.self, forKey: .budgetUSD) ?? nil).map { max(0, $0) }
         let effortRaw = ((try? c.decodeIfPresent(String.self, forKey: .effort)) ?? nil) ?? ""

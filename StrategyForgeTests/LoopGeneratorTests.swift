@@ -159,6 +159,34 @@ struct LoopFileGeneratorTests {
         #expect(loopMd.contains("Read STATE.md before starting. Update STATE.md before finishing."))
     }
 
+    @Test func mechanicalGateRunsBeforeTheJudgeAndFailsOnNonZeroExit() {
+        var plan = makePlan(kind: .goalBased)
+        plan.verifyCommand = "swift build\nswift test"     // two lines → joined with &&
+        let files = LoopFileGenerator.generate(for: plan)
+        let loopMd = files.first { $0.relativePath == "LOOP.md" }!.contents
+        // Documented as the mechanical gate.
+        #expect(loopMd.contains("## Verify command (mechanical gate)"))
+        #expect(loopMd.contains("swift build && swift test"))
+        // The script gates on the command's exit code: only exit 0 reaches the judge,
+        // a non-zero exit is FAIL with no LLM call.
+        let sh = script(files)
+        #expect(sh.contains("if { swift build && swift test ; } >/dev/null 2>&1; then"))
+        #expect(sh.contains("VERDICT: FAIL"))
+    }
+
+    @Test func noVerifyCommandKeepsTheJudgeOnlyGate() {
+        let sh = script(LoopFileGenerator.generate(for: makePlan(kind: .goalBased)))  // verifyCommand = ""
+        #expect(!sh.contains(">/dev/null 2>&1; then"))     // no mechanical wrapper
+    }
+
+    @Test func verifyCommandDecodesTolerantlyAndDefaultsEmpty() throws {
+        let plan = try JSONDecoder().decode(LoopPlan.self, from: Data(#"{"name":"L","goal":"g"}"#.utf8))
+        #expect(plan.verifyCommand == "")
+        var withCmd = plan; withCmd.verifyCommand = "make test"
+        let round = try JSONDecoder().decode(LoopPlan.self, from: JSONEncoder().encode(withCmd))
+        #expect(round.verifyCommand == "make test")
+    }
+
     @Test func failReasonIsWrittenBackToStateWhenMemoryAndVerifierOn() {
         // Self-improving loop: a rejection reason recorded in STATE.md doesn't recur.
         let withBoth = LoopFileGenerator.generate(for: makePlan(verifier: true, memory: true))
