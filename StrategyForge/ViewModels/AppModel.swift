@@ -22,14 +22,24 @@ final class AppModel {
 
     // MARK: - State
 
-    var configurations: [Configuration] = []
+    /// The chat collection lives in ChatListStore (#35 phase 5); these forwarders keep
+    /// every call site (`configurations`, `configurations[i].x = y`, `selectedConfigID`,
+    /// @Bindable bindings) working, and data.json still persists them via `configurations`.
+    let chatList = ChatListStore()
+    var configurations: [Configuration] {
+        get { chatList.configurations }
+        set { chatList.configurations = newValue }
+    }
+    var selectedConfigID: Configuration.ID? {
+        get { chatList.selectedID }
+        set { chatList.selectedID = newValue }
+    }
     /// Tombstones for chats deleted on this device — persisted so sync deletes them from
     /// iCloud and never lets the remote copy resurrect them (bug: deletes came back).
     @ObservationIgnored var deletedConfigIDs: Set<UUID> = []
     /// Per-config `updatedAt` captured at the last successful sync — the baseline that
     /// lets the merge tell an independent local edit (real conflict) from a stale copy.
     @ObservationIgnored var syncBaseline: [UUID: Date] = [:]
-    var selectedConfigID: Configuration.ID?
     var settings = AppSettings()
 
     /// The team collection lives in TeamLibrary (#35 phase 3); these forwarders keep every
