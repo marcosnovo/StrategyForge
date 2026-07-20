@@ -728,6 +728,9 @@ final class InactivityWatchdog: @unchecked Sendable {
         t.setEventHandler { [weak self] in
             guard let self else { return }
             self.lock.lock()
+            // A cancel() that landed while this tick was already dequeued must
+            // still win: never fire for a watchdog its owner has stopped.
+            if self.cancelled { self.lock.unlock(); return }
             let idleNs = DispatchTime.now().uptimeNanoseconds &- self.lastActivity.uptimeNanoseconds
             let already = self.fired
             if !already && Double(idleNs) / 1_000_000_000 >= self.timeout { self.fired = true }

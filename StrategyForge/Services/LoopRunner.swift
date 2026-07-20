@@ -25,27 +25,6 @@ struct IterationOutcome: Identifiable, Hashable {
     let reason: String
 }
 
-/// Holds the mechanical gate's spawned process so a task cancellation or the
-/// timeout can terminate it safely from any thread. Mirrors CLIOneShotRunner's
-/// ProcessBox: terminate() on a never-launched Process raises
-/// NSInvalidArgumentException, so `adopt` refuses after cancellation.
-private final class GateProcessBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var process: Process?
-    private var cancelled = false
-    /// Returns false when already cancelled — the caller must NOT launch then.
-    func adopt(_ p: Process) -> Bool {
-        lock.lock(); defer { lock.unlock() }
-        if cancelled { return false }
-        process = p; return true
-    }
-    func terminate() {
-        lock.lock(); defer { lock.unlock() }
-        cancelled = true
-        if let p = process, p.isRunning { p.terminate() }
-    }
-}
-
 @Observable
 @MainActor
 final class LoopRunController {
@@ -517,7 +496,11 @@ final class LoopRunController {
     /// cancellation and the timeout both terminate the child.
     nonisolated static func runMechanicalGate(_ command: String, cwd: String,
                                               timeout: TimeInterval = 1800) async -> String? {
-        let box = GateProcessBox()
+        // LaunchGate makes launch-vs-cancel mutually exclusive: a stop() landing
+        // between setup and `run()` must refuse the launch entirely — a mere
+        // "terminate if running" check would no-op on the not-yet-launched process
+        // and the verify command would still spawn, orphaned from the cancelled run.
+        let gate = LaunchGate()
         return await withTaskCancellationHandler {
             await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
                 DispatchQueue.global(qos: .userInitiated).async {
@@ -529,17 +512,18 @@ final class LoopRunController {
                     p.standardOutput = pipe
                     p.standardError = pipe
                     p.standardInput = FileHandle.nullDevice
-                    guard box.adopt(p) else {
-                        cont.resume(returning: "verify command cancelled"); return
-                    }
-                    do { try p.run() } catch {
+                    do {
+                        guard try gate.launch(p) else {
+                            cont.resume(returning: "verify command cancelled"); return
+                        }
+                    } catch {
                         cont.resume(returning: "verify command couldn't run: \(error.localizedDescription)")
                         return
                     }
                     LiveProcesses.register(p)
                     defer { LiveProcesses.deregister(p) }   // kill-all-on-quit stops tracking it
                     // Watchdog: a hung test suite shouldn't hang the loop forever.
-                    let watchdog = DispatchWorkItem { box.terminate() }
+                    let watchdog = DispatchWorkItem { gate.cancel() }
                     DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
                     // Drain continuously and wait on EXIT, not on pipe EOF: anything
                     // the verify command spawned inherits the write end, so a surviving
@@ -568,7 +552,7 @@ final class LoopRunController {
                 }
             }
         } onCancel: {
-            box.terminate()
+            gate.cancel()
         }
     }
 

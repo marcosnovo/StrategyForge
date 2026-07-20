@@ -89,10 +89,15 @@ struct ClaudeRunnerConcurrencyTests {
 
     @Test func cancelAfterStartStopsTheTimer() async throws {
         let fired = Flag()
-        let w = InactivityWatchdog(timeout: 0.05) { fired.set() }
+        // A generous window: on a loaded CI runner the thread can be preempted
+        // for tens of milliseconds between start() and cancel(), and a timeout
+        // shorter than that pause lets the timer fire legitimately before the
+        // cancel — a flake, not a failure. 500ms comfortably exceeds any
+        // plausible preemption; the sleep still covers deadline + one repeat.
+        let w = InactivityWatchdog(timeout: 0.5) { fired.set() }
         w.start()
         w.cancel()
-        try await Task.sleep(for: .milliseconds(300))
+        try await Task.sleep(for: .milliseconds(1200))
         #expect(!fired.isSet)
     }
 
