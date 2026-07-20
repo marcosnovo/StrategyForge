@@ -410,13 +410,17 @@ struct CodeModeView: View {
         }
     }
 
-    /// Commit staged/working changes with an editable, auto-drafted message.
     /// The automated diff-review findings (independent read-only reviewer).
     private func reviewPanel(_ review: DiffReview) -> some View {
         VStack(alignment: .leading, spacing: Space.xs) {
             Divider()
             HStack(spacing: Space.s) {
-                if review.isClean {
+                if let error = review.error {
+                    // The reviewer itself failed — never dress that up as "no issues".
+                    Label("\(model.t("review.action")): \(error)", systemImage: "xmark.seal.fill")
+                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if review.isClean {
                     Label(model.t("review.clean"), systemImage: "checkmark.seal.fill")
                         .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.success)
                 } else {
@@ -426,7 +430,8 @@ struct CodeModeView: View {
                         .foregroundStyle(review.hasBlocking ? Theme.danger : Theme.warning)
                 }
                 Spacer()
-                IndependentVerifierSeal(style: .compact)
+                // No verifier seal on a failed run — nothing was verified.
+                if review.error == nil { IndependentVerifierSeal(style: .compact) }
                 Button { model.diffReview = nil } label: { Image(systemName: "xmark").font(.system(size: 10)) }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
             }
@@ -464,6 +469,7 @@ struct CodeModeView: View {
         }
     }
 
+    /// Commit staged/working changes with an editable, auto-drafted message.
     private var commitBar: some View {
         VStack(spacing: 0) {
             Divider()
@@ -735,18 +741,29 @@ struct CodeModeView: View {
     }
 }
 
-/// Renders a parsed unified diff with line numbers and add/remove coloring.
+/// Renders a parsed unified diff with line numbers and add/remove coloring. Rows are
+/// built LAZILY — a large diff would otherwise construct thousands of views
+/// synchronously on the main thread and freeze Code Mode.
 struct DiffScrollView: View {
     let lines: [DiffLine]
 
     var body: some View {
         ScrollView([.vertical, .horizontal]) {
-            VStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(lines) { line in row(line) }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // Lazy rows can't size to offscreen peers, so pin the stack's width to the
+            // widest line up front — keeping horizontal scrolling coherent.
+            .frame(minWidth: minRowWidth, maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, Space.s)
         }
+    }
+
+    /// Estimated width of the widest row: two gutters + leading pad + monospaced text
+    /// (~7.3pt per character at 12pt; `utf8.count` is O(1) and only ever overestimates).
+    private var minRowWidth: CGFloat {
+        let maxChars = lines.reduce(0) { max($0, $1.text.utf8.count) }
+        return 2 * (38 + 4) + 8 + CGFloat(maxChars + 2) * 7.3
     }
 
     private func row(_ l: DiffLine) -> some View {

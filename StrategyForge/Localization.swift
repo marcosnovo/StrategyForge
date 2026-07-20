@@ -356,6 +356,7 @@ enum L10n {
         "usage.refresh": ("Refresh", "Actualizar"),
         "usage.fiveHour": ("5-hour window", "Ventana de 5 h"),
         "usage.sevenDay": ("Last 7 days", "Últimos 7 días"),
+        "usage.week": ("Last 7 days", "Últimos 7 días"),
         "usage.resetsIn": ("Resets in %@", "Se reinicia en %@"),
         "usage.noActiveWindow": ("No activity in the current window", "Sin actividad en la ventana actual"),
         "usage.codex.window.5h": ("5-hour limit", "Límite 5 h"),

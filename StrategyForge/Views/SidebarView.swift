@@ -23,6 +23,11 @@ struct SidebarView: View {
     /// the scan only re-runs ~300ms after the user stops — not on every keystroke.
     @State private var debouncedQuery = ""
     @State private var searchDebounce: Task<Void, Never>?
+    /// Deep-search results, computed ONCE per debounced query (off the main actor)
+    /// instead of re-scanning every transcript on every body invalidation: chat id →
+    /// the first transcript message matching `debouncedQuery` (kept whole so the row
+    /// can show its "why it surfaced" snippet). Nil when no deep query is active.
+    @State private var deepMatches: [Configuration.ID: String]?
     @State private var hoveredID: Configuration.ID?
     /// Per-chat token bumped when a chat finishes (running → not running), which fires
     /// a discreet sphere-resolve on its thumbnail — the celebration moved here from the
@@ -37,14 +42,15 @@ struct SidebarView: View {
         let sorted = model.configurations.sorted { $0.recency > $1.recency }
         let q = debouncedQuery.trimmingCharacters(in: .whitespaces).lowercased()
         guard !q.isEmpty else { return sorted }
-        // The transcript scan is the costly part (many chats × long histories); only
-        // run it once the query is specific enough to be worth it.
-        let deep = q.count >= 2
+        // The transcript scan is the costly part (many chats × long histories); it
+        // runs once per debounced query in the search task, so here — inside a body
+        // computed property that re-evaluates on every invalidation — the deep match
+        // is just a dictionary lookup.
         return sorted.filter {
             $0.name.lowercased().contains(q)
             || ($0.repoPath ?? "").lowercased().contains(q)
             || model.strategyDisplayName($0.strategy).lowercased().contains(q)
-            || (deep && $0.transcript.contains { $0.text.lowercased().contains(q) })
+            || deepMatches?[$0.id] != nil
         }
     }
 
@@ -183,20 +189,21 @@ struct SidebarView: View {
             TextField(model.t("sidebar.search"), text: $searchText)
                 .textFieldStyle(.plain).font(.sfCaption2)
             if !searchText.isEmpty {
-                Button { searchText = ""; debouncedQuery = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 11)) }
+                Button { searchText = ""; debouncedQuery = ""; deepMatches = nil } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 11)) }
                     .buttonStyle(.plain).foregroundStyle(.tertiary)
             }
         }
-        // Debounce the costly transcript filter: short queries apply immediately (cheap),
-        // longer ones wait ~300ms after the last keystroke so we don't scan every chat's
-        // full history on every character.
-        .onChange(of: searchText) { _, new in
-            searchDebounce?.cancel()
-            if new.trimmingCharacters(in: .whitespaces).count < 2 { debouncedQuery = new; return }
-            searchDebounce = Task {
-                try? await Task.sleep(for: .milliseconds(300))
-                if !Task.isCancelled { debouncedQuery = new }
-            }
+        // Debounce the costly transcript filter: short queries apply immediately (cheap,
+        // name/repo/team only), longer ones wait ~300ms after the last keystroke, then
+        // scan every chat's history ONCE off the main actor and publish the match set —
+        // body invalidations while the query is active only do dictionary lookups.
+        .onChange(of: searchText) { _, new in scheduleDeepScan(for: new) }
+        // Re-run an active deep search when background hydration lands: right after
+        // launch the first scan may have snapshot placeholder (empty) transcripts,
+        // and without this the stale miss would persist until the query changed.
+        .onChange(of: model.transcriptHydrationGeneration) { _, _ in
+            guard searchText.trimmingCharacters(in: .whitespaces).count >= 2 else { return }
+            scheduleDeepScan(for: searchText)
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
         // Clean neutral inset well (not translucent glass over the aurora) so the
@@ -206,6 +213,33 @@ struct SidebarView: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
             .strokeBorder(Theme.hairline, lineWidth: 1))
         .padding(.horizontal, Space.m).padding(.bottom, Space.s)
+    }
+
+    /// Debounce the costly transcript scan for one query, then publish the match set.
+    private func scheduleDeepScan(for new: String) {
+        searchDebounce?.cancel()
+        if new.trimmingCharacters(in: .whitespaces).count < 2 {
+            debouncedQuery = new; deepMatches = nil; return
+        }
+        searchDebounce = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            if Task.isCancelled { return }
+            let q = new.trimmingCharacters(in: .whitespaces).lowercased()
+            // Snapshot on the main actor (value types — a cheap CoW copy, no
+            // string work), scan in a detached task so long histories never
+            // stall the UI, then publish both halves of the result together.
+            let snapshot = model.configurations.map { ($0.id, $0.transcript) }
+            let matches = await Task.detached(priority: .userInitiated) { () -> [Configuration.ID: String] in
+                var out: [Configuration.ID: String] = [:]
+                for (id, transcript) in snapshot {
+                    if let hit = transcript.first(where: { $0.text.lowercased().contains(q) }) {
+                        out[id] = hit.text
+                    }
+                }
+                return out
+            }.value
+            if !Task.isCancelled { deepMatches = matches; debouncedQuery = new }
+        }
     }
 
     /// A conversation row: a rounded strategy-diagram avatar, the chat title, a
@@ -260,9 +294,9 @@ struct SidebarView: View {
                 // state (coral); running → live (teal); otherwise the last message
                 // (messenger style), prefixed with a code cue when bound to a repo.
                 HStack(spacing: Space.xs) {
-                    let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+                    let q = debouncedQuery.trimmingCharacters(in: .whitespaces).lowercased()
                     let searchHit = !q.isEmpty && !config.name.lowercased().contains(q)
-                        && config.transcript.contains(where: { $0.text.lowercased().contains(q) })
+                        && deepMatches?[config.id] != nil
                     if searchHit {
                         Text(previewLine(config))
                             .font(.sfCaption2).foregroundStyle(.secondary)
@@ -348,11 +382,12 @@ struct SidebarView: View {
 
     private func previewLine(_ config: Configuration) -> String {
         // When a search matched inside the conversation (not the title), show the
-        // matching snippet so it's clear WHY this chat surfaced.
-        let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        // matching snippet so it's clear WHY this chat surfaced. The hit text comes
+        // from the debounce task's cached scan — no per-row transcript walk here.
+        let q = debouncedQuery.trimmingCharacters(in: .whitespaces).lowercased()
         if !q.isEmpty, !config.name.lowercased().contains(q),
-           let hit = config.transcript.first(where: { $0.text.lowercased().contains(q) }) {
-            return searchSnippet(around: q, in: hit.text)
+           let hit = deepMatches?[config.id] {
+            return searchSnippet(around: q, in: hit)
         }
         if let msg = lastMessage(config) {
             return msg.replacingOccurrences(of: "\n", with: " ")

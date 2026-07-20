@@ -11,6 +11,12 @@ import AppKit
 /// Terminates any live child CLI processes on quit so a running chat/loop subprocess is
 /// never orphaned (it would otherwise survive the app and keep burning the user's plan).
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Set at launch so quit-time cleanup can reach the app model. scenePhase can't
+    /// tell "hide/deactivate" from "quit", so pending chat deletes are finalized HERE
+    /// (real termination) instead of in the leave-foreground flush — see
+    /// AppModel.finalizeOnTerminate.
+    @MainActor static weak var model: AppModel?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Local-only crash/hang reporting: MetricKit delivers last run's diagnostics
         // now, and CrashReporter summarizes them into the exportable DiagnosticsLog.
@@ -21,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         LiveProcesses.terminateAll()
+        // Delegate callbacks arrive on the main thread; make that explicit for Swift.
+        MainActor.assumeIsolated { AppDelegate.model?.finalizeOnTerminate() }
     }
 }
 
@@ -37,6 +45,9 @@ struct StrategyForgeApp: App {
                 .environment(model)
                 .environment(auth)
                 .tint(Theme.accent)
+                // Quit-time hook: the delegate finalizes pending deletes on REAL
+                // termination (scenePhase alone can't distinguish hide from quit).
+                .onAppear { AppDelegate.model = model }
         }
         // Flush any coalesced device-local write (transcript/usage/draft) when the app
         // leaves the foreground, so a deferred save is never lost on quit.

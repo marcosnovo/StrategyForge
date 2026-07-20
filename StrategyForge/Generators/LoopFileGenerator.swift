@@ -64,7 +64,7 @@ enum LoopFileGenerator {
         let mech = mechVerify(plan)
         if !mech.isEmpty {
             out += "## Verify command (mechanical gate)\n\n"
-            out += "Each turn this runs FIRST — a non-zero exit is an immediate FAIL, no judge:\n\n"
+            out += "Each turn this runs FIRST (every line must succeed) — a non-zero exit is an immediate FAIL, no judge:\n\n"
             out += "```\n\(mech)\n```\n\n"
         }
 
@@ -291,7 +291,9 @@ enum LoopFileGenerator {
           # Don't merge the loop's own scratch artifacts (the work-turn stderr capture).
           git reset -q -- err.log >/dev/null 2>&1 || true
           git commit -m "Coral loop $CORAL_BRANCH" --quiet >/dev/null 2>&1 || true
-          if [ "$code" -eq 0 ] && printf '%s' "$VERDICT" | grep -q "VERDICT: PASS"; then
+          # The verdict is the first line carrying VERDICT: (judge preamble tolerated);
+          # a FAIL that merely quotes 'VERDICT: PASS' in its reasons must not merge.
+          if [ "$code" -eq 0 ] && printf '%s\\n' "$VERDICT" | grep -m1 "VERDICT:" | grep -q "PASS"; then
             if git -C "$CORAL_MAIN" merge --no-ff "$CORAL_BRANCH" -m "Merge loop $CORAL_BRANCH (verified PASS)" >&2; then
               git -C "$CORAL_MAIN" worktree remove "$CORAL_WT" --force >/dev/null 2>&1 || true
               git -C "$CORAL_MAIN" branch -D "$CORAL_BRANCH" >/dev/null 2>&1 || true
@@ -349,17 +351,22 @@ enum LoopFileGenerator {
         let mech = mechVerify(plan)
         guard !mech.isEmpty else { return semantic }
         let fail = capture ? "VERDICT=\"VERDICT: FAIL\"" : "echo \"VERDICT: FAIL\""
-        return "if { \(mech) ; } >/dev/null 2>&1; then\n  \(semantic)\nelse\n  \(fail)\nfi"
+        // The user's lines run verbatim in a quoted heredoc under a fresh `bash -e`,
+        // so a `#` comment or a trailing `&&`/`\` can't break loop.sh's own syntax,
+        // and any failing line fails the gate. (A separate process is required: bash
+        // suppresses `set -e` inside an `if` condition, even in subshells/functions.)
+        return "if bash -e >/dev/null 2>&1 <<'CORAL_VERIFY'\n\(mech)\nCORAL_VERIFY\nthen\n  \(semantic)\nelse\n  \(fail)\nfi"
     }
 
-    /// The user's mechanical verify command flattened to one shell line (multiple lines
-    /// join with `&&`, so every step must pass). Empty when none is set.
+    /// The user's mechanical verify command as trimmed non-empty lines, kept verbatim
+    /// one per line (rendered as-is in LOOP.md and run under `bash -e` in loop.sh, so
+    /// every line must pass). Empty when none is set.
     private static func mechVerify(_ plan: LoopPlan) -> String {
         plan.verifyCommand
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-            .joined(separator: " && ")
+            .joined(separator: "\n")
     }
 
     private static func goalScript(_ plan: LoopPlan) -> String {
@@ -464,10 +471,12 @@ enum LoopFileGenerator {
             "  \(verifyCommand(plan, capture: true, budget: hasBudget))",
             "  echo \"$VERDICT\"",
             "",
-            "  # DONE — stop as soon as the work passes.",
-            "  case \"$VERDICT\" in",
-            "    *\"VERDICT: PASS\"*) echo \"Goal met after $TURN turn(s).\"; exit 0 ;;",
-            "  esac",
+            "  # DONE — stop as soon as the work passes. The verdict is the first line",
+            "  # carrying VERDICT: (judge preamble tolerated); a FAIL that merely quotes",
+            "  # 'VERDICT: PASS' in its reasons must not read as a PASS.",
+            "  if printf '%s\\n' \"$VERDICT\" | grep -m1 \"VERDICT:\" | grep -q \"PASS\"; then",
+            "    echo \"Goal met after $TURN turn(s).\"; exit 0",
+            "  fi",
             "done",
             "",
             "echo \"Emergency brake: $MAX_TURNS turns without a PASS. Read \(plan.memoryEnabled ? "STATE.md and " : "")LOOP.md and adjust.\"",
@@ -585,15 +594,18 @@ enum LoopFileGenerator {
     }
 
     /// The crontab line for a time-based loop. `*/N` is only valid below an hour,
-    /// so hourly-and-up cadences switch to an hour schedule.
+    /// so hourly-and-up cadences switch to an hour schedule; an interval that isn't
+    /// a whole-hour multiple rounds UP to the next hour, so the line never fires
+    /// more often than the plan asked for.
     private static func cronLine(_ plan: LoopPlan) -> String {
         let m = max(plan.intervalMinutes, 1)
         let schedule: String
         if m < 60 { schedule = "*/\(m) * * * *" }
-        else if m % 60 == 0 { schedule = "0 */\(m / 60) * * *" }
-        else { schedule = "*/30 * * * *" }
+        else { schedule = "0 */\((m + 59) / 60) * * *" }
         let dir = plan.repoPath.map(shSingleQuoted) ?? "<repo>"
-        return "\(schedule) cd \(dir) && ./loop.sh >> logs/loop.log 2>&1"
+        // mkdir -p keeps the redirect from failing on a fresh install where loop.sh
+        // (which creates logs/) hasn't run yet.
+        return "\(schedule) cd \(dir) && mkdir -p logs && ./loop.sh >> logs/loop.log 2>&1"
     }
 
     /// A dollar amount for a shell literal: whole numbers drop the decimals (5),

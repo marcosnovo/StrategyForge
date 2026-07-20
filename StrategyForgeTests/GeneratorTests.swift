@@ -362,6 +362,56 @@ struct StrategyWriterTests {
         let markerCount = after.components(separatedBy: ClaudeMdGenerator.startMarker).count - 1
         #expect(markerCount == 1)
     }
+
+    /// Renaming the team prunes the old slug's generated workflow (surfaced by the
+    /// same list the preview diff uses); hand-written .mjs files are never touched.
+    @Test func renamePrunesStaleGeneratedWorkflow() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("sf-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let writer = StrategyWriter(repoURL: tmp)
+        var strategy = StrategyLibrary.orchestratorWorkers()
+        strategy.name = "Old Name"
+        try writer.write(strategy: strategy)
+        let fm = FileManager.default
+        let oldURL = tmp.appendingPathComponent(".claude/workflows/old-name.mjs")
+        #expect(fm.fileExists(atPath: oldURL.path))
+
+        // A hand-written workflow (no managed signature) must survive pruning.
+        let handURL = tmp.appendingPathComponent(".claude/workflows/mine.mjs")
+        try "export const meta = { name: 'mine' }\n".write(to: handURL, atomically: true, encoding: .utf8)
+
+        strategy.name = "New Name"
+        #expect(writer.prunedWorkflowPaths(for: strategy) == [".claude/workflows/old-name.mjs"])
+        try writer.write(strategy: strategy)
+        #expect(!fm.fileExists(atPath: oldURL.path))
+        #expect(fm.fileExists(atPath: tmp.appendingPathComponent(".claude/workflows/new-name.mjs").path))
+        #expect(fm.fileExists(atPath: handURL.path))
+    }
+
+    /// A team edited down to solo yields no workflow at all, so even the SAME
+    /// slug's generated .mjs from a previous write is pruned.
+    @Test func soloDowngradePrunesSameSlugWorkflow() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("sf-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let writer = StrategyWriter(repoURL: tmp)
+        var team = StrategyLibrary.orchestratorWorkers()
+        team.name = "Same Name"
+        try writer.write(strategy: team)
+        let wfURL = tmp.appendingPathComponent(".claude/workflows/same-name.mjs")
+        #expect(FileManager.default.fileExists(atPath: wfURL.path))
+
+        var solo = StrategyLibrary.solo()
+        solo.name = "Same Name"
+        #expect(writer.prunedWorkflowPaths(for: solo) == [".claude/workflows/same-name.mjs"])
+        try writer.write(strategy: solo)
+        #expect(!FileManager.default.fileExists(atPath: wfURL.path))
+    }
 }
 
 struct WorkflowGeneratorTests {

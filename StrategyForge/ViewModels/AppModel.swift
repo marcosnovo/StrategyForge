@@ -32,7 +32,17 @@ final class AppModel {
     }
     var selectedConfigID: Configuration.ID? {
         get { chatList.selectedID }
-        set { chatList.selectedID = newValue }
+        set {
+            if newValue != chatList.selectedID {
+                // The diff-review result is per-chat: never let chat A's findings keep
+                // rendering under chat B's Code Mode (the panel reads the global slot).
+                diffReview = nil
+            }
+            // The selected chat's ChatViewModel is built from its transcript on the
+            // next render — make sure it's hydrated before that happens.
+            if let id = newValue { hydrateTranscriptIfNeeded(id) }
+            chatList.selectedID = newValue
+        }
     }
     /// Tombstones for chats deleted on this device — persisted so sync deletes them from
     /// iCloud and never lets the remote copy resurrect them (bug: deletes came back).
@@ -133,6 +143,12 @@ final class AppModel {
         return [.openai: key]
     }
 
+    /// CLI binary paths to hand a runner, read live from settings — the binaries
+    /// analogue of `providerAPIKeys()` (every runner-construction site needs both).
+    private var providerBinaries: [AIProvider: String] {
+        Dictionary(uniqueKeysWithValues: AIProvider.allCases.map { ($0, settings.binary(for: $0)) })
+    }
+
     /// Providers whose CLI can't select a model, so the advisor must recommend only their
     /// account DEFAULT (not a specific one it would fail on). OpenAI/Codex on a ChatGPT
     /// login rejects `--model`; an API key re-enables model choice, so it's only locked
@@ -217,7 +233,7 @@ final class AppModel {
     /// independent grader). Reads binaries/keys/effort live from settings.
     func oneShotRunner(readOnly: Bool) -> CLIOneShotRunner {
         CLIOneShotRunner(
-            binaries: Dictionary(uniqueKeysWithValues: AIProvider.allCases.map { ($0, settings.binary(for: $0)) }),
+            binaries: providerBinaries,
             apiKeys: providerAPIKeys(),
             reasoningEffort: settings.codexReasoningEffort,
             readOnly: readOnly)
@@ -232,19 +248,31 @@ final class AppModel {
     /// Review the working diff of a chat's repo with an INDEPENDENT read-only agent, so
     /// bugs/regressions surface before Commit + PR (reviewer ≠ author, applied to code).
     func reviewChanges(for config: Configuration) async {
+        guard !isReviewingDiff else { return }   // one review at a time (the button is disabled too)
         guard let url = repoURL(for: config) else { return }
         isReviewingDiff = true
         defer { isReviewingDiff = false }
+        let reviewedID = config.id
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
         guard let diff = await CodeGit.fullDiff(repo: url.path), !diff.isEmpty else {
+            guard selectedConfigID == reviewedID else { return }   // user moved on mid-review
             diffReview = DiffReview(findings: [])   // nothing changed = clean
             flashSuccess(t("review.noChanges"))
             return
         }
-        diffReview = await DiffReviewer.review(diff: diff, runner: oneShotRunner(readOnly: true))
-        let count = diffReview?.findings.count ?? 0
-        flashSuccess(count == 0 ? t("review.clean") : t("review.foundIssues", count))
+        let review = await DiffReviewer.review(diff: diff, runner: oneShotRunner(readOnly: true))
+        // The result belongs to the chat it was started from: if the user switched
+        // chats while the reviewer ran, drop it rather than render it under (and
+        // attribute it to) another chat's repo.
+        guard selectedConfigID == reviewedID else { return }
+        diffReview = review
+        if let error = review.error {
+            flashFailure(error)   // the reviewer never ran — not a clean verdict
+        } else {
+            flashSuccess(review.findings.isEmpty ? t("review.clean")
+                                                 : t("review.foundIssues", review.findings.count))
+        }
     }
 
     /// The service shown in the main area while in the Services section.
@@ -753,7 +781,13 @@ final class AppModel {
     /// now to prevent a mid-window sync resurrecting the chat, and undone on Undo.
     @ObservationIgnored private var pendingHardDelete: [Configuration.ID: (config: Configuration, task: Task<Void, Never>)] = [:]
 
+    /// How long a deleted chat stays restorable. The deferred hard delete AND the
+    /// banner's Undo button both use this constant, so the affordance can never
+    /// outlive (or die before) the window it triggers.
+    static let undoWindow: Duration = .seconds(10)
+
     func deleteConfiguration(_ id: Configuration.ID) {
+        hydrateTranscriptIfNeeded(id)   // the in-memory undo copy must carry the full transcript
         guard let removed = configurations.first(where: { $0.id == id }) else { return }
         invalidateChatVM(id)
         configurations.removeAll { $0.id == id }
@@ -762,13 +796,14 @@ final class AppModel {
         if selectedConfigID == id { selectedConfigID = configurations.first?.id }
         // Defer the irreversible cleanup so a mis-click can be undone for 10s.
         let task = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(10))
+            try? await Task.sleep(for: Self.undoWindow)
             guard !Task.isCancelled else { return }
             self.finalizeDelete(id)
         }
         pendingHardDelete[id] = (removed, task)
         save()   // data.json drops the chat; its sidecars stay on disk until finalize
-        bannerCenter.showWithUndo(t("chat.deleted"), undoLabel: t("banner.undo")) { [weak self] in
+        bannerCenter.showWithUndo(t("chat.deleted"), undoLabel: t("banner.undo"),
+                                  dismissAfter: Self.undoWindow) { [weak self] in
             self?.undoDelete(id)
         }
     }
@@ -779,6 +814,7 @@ final class AppModel {
         for i in configurations.indices where configurations[i].continuedFrom == id {
             configurations[i].continuedFrom = nil
         }
+        discardPendingTranscriptWrites(id)   // a straggler must not resurrect the sidecar
         try? FileManager.default.removeItem(at: activityURL(id))     // drop the history sidecar
         try? FileManager.default.removeItem(at: transcriptURL(id))   // and the transcript sidecar
         save()
@@ -800,6 +836,7 @@ final class AppModel {
     /// Duplicate a configuration (fresh id + name suffix). The copy keeps the same
     /// repo binding so re-generating into the same repo is one click away.
     func duplicateConfiguration(_ id: Configuration.ID) {
+        hydrateTranscriptIfNeeded(id)   // the copy snapshots the source's transcript
         guard let source = configurations.first(where: { $0.id == id }) else { return }
         var copy = source
         copy.id = UUID()
@@ -812,9 +849,10 @@ final class AppModel {
             configurations.append(copy)
         }
         selectedConfigID = copy.id
-        // The copy carries the source's transcript in memory — write its sidecar so it
-        // survives the transcript-stripped data.json save (else it'd be lost on reload).
-        if !copy.transcript.isEmpty { writeTranscript(copy.id, copy.transcript) }
+        // The copy carries the source's transcript in memory — write its sidecar (on
+        // this thread, so it exists before the transcript-stripped data.json save
+        // lands; else it'd be lost on reload).
+        if !copy.transcript.isEmpty { writeTranscript(copy.id, copy.transcript, sync: true) }
         save()
     }
 
@@ -889,11 +927,19 @@ final class AppModel {
     /// Export a configuration's strategy as a shareable `.sfstrategy` document
     /// (topology only — never repo paths/bookmarks).
     func exportStrategyDocument(_ config: Configuration) {
-        guard let url = filePanels.save(suggestedName: StrategyPackage.fileName(for: config.strategy),
+        exportStrategyFile(config.strategy, logShare: false)
+    }
+
+    /// The one exporter behind `exportStrategyDocument` / `exportTeamDocument`:
+    /// save panel → atomic write → redaction-aware flash. Only the team path logs
+    /// a share (`logShare`), matching the two former near-copies exactly.
+    private func exportStrategyFile(_ strategy: Strategy, logShare: Bool) {
+        guard let url = filePanels.save(suggestedName: StrategyPackage.fileName(for: strategy),
                                         contentTypes: [.sfStrategy]) else { return }
         do {
-            try StrategyPackage.export(config.strategy).write(to: url, options: .atomic)
-            flashSuccess(t(StrategyPackage.hasRedactableSecrets(config.strategy)
+            try StrategyPackage.export(strategy).write(to: url, options: .atomic)
+            if logShare { Analytics.log(.strategyShared(kind: "file")) }
+            flashSuccess(t(StrategyPackage.hasRedactableSecrets(strategy)
                            ? "doc.exportedRedacted" : "doc.exported"))
         } catch {
             show(.failure(t("banner.writeFailed", error.localizedDescription)))
@@ -1194,16 +1240,7 @@ final class AppModel {
 
     /// Export a team to a shareable `.sfstrategy` file.
     func exportTeamDocument(_ team: SavedTeam) {
-        guard let url = filePanels.save(suggestedName: StrategyPackage.fileName(for: team.strategy),
-                                        contentTypes: [.sfStrategy]) else { return }
-        do {
-            try StrategyPackage.export(team.strategy).write(to: url, options: .atomic)
-            Analytics.log(.strategyShared(kind: "file"))
-            flashSuccess(t(StrategyPackage.hasRedactableSecrets(team.strategy)
-                           ? "doc.exportedRedacted" : "doc.exported"))
-        } catch {
-            show(.failure(t("banner.writeFailed", error.localizedDescription)))
-        }
+        exportStrategyFile(team.strategy, logShare: true)
     }
 
     /// Create a team from a paste-in share string (clipboard).
@@ -1312,18 +1349,31 @@ final class AppModel {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
     }
 
-    /// Force any pending coalesced write to disk immediately (call on background/quit).
+    /// Force any pending coalesced write (data.json AND transcript sidecars) to disk
+    /// immediately (call on background/quit).
+    /// Deliberately does NOT finalize pending deletes: this fires on ANY leave-foreground
+    /// event (hide, minimize, plain deactivation), and finalizing there would silently
+    /// void the promised 10s Undo. Pending deletes finalize when their own timer fires,
+    /// or on real termination (`finalizeOnTerminate`); until then the on-disk sidecars
+    /// are harmless — and load() sweeps tombstoned leftovers if the app dies mid-window.
     func flushSaves() {
         pendingSave?.cancel(); pendingSave = nil; pendingSaveSince = nil
-        // Finalize any chats still in their undo window so their sidecars aren't left
-        // orphaned after quit (the chat is already gone from data.json).
+        flushTranscriptWrites()
+        // Synchronous: this runs as the app backgrounds/quits, so the write must finish
+        // before the process can exit (a detached task might not).
+        save(stamp: false, sync: true)
+    }
+
+    /// Quit-time cleanup (called from applicationWillTerminate): the undo window dies
+    /// with the process, so finalize every pending delete (dangling-link cleanup +
+    /// sidecar removal) and force the final synchronous save — the scenePhase flush
+    /// alone no longer does this.
+    func finalizeOnTerminate() {
         for id in Array(pendingHardDelete.keys) {
             pendingHardDelete[id]?.task.cancel()
             finalizeDelete(id)
         }
-        // Synchronous: this runs as the app backgrounds/quits, so the write must finish
-        // before the process can exit (a detached task might not).
-        save(stamp: false, sync: true)
+        flushSaves()
     }
 
     /// Write the strategy's `.claude` files into the chat's repo without any UI
@@ -1383,18 +1433,82 @@ final class AppModel {
         return dir.appendingPathComponent("\(id.uuidString).json")
     }
 
-    /// Write one chat's transcript to its sidecar, atomically. Synchronous and cheap
-    /// (one chat, not all) — and crash-safe: the sidecar exists before save() strips the
-    /// inline copy from data.json.
-    private func writeTranscript(_ id: Configuration.ID, _ messages: [ChatMessage]) {
-        do {
-            let data = try JSONEncoder().encode(messages)
-            try data.write(to: transcriptURL(id), options: .atomic)
-        } catch {
-            // Streaming hot path — never surface a banner, but don't lose the failure
-            // silently either (a full disk / permission issue is otherwise invisible).
-            DiagnosticsLog.record("Couldn't write transcript sidecar for \(id): \(error.localizedDescription)")
+    /// Coalesces + orders the per-chat sidecar writes, mirroring save()'s pattern:
+    /// a superseded snapshot's detached write must never land after a newer one.
+    @ObservationIgnored private var transcriptWriteTasks: [Configuration.ID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var transcriptSerializers: [Configuration.ID: SaveSerializer] = [:]
+    @ObservationIgnored private var transcriptGenerations: [Configuration.ID: UInt64] = [:]
+
+    /// Write one chat's transcript to its sidecar, atomically. The encode + write run
+    /// OFF the main actor (a streaming flush re-encodes the FULL transcript, which
+    /// grows without bound — done synchronously it was a recurring main-thread stall
+    /// on long chats), ordered per chat through a SaveSerializer so a stale snapshot
+    /// can never overwrite a newer one. `sync: true` writes on THIS thread instead:
+    /// load()'s inline → sidecar migration needs the sidecar to exist before any
+    /// save() strips the inline copy, and flushSaves() must finish before quit.
+    private func writeTranscript(_ id: Configuration.ID, _ messages: [ChatMessage], sync: Bool = false) {
+        guard !unhydratedTranscriptIDs.contains(id) else {
+            // A not-yet-hydrated chat must never persist: its in-memory transcript is
+            // a placeholder, and writing it (worst case an empty array) would clobber
+            // the real history still sitting in the sidecar.
+            DiagnosticsLog.record("Dropped transcript write for un-hydrated chat \(id)")
+            return
         }
+        let url = transcriptURL(id)
+        let serializer: SaveSerializer
+        if let existing = transcriptSerializers[id] {
+            serializer = existing
+        } else {
+            serializer = SaveSerializer()
+            transcriptSerializers[id] = serializer
+        }
+        let generation = (transcriptGenerations[id] ?? 0) + 1
+        transcriptGenerations[id] = generation
+        transcriptWriteTasks[id]?.cancel()
+        if sync {
+            transcriptWriteTasks[id] = nil
+            do { try serializer.write(JSONEncoder().encode(messages), to: url, generation: generation) }
+            catch { DiagnosticsLog.record("Couldn't write transcript sidecar for \(id): \(error.localizedDescription)") }
+            return
+        }
+        transcriptWriteTasks[id] = Task.detached(priority: .utility) { [serializer] in
+            do {
+                let data = try JSONEncoder().encode(messages)
+                guard !Task.isCancelled else { return }
+                try serializer.write(data, to: url, generation: generation)
+            } catch {
+                // Streaming hot path — never surface a banner, but don't lose the failure
+                // silently either (a full disk / permission issue is otherwise invisible).
+                DiagnosticsLog.record("Couldn't write transcript sidecar for \(id): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Force any in-flight coalesced transcript writes to disk on THIS thread (part
+    /// of flushSaves): each pending chat's current in-memory transcript is rewritten
+    /// at a fresh generation, so a straggling detached write is dropped by its
+    /// serializer instead of landing stale after the flush.
+    private func flushTranscriptWrites() {
+        for id in Array(transcriptWriteTasks.keys) {
+            transcriptWriteTasks[id]?.cancel()
+            transcriptWriteTasks[id] = nil
+            // A soft-deleted chat inside its undo window is gone from `configurations`
+            // but its sidecar is intentionally kept — land the last write from the
+            // undo copy, or an Undo would restore a truncated transcript.
+            guard let messages = configurations.first(where: { $0.id == id })?.transcript
+                    ?? pendingHardDelete[id]?.config.transcript else { continue }
+            writeTranscript(id, messages, sync: true)
+        }
+    }
+
+    /// Cancel + invalidate any in-flight transcript write for a chat whose sidecar is
+    /// about to be deleted: a detached write past its cancellation check would
+    /// otherwise re-create the file after removal. The barrier marks every issued
+    /// generation as written, so the serializer drops the straggler.
+    private func discardPendingTranscriptWrites(_ id: Configuration.ID) {
+        transcriptWriteTasks[id]?.cancel()
+        transcriptWriteTasks[id] = nil
+        transcriptSerializers[id]?.barrier(upTo: transcriptGenerations[id] ?? 0)
     }
 
     private func loadTranscript(_ id: Configuration.ID) -> [ChatMessage]? {
@@ -1405,6 +1519,82 @@ final class AppModel {
         // otherwise the next writeTranscript would overwrite (destroy) recoverable history.
         backupCorruptSidecar(url, kind: "transcript")
         return nil
+    }
+
+    // MARK: Lazy transcript hydration
+    //
+    // Launch used to read + JSON-decode EVERY chat's sidecar synchronously before the
+    // first frame — O(total chat history) on the main actor. Now load() eagerly hydrates
+    // only what the first frame needs (the restored selection, plus legacy inline
+    // migrations); everything else hydrates in a background task, or on demand the
+    // moment an action touches it. The set below is the arbiter: while an id is in it,
+    // the chat's in-memory transcript is a placeholder and must be neither trusted nor
+    // persisted (writeTranscript drops writes for un-hydrated ids).
+
+    /// Chats whose transcripts have NOT been hydrated from their sidecars yet. Every
+    /// path that reads or rewrites a transcript hydrates first (selection, delete,
+    /// duplicate); sidebar previews/deep search just re-render when hydration lands.
+    @ObservationIgnored private var unhydratedTranscriptIDs: Set<Configuration.ID> = []
+
+    /// Bumped (observable) each time hydration lands transcripts, so an active
+    /// sidebar deep search — which snapshots transcripts once per query — can
+    /// re-run over the now-complete histories instead of keeping a stale miss.
+    private(set) var transcriptHydrationGeneration = 0
+
+    /// Synchronously hydrate one chat's transcript if the background task hasn't
+    /// reached it yet — the on-demand path for a chat touched right after launch.
+    /// ACTION context only: it mutates observed state (never call from a view body).
+    private func hydrateTranscriptIfNeeded(_ id: Configuration.ID) {
+        guard unhydratedTranscriptIDs.remove(id) != nil else { return }
+        guard let i = configurations.firstIndex(where: { $0.id == id }),
+              configurations[i].transcript.isEmpty,
+              let t = loadTranscript(id) else { return }
+        configurations[i].transcript = t
+        transcriptHydrationGeneration += 1
+    }
+
+    /// Read + decode every remaining chat's sidecar OFF the main actor, then land the
+    /// results back on it. Runs once, at the end of load(). Legacy auto-title
+    /// upgrading needs the transcripts, so it waits until hydration completes.
+    private func hydrateRemainingTranscripts() {
+        guard !unhydratedTranscriptIDs.isEmpty else {
+            retitleAutoNamedChats()   // upgrade legacy auto-titles in place (idempotent)
+            return
+        }
+        let jobs = unhydratedTranscriptIDs.map { ($0, transcriptURL($0)) }
+        Task.detached(priority: .utility) { [weak self] in
+            var loaded: [(Configuration.ID, [ChatMessage])] = []
+            var corrupt: [Configuration.ID] = []
+            for (id, url) in jobs {
+                guard let data = try? Data(contentsOf: url) else { continue }   // no file = normal
+                if let msgs = AppModel.decodeMessagesTolerantly(data) { loaded.append((id, msgs)) }
+                else { corrupt.append(id) }
+            }
+            let found = loaded
+            let bad = corrupt
+            await MainActor.run { self?.applyHydratedTranscripts(found, corrupt: bad) }
+        }
+    }
+
+    /// Land the background-hydrated transcripts (main actor). Skips any chat that was
+    /// hydrated on demand — or deleted — while the reads ran; the un-hydrated set is
+    /// the arbiter, so a stale read can never overwrite live state.
+    private func applyHydratedTranscripts(_ loaded: [(Configuration.ID, [ChatMessage])],
+                                          corrupt: [Configuration.ID]) {
+        for (id, messages) in loaded {
+            guard unhydratedTranscriptIDs.contains(id),
+                  let i = configurations.firstIndex(where: { $0.id == id }),
+                  configurations[i].transcript.isEmpty else { continue }
+            configurations[i].transcript = messages
+        }
+        for id in corrupt where unhydratedTranscriptIDs.contains(id) {
+            // Unreadable sidecar → park it (mirrors loadTranscript) so a later write
+            // can't destroy recoverable history.
+            backupCorruptSidecar(transcriptURL(id), kind: "transcript")
+        }
+        unhydratedTranscriptIDs.removeAll()
+        transcriptHydrationGeneration += 1
+        retitleAutoNamedChats()   // upgrade legacy auto-titles in place (idempotent)
     }
 
     /// Decode a transcript, dropping any single malformed message instead of losing the
@@ -1488,8 +1678,7 @@ final class AppModel {
         let vm = ChatViewModel(
             config: config,
             binary: settings.claudeBinary,
-            providerBinaries: Dictionary(uniqueKeysWithValues:
-                AIProvider.allCases.map { ($0, settings.binary(for: $0)) }),
+            providerBinaries: providerBinaries,
             providerAPIKeys: providerAPIKeys(),
             codexReasoningEffort: settings.codexReasoningEffort,
             permissionMode: settings.chatAutonomy.permissionMode,
@@ -1502,8 +1691,7 @@ final class AppModel {
                 }
                 return ChatRunSettings(
                     claudeBinary: self.settings.claudeBinary,
-                    providerBinaries: Dictionary(uniqueKeysWithValues:
-                        AIProvider.allCases.map { ($0, self.settings.binary(for: $0)) }),
+                    providerBinaries: self.providerBinaries,
                     providerAPIKeys: self.providerAPIKeys(),
                     codexReasoningEffort: self.settings.codexReasoningEffort)
             },
@@ -2018,6 +2206,12 @@ final class AppModel {
 
     /// Coalesces rapid saves; a new save supersedes an in-flight write.
     @ObservationIgnored private var writeTask: Task<Void, Never>?
+    /// Orders data.json writes across the detached save tasks and the final sync write,
+    /// so a stale snapshot can never land after — and overwrite — a newer one.
+    @ObservationIgnored private let saveSerializer = SaveSerializer()
+    /// Monotonic id for each save; bumped on the main actor, so later saves always
+    /// carry a higher generation than the writes they supersede.
+    @ObservationIgnored private var saveGeneration: UInt64 = 0
 
     /// Persist the store. Encoding + disk I/O run OFF the main actor and are
     /// coalesced, so streaming a reply (which saves on every chunk) never blocks the
@@ -2041,18 +2235,24 @@ final class AppModel {
                                                             uniquingKeysWith: { a, _ in a }))
         let url = storeURL
         writeTask?.cancel()
+        // Cancellation alone can't order the writes: a detached task past its
+        // cancellation check can still land AFTER a newer write. Every write goes
+        // through the serializer with this save's generation, so a stale snapshot is
+        // dropped instead of overwriting newer state.
+        saveGeneration += 1
+        let generation = saveGeneration
         // On quit (flushSaves → sync) write on THIS thread: a detached task might not
         // finish before the process exits, losing the last few seconds of metadata.
         if sync {
-            do { try JSONEncoder().encode(state).write(to: url, options: .atomic) }
+            do { try saveSerializer.write(JSONEncoder().encode(state), to: url, generation: generation) }
             catch { DiagnosticsLog.record("Final save failed: \(error.localizedDescription)") }
             return true
         }
-        writeTask = Task.detached(priority: .utility) { [weak self] in
+        writeTask = Task.detached(priority: .utility) { [weak self, saveSerializer] in
             do {
                 let data = try JSONEncoder().encode(state)
                 guard !Task.isCancelled else { return }
-                try data.write(to: url, options: .atomic)
+                try saveSerializer.write(data, to: url, generation: generation)
             } catch {
                 await MainActor.run { self?.show(.failure(self?.t("banner.saveFailed", error.localizedDescription) ?? "\(error)")) }
             }
@@ -2104,24 +2304,41 @@ final class AppModel {
         syncBaseline = Dictionary(uniqueKeysWithValues: state.syncBaseline.compactMap { key, value in
             UUID(uuidString: key).map { ($0, value) }
         })
-        // Hydrate transcripts from their sidecars. For an OLD data.json that still carried
-        // transcripts inline, migrate each to a sidecar NOW (synchronously, before any
-        // save() can strip the inline copy) so a transcript can never be lost.
+        // Hydrate transcripts from their sidecars — but only the ones the first frame
+        // needs: an OLD data.json's inline transcript is migrated to a sidecar NOW
+        // (synchronously, before any save() can strip the inline copy — a transcript
+        // can never be lost), and the restored selection loads eagerly because its
+        // ChatViewModel is built on the first render. Every other chat hydrates off
+        // the main actor after launch (hydrateRemainingTranscripts, below) or on
+        // demand, so launch cost no longer scales with the user's total chat history.
+        let restoredID = settings.lastSelectedConfigID
+            .flatMap { last in configurations.first { $0.id.uuidString == last }?.id }
+            ?? configurations.first?.id
         for i in configurations.indices {
             let id = configurations[i].id
-            if let t = loadTranscript(id) {
-                configurations[i].transcript = t
-            } else if !configurations[i].transcript.isEmpty {
-                writeTranscript(id, configurations[i].transcript)   // migrate inline → sidecar
+            if !configurations[i].transcript.isEmpty || id == restoredID {
+                if let t = loadTranscript(id) {
+                    configurations[i].transcript = t
+                } else if !configurations[i].transcript.isEmpty {
+                    writeTranscript(id, configurations[i].transcript, sync: true)   // migrate inline → sidecar
+                }
+            } else {
+                unhydratedTranscriptIDs.insert(id)
             }
         }
-        // Restore the last session's UI: selected chat + activity-panel visibility.
-        if let last = settings.lastSelectedConfigID,
-           let restored = configurations.first(where: { $0.id.uuidString == last }) {
-            selectedConfigID = restored.id
-        } else {
-            selectedConfigID = configurations.first?.id
+        // Crash-during-undo-window sweep: deleteConfiguration defers link cleanup +
+        // sidecar deletion to an in-memory timer, so a hard death inside the window
+        // leaks them forever. Dangling continuedFrom links (cosmetic) are nilled here;
+        // sidecars are GC'd only for TOMBSTONED ids — see sweepDeletedSidecars.
+        let liveIDs = Set(configurations.map(\.id))
+        for i in configurations.indices {
+            if let from = configurations[i].continuedFrom, !liveIDs.contains(from) {
+                configurations[i].continuedFrom = nil
+            }
         }
+        sweepDeletedSidecars()
+        // Restore the last session's UI: selected chat + activity-panel visibility.
+        selectedConfigID = restoredID   // hydrated eagerly above
         // Restore the last-open team, if it still exists.
         if let lastTeam = settings.lastSelectedTeamID,
            let team = savedTeams.first(where: { $0.id.uuidString == lastTeam }) {
@@ -2129,7 +2346,27 @@ final class AppModel {
         }
         showActivity = settings.showActivity
         snapshotConfigurations()
-        retitleAutoNamedChats()   // upgrade legacy auto-titles in place (idempotent)
+        hydrateRemainingTranscripts()   // then retitles legacy auto-titles (needs transcripts)
+    }
+
+    /// Delete transcript/activity sidecars left behind by a delete whose undo window
+    /// never finished (hard crash, kill -9, power loss): the chat is tombstoned and
+    /// already gone from data.json, but the deferred finalizeDelete lived only in
+    /// memory. Deliberately conservative — only files named exactly
+    /// `<tombstoned-uuid>.json` are removed, so parked `.corrupt-*` backups and the
+    /// sidecars of live (or merely undecodable) chats are never touched.
+    private func sweepDeletedSidecars() {
+        guard !deletedConfigIDs.isEmpty else { return }
+        let fm = FileManager.default
+        for sub in ["transcripts", "activity"] {
+            let dir = storeDirectory.appendingPathComponent(sub, isDirectory: true)
+            guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { continue }
+            for entry in entries where entry.pathExtension == "json" {
+                let base = entry.deletingPathExtension().lastPathComponent
+                guard let id = UUID(uuidString: base), deletedConfigIDs.contains(id) else { continue }
+                try? fm.removeItem(at: entry)
+            }
+        }
     }
 
     /// Remember the selected chat + team so they reopen on next launch (device-local).
@@ -2171,5 +2408,34 @@ final class AppModel {
         // Don't re-stamp: timestamps are already authoritative after the merge.
         save(stamp: false)
         return configurations.map(\.portable)
+    }
+}
+
+/// Orders the data.json writes issued by `AppModel.save()`. The detached write tasks
+/// are otherwise unordered (cancellation is only checked before the write starts), so
+/// a stale snapshot that already passed its check could atomically replace a NEWER
+/// write — including the final synchronous one on quit. The lock is held across the
+/// write so check-then-write is atomic; a write whose generation isn't newer than the
+/// last one written is silently dropped.
+final class SaveSerializer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var lastWrittenGeneration: UInt64 = 0
+
+    /// Write `data` to `url` atomically, unless a newer generation already wrote.
+    func write(_ data: Data, to url: URL, generation: UInt64) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard generation > lastWrittenGeneration else { return }
+        try data.write(to: url, options: .atomic)
+        lastWrittenGeneration = generation
+    }
+
+    /// Mark every generation up to `generation` as already written WITHOUT writing,
+    /// so an in-flight write at or below it is dropped. Used just before deleting the
+    /// file — a straggling detached write must not re-create it.
+    func barrier(upTo generation: UInt64) {
+        lock.lock()
+        defer { lock.unlock() }
+        lastWrittenGeneration = max(lastWrittenGeneration, generation)
     }
 }
