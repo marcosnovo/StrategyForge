@@ -223,6 +223,30 @@ final class AppModel {
             readOnly: readOnly)
     }
 
+    // MARK: - Code review (automated diff review — LangChain "software factory")
+    /// The last review's findings (for the chat being viewed in Code mode). Transient.
+    var diffReview: DiffReview?
+    /// True while a review is in flight.
+    var isReviewingDiff = false
+
+    /// Review the working diff of a chat's repo with an INDEPENDENT read-only agent, so
+    /// bugs/regressions surface before Commit + PR (reviewer ≠ author, applied to code).
+    func reviewChanges(for config: Configuration) async {
+        guard let url = repoURL(for: config) else { return }
+        isReviewingDiff = true
+        defer { isReviewingDiff = false }
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+        guard let diff = await CodeGit.fullDiff(repo: url.path), !diff.isEmpty else {
+            diffReview = DiffReview(findings: [])   // nothing changed = clean
+            flashSuccess(t("review.noChanges"))
+            return
+        }
+        diffReview = await DiffReviewer.review(diff: diff, runner: oneShotRunner(readOnly: true))
+        let count = diffReview?.findings.count ?? 0
+        flashSuccess(count == 0 ? t("review.clean") : t("review.foundIssues", count))
+    }
+
     /// The service shown in the main area while in the Services section.
     var selectedService: AIProvider = .claude
     /// A developer TOOL (GitHub/Git) selected in the Services section — when set, the

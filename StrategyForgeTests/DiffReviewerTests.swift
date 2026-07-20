@@ -1,0 +1,79 @@
+//
+//  DiffReviewerTests.swift
+//  StrategyForgeTests
+//
+//  Pure-logic tests for the automated diff reviewer (prompt, tolerant parse, severity
+//  ordering, blocking gate) + a review() integration driven by a mock OneShotRunner.
+//
+
+import Testing
+import Foundation
+@testable import Coral
+
+struct DiffReviewerParsingTests {
+
+    @Test func parsesFindingsTolerantlyAndSortsHighFirst() {
+        let text = """
+        Here's the review:
+        [
+          {"severity":"low","title":"minor","detail":"d1","file":"a.swift","line":3},
+          {"severity":"high","title":"nil crash","detail":"unwrap can crash","file":"b.swift","line":"42"},
+          {"nope":"malformed"},
+          {"severity":"weird","title":"unknown sev","detail":"","file":""}
+        ]
+        """
+        let findings = DiffReviewer.parseFindings(text)
+        #expect(findings.count == 3)                       // malformed dropped
+        #expect(findings.first?.severity == .high)         // sorted high-first
+        #expect(findings.first?.line == 42)                // numeric string parsed
+        #expect(findings[1].severity == .medium)           // unknown severity → medium (sorts to middle)
+        #expect(findings.last?.severity == .low)           // low sorts last
+    }
+
+    @Test func emptyArrayAndGarbageYieldNoFindings() {
+        #expect(DiffReviewer.parseFindings("[]").isEmpty)
+        #expect(DiffReviewer.parseFindings("the diff looks fine").isEmpty)
+    }
+
+    @Test func blockingAndCleanGates() {
+        let clean = DiffReview(findings: [])
+        #expect(clean.isClean)
+        #expect(!clean.hasBlocking)
+        let high = DiffReview(findings: [ReviewFinding(severity: .high, title: "t", detail: "", file: "")])
+        #expect(high.hasBlocking)
+        let mediumOnly = DiffReview(findings: [ReviewFinding(severity: .medium, title: "t", detail: "", file: "")])
+        #expect(!mediumOnly.hasBlocking)
+        #expect(!mediumOnly.isClean)
+    }
+
+    @Test func promptCarriesTheDiff() {
+        let p = DiffReviewer.reviewPrompt(diff: "@@ -1 +1 @@\n-old\n+new")
+        #expect(p.contains("INDEPENDENT code reviewer"))
+        #expect(p.contains("+new"))
+        #expect(p.contains("JSON array"))
+    }
+}
+
+/// Returns a fixed reply regardless of input.
+private struct FixedRunner: OneShotRunner {
+    let reply: String
+    func run(prompt: String, provider: AIProvider, model: String, cwd: String?) async throws -> OneShotResult {
+        OneShotResult(text: reply, tokens: 0, costUSD: 0, provider: provider, model: model)
+    }
+}
+
+struct DiffReviewIntegrationTests {
+
+    @Test func emptyDiffIsCleanWithoutCallingTheModel() async {
+        let review = await DiffReviewer.review(diff: "   \n  ", runner: FixedRunner(reply: "should not be used"))
+        #expect(review.isClean)
+    }
+
+    @Test func reviewParsesTheRunnerVerdict() async {
+        let reply = #"[{"severity":"high","title":"off by one","detail":"loop overruns","file":"x.swift","line":10}]"#
+        let review = await DiffReviewer.review(diff: "@@ real diff @@", runner: FixedRunner(reply: reply))
+        #expect(review.findings.count == 1)
+        #expect(review.hasBlocking)
+        #expect(review.findings.first?.title == "off by one")
+    }
+}

@@ -28,7 +28,9 @@ agents run against your own subscriptions on your own hardware.
   its own branch and merges back only on a verified PASS.
 - **Code mode.** For a chat bound to a git repo: a changed-files list with per-file +/−,
   an inline diff, and git actions — stage, commit, branch, push, one-tap **Commit + PR**,
-  and opt-in **Auto-PR** when a run finishes.
+  and opt-in **Auto-PR** when a run finishes. A one-tap **Review** runs an independent
+  read-only agent over the working diff and surfaces bugs/regressions (by severity) before
+  you commit — reviewer ≠ author, applied to code.
 - **Generate the config files.** Coral can also just write the Claude Code configuration
   (`.claude/agents/*.md` + an orchestration `CLAUDE.md`) into a repo, so a team you
   designed here runs in a plain `claude` session too. A team with teammates also gets a

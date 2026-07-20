@@ -204,6 +204,11 @@ o dime qué ajustar. Todos son fáciles de revertir.
 - [ ] Borra un chat → aparece banner **"Chat eliminado" + "Deshacer"** ~10s. Pulsa Deshacer → el chat
   vuelve con su historial. Si esperas 10s, se borra de verdad.
 
+**Feature nueva — Revisión automática del diff** (del artículo de LangChain):
+- [ ] En **Code mode** (chat con repo git y cambios sin commitear), pulsa **"Revisar"**. Un agente
+  independiente read-only lee el `git diff` y lista hallazgos por severidad (cuadrado rojo = alta,
+  círculo ámbar = media, aro = baja) con fichero:línea y el arreglo — antes de commitear/PR.
+
 **Feature nueva — Dynamic workflow generado** (del artículo "graph engineering"):
 - [ ] Genera los ficheros de un **equipo con compañeros** (Generar ficheros). Además de `.claude/agents/*`
   y `CLAUDE.md`, se escribe **`.claude/workflows/<equipo>.mjs`**.

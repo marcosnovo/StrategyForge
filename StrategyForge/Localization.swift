@@ -1355,6 +1355,14 @@ enum L10n {
         "sync.failed": ("Sync failed: %@", "Falló la sincronización: %@"),
         "usage.estimated.help": ("Estimated — this provider's CLI doesn't report exact token usage, so tokens and cost are approximated from the text length.",
                                  "Estimado — el CLI de este proveedor no informa del uso exacto de tokens, así que tokens y coste se aproximan por la longitud del texto."),
+        // Automated diff review (independent read-only reviewer).
+        "review.action": ("Review", "Revisar"),
+        "review.clean": ("Review: no issues found", "Revisión: sin problemas"),
+        "review.foundIssues": ("Review: %lld issue(s)", "Revisión: %lld problema(s)"),
+        "review.noChanges": ("Nothing to review — no changes.", "Nada que revisar — sin cambios."),
+        "review.severity.high": ("high", "alta"),
+        "review.severity.medium": ("medium", "media"),
+        "review.severity.low": ("low", "baja"),
         // Evals (measure a team against a scenario suite before trusting it).
         "eval.title": ("Evals", "Evals"),
         "eval.subtitle": ("Test scenarios your team is scored against — measure it before you trust it.",

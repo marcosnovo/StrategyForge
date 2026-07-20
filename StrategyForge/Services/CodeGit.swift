@@ -40,6 +40,17 @@ enum CodeGit {
         }.value
     }
 
+    /// The WHOLE uncommitted diff against HEAD as raw unified-diff text (nil if none /
+    /// not a repo). Used by the automated diff reviewer.
+    nonisolated static func fullDiff(repo: String) async -> String? {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return nil }
+            let out = run(git, ["-C", repo, "diff", "--no-color", "HEAD"])
+            guard let out, !out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return out
+        }.value
+    }
+
     private static func run(_ path: String, _ args: [String]) -> String? {
         let r = runResult(path, args)
         // On failure the (merged) output is an error message, not diff/branch data —

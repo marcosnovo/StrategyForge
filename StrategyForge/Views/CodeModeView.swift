@@ -348,6 +348,7 @@ struct CodeModeView: View {
                         }
                     }
                     if !vm.commandLog.isEmpty { terminalPane }
+                    if isRepo, let review = model.diffReview { reviewPanel(review) }
                     if isRepo { prStatusBar }
                     if isRepo { commitBar }
                 }
@@ -410,6 +411,59 @@ struct CodeModeView: View {
     }
 
     /// Commit staged/working changes with an editable, auto-drafted message.
+    /// The automated diff-review findings (independent read-only reviewer).
+    private func reviewPanel(_ review: DiffReview) -> some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            Divider()
+            HStack(spacing: Space.s) {
+                if review.isClean {
+                    Label(model.t("review.clean"), systemImage: "checkmark.seal.fill")
+                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.success)
+                } else {
+                    Label(model.t("review.foundIssues", review.findings.count),
+                          systemImage: review.hasBlocking ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
+                        .font(.sfCaption2.weight(.semibold))
+                        .foregroundStyle(review.hasBlocking ? Theme.danger : Theme.warning)
+                }
+                Spacer()
+                IndependentVerifierSeal(style: .compact)
+                Button { model.diffReview = nil } label: { Image(systemName: "xmark").font(.system(size: 10)) }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+            }
+            ForEach(review.findings) { f in
+                HStack(alignment: .top, spacing: Space.s) {
+                    // Severity marker by shape+color (colorblind-safe).
+                    severityMarker(f.severity).frame(width: 9, height: 9).padding(.top, 3)
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: Space.xs) {
+                            Text(f.title).font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.ink)
+                            if !f.file.isEmpty {
+                                Text(f.line.map { "\((f.file as NSString).lastPathComponent):\($0)" } ?? (f.file as NSString).lastPathComponent)
+                                    .font(.sfFieldLabel).foregroundStyle(.tertiary)
+                            }
+                        }
+                        if !f.detail.isEmpty {
+                            Text(f.detail).font(.sfCaption2).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(model.t(f.severity.labelKey)): \(f.title). \(f.detail)")
+            }
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+        .background(.bar)
+    }
+
+    @ViewBuilder private func severityMarker(_ s: ReviewSeverity) -> some View {
+        switch s {
+        case .high:   RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Theme.danger)
+        case .medium: Circle().fill(Theme.warning)
+        case .low:    Circle().strokeBorder(Theme.inkDim, lineWidth: 1.5)
+        }
+    }
+
     private var commitBar: some View {
         VStack(spacing: 0) {
             Divider()
@@ -423,7 +477,13 @@ struct CodeModeView: View {
                 TextField(model.t("code.commitPlaceholder"), text: $commitMessage)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { if !commitMessage.trimmingCharacters(in: .whitespaces).isEmpty { confirmCommit = true } }
-                if gitBusy || pushing { WorkingLogo(size: 16) }
+                if gitBusy || pushing || model.isReviewingDiff { WorkingLogo(size: 16) }
+                // Independent read-only review of the working diff before you commit/PR.
+                Button { Task { await model.reviewChanges(for: vm.config) } } label: {
+                    Label(model.t("review.action"), systemImage: "checkmark.shield")
+                }
+                .buttonStyle(.bordered)
+                .disabled(gitBusy || pushing || model.isReviewingDiff)
                 Button(model.t("code.commit")) { confirmCommit = true }
                     .buttonStyle(.bordered)
                     .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty || gitBusy || pushing)
