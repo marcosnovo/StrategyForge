@@ -95,6 +95,9 @@ enum AgentFileGenerator {
         learnings — decisions made, conventions in this codebase, dead ends to avoid — in
         a concise line or two. Don't repeat what's already there, and prune anything now
         wrong. This file carries across runs, so keep it short and high-signal.
+
+        Close the loop: whenever a reviewer or verifier REJECTS your work, write the reason
+        here as a rule to follow next time — so the same mistake never costs twice.
         """
     }
 

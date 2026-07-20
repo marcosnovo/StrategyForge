@@ -82,7 +82,12 @@ enum LoopFileGenerator {
         out += "## How this loop runs\n\n"
         out += howItRuns(plan)
         if plan.memoryEnabled {
-            out += "\n**Memory rule:** Read STATE.md before starting. Update STATE.md before finishing.\n"
+            out += "\n**Memory rule:** Read STATE.md before starting. Update STATE.md before finishing."
+            // Close the self-improving loop: a FAIL reason recorded as a rule doesn't recur.
+            if plan.verifierEnabled {
+                out += " When the verifier returns `VERDICT: FAIL`, write its reason into STATE.md as a rule to follow next round, so the same mistake isn't repeated."
+            }
+            out += "\n"
         }
         return out
     }

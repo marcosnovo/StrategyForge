@@ -159,6 +159,18 @@ struct LoopFileGeneratorTests {
         #expect(loopMd.contains("Read STATE.md before starting. Update STATE.md before finishing."))
     }
 
+    @Test func failReasonIsWrittenBackToStateWhenMemoryAndVerifierOn() {
+        // Self-improving loop: a rejection reason recorded in STATE.md doesn't recur.
+        let withBoth = LoopFileGenerator.generate(for: makePlan(verifier: true, memory: true))
+            .first { $0.relativePath == "LOOP.md" }!.contents
+        #expect(withBoth.contains("VERDICT: FAIL"))
+        #expect(withBoth.contains("write its reason into STATE.md"))
+        // No verifier → nothing to write back.
+        let noVerifier = LoopFileGenerator.generate(for: makePlan(verifier: false, memory: true))
+            .first { $0.relativePath == "LOOP.md" }!.contents
+        #expect(!noVerifier.contains("write its reason into STATE.md"))
+    }
+
     @Test func mustHoldGuardrailAppearsInLoopMdAndVerifier() {
         var plan = makePlan()
         plan.mustHold = "no test was deleted or skipped\ncoverage did not drop"

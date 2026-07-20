@@ -90,6 +90,8 @@ struct AgentFileGeneratorTests {
         let md = AgentFileGenerator.markdown(for: role, instanceName: "w")
         #expect(md.contains("## Memory"))
         #expect(md.contains(".claude/memory/w.md"))
+        // The self-improving loop: a rejection reason is written back so it doesn't recur.
+        #expect(md.contains("REJECTS your work, write the reason"))
     }
 
     @Test func memorySeedIsOnePerExpandedInstance() {
