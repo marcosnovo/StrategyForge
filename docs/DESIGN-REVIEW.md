@@ -31,12 +31,12 @@ chat); (3) **coral Y teal ambos como color de acción** → la identidad se dilu
 
 ## Plan por olas (impacto ÷ esfuerzo ÷ riesgo)
 
-> **Estado (2026-07-21):** ✅ Ola A completa · ✅ **Ola B completa** (B1 teal, B2 CoachChip,
-> B3 panel 9→3, B4 mensajes, B5 código) · ✅ Ola C copy (C1 CTA onboarding, C3 des-jergon,
-> C6 saludo dup) · ✅ **D1 command palette ⌘K** · ⏳ **Pendiente y requiere revisión visual
-> en Mac:** **C2/C4** (bloqueador Claude prominente + beat de finalización — colocación de
-> layout), **C5** (undo al cambiar equipo), **D2–D5** (menús File/Edit, `List(selection:)`,
-> header nativo en `.toolbar`, material del rail), **A6** (micro-tipografía).
+> **Estado (2026-07-21):** ✅ Ola A completa · ✅ **Ola B completa** · ✅ **Ola C** (C1 CTA
+> onboarding, C2 bloqueador Claude, C3 des-jergon, C4 beat de finalización, C6 saludo dup;
+> queda C5 undo team-swap) · ✅ **D1 ⌘K command palette** · ✅ **D2 menú File real**
+> (duplicar/eliminar/importar/exportar + Stop ⌘.) · ⏳ **Pendiente, quiere revisión visual
+> en Mac:** **C5** (undo al cambiar equipo), **D3** (`List(selection:)` con teclado),
+> **D4** (header nativo en `.toolbar`), **D5** (material del rail), **A6** (micro-tipografía).
 > Además, fuera de la review: **UX de clonado** — la fila pulsada ya muestra "Clonando…" en
 > vez de congelarse. Todo lo marcado ✅ está en `main`, compilando y con 330 tests verdes.
 
