@@ -128,7 +128,7 @@ struct NavRail: View {
     private var brand: some View {
         HStack(spacing: Space.s) {
             CoralMark(size: 24, color: Theme.coral)
-                .breathingGlow(color: Theme.coral)
+                .breathingGlow(color: Theme.coral, enabled: false)
             Text("Coral")
                 .font(.sfMono)
                 .foregroundStyle(Theme.ink)

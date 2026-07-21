@@ -298,6 +298,9 @@ struct ContentView: View {
 /// stays calm and cheap; the living AuroraBackground still animates inside the chat.
 struct AppAuroraBackground: View {
     @Environment(\.colorScheme) private var scheme
+    /// Accessibility: when Reduce Transparency is on, drop the translucent haze + blooms
+    /// for a solid, opaque base (the whole app's glass falls back to opaque too).
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     // Pastel identity hues. On dark, the base goes to reef-ink and the blooms dim.
     private var base: Color {
@@ -313,21 +316,28 @@ struct AppAuroraBackground: View {
     private var bloomOpacity: Double { scheme == .dark ? 0.05 : 0.06 }
 
     var body: some View {
+        // Reduce Transparency → a plain opaque surface, no haze, no blooms.
+        if reduceTransparency {
+            return AnyView(base.ignoresSafeArea())
+        }
+        return AnyView(auroraBody)
+    }
+
+    private var auroraBody: some View {
         ZStack {
             // A faint, TRANSLUCENT brand tint (was an opaque fill — which is exactly what
             // hid the behind-window glass sitting below this view). At this opacity the
             // desktop reads clearly through the frosted haze while text stays legible.
             base.opacity(tintOpacity)
-            // Corner blooms — coral leads (top-trailing), teal answers (bottom-leading);
-            // warm peach + cool mint fill the diagonal.
+            // Two corner blooms only — the identity duality: coral leads (top-trailing),
+            // teal answers (bottom-leading). Peach + mint were dropped so the wash reads
+            // as one calm gradient, not four hues (design review, wave A).
             GeometryReader { geo in
                 let w = geo.size.width, h = geo.size.height
                 let d = max(w, h)
                 ZStack {
                     bloom(Theme.coral, at: CGPoint(x: w * 0.92, y: h * 0.04), size: d * 1.05)
-                    bloom(Color(red: 1.0, green: 0.72, blue: 0.55), at: CGPoint(x: w * 0.02, y: h * 0.05), size: d * 0.9)
                     bloom(Theme.teal, at: CGPoint(x: w * 0.06, y: h * 0.98), size: d * 1.0)
-                    bloom(Color(red: 0.60, green: 0.86, blue: 0.72), at: CGPoint(x: w * 0.98, y: h * 0.94), size: d * 0.85)
                 }
                 .blur(radius: 70)
                 .drawingGroup()
@@ -360,10 +370,11 @@ private struct EmptyEditorState: View {
 
             VStack(spacing: Space.l) {
                 CoralSphere(size: 84)
-                    .breathingGlow(color: Theme.accentGlow)
+                    .breathingGlow(color: Theme.accentGlow, enabled: false)
                 VStack(spacing: Space.xs) {
                     Text(greeting)
                         .font(.sfDisplay)
+                        .tracking(-0.5)
                         .foregroundStyle(Theme.ink)
                         .multilineTextAlignment(.center)
                     Text(model.t("empty.editor.desc"))

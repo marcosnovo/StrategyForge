@@ -352,8 +352,10 @@ extension Font {
     // Relative to the system text styles so everything scales with the user's
     // Dynamic Type setting. The mapped styles sit within ~0.5pt of the previous
     // fixed sizes at the default setting, so the tuned look is preserved.
-    /// Tight bold display for the hero title / brand (no serif).
-    static let sfDisplay = Font.system(.title, design: .default).weight(.bold)          // ~22
+    /// Tight bold display for the hero title / brand (no serif). Larger + heavier so a
+    /// hero greeting reads as a designed moment against its sphere, not a card title.
+    /// Apply `.tracking(-0.5)` at hero sites for the ceñido look.
+    static let sfDisplay = Font.system(.largeTitle, design: .default).weight(.bold)      // ~26
     static let sfCardTitle = Font.system(.title3).weight(.semibold)                     // ~15
     static let sfBodyM = Font.system(.body)                                             // ~13
     static let sfCallout = Font.system(.callout)                                        // ~12
@@ -462,19 +464,45 @@ extension View {
     /// with a `columnBg` wash over it so the left columns read as the SAME color as the
     /// chat + activity panel while staying translucent (the aurora only whispers through).
     func translucentColumn(tint: Double = 0.52) -> some View {
-        background(Theme.columnBg.opacity(tint))
-            .background(.ultraThinMaterial)
+        modifier(TranslucentColumnModifier(tint: tint))
     }
 
     /// A frosted glass panel for static cards/sheets. Converged (#38) onto the SAME
     /// native Liquid Glass engine as `.glassEffect` so the app speaks one glass language
-    /// instead of three, rather than a hand-rolled material + sheen + hairline that drifts
-    /// from the real thing. `material`/`strokeOpacity` are kept for source compatibility
-    /// with existing call sites but no longer apply — native glass owns the edge + sheen.
+    /// instead of three. Falls back to an opaque card under Reduce Transparency.
     func glassPanel(cornerRadius: CGFloat = Theme.corner,
                     material: Material = .regularMaterial,
                     strokeOpacity: Double = 0.55) -> some View {
-        glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        modifier(GlassPanelModifier(cornerRadius: cornerRadius))
+    }
+}
+
+/// Translucent side column, with an opaque fallback when Reduce Transparency is on.
+private struct TranslucentColumnModifier: ViewModifier {
+    var tint: Double
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            content.background(Theme.columnBg)                       // solid, no material
+        } else {
+            content.background(Theme.columnBg.opacity(tint)).background(.ultraThinMaterial)
+        }
+    }
+}
+
+/// Native Liquid Glass panel, with an opaque card fallback under Reduce Transparency.
+private struct GlassPanelModifier: ViewModifier {
+    var cornerRadius: CGFloat
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if reduceTransparency {
+            content.background(shape.fill(Theme.cardBg))
+                .overlay(shape.strokeBorder(Theme.hairline, lineWidth: 1))
+                .clipShape(shape)
+        } else {
+            content.glassEffect(.regular, in: shape)
+        }
     }
 }
 

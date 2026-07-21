@@ -1070,6 +1070,7 @@ struct ChatView: View {
                 .staggeredAppear(index: 0)
             Text(chatGreeting)
                 .font(.sfDisplay)
+                .tracking(-0.5)
                 .foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1147,7 +1148,7 @@ struct ChatView: View {
                 .font(.system(size: 26)).foregroundStyle(Theme.accent)
                 .frame(width: 104, height: 64)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Theme.accentSoft))
-                .breathingGlow(color: Theme.coral, enabled: !reduceMotion)
+                .breathingGlow(color: Theme.coral, enabled: false)
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.t("chat.autoTeam.badge"))
                     .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
@@ -1173,7 +1174,7 @@ struct ChatView: View {
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.hairline, lineWidth: 1))
                 // A subtle coral breath on the team diagram — the hero of the empty
                 // state — quiet enough to invite, stilled under Reduce Motion.
-                .breathingGlow(color: Theme.coral, enabled: !reduceMotion)
+                .breathingGlow(color: Theme.coral, enabled: false)
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.t("chat.team.ready"))
                     .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
@@ -1437,20 +1438,17 @@ struct ChatView: View {
                     .keyboardShortcut(.return, modifiers: .command)
             }
             }
-            // A single frosted rounded field wraps the whole composer row (reference
-            // "Ask anything…" input). Readability wins over the glass effect: a
-            // near-opaque neutral card (Theme.cardBg) backs a light material so the
-            // bar stays a clean, neutral frost over the faint aurora — never tinted
-            // or washed. The focus ring stays a light coral hairline.
+            // A single SOLID rounded field wraps the whole composer row (reference
+            // "Ask anything…" input). De-glassed (design review, wave A): a crisp opaque
+            // cardBg + hairline + focus ring reads more premium than a washed glass over
+            // the most important control in the app — and it's cheaper.
             .padding(.horizontal, Space.m).padding(.vertical, Space.s)
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(Theme.cardBg))
-            .glassPanel(cornerRadius: Theme.corner, material: .thinMaterial)
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .strokeBorder(Theme.focusRing, lineWidth: 1.5)
-                    .opacity(inputFocused ? 1 : 0)
+                    .strokeBorder(inputFocused ? Theme.focusRing : Theme.hairline, lineWidth: inputFocused ? 1.5 : 1)
             )
             .shadow(color: inputFocused ? Theme.focusGlow : .clear, radius: 8)
             .animation(.easeOut(duration: 0.18), value: inputFocused)
