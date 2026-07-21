@@ -95,24 +95,17 @@ struct AgentActivityPanel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.m) {
                     // When a recommendation is on screen over a team the user chose,
-                    // make the choice explicit: selected vs recommended, and why.
+                    // make the choice explicit: selected vs recommended, and why. (Rare
+                    // preview state — kept as its own card above the three groups.)
                     if isPreviewing, !vm.config.strategyIsAuto,
                        let rec = previewStrategy, rec.name != vm.config.strategy.name {
                         selectedVsRecommendedCard(recommended: rec).panelCard()
                     }
-                    // Order per request: live usage, then orchestrator+diagram merged,
-                    // then the (collapsed-by-default) team.
-                    liveUsageCard.panelCard()
-                    orchestratorDiagramCard.panelCard()
-                    teamSection.panelCard()
-                    // Always-available list of files the agents produced, so you can
-                    // grab them without scrolling the conversation to find where.
-                    if !vm.editedFiles.isEmpty { filesSection.panelCard() }
-                    if !vm.skillsUsed.isEmpty { skillsSection.panelCard() }
-                    if !vm.todos.isEmpty { tasksSection.panelCard() }
-                    stepsSection.panelCard()
-                    // Persistent, reviewable history of past turns' agent activity.
-                    if !vm.isRunning && !vm.history.isEmpty { historySection.panelCard() }
+                    // Three grouped cards instead of ~9 loose ones (design review B3):
+                    // Now → Team & output → Activity, each with quiet internal dividers.
+                    nowCard.panelCard()
+                    teamOutputCard.panelCard()
+                    activityCard.panelCard()
                 }
                 .padding(Space.m)
             }
@@ -123,6 +116,53 @@ struct AgentActivityPanel: View {
         .translucentColumn()
         // Weekly / 5-hour usage figures for the live meter (Claude local logs).
         .task { if model.claudeUsage == nil { await model.refreshUsage() } }
+    }
+
+    // MARK: - Grouped cards (B3: ~9 loose cards → 3 with internal dividers)
+
+    /// A quiet in-card separator between two grouped sections.
+    private var sectionDivider: some View { Divider().padding(.vertical, 2) }
+
+    /// "Now" — what's happening this turn: the live usage meter, the orchestrator +
+    /// live topology, and the current task list.
+    private var nowCard: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            liveUsageCard
+            sectionDivider
+            orchestratorDiagramCard
+            if !vm.todos.isEmpty {
+                sectionDivider
+                tasksSection
+            }
+        }
+    }
+
+    /// "Team & output" — who's on the job, the files they produced, and the skills
+    /// they pulled in.
+    private var teamOutputCard: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            teamSection
+            if !vm.editedFiles.isEmpty {
+                sectionDivider
+                filesSection
+            }
+            if !vm.skillsUsed.isEmpty {
+                sectionDivider
+                skillsSection
+            }
+        }
+    }
+
+    /// "Activity" — the live step timeline and (when idle) the reviewable history of
+    /// past turns.
+    private var activityCard: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            stepsSection
+            if !vm.isRunning && !vm.history.isEmpty {
+                sectionDivider
+                historySection
+            }
+        }
     }
 
     /// Selected (what the user picked) vs Recommended (what the advisor suggests),
