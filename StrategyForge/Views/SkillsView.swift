@@ -468,7 +468,7 @@ struct SkillsView: View {
         let names = model.savedTeams.filter { $0.strategy.skills.contains(s.slug) }.map(\.name)
         if !names.isEmpty {
             Label(model.t("skills.usedInTeams", names.joined(separator: ", ")), systemImage: "person.3.sequence.fill")
-                .font(.sfCaption2).foregroundStyle(Theme.teal)
+                .font(.sfCaption2).foregroundStyle(.secondary)   // informational, not live state → neutral
         }
     }
 

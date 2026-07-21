@@ -129,7 +129,7 @@ struct UsageView: View {
                         Label(model.t("usage.claude.exact"), systemImage: "arrow.up.forward.app")
                             .font(.sfCaption2)
                     }
-                    .buttonStyle(.plain).foregroundStyle(Theme.teal)
+                    .buttonStyle(.plain).foregroundStyle(Theme.accent)   // CTA → coral (the one accent)
                     .frame(maxWidth: .infinity)
                 }
                 Divider()
