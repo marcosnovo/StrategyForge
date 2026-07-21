@@ -215,6 +215,7 @@ o dime qué ajustar. Todos son fáciles de revertir.
 **Simplicidad Fase 2a** (reveals contextuales — cambian comportamiento visible):
 - [ ] Con un equipo (no solo): bajo la última respuesta aparece el chip **"Equipo de N ▸"**; al tocarlo se abre el panel de actividad (quién hizo qué).
 - [ ] Escribe algo repetible ("cada mañana revisa…", "sigue intentando hasta que pasen los tests") → aparece la tira **"¿ejecutarlo en un loop que se verifica solo?" + "Crear loop"**. En preguntas de una vez, NO aparece.
+- [ ] En un chat SIN carpeta, escribe algo de código ("arregla el bug en…", "revisa este repo") → aparece **"¿Trabajando en código? Adjunta una carpeta" + "Adjuntar carpeta"**. En chats no-código, NO aparece.
 
 **Feature nueva — Revisión automática del diff** (del artículo de LangChain):
 - [ ] En **Code mode** (chat con repo git y cambios sin commitear), pulsa **"Revisar"**. Un agente
