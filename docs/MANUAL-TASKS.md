@@ -204,6 +204,14 @@ o dime qué ajustar. Todos son fáciles de revertir.
 - [ ] Borra un chat → aparece banner **"Chat eliminado" + "Deshacer"** ~10s. Pulsa Deshacer → el chat
   vuelve con su historial. Si esperas 10s, se borra de verdad.
 
+**Simplicidad Fase 1** (plan `docs/SIMPLICITY-PLAN.md`):
+- [ ] Pantalla vacía: **un solo botón "Empezar a chatear"** (+ link "Set up for me"), sin el modal de "describe tu tarea".
+- [ ] Onboarding: los 3 pasos ahora dicen "Pregunta lo que sea → Coral elige los agentes → Rediseña cuando quieras".
+- [ ] Nav rail: **sin "Advisor"**; Loops/Skills/Usage bajo un grupo **"Avanzado"** colapsado (se expande solo si entras en uno). Rail de primer uso = Chats · Code · Team.
+- [ ] Composer: en un chat nuevo la caja está limpia; el footer (modo/modelo/contexto) aparece tras el 1er mensaje o al pulsar el "…".
+- [ ] Panel de actividad: NO se abre solo en el primer run (sí en los siguientes).
+- [ ] Picker de estrategias: por defecto 4 (beginner) + botón "Ver todas".
+
 **Feature nueva — Revisión automática del diff** (del artículo de LangChain):
 - [ ] En **Code mode** (chat con repo git y cambios sin commitear), pulsa **"Revisar"**. Un agente
   independiente read-only lee el `git diff` y lista hallazgos por severidad (cuadrado rojo = alta,
