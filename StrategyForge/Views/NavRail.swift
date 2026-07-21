@@ -267,7 +267,7 @@ struct NavRail: View {
                     }
                 } label: {
                     Text(model.t("rail.usage.view")).font(.sfCaption2.weight(.medium))
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(.secondary)   // secondary nav link → neutral
                 }
                 .buttonStyle(.plain)
             }
@@ -542,8 +542,8 @@ struct NavRail: View {
     #endif
 }
 
-/// The rail's "work in flight elsewhere" indicator: a 4pt coral dot with a slow
-/// opacity pulse (static under Reduce Motion).
+/// The rail's "work in flight elsewhere" indicator: a small teal dot (teal = the
+/// team is live) with a slow opacity pulse (static under Reduce Motion).
 private struct RunningPulseDot: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dim = false
