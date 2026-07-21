@@ -35,16 +35,17 @@ chat); (3) **coral Y teal ambos como color de acción** → la identidad se dilu
 > (C1 CTA onboarding, C2 bloqueador Claude, C3 des-jergon, C4 beat de finalización, C5 undo
 > team-swap, C6 saludo dup) · ✅ **D1 ⌘K command palette** · ✅ **D2 menú File real**
 > (duplicar/eliminar/importar/exportar + Stop ⌘.) · ✅ **D3 (valor) — cambio de chat por teclado**
-> (⌥⌘↑/↓, sin reescribir la sidebar a `List(selection:)`, preserva el `SelectedRow`) · ⏳
-> **Pendiente, requiere DECISIÓN + revisión visual del usuario:**
-> **D4** (header nativo en `.toolbar` — restyle), **D5** (material del rail —
-> ⚠️ *contradice una decisión intencionada*: el rail usa hoy `translucentColumn()` a propósito
-> para leerse como la misma superficie que la lista; D5 pide diferenciarlas — es una llamada
-> subjetiva del usuario). · ✅ **A6 micro-tipografía** (hallazgo: `scaledFont` suela a 10pt,
-> así que 7/8/8.5/9 renderizan idénticos; fundido el 8.5, documentada la regla, 9 = micro
-> sancionada; normalizar los 7/8 restantes es puro aseo sin cambio visual, opcional).
-> **⏳ Solo quedan D3/D4/D5** (arriba). Fuera de la review: **UX de clonado** — la fila pulsada
-> muestra "Clonando…" en vez de congelarse. Todo ✅ está en `main`, compilando y 330 tests verdes.
+> (⌥⌘↑/↓, sin reescribir la sidebar a `List(selection:)`, preserva el `SelectedRow`) · ✅
+> **D5 material del rail** (rail = `.regularMaterial` denso vs columnas `.ultraThinMaterial`,
+> separación predecible y text-safe; nuevo `railColumn()`). · ✅ **A6 micro-tipografía**
+> (hallazgo: `scaledFont` suela a 10pt, así que 7/8/8.5/9 renderizan idénticos; fundido el 8.5,
+> documentada la regla, 9 = micro sancionada). · ⏳ **Único pendiente — D4** (header nativo en
+> `.toolbar`): **NO hecho a ciegas a propósito** — es una reescritura *destructiva* de un header
+> a medida y denso (título editable, cápsula de equipo glass, clúster de controles) a una sola
+> fila de `ToolbarItem`s; `RenderPreview` no arranca en este entorno (el host de preview no puede
+> instanciar `AppModel` en 30s), así que no puedo autoverificarlo. El header actual ya resuelve
+> los traffic-lights vía `titlebarInset`. **Hacer en sesión en vivo** (el usuario corre + captura,
+> yo itero). Fuera de la review: **UX de clonado** arreglada. Todo ✅ está en `main`, 330 verdes.
 
 ### Ola A — wins globales de token/visual (una tarde, riesgo bajo, alta calidad percibida)
 - A1. **Display type más grande y ceñido** (`Theme.sfDisplay` → `.largeTitle`/bold, tracking −0.5); héroes ~28–34pt.
