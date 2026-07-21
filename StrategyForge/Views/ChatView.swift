@@ -506,6 +506,21 @@ struct ChatView: View {
         .padding(.horizontal, Space.m).padding(.bottom, Space.xs)
     }
 
+    /// A connected provider that ISN'T this chat's provider — the one to ask for a second
+    /// opinion. nil when only one provider is connected.
+    private var secondOpinionProvider: AIProvider? {
+        model.connectedProviders.sorted { $0.rawValue < $1.rawValue }.first { $0 != config.provider }
+    }
+
+    /// Run the last ask on another provider and append its answer, labeled.
+    private func runSecondOpinion(from provider: AIProvider) async {
+        let modelID = provider.models.first?.id ?? ""
+        let cwd = model.repoURL(for: config)?.path
+        let header = model.t("chat.secondOpinion.header", provider.displayName) + "\n\n"
+        await vm.secondOpinion(provider: provider, model: modelID, cwd: cwd,
+                               runner: model.oneShotRunner(readOnly: true), headerPrefix: header)
+    }
+
     /// Offer to attach a folder when the user talks about code but no repo is bound —
     /// the agents can only read/edit code once there's a folder (Code mode).
     private var repoSuggestionVisible: Bool {
@@ -1012,6 +1027,20 @@ struct ChatView: View {
                                     }
                                     .buttonStyle(.plain).foregroundStyle(Theme.teal)
                                     .help(model.t("chat.answeredByTeam.help"))
+                                }
+                                // Cross-provider, made tangible: a "second opinion from X ▸"
+                                // on the latest answer when another provider CLI is connected.
+                                if let other = secondOpinionProvider {
+                                    if vm.isSecondOpinionRunning {
+                                        WorkingLogo(size: 12)
+                                    } else {
+                                        Button { Task { await runSecondOpinion(from: other) } } label: {
+                                            Label(model.t("chat.secondOpinion", other.displayName), systemImage: "arrow.triangle.branch")
+                                                .font(.sfCaption2.weight(.medium))
+                                        }
+                                        .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                                        .help(model.t("chat.secondOpinion.help", other.displayName))
+                                    }
                                 }
                             }
                         }

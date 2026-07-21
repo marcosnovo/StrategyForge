@@ -302,6 +302,26 @@ final class ChatViewModel {
     var isRunning = false {
         didSet { if isRunning != oldValue { onRunningChanged?(isRunning) } }
     }
+    /// True while fetching a cross-provider second opinion — a separate, additive path that
+    /// never touches the main run machinery (own flag, no onRunningChanged side effects).
+    var isSecondOpinionRunning = false
+
+    /// Run the last user ask on ANOTHER provider as a one-shot (off the main run path) and
+    /// append its answer, labeled with `headerPrefix` — the cross-provider differentiator
+    /// made tangible ("get a second opinion from Codex"). User-initiated, so spending is
+    /// consented by the tap.
+    func secondOpinion(provider: AIProvider, model modelID: String, cwd: String?,
+                       runner: OneShotRunner, headerPrefix: String) async {
+        guard !isRunning, !isSecondOpinionRunning,
+              let ask = messages.last(where: { $0.role == .user })?.text,
+              !ask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        isSecondOpinionRunning = true
+        defer { isSecondOpinionRunning = false }
+        let out = (try? await runner.run(prompt: ask, provider: provider, model: modelID, cwd: cwd))?.text ?? ""
+        let body = out.trimmingCharacters(in: .whitespacesAndNewlines)
+        messages.append(ChatMessage(role: .assistant, text: headerPrefix + (body.isEmpty ? "—" : body)))
+        persist(messages)
+    }
     /// Notifies the owner (AppModel) when a turn starts/ends, so global running
     /// indicators and finish banners work even when this chat isn't on screen.
     @ObservationIgnored var onRunningChanged: ((Bool) -> Void)?

@@ -78,4 +78,29 @@ struct ChatTurnRunnerTests {
         #expect(sessionMissing)
         #expect(vm.errorText == nil)
     }
+
+    /// A OneShotRunner that echoes a fixed answer — for the second-opinion path.
+    private struct StubOneShot: OneShotRunner {
+        let answer: String
+        func run(prompt: String, provider: AIProvider, model: String, cwd: String?) async throws -> OneShotResult {
+            OneShotResult(text: answer, tokens: 0, costUSD: 0, provider: provider, model: model)
+        }
+    }
+
+    @Test func secondOpinionAppendsALabeledAnswerOffTheMainRunPath() async {
+        let config = Configuration(name: "T", strategy: StrategyLibrary.solo())
+        let vm = ChatViewModel(config: config, binary: "claude")
+        vm.messages = [ChatMessage(role: .user, text: "Is this correct?"),
+                       ChatMessage(role: .assistant, text: "Claude says yes.")]
+
+        await vm.secondOpinion(provider: .openai, model: "gpt-x", cwd: nil,
+                               runner: StubOneShot(answer: "Codex disagrees."),
+                               headerPrefix: "**Second opinion — Codex**\n\n")
+
+        #expect(vm.messages.count == 3)
+        #expect(vm.messages.last?.role == .assistant)
+        #expect(vm.messages.last?.text == "**Second opinion — Codex**\n\nCodex disagrees.")
+        #expect(!vm.isRunning)                 // never touched the main run flag
+        #expect(!vm.isSecondOpinionRunning)    // cleared after
+    }
 }
