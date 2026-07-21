@@ -260,19 +260,18 @@ struct ChatView: View {
             // The chat always stays here; Code Mode now opens in the right-side panel
             // (see body) instead of replacing the conversation.
             messagesList
+            // STATE strips keep their tinted treatment — these are things to resolve, not
+            // suggestions. Color is reserved for state (design review, wave B).
             if engineMissing { engineMissingCard }
             if vm.mixedProvidersNote { mixedProvidersStrip }
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
             if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
-            if loopSuggestionVisible { loopSuggestionChip }
-            if repoSuggestionVisible { repoSuggestionChip }
+            // SUGGESTIONS collapse to ONE neutral coach at a time: the rich advisor card,
+            // else a single CoachChip (team-fit / loop / repo), else a saving tip.
             if advisorCardVisible { advisorCard }
-            // Follow-up prompts: a quiet one-line chip suggesting a better-fit assignee
-            // for THIS prompt (only when it differs from the current team).
-            if let suggestion = followupSuggestion { strategySuggestionChip(suggestion) }
-            // At most one coach banner at a time: the Advisor card wins.
-            if let tip = saverTip, !advisorCardVisible, followupSuggestion == nil {
+            coachSlot
+            if let tip = saverTip, !advisorCardVisible, !hasCoachSuggestion {
                 TokenSaverBanner(tip: tip,
                                  onAction: { saverAction(tip) },
                                  onDismiss: { dismissedTips.insert(tip.kind) })
@@ -381,30 +380,6 @@ struct ChatView: View {
     }
 
     /// A quiet one-line chip: "For this, X might fit better — Switch". One tap swaps the
-    /// chat's team; the × waves it away until the next prompt.
-    private func strategySuggestionChip(_ tier: AdvisorEngine.Tier) -> some View {
-        HStack(spacing: Space.s) {
-            Image(systemName: "wand.and.stars").font(.system(size: 11)).foregroundStyle(Theme.accent)
-            Text(model.t("advisor.followup.suggest", model.strategyDisplayName(tier.advice.strategy)))
-                .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
-            Spacer(minLength: Space.s)
-            Button(model.t("advisor.followup.switch")) {
-                model.applyTemplate(tier.advice.strategy, to: config.id)
-                withAnimation { suggestionDismissed = true }
-                model.flashSuccess(model.t("advisor.followup.switched", model.strategyDisplayName(tier.advice.strategy)))
-            }
-            .controlSize(.small).buttonStyle(.moon)
-            Button { withAnimation { suggestionDismissed = true } } label: {
-                Image(systemName: "xmark").scaledFont(9, weight: .semibold)
-            }
-            .buttonStyle(.plain).foregroundStyle(.tertiary)
-            .help(model.t("common.dismiss"))
-        }
-        .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.hairline.opacity(0.5))
-    }
-
     /// The inline Advisor card shows only while composing the first message of
     /// a fresh chat — and it displaces the Token Saver banner (never stack two).
     private var advisorCardVisible: Bool {
@@ -489,21 +464,37 @@ struct ChatView: View {
         return !firstAsk.isEmpty && LoopSuggestion.looksRepeatable(firstAsk)
     }
 
-    private var loopSuggestionChip: some View {
-        HStack(spacing: Space.s) {
-            Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 12)).foregroundStyle(Theme.accent)
-            Text(model.t("chat.loopSuggestion")).font(.sfCaption2).foregroundStyle(Theme.ink)
-            Spacer(minLength: 0)
-            Button(model.t("chat.loopSuggestion.cta")) { createLoopFromChat() }
-                .buttonStyle(.borderless).controlSize(.small).font(.sfCaption2.weight(.semibold))
-            Button { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { loopSuggestDismissed = true } } label: {
-                Image(systemName: "xmark").font(.system(size: 10))
+    /// Whether any one-line suggestion wants the coach slot (so the saver tip yields to it).
+    private var hasCoachSuggestion: Bool {
+        followupSuggestion != nil || loopSuggestionVisible || repoSuggestionVisible
+    }
+
+    /// Exactly ONE neutral coach chip at a time: team-fit switch, else loop, else repo.
+    /// Suggestions are calm and uniform — color is reserved for state, not offers.
+    @ViewBuilder private var coachSlot: some View {
+        if !advisorCardVisible {
+            if let suggestion = followupSuggestion {
+                CoachChip(icon: "wand.and.stars",
+                          text: model.t("advisor.followup.suggest", model.strategyDisplayName(suggestion.advice.strategy)),
+                          cta: model.t("advisor.followup.switch"),
+                          action: {
+                              model.applyTemplate(suggestion.advice.strategy, to: config.id)
+                              withAnimation { suggestionDismissed = true }
+                              model.flashSuccess(model.t("advisor.followup.switched", model.strategyDisplayName(suggestion.advice.strategy)))
+                          },
+                          onDismiss: { withAnimation { suggestionDismissed = true } })
+            } else if loopSuggestionVisible {
+                CoachChip(icon: "arrow.triangle.2.circlepath",
+                          text: model.t("chat.loopSuggestion"), cta: model.t("chat.loopSuggestion.cta"),
+                          action: { createLoopFromChat() },
+                          onDismiss: { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { loopSuggestDismissed = true } })
+            } else if repoSuggestionVisible {
+                CoachChip(icon: "folder.badge.plus",
+                          text: model.t("chat.repoSuggestion"), cta: model.t("chat.repoSuggestion.cta"),
+                          action: { model.pickRepo(for: config.id) },
+                          onDismiss: { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { repoSuggestDismissed = true } })
             }
-            .buttonStyle(.plain).foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.accentSoft))
-        .padding(.horizontal, Space.m).padding(.bottom, Space.xs)
     }
 
     /// A connected provider that ISN'T this chat's provider — the one to ask for a second
@@ -528,23 +519,6 @@ struct ChatView: View {
               (config.repoPath ?? "").isEmpty else { return false }
         let firstAsk = vm.messages.first(where: { $0.role == .user })?.text ?? ""
         return !firstAsk.isEmpty && RepoMention.mentionsCode(firstAsk)
-    }
-
-    private var repoSuggestionChip: some View {
-        HStack(spacing: Space.s) {
-            Image(systemName: "folder.badge.plus").font(.system(size: 12)).foregroundStyle(Theme.teal)
-            Text(model.t("chat.repoSuggestion")).font(.sfCaption2).foregroundStyle(Theme.ink)
-            Spacer(minLength: 0)
-            Button(model.t("chat.repoSuggestion.cta")) { model.pickRepo(for: config.id) }
-                .buttonStyle(.borderless).controlSize(.small).font(.sfCaption2.weight(.semibold))
-            Button { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { repoSuggestDismissed = true } } label: {
-                Image(systemName: "xmark").font(.system(size: 10))
-            }
-            .buttonStyle(.plain).foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.tealSoft))
-        .padding(.horizontal, Space.m).padding(.bottom, Space.xs)
     }
 
     private func createLoopFromChat() {
@@ -932,7 +906,9 @@ struct ChatView: View {
     @ViewBuilder
     private func bubble(_ message: ChatMessage, isStreaming: Bool) -> some View {
         if message.role == .user {
-            // User: compact bubble on the right.
+            // User: compact bubble on the right. Capped at ~560 so a long message shares
+            // the same calm column as the assistant (not a full-width coral slab), with a
+            // near-flat shadow so the transcript doesn't read as a row of buttons (wave B).
             HStack {
                 Spacer(minLength: 60)
                 Text(message.text)
@@ -941,10 +917,11 @@ struct ChatView: View {
                     .foregroundStyle(Theme.onAccent)
                     .textSelection(.enabled)
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+                    .frame(maxWidth: 560, alignment: .trailing)
                     // Vivid coral gradient pill (reference look) — the user's turns are
                     // the bold, floating bubbles; white text on the Coral identity fill.
                     .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.userBubbleFill))
-                    .shadow(color: Theme.accentGlow, radius: 6, x: 0, y: 2)
+                    .shadow(color: Theme.accentGlow.opacity(0.5), radius: 2, x: 0, y: 1)
                     .contextMenu {
                         copyButton(message.text)
                         Button { editMessage(message) } label: {
@@ -995,12 +972,13 @@ struct ChatView: View {
                             Button { copy(message) } label: {
                                 Label(copied ? model.t("chat.copied") : model.t("chat.copy"),
                                       systemImage: copied ? "checkmark" : "doc.on.doc")
-                                    .font(.sfCaption2)
+                                    .labelStyle(.iconOnly).font(.sfCaption2)
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(isStreaming ? AnyShapeStyle(.quaternary)
                                              : (copied ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.secondary)))
                             .disabled(isStreaming)
+                            .help(model.t("chat.copy"))
                             // Substantial code / HTML / SVG blocks open in a focused
                             // artifact viewer instead of scrolling inline.
                             if !isStreaming {
@@ -1984,6 +1962,35 @@ private struct ChatPreviewHost: View {
         return ChatView(viewModel: vm)
             .environment(AppModel())
             .tint(Theme.accent)
+    }
+}
+
+/// One calm, uniform "coach" suggestion chip — the single shape every contextual offer
+/// (team-fit switch, run-as-loop, attach-a-folder) shares. Neutral card + hairline, one
+/// muted accent glyph, a borderless CTA, a tertiary dismiss. Color is reserved for STATE
+/// strips (errors, blocked permissions), never for suggestions (design review, wave B).
+private struct CoachChip: View {
+    let icon: String
+    let text: String
+    let cta: String
+    let action: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: icon).font(.system(size: 12)).foregroundStyle(Theme.accent)
+            Text(text).font(.sfCaption2).foregroundStyle(Theme.ink).lineLimit(2)
+            Spacer(minLength: Space.s)
+            Button(cta, action: action)
+                .buttonStyle(.borderless).controlSize(.small).font(.sfCaption2.weight(.semibold))
+            Button(action: onDismiss) { Image(systemName: "xmark").font(.system(size: 10)) }
+                .buttonStyle(.plain).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+            .strokeBorder(Theme.hairline, lineWidth: 1))
+        .padding(.horizontal, Space.m).padding(.bottom, Space.xs)
     }
 }
 
