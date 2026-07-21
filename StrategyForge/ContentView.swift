@@ -194,6 +194,13 @@ struct ContentView: View {
         .ignoresSafeArea()
         .background(AppAuroraBackground().ignoresSafeArea())
         .background(hazeBackground)
+        // ⌘K quick-switcher across chats + sections, floating above everything.
+        .overlay {
+            if model.showCommandPalette {
+                CommandPalette(isPresented: $model.showCommandPalette)
+                    .transition(.opacity)
+            }
+        }
         // App-wide banner so success/errors surface anywhere, not just the editor.
         .bannerOverlay()
         // Leaving an uncommitted draft team warns that it will be lost.

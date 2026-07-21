@@ -292,6 +292,8 @@ final class AppModel {
     // MARK: - UI layout state (restored across launches; see settings)
     var showSidebar = true
     var showInspector = false
+    /// The ⌘K command palette (chat/section quick-switcher) overlay.
+    var showCommandPalette = false
     /// Right-side agent-activity panel visibility (persisted so it's restored).
     var showActivity = false {
         didSet { if showActivity != oldValue { settings.showActivity = showActivity; save(stamp: false) } }

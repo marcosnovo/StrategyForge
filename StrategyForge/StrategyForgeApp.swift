@@ -63,6 +63,11 @@ struct StrategyForgeApp: App {
                 Button(model.t("sidebar.new")) { model.addConfiguration() }
                     .keyboardShortcut("n", modifiers: .command)
             }
+            // ⌘K opens the command palette (chat + section quick-switcher).
+            CommandGroup(after: .toolbar) {
+                Button(model.t("palette.placeholder")) { model.showCommandPalette = true }
+                    .keyboardShortcut("k", modifiers: .command)
+            }
             // View menu: toggle the panes from the keyboard.
             CommandGroup(after: .sidebar) {
                 Button(model.t("sidebar.toggle")) { model.showSidebar.toggle() }
