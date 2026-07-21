@@ -31,13 +31,14 @@ chat); (3) **coral Y teal ambos como color de acción** → la identidad se dilu
 
 ## Plan por olas (impacto ÷ esfuerzo ÷ riesgo)
 
-> **Estado (2026-07-21):** ✅ Ola A completa · ✅ Ola B completa (B1 teal, B2 CoachChip,
-> B3 *pendiente* — ver abajo, B4 mensajes, B5 código) · ✅ Ola C copy (C1 CTA onboarding,
-> C3 des-jergon, C6 saludo dup) · ⏳ **Pendiente y requiere revisión visual en Mac:**
-> **B3** (panel de actividad 9→3 tarjetas), **C2/C4** (bloqueador Claude prominente + beat de
-> finalización — colocación de layout), **C5** (undo al cambiar equipo), toda la **Ola D**
-> (⌘K, menús File/Edit, `List(selection:)`, header nativo), **A6** (micro-tipografía).
-> Todo lo marcado ✅ está en `main`, compilando y con 330 tests verdes.
+> **Estado (2026-07-21):** ✅ Ola A completa · ✅ **Ola B completa** (B1 teal, B2 CoachChip,
+> B3 panel 9→3, B4 mensajes, B5 código) · ✅ Ola C copy (C1 CTA onboarding, C3 des-jergon,
+> C6 saludo dup) · ✅ **D1 command palette ⌘K** · ⏳ **Pendiente y requiere revisión visual
+> en Mac:** **C2/C4** (bloqueador Claude prominente + beat de finalización — colocación de
+> layout), **C5** (undo al cambiar equipo), **D2–D5** (menús File/Edit, `List(selection:)`,
+> header nativo en `.toolbar`, material del rail), **A6** (micro-tipografía).
+> Además, fuera de la review: **UX de clonado** — la fila pulsada ya muestra "Clonando…" en
+> vez de congelarse. Todo lo marcado ✅ está en `main`, compilando y con 330 tests verdes.
 
 ### Ola A — wins globales de token/visual (una tarde, riesgo bajo, alta calidad percibida)
 - A1. **Display type más grande y ceñido** (`Theme.sfDisplay` → `.largeTitle`/bold, tracking −0.5); héroes ~28–34pt.
