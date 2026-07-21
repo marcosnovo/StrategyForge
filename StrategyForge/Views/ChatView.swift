@@ -45,6 +45,8 @@ struct ChatView: View {
     @State private var showComposerControls = false
     /// Dismiss the "run this as a loop?" contextual suggestion for this session.
     @State private var loopSuggestDismissed = false
+    /// Dismiss the "attach a folder" (work-in-repo) contextual suggestion for this session.
+    @State private var repoSuggestDismissed = false
     /// Drives the "reconnect & retry" sheet when a turn fails with an auth error.
     @State private var reconnecting = false
     /// Code mode: a developer workspace (files/diffs) instead of plain chat.
@@ -264,6 +266,7 @@ struct ChatView: View {
             if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
             if loopSuggestionVisible { loopSuggestionChip }
+            if repoSuggestionVisible { repoSuggestionChip }
             if advisorCardVisible { advisorCard }
             // Follow-up prompts: a quiet one-line chip suggesting a better-fit assignee
             // for THIS prompt (only when it differs from the current team).
@@ -500,6 +503,32 @@ struct ChatView: View {
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
         .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.accentSoft))
+        .padding(.horizontal, Space.m).padding(.bottom, Space.xs)
+    }
+
+    /// Offer to attach a folder when the user talks about code but no repo is bound —
+    /// the agents can only read/edit code once there's a folder (Code mode).
+    private var repoSuggestionVisible: Bool {
+        guard !vm.isRunning, !repoSuggestDismissed,
+              (config.repoPath ?? "").isEmpty else { return false }
+        let firstAsk = vm.messages.first(where: { $0.role == .user })?.text ?? ""
+        return !firstAsk.isEmpty && RepoMention.mentionsCode(firstAsk)
+    }
+
+    private var repoSuggestionChip: some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: "folder.badge.plus").font(.system(size: 12)).foregroundStyle(Theme.teal)
+            Text(model.t("chat.repoSuggestion")).font(.sfCaption2).foregroundStyle(Theme.ink)
+            Spacer(minLength: 0)
+            Button(model.t("chat.repoSuggestion.cta")) { model.pickRepo(for: config.id) }
+                .buttonStyle(.borderless).controlSize(.small).font(.sfCaption2.weight(.semibold))
+            Button { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { repoSuggestDismissed = true } } label: {
+                Image(systemName: "xmark").font(.system(size: 10))
+            }
+            .buttonStyle(.plain).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.tealSoft))
         .padding(.horizontal, Space.m).padding(.bottom, Space.xs)
     }
 
