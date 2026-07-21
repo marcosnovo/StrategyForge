@@ -34,9 +34,10 @@ chat); (3) **coral Y teal ambos como color de acción** → la identidad se dilu
 > **Estado (2026-07-21):** ✅ Ola A completa · ✅ **Ola B completa** · ✅ **Ola C completa**
 > (C1 CTA onboarding, C2 bloqueador Claude, C3 des-jergon, C4 beat de finalización, C5 undo
 > team-swap, C6 saludo dup) · ✅ **D1 ⌘K command palette** · ✅ **D2 menú File real**
-> (duplicar/eliminar/importar/exportar + Stop ⌘.) · ⏳ **Pendiente, requiere DECISIÓN + revisión
-> visual del usuario:** **D3** (`List(selection:)` con teclado — riesgo medio, prototipar look
-> de selección), **D4** (header nativo en `.toolbar` — restyle), **D5** (material del rail —
+> (duplicar/eliminar/importar/exportar + Stop ⌘.) · ✅ **D3 (valor) — cambio de chat por teclado**
+> (⌥⌘↑/↓, sin reescribir la sidebar a `List(selection:)`, preserva el `SelectedRow`) · ⏳
+> **Pendiente, requiere DECISIÓN + revisión visual del usuario:**
+> **D4** (header nativo en `.toolbar` — restyle), **D5** (material del rail —
 > ⚠️ *contradice una decisión intencionada*: el rail usa hoy `translucentColumn()` a propósito
 > para leerse como la misma superficie que la lista; D5 pide diferenciarlas — es una llamada
 > subjetiva del usuario). · ✅ **A6 micro-tipografía** (hallazgo: `scaledFont` suela a 10pt,
