@@ -14,7 +14,9 @@ struct CodeLauncherView: View {
     @Environment(AppModel.self) private var model
     @AppStorage("code.lastRepo") private var lastRepo = ""
     @State private var cloneURL = ""
-    @State private var cloning = false
+    /// The URL currently being cloned (nil = idle). Drives the per-row "Cloning…"
+    /// spinner so a click on a repo reads as *working*, not *frozen*.
+    @State private var cloningRepo: String? = nil
     @State private var ghRepos: [GitHubCLI.RepoRef] = []
     @State private var loadingRepos = false
     @State private var repoQuery = ""
@@ -33,6 +35,10 @@ struct CodeLauncherView: View {
             $0.nameWithOwner.lowercased().contains(q) || $0.description.lowercased().contains(q)
         }
     }
+
+    /// A clone is in flight (from the list or the manual URL field). Locks the other
+    /// entry points so two clones can't race.
+    private var cloning: Bool { cloningRepo != nil }
 
     var body: some View {
         ScrollView {
@@ -103,16 +109,19 @@ struct CodeLauncherView: View {
                 }
                 ForEach(filteredRepos) { repo in
                     Button {
-                        cloning = true
-                        Task { await model.cloneAndOpenCodeChat(url: repo.url); cloning = false }
+                        cloningRepo = repo.url
+                        Task { await model.cloneAndOpenCodeChat(url: repo.url); cloningRepo = nil }
                     } label: {
                         repoRow(icon: repo.isPrivate ? "lock.fill" : "globe",
                                 title: repo.nameWithOwner,
                                 subtitle: repo.description.isEmpty ? nil : repo.description,
-                                badge: repo.isPrivate ? model.t("code.myRepos.private") : nil)
+                                badge: repo.isPrivate ? model.t("code.myRepos.private") : nil,
+                                isCloning: cloningRepo == repo.url)
                     }
                     .buttonStyle(.plain).hoverLift()
                     .disabled(cloning)
+                    // The other rows dim while one clones; the active row stays lit.
+                    .opacity(cloning && cloningRepo != repo.url ? 0.5 : 1)
                 }
                 if repoQuery.trimmingCharacters(in: .whitespaces).isEmpty, ghRepos.count > filteredRepos.count {
                     Text(model.t("code.myRepos.more", ghRepos.count - filteredRepos.count))
@@ -160,25 +169,33 @@ struct CodeLauncherView: View {
     }
 
     /// One tappable repo row (recent or GitHub): icon + name + subtitle + chevron.
-    private func repoRow(icon: String, title: String, subtitle: String?, badge: String?) -> some View {
+    private func repoRow(icon: String, title: String, subtitle: String?, badge: String?, isCloning: Bool = false) -> some View {
         HStack(spacing: Space.m) {
             Image(systemName: icon).font(.system(size: 14)).foregroundStyle(Theme.accent).frame(width: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.sfCallout.weight(.medium)).lineLimit(1).truncationMode(.middle)
-                if let subtitle {
+                if isCloning {
+                    Text(model.t("code.cloning")).font(.sfCaption2).foregroundStyle(Theme.accent).lineLimit(1)
+                } else if let subtitle {
                     Text(subtitle).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 }
             }
             Spacer(minLength: Space.s)
-            if let badge {
-                Text(badge).font(.sfCaption2).foregroundStyle(.secondary)
-                    .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Capsule().fill(Theme.insetBg))
+            if isCloning {
+                WorkingLogo(size: 15)
+            } else {
+                if let badge {
+                    Text(badge).font(.sfCaption2).foregroundStyle(.secondary)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.insetBg))
+                }
+                Image(systemName: "arrow.right").font(.system(size: 11)).foregroundStyle(.tertiary)
             }
-            Image(systemName: "arrow.right").font(.system(size: 11)).foregroundStyle(.tertiary)
         }
         .padding(.vertical, 6).padding(.horizontal, Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8)
+            .fill(isCloning ? Theme.accent.opacity(0.08) : .clear))
         .contentShape(Rectangle())
     }
 
@@ -237,10 +254,10 @@ struct CodeLauncherView: View {
     private func clone() {
         let url = cloneURL
         guard !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !cloning else { return }
-        cloning = true
+        cloningRepo = url
         Task {
             await model.cloneAndOpenCodeChat(url: url)
-            cloning = false
+            cloningRepo = nil
         }
     }
 
