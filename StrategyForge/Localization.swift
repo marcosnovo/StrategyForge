@@ -467,6 +467,7 @@ enum L10n {
         "team.save.confirm": ("Save", "Guardar"),
         "team.saved": ("Team “%@” saved", "Equipo «%@» guardado"),
         "team.applied": ("Team “%@” is now driving this chat.", "El equipo «%@» ya dirige este chat."),
+        "team.reverted": ("Previous team restored.", "Equipo anterior restaurado."),
         "team.created": ("Team “%@” created.", "Equipo «%@» creado."),
         "team.useInChat": ("Use in a new chat", "Usar en un chat nuevo"),
         "sidebar.chats": ("Chats", "Chats"),

@@ -981,10 +981,37 @@ final class AppModel {
     /// Swap the strategy of a configuration for a fresh template instance.
     func applyTemplate(_ template: Strategy, to id: Configuration.ID) {
         guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
+        let prev = configurations[i].strategy
+        let prevAuto = configurations[i].strategyIsAuto
         configurations[i].strategy = template
         configurations[i].strategyIsAuto = false   // user/AI chose a team explicitly
         save()   // persist the strategy change so it survives relaunch
-        flashSuccess(t("team.applied", strategyDisplayName(template)))
+        announceTeamSwap(t("team.applied", strategyDisplayName(template)),
+                         id: id, previous: prev, previousAuto: prevAuto)
+    }
+
+    /// Banner for a team swap: a plain success when there was no real team to lose
+    /// (fresh/auto chat), else a 10s Undo that restores the previous team — the same
+    /// affordance as chat delete, so a mis-swap is never destructive.
+    private func announceTeamSwap(_ message: String, id: Configuration.ID,
+                                  previous: Strategy, previousAuto: Bool) {
+        if previousAuto {
+            flashSuccess(message)
+        } else {
+            bannerCenter.showWithUndo(message, undoLabel: t("banner.undo"),
+                                      dismissAfter: Self.undoWindow) { [weak self] in
+                self?.restoreStrategy(id, previous, wasAuto: previousAuto)
+            }
+        }
+    }
+
+    /// Restore a team swapped within the undo window.
+    func restoreStrategy(_ id: Configuration.ID, _ strategy: Strategy, wasAuto: Bool) {
+        guard let i = configurations.firstIndex(where: { $0.id == id }) else { return }
+        configurations[i].strategy = strategy
+        configurations[i].strategyIsAuto = wasAuto
+        save()
+        flashSuccess(t("team.reverted"))
     }
 
     /// Add a fresh worker role to a chat's team (visual Team canvas CRUD). Returns
@@ -1036,10 +1063,13 @@ final class AppModel {
     /// Apply a saved preset to a chat (fresh ids so chats never share role ids).
     func applyTeam(_ team: SavedTeam, to configID: Configuration.ID) {
         guard let i = configurations.firstIndex(where: { $0.id == configID }) else { return }
+        let prev = configurations[i].strategy
+        let prevAuto = configurations[i].strategyIsAuto
         configurations[i].strategy = team.strategyCopy()
         configurations[i].strategyIsAuto = false   // user chose a team explicitly
         save()
-        flashSuccess(t("team.applied", team.name))
+        announceTeamSwap(t("team.applied", team.name),
+                         id: configID, previous: prev, previousAuto: prevAuto)
     }
 
     /// First-message hook: if the chat's team is still "auto", recommend one from the
