@@ -73,30 +73,15 @@ struct MarkdownView: View {
                     }
                 }
             }
-        case .code(let code):
-            codeBlock(code)
+        case .code(let code, let lang):
+            codeBlock(code, lang: lang)
         case .table(let headers, let rows):
             tableView(headers: headers, rows: rows)
         }
     }
 
-    private func codeBlock(_ code: String) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            Text(code)
-                .font(.sfCode)
-                .foregroundStyle(Theme.ink)
-                .textSelection(.enabled)
-                .padding(Space.m)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
-        .overlay(alignment: .topTrailing) {
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(code, forType: .string)
-            } label: { Image(systemName: "doc.on.doc").font(.system(size: 10)) }
-            .buttonStyle(.plain).foregroundStyle(.secondary).padding(6)
-        }
+    private func codeBlock(_ code: String, lang: String) -> some View {
+        CodeBlockView(code: code, lang: lang)
     }
 
     private func tableView(headers: [String], rows: [[String]]) -> some View {
@@ -136,7 +121,7 @@ enum MarkdownBlock {
     case paragraph(String)
     case bullet([String])
     case ordered([String])
-    case code(String)
+    case code(String, lang: String)
     case table(headers: [String], rows: [[String]])
 }
 
@@ -164,15 +149,16 @@ enum MarkdownParser {
 
             if trimmed.isEmpty { i += 1; continue }
 
-            // Fenced code.
+            // Fenced code. The info string after ``` is the language (e.g. ```swift).
             if trimmed.hasPrefix("```") {
+                let lang = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
                 var code: [String] = []
                 i += 1
                 while i < lines.count, !lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
                     code.append(lines[i]); i += 1
                 }
                 i += 1 // closing fence
-                blocks.append(.code(code.joined(separator: "\n")))
+                blocks.append(.code(code.joined(separator: "\n"), lang: lang))
                 continue
             }
 
@@ -235,5 +221,48 @@ enum MarkdownParser {
             if !para.isEmpty { blocks.append(.paragraph(para.joined(separator: "\n"))) }
         }
         return blocks
+    }
+}
+
+/// A premium fenced-code block: a header bar with the language label + a copy button that
+/// confirms, over a hairline-separated code surface (design review, wave B). For an app
+/// whose whole point is code, the code block should be one of the nicest elements.
+private struct CodeBlockView: View {
+    let code: String
+    let lang: String
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: Space.s) {
+                Text(lang.isEmpty ? "code" : lang.lowercased())
+                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
+                Spacer(minLength: 0)
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(code, forType: .string)
+                    copied = true
+                    Task { try? await Task.sleep(for: .seconds(1.4)); copied = false }
+                } label: {
+                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        .font(.sfCaption2)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(copied ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.secondary))
+            }
+            .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
+            Divider()
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(code)
+                    .font(.sfCode)
+                    .foregroundStyle(Theme.ink)
+                    .textSelection(.enabled)
+                    .padding(Space.m)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+            .strokeBorder(Theme.hairline, lineWidth: 1))
     }
 }
