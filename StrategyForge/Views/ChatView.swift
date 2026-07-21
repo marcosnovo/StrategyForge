@@ -43,6 +43,8 @@ struct ChatView: View {
     /// appear automatically once a chat has any messages; on a brand-new chat the box stays
     /// clean (ChatGPT-like) with a small "…" to open them on demand.
     @State private var showComposerControls = false
+    /// Dismiss the "run this as a loop?" contextual suggestion for this session.
+    @State private var loopSuggestDismissed = false
     /// Drives the "reconnect & retry" sheet when a turn fails with an auth error.
     @State private var reconnecting = false
     /// Code mode: a developer workspace (files/diffs) instead of plain chat.
@@ -261,6 +263,7 @@ struct ChatView: View {
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
             if !vm.editedFiles.isEmpty { changedFilesStrip }
             if let error = vm.errorText { errorBanner(error) }
+            if loopSuggestionVisible { loopSuggestionChip }
             if advisorCardVisible { advisorCard }
             // Follow-up prompts: a quiet one-line chip suggesting a better-fit assignee
             // for THIS prompt (only when it differs from the current team).
@@ -474,6 +477,32 @@ struct ChatView: View {
 
     /// Header-menu path: draft the loop goal from the first user message (or
     /// the unsent draft) via the Advisor, then jump to the Loop Builder.
+    /// Show "Run this as a loop?" once the user has sent a repeatable/goal-shaped message
+    /// and no loop is already running over this chat — the contextual reveal for loops.
+    private var loopSuggestionVisible: Bool {
+        guard !vm.isRunning, !loopSuggestDismissed,
+              !LoopStore.shared.isLoopRunning(forChat: config.id) else { return false }
+        let firstAsk = vm.messages.first(where: { $0.role == .user })?.text ?? ""
+        return !firstAsk.isEmpty && LoopSuggestion.looksRepeatable(firstAsk)
+    }
+
+    private var loopSuggestionChip: some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 12)).foregroundStyle(Theme.accent)
+            Text(model.t("chat.loopSuggestion")).font(.sfCaption2).foregroundStyle(Theme.ink)
+            Spacer(minLength: 0)
+            Button(model.t("chat.loopSuggestion.cta")) { createLoopFromChat() }
+                .buttonStyle(.borderless).controlSize(.small).font(.sfCaption2.weight(.semibold))
+            Button { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { loopSuggestDismissed = true } } label: {
+                Image(systemName: "xmark").font(.system(size: 10))
+            }
+            .buttonStyle(.plain).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.accentSoft))
+        .padding(.horizontal, Space.m).padding(.bottom, Space.xs)
+    }
+
     private func createLoopFromChat() {
         let source = vm.messages.first(where: { $0.role == .user })?.text
             ?? (vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : vm.input)
@@ -938,6 +967,22 @@ struct ChatView: View {
                                             .font(.sfCaption2)
                                     }
                                     .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                            // The differentiator, made glanceable: a "team of N ▸" chip on the
+                            // latest answer when a real team produced it. One tap opens the
+                            // activity panel (the roster + what each agent did). Keeps the power
+                            // visible even when the machinery is collapsed.
+                            if !isStreaming, message.id == vm.messages.last?.id {
+                                let teamSize = config.strategy.subagentRoles.count
+                                if teamSize > 0 {
+                                    Button { showActivity = true } label: {
+                                        Label(model.t("chat.answeredByTeam", teamSize + 1), systemImage: "person.3.sequence.fill")
+                                            .font(.sfCaption2.weight(.medium))
+                                    }
+                                    .buttonStyle(.plain).foregroundStyle(Theme.teal)
+                                    .help(model.t("chat.answeredByTeam.help"))
                                 }
                             }
                         }
