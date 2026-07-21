@@ -58,15 +58,40 @@ struct StrategyForgeApp: App {
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1080, height: 720)
         .commands {
-            // New chat replaces the default New Item.
+            // New chat replaces the default New Item, plus the chat lifecycle actions
+            // (duplicate / delete / import / export) as real File-menu items with the
+            // same shortcuts the command palette advertises.
             CommandGroup(replacing: .newItem) {
                 Button(model.t("sidebar.new")) { model.addConfiguration() }
                     .keyboardShortcut("n", modifiers: .command)
+                Divider()
+                Button(model.t("config.duplicate")) {
+                    if let id = model.selectedConfigID { model.duplicateConfiguration(id) }
+                }
+                .keyboardShortcut("d", modifiers: .command)
+                .disabled(model.selectedConfiguration == nil)
+                Button(model.t("sidebar.delete")) {
+                    if let id = model.selectedConfigID { model.deleteConfiguration(id) }
+                }
+                .keyboardShortcut(.delete, modifiers: .command)
+                .disabled(model.selectedConfiguration == nil)
+                Divider()
+                Button(model.t("doc.import")) { model.importStrategyDocument() }
+                    .keyboardShortcut("i", modifiers: [.command, .shift])
+                Button(model.t("doc.export")) {
+                    if let c = model.selectedConfiguration { model.exportStrategyDocument(c) }
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(model.selectedConfiguration == nil)
             }
-            // ⌘K opens the command palette (chat + section quick-switcher).
+            // ⌘K opens the command palette (chat + section quick-switcher); ⌘. stops the
+            // selected chat's live turn (the macOS "cancel" convention).
             CommandGroup(after: .toolbar) {
                 Button(model.t("palette.placeholder")) { model.showCommandPalette = true }
                     .keyboardShortcut("k", modifiers: .command)
+                Button(model.t("chat.stop")) { model.stopSelectedChat() }
+                    .keyboardShortcut(".", modifiers: .command)
+                    .disabled(model.selectedConfiguration == nil)
             }
             // View menu: toggle the panes from the keyboard.
             CommandGroup(after: .sidebar) {

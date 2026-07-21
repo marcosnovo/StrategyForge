@@ -1667,6 +1667,13 @@ final class AppModel {
     /// alive across navigation, so a running turn keeps streaming off-screen.
     /// Safe to call from a view body: it only touches @ObservationIgnored storage
     /// and refreshes the VM's (unobserved-by-callers) config snapshot.
+    /// Stop the selected chat's live turn from the menu (⌘.). Touches only an already
+    /// built VM — never instantiates one just to ask it to stop.
+    func stopSelectedChat() {
+        guard let id = selectedConfigID, let vm = chatVMs[id], vm.isRunning else { return }
+        vm.stop()
+    }
+
     func chatViewModel(for id: Configuration.ID) -> ChatViewModel? {
         guard let config = configurations.first(where: { $0.id == id }) else { return nil }
         if let vm = chatVMs[id] {
