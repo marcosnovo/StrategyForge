@@ -30,6 +30,11 @@ or task an agent…") y todo lo demás oculto hasta que hace falta.
 ## El default clave (mata la decisión "¿qué equipo/proveedor/modelo?")
 El usuario **nunca elige**: el Advisor decide **por-mensaje** desde la primera tecla, **sesgado a UN solo agente para prompts simples** (así una pregunta trivial es tan rápida/barata como ChatGPT y no quema el plan del usuario), y solo monta equipo cuando la tarea lo pide. El equipo se **revela después** como chip expandible, no se pregunta antes.
 
+## Estado (implementado)
+- **Fase 1 ✅** — presentación: 1 CTA, onboarding reencuadrado, rail decluttered (Advanced colapsado, sin Advisor), composer limpio hasta el 1er mensaje, panel de actividad no auto-abre en el 1er run, picker beginner.
+- **Fase 2 ✅** — reveals contextuales: chip "Equipo de N ▸", "¿Ejecutar en un loop?", "Adjunta una carpeta", "2ª opinión · X" (cross-provider, aislado del run path).
+- **Fase 3 ✅ (realizada por los reveals + lo existente)** — ladder de escalación: cambiar/mejorar equipo (chip `followupSuggestion`, reversible), escalar a loop (chip → editor = preview+confirm), segunda opinión (iniciada por el usuario = consentida). Riesgos 1/2/3 mitigados (atribución visible, Advisor ya sesga + switch-down, todo inspeccionable/overridable).
+
 ## Plan por fases (impacto simplicidad ÷ riesgo al core)
 
 ### Fase 1 — Presentación (aditivo, seguro, sin tocar capacidades)

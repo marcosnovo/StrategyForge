@@ -216,6 +216,7 @@ o dime qué ajustar. Todos son fáciles de revertir.
 - [ ] Con un equipo (no solo): bajo la última respuesta aparece el chip **"Equipo de N ▸"**; al tocarlo se abre el panel de actividad (quién hizo qué).
 - [ ] Escribe algo repetible ("cada mañana revisa…", "sigue intentando hasta que pasen los tests") → aparece la tira **"¿ejecutarlo en un loop que se verifica solo?" + "Crear loop"**. En preguntas de una vez, NO aparece.
 - [ ] En un chat SIN carpeta, escribe algo de código ("arregla el bug en…", "revisa este repo") → aparece **"¿Trabajando en código? Adjunta una carpeta" + "Adjuntar carpeta"**. En chats no-código, NO aparece.
+- [ ] Con ≥2 proveedores conectados (p. ej. Claude + Codex): bajo la última respuesta aparece **"2ª opinión · Codex"**. Al tocarlo, corre lo mismo en el otro proveedor y anexa **"Segunda opinión — Codex"** con su respuesta (sin romper el chat).
 
 **Feature nueva — Revisión automática del diff** (del artículo de LangChain):
 - [ ] En **Code mode** (chat con repo git y cambios sin commitear), pulsa **"Revisar"**. Un agente
