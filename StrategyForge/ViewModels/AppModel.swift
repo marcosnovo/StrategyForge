@@ -1697,6 +1697,28 @@ final class AppModel {
     /// alive across navigation, so a running turn keeps streaming off-screen.
     /// Safe to call from a view body: it only touches @ObservationIgnored storage
     /// and refreshes the VM's (unobserved-by-callers) config snapshot.
+    /// Keyboard chat switcher (⌥⌘↑ / ⌥⌘↓): move the selection to the previous/next chat
+    /// in the sidebar's own newest-first order. Clamps at the ends (no wrap) and routes
+    /// through guardedLeave so an unsaved team draft still warns. Jumps back to the chat
+    /// list if the user is elsewhere.
+    func selectAdjacentChat(_ delta: Int) {
+        let ordered = configurations.sorted { $0.recency > $1.recency }
+        guard !ordered.isEmpty else { return }
+        let current = ordered.firstIndex { $0.id == selectedConfigID }
+        // From outside the list (no selection), ↓ starts at the top, ↑ at the bottom.
+        let target: Int
+        if let c = current {
+            target = min(max(c + delta, 0), ordered.count - 1)
+        } else {
+            target = delta > 0 ? 0 : ordered.count - 1
+        }
+        let id = ordered[target].id
+        guardedLeave { [weak self] in
+            self?.navSection = .chats
+            self?.selectedConfigID = id
+        }
+    }
+
     /// Stop the selected chat's live turn from the menu (⌘.). Touches only an already
     /// built VM — never instantiates one just to ask it to stop.
     func stopSelectedChat() {

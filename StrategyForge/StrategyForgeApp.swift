@@ -93,8 +93,13 @@ struct StrategyForgeApp: App {
                     .keyboardShortcut(".", modifiers: .command)
                     .disabled(model.selectedConfiguration == nil)
             }
-            // View menu: toggle the panes from the keyboard.
+            // View menu: toggle the panes + switch chats from the keyboard.
             CommandGroup(after: .sidebar) {
+                Button(model.t("menu.prevChat")) { model.selectAdjacentChat(-1) }
+                    .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+                Button(model.t("menu.nextChat")) { model.selectAdjacentChat(1) }
+                    .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+                Divider()
                 Button(model.t("sidebar.toggle")) { model.showSidebar.toggle() }
                     .keyboardShortcut("s", modifiers: [.command, .control])
                 Button(model.t("chat.activity")) { model.showActivity.toggle() }

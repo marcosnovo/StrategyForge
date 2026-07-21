@@ -221,6 +221,8 @@ enum L10n {
         "palette.newCode": ("Connect a repo", "Conectar un repo"),
         "palette.empty": ("No matches", "Sin resultados"),
         "palette.hint": ("↑↓ move · ↵ open · esc close", "↑↓ mover · ↵ abrir · esc cerrar"),
+        "menu.prevChat": ("Previous chat", "Chat anterior"),
+        "menu.nextChat": ("Next chat", "Chat siguiente"),
         "sidebar.rename": ("Rename", "Renombrar"),
         "sidebar.needsAttention": ("Needs your attention", "Requiere tu atención"),
         "sidebar.working": ("Working…", "Trabajando…"),
