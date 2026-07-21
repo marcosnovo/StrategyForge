@@ -839,6 +839,38 @@ struct ChatView: View {
         }
     }
 
+    /// The completion beat: a subtle centered capsule that closes a finished turn with
+    /// its own elapsed / tokens / cost, so a reply no longer just ends in silence.
+    @ViewBuilder
+    private var completionBeat: some View {
+        if !vm.isRunning, vm.messages.last?.role == .assistant, let turn = vm.history.last {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 11)).foregroundStyle(Theme.success)
+                Text(completionSummary(turn))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, Space.m).padding(.vertical, 5)
+            .background(Capsule().fill(Theme.hairline.opacity(0.5)))
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, Space.s)
+            .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 6)))
+        }
+    }
+
+    /// "Completed · 1m 04s · 12.3k · $0.04" — only the parts that have a value.
+    private func completionSummary(_ turn: TurnActivity) -> String {
+        var parts = [model.t("activity.done.turn"),
+                     activityElapsed(from: turn.startedAt, to: turn.endedAt)]
+        if turn.tokensUsed > 0 {
+            parts.append(turn.tokensUsed >= 1000
+                         ? String(format: "%.1fk", Double(turn.tokensUsed) / 1000)
+                         : "\(turn.tokensUsed)")
+        }
+        if turn.costUSD > 0 { parts.append(String(format: "$%.2f", turn.costUSD)) }
+        return parts.joined(separator: " · ")
+    }
+
     private var messagesList: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -868,6 +900,9 @@ struct ChatView: View {
                         activityRow.id("activity")
                             .transition(.opacity.combined(with: .offset(y: 6)))
                     }
+                    // A quiet close on a finished turn: "Completed · 1m 04s · 12.3k · $0.04"
+                    // (per-turn stats — the header shows the running cumulative total).
+                    completionBeat
                 }
                 .padding(Space.l)
                 .frame(maxWidth: .infinity, alignment: .leading)
