@@ -475,6 +475,14 @@ extension View {
         modifier(TranslucentColumnModifier(tint: tint))
     }
 
+    /// The navigation RAIL's surface: the native macOS `.sidebar` vibrancy so the far-left
+    /// rail reads as a true sidebar, distinct from the content columns (which use
+    /// `translucentColumn`). This is the "rail ≠ content" separation (design review D5).
+    /// Opaque `railBg` fallback under Reduce Transparency.
+    func railColumn() -> some View {
+        modifier(RailColumnModifier())
+    }
+
     /// A frosted glass panel for static cards/sheets. Converged (#38) onto the SAME
     /// native Liquid Glass engine as `.glassEffect` so the app speaks one glass language
     /// instead of three. Falls back to an opaque card under Reduce Transparency.
@@ -494,6 +502,22 @@ private struct TranslucentColumnModifier: ViewModifier {
             content.background(Theme.columnBg)                       // solid, no material
         } else {
             content.background(Theme.columnBg.opacity(tint)).background(.ultraThinMaterial)
+        }
+    }
+}
+
+/// The rail's surface: a DENSER material (`.regularMaterial`) than the airy
+/// `.ultraThinMaterial` content columns, over a faint `columnBg` wash, so the far-left
+/// rail reads as a more substantial sidebar distinct from the chat list / activity panel
+/// — predictable and in-window (text contrast unchanged). Opaque `railBg` fallback under
+/// Reduce Transparency.
+private struct RailColumnModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            content.background(Theme.insetBg)   // a neutral step from the columns' columnBg, text-safe
+        } else {
+            content.background(Theme.columnBg.opacity(0.30)).background(.regularMaterial)
         }
     }
 }

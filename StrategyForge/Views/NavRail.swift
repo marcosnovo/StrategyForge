@@ -109,10 +109,10 @@ struct NavRail: View {
         .padding(.horizontal, Space.m)
         .padding(.top, 34)          // clear the floating traffic lights (hidden titlebar)
         .padding(.bottom, Space.m)
-        // Translucent, but tinted to the chat/panel color (Theme.columnBg) rather than
-        // the aurora — so the two left columns read as the same neutral surface as the
-        // chat window and activity panel, just glassy.
-        .translucentColumn()
+        // The rail uses the native macOS `.sidebar` vibrancy so it reads as a true sidebar,
+        // distinct from the content columns (chat list / activity panel), which stay on
+        // `translucentColumn`. This is the "rail ≠ content" separation (design review D5).
+        .railColumn()
         // One spring cross-fades the selected pill between sections. Snaps under Reduce Motion.
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8),
                    value: model.navSection)
