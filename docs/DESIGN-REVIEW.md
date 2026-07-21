@@ -31,14 +31,17 @@ chat); (3) **coral Y teal ambos como color de acción** → la identidad se dilu
 
 ## Plan por olas (impacto ÷ esfuerzo ÷ riesgo)
 
-> **Estado (2026-07-21):** ✅ Ola A completa · ✅ **Ola B completa** · ✅ **Ola C** (C1 CTA
-> onboarding, C2 bloqueador Claude, C3 des-jergon, C4 beat de finalización, C6 saludo dup;
-> queda C5 undo team-swap) · ✅ **D1 ⌘K command palette** · ✅ **D2 menú File real**
-> (duplicar/eliminar/importar/exportar + Stop ⌘.) · ⏳ **Pendiente, quiere revisión visual
-> en Mac:** **C5** (undo al cambiar equipo), **D3** (`List(selection:)` con teclado),
-> **D4** (header nativo en `.toolbar`), **D5** (material del rail), **A6** (micro-tipografía).
-> Además, fuera de la review: **UX de clonado** — la fila pulsada ya muestra "Clonando…" en
-> vez de congelarse. Todo lo marcado ✅ está en `main`, compilando y con 330 tests verdes.
+> **Estado (2026-07-21):** ✅ Ola A completa · ✅ **Ola B completa** · ✅ **Ola C completa**
+> (C1 CTA onboarding, C2 bloqueador Claude, C3 des-jergon, C4 beat de finalización, C5 undo
+> team-swap, C6 saludo dup) · ✅ **D1 ⌘K command palette** · ✅ **D2 menú File real**
+> (duplicar/eliminar/importar/exportar + Stop ⌘.) · ⏳ **Pendiente, requiere DECISIÓN + revisión
+> visual del usuario:** **D3** (`List(selection:)` con teclado — riesgo medio, prototipar look
+> de selección), **D4** (header nativo en `.toolbar` — restyle), **D5** (material del rail —
+> ⚠️ *contradice una decisión intencionada*: el rail usa hoy `translucentColumn()` a propósito
+> para leerse como la misma superficie que la lista; D5 pide diferenciarlas — es una llamada
+> subjetiva del usuario), **A6** (micro-tipografía).
+> Fuera de la review: **UX de clonado** — la fila pulsada muestra "Clonando…" en vez de
+> congelarse. Todo lo marcado ✅ está en `main`, compilando y con 330 tests verdes.
 
 ### Ola A — wins globales de token/visual (una tarde, riesgo bajo, alta calidad percibida)
 - A1. **Display type más grande y ceñido** (`Theme.sfDisplay` → `.largeTitle`/bold, tracking −0.5); héroes ~28–34pt.
