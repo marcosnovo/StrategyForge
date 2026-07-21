@@ -641,7 +641,7 @@ struct AgentActivityPanel: View {
         let byAgent = vm.tokensByAgent.sorted { $0.value > $1.value }
         return VStack(alignment: .leading, spacing: 3) {
             Text(model.t("activity.usage.thisRun"))
-                .scaledFont(8.5, weight: .semibold).foregroundStyle(Theme.tertiaryOnMaterial)
+                .scaledFont(9, weight: .semibold).foregroundStyle(Theme.tertiaryOnMaterial)
                 .tracking(0.6)
             ForEach(byModel, id: \.key) { m in
                 spendBar(label: friendlyModelName(m.key), tokens: m.value, total: total)
@@ -1027,7 +1027,7 @@ struct ActivityStepRow: View {
             // Which agent performed this step (subagents only; orchestrator is implicit).
             if let agent = step.agent, !agent.isEmpty, !step.isDelegation {
                 Text(agent)
-                    .scaledFont(8.5, weight: .semibold, design: .monospaced)
+                    .scaledFont(9, weight: .semibold, design: .monospaced)
                     .foregroundStyle(Theme.teal).lineLimit(1)
                     .padding(.horizontal, 5).padding(.vertical, 1)
                     .background(Capsule().fill(Theme.tealSoft))

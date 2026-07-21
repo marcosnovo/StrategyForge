@@ -395,6 +395,14 @@ extension View {
     /// Dynamic-Type-scaling system font with a 10pt accessibility floor. Prefer this over
     /// `.font(.system(size:))` for fixed sizes so tiny labels can't drop below 10pt and
     /// still grow with the user's text-size setting.
+    ///
+    /// Micro-type ramp (design review A6): because of the 10pt floor, **every `size` below
+    /// 10 renders identically** (7, 8, 8.5, 9 all floor to 10 and then scale together), so
+    /// the sub-10 number is cosmetic — it does NOT make text smaller. Use **9** as the one
+    /// sanctioned micro size for eyebrow/caption labels; reach past `scaledFont` (e.g.
+    /// `sfCaption2`, `sfFieldLabel`) only when you want a size that actually differs. For
+    /// the semantic split, keep `design: .monospaced` for static labels/ids and `.rounded`
+    /// for live numbers.
     func scaledFont(_ size: CGFloat, weight: Font.Weight = .regular,
                     design: Font.Design = .default) -> some View {
         modifier(ScaledSystemFont(size: size, weight: weight, design: design))
