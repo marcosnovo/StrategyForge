@@ -62,8 +62,11 @@ extension L10n {
 
         // MARK: Onboarding readiness (first-run)
         "onboard.ready.title": ("Your tools are ready", "Tus herramientas están listas"),
-        "onboard.ready.setup": ("Connect a tool to run", "Conecta una herramienta para ejecutar"),
+        "onboard.ready.setup": ("One step to start", "Un paso para empezar"),
+        "onboard.ready.setupDesc": ("Coral runs your agents through Claude — connect it and you're ready to go.",
+                                    "Coral ejecuta tus agentes con Claude — conéctalo y ya estás listo."),
         "onboard.ready.connect": ("Set up tools", "Configurar herramientas"),
+        "onboard.ready.connectCTA": ("Connect Claude", "Conectar Claude"),
         "onboard.gatekeeper": (
             "First launch: macOS may say the app is from an unidentified developer — it's notarized. Right-click → Open, or allow it in System Settings ▸ Privacy & Security.",
             "Primer arranque: macOS puede decir que la app es de un desarrollador no identificado — está notarizada. Clic derecho → Abrir, o permítela en Ajustes del Sistema ▸ Privacidad y seguridad."),

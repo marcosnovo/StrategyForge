@@ -108,16 +108,28 @@ struct OnboardingView: View {
         let ready = model.connectedProviders.contains(.claude)
         return VStack(alignment: .leading, spacing: Space.s) {
             HStack(spacing: Space.s) {
-                Image(systemName: ready ? "checkmark.seal.fill" : "wrench.and.screwdriver.fill")
-                    .foregroundStyle(ready ? Theme.success : Theme.warning)
+                Image(systemName: ready ? "checkmark.seal.fill" : "sparkles")
+                    .foregroundStyle(ready ? Theme.success : Theme.accent)
                 Text(model.t(ready ? "onboard.ready.title" : "onboard.ready.setup"))
                     .font(.sfCardTitle)
                 Spacer()
-                Button(model.t("onboard.ready.connect")) {
+            }
+            // The single thing a new user MUST do: connect Claude. When it isn't there
+            // yet, this is the loud, primary blocker — a coral CTA, not a caption link.
+            if !ready {
+                Text(model.t("onboard.ready.setupDesc"))
+                    .font(.sfCallout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
                     dismiss()
                     model.navSection = .services
+                } label: {
+                    Label(model.t("onboard.ready.connectCTA"), systemImage: "bolt.fill")
+                        .frame(maxWidth: .infinity)
                 }
-                .font(.sfCaption2)
+                .buttonStyle(.moon)
+                .controlSize(.large)
+                .padding(.top, 2)
             }
             // Per-provider status (Claude is the default engine; the others are
             // optional and unlock cross-provider teams).
