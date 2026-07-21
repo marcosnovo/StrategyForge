@@ -19,6 +19,9 @@ struct NavRail: View {
     @Binding var showSidebar: Bool
     /// Drives the styled account popover (reference-style menu with icon rows).
     @State private var showAccountMenu = false
+    /// Advanced destinations (Loops / Skills / Usage) collapse by default so a first-run
+    /// rail is just Chats · Code · Team + account — power stays one disclosure away.
+    @AppStorage("nav.showAdvanced") private var showAdvanced = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
@@ -46,31 +49,35 @@ struct NavRail: View {
                  active: model.navSection == .team) {
                 model.navSection = .team
             }
-            item("arrow.triangle.2.circlepath", "rail.loops",
-                 active: model.navSection == .loops,
-                 running: !LoopStore.shared.runningLoopIDs.isEmpty) {
-                model.guardedLeave { model.navSection = .loops }
-            }
-            item("wand.and.rays", "rail.advisor",
-                 active: model.navSection == .advisor) {
-                model.guardedLeave { model.navSection = .advisor }
-            }
-            item("puzzlepiece.extension.fill", "rail.skills",
-                 active: model.navSection == .skills) {
-                model.guardedLeave { model.navSection = .skills }
+
+            // Advanced: collapsed by default. Auto-expands when one of its sections is active
+            // (so the selected pill is always visible). Advisor left the rail — it's redundant
+            // with the inline advisor in chat.
+            let advancedActive = [.loops, .skills, .usage].contains(model.navSection)
+            advancedHeader(expanded: showAdvanced || advancedActive)
+            if showAdvanced || advancedActive {
+                item("arrow.triangle.2.circlepath", "rail.loops",
+                     active: model.navSection == .loops,
+                     running: !LoopStore.shared.runningLoopIDs.isEmpty) {
+                    model.guardedLeave { model.navSection = .loops }
+                }
+                item("puzzlepiece.extension.fill", "rail.skills",
+                     active: model.navSection == .skills) {
+                    model.guardedLeave { model.navSection = .skills }
+                }
+                item("gauge.with.dots.needle.bottom.50percent", "rail.usage",
+                     active: model.navSection == .usage) {
+                    model.guardedLeave {
+                        model.navSection = .usage
+                        Task { await model.refreshUsage(includeExact: true) }
+                    }
+                }
             }
             groupLabel("rail.group.account")
 
             item("point.3.connected.trianglepath.dotted", "rail.connected",
                  active: model.navSection == .services) {
                 model.guardedLeave { model.navSection = .services }
-            }
-            item("gauge.with.dots.needle.bottom.50percent", "rail.usage",
-                 active: model.navSection == .usage) {
-                model.guardedLeave {
-                    model.navSection = .usage
-                    Task { await model.refreshUsage(includeExact: true) }
-                }
             }
 
             #if DEBUG
@@ -178,6 +185,28 @@ struct NavRail: View {
     }
 
     /// A muted uppercase group divider label (reference-style nav grouping).
+    /// A tappable group header that expands/collapses the Advanced section.
+    private func advancedHeader(expanded: Bool) -> some View {
+        Button {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { showAdvanced.toggle() }
+        } label: {
+            HStack(spacing: Space.xs) {
+                Text(model.t("rail.group.advanced").uppercased())
+                    .font(.sfFieldLabel).tracking(0.8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .semibold))
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Theme.secondaryOnMaterial)
+            .padding(.horizontal, Space.m).padding(.top, Space.m).padding(.bottom, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(model.t("rail.group.advanced"))
+        .accessibilityValue(expanded ? model.t("common.expanded") : model.t("common.collapsed"))
+    }
+
     private func groupLabel(_ key: String) -> some View {
         Text(model.t(key).uppercased())
             .font(.sfFieldLabel)

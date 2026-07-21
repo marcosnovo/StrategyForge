@@ -373,20 +373,15 @@ private struct EmptyEditorState: View {
                 }
             }
 
-            HStack(spacing: Space.m) {
-                // Primary: describe a task and let AI assemble the team.
-                Button { onDescribeTask() } label: {
-                    Label(model.t("onboard.describeTask"), systemImage: "sparkles")
-                }
-                .buttonStyle(.moon)
-                // Secondary: a blank chat.
-                Button { model.addConfiguration() } label: {
-                    Label(model.t("sidebar.new"), systemImage: "square.and.pencil")
-                }
-                .buttonStyle(.reefOutline)
+            // One primary action: just start a chat. It opens with an auto-team (Coral
+            // picks the agents from your first message), so there's nothing to configure —
+            // no separate "describe your task" modal, no mode to choose first.
+            Button { model.addConfiguration() } label: {
+                Label(model.t("empty.editor.start"), systemImage: "arrow.up.circle.fill")
             }
+            .buttonStyle(.moon)
 
-            // Beginner: proven setup in one click.
+            // Beginner escape hatch: seed a proven team in one click (still optional).
             Button { model.setUpForMe() } label: {
                 Label(model.t("setup.oneClick"), systemImage: "wand.and.stars")
             }

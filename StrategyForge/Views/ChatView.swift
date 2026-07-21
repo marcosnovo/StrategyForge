@@ -39,6 +39,10 @@ struct ChatView: View {
     /// Confirmation before granting persistent full access.
     @State private var confirmAlwaysAllow = false
     @State private var showReport = false
+    /// Reveal the composer's mode/effort/context controls before the first message. They
+    /// appear automatically once a chat has any messages; on a brand-new chat the box stays
+    /// clean (ChatGPT-like) with a small "…" to open them on demand.
+    @State private var showComposerControls = false
     /// Drives the "reconnect & retry" sheet when a turn fails with an auth error.
     @State private var reconnecting = false
     /// Code mode: a developer workspace (files/diffs) instead of plain chat.
@@ -145,7 +149,10 @@ struct ChatView: View {
         .onChange(of: config.name) { _, new in editingTitle = new }
         // Auto-open the panel the first time an agent starts working.
         .onChange(of: vm.isRunning) { _, running in
-            if running && vm.timeline.isEmpty && !showActivity { showActivity = true }
+            // Don't split attention on the FIRST run — a newcomer should get a clean,
+            // single-column first answer. Auto-open the activity panel only once they've
+            // seen a completed run before (history non-empty). The header toggle still works.
+            if running && vm.timeline.isEmpty && !showActivity && !vm.history.isEmpty { showActivity = true }
         }
         // Proactively check the engine is installed (Claude), so the user is guided
         // to one-tap setup instead of hitting a technical error after sending.
@@ -1655,12 +1662,28 @@ struct ChatView: View {
     private var currentMode: ModeOption { modeOptions.first { $0.raw == vm.permissionMode } ?? modeOptions[0] }
 
     private var composerFooter: some View {
-        HStack(spacing: Space.s) {
-            modeMenu
-            Spacer(minLength: Space.s)
-            ContextWindowChip(breakdown: ContextBreakdown.estimate(
-                transcript: vm.messages, strategy: config.strategy))
-            modelEffortChip
+        // On a brand-new chat (no messages yet), keep the box clean: just a subtle "…" to
+        // reveal the controls. Sensible defaults (auto team, default effort/mode) apply.
+        Group {
+            if !vm.messages.isEmpty || showComposerControls {
+                HStack(spacing: Space.s) {
+                    modeMenu
+                    Spacer(minLength: Space.s)
+                    ContextWindowChip(breakdown: ContextBreakdown.estimate(
+                        transcript: vm.messages, strategy: config.strategy))
+                    modelEffortChip
+                }
+            } else {
+                HStack {
+                    Spacer(minLength: 0)
+                    Button { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { showComposerControls = true } } label: {
+                        Image(systemName: "slider.horizontal.3").font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.tertiary)
+                    .help(model.t("composer.options"))
+                    .accessibilityLabel(model.t("composer.options"))
+                }
+            }
         }
         .padding(.horizontal, 2)
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: vm.effort)

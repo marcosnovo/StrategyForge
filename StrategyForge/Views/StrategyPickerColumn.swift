@@ -22,6 +22,9 @@ struct StrategyPickerColumn: View {
     @State private var showWizard = false
     @State private var showTaskGen = false
     @State private var activeBucket: AppModel.TopicBucket?
+    /// Start with just the beginner-friendly strategies so the grid isn't a wall of 13
+    /// options; "Show all" reveals the rest. Any topic filter implies intent → show all.
+    @State private var showAllStrategies = false
     /// How the grid is ordered (persisted). "Recommended" is the library's own order.
     @AppStorage("picker.sortRank") private var sortRankRaw = StrategyRank.recommended.rawValue
     private var sortRank: StrategyRank { StrategyRank(rawValue: sortRankRaw) ?? .recommended }
@@ -88,8 +91,17 @@ struct StrategyPickerColumn: View {
                                            index: inBucket.count + index)
                         }
                     } else {
-                        ForEach(Array(templates.enumerated()), id: \.element.id) { index, template in
+                        // Default: beginner strategies only; "Show all" reveals the rest.
+                        let shown = showAllStrategies ? templates : templates.filter { model.isBeginnerStrategy($0) }
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { index, template in
                             introStaggered(strategyCard(template), index: index)
+                        }
+                        if !showAllStrategies && shown.count < templates.count {
+                            Button { withAnimation(.easeInOut(duration: 0.15)) { showAllStrategies = true } } label: {
+                                Label(model.t("picker.showAll", templates.count - shown.count), systemImage: "square.grid.2x2")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered).controlSize(.small)
                         }
                     }
                 }
