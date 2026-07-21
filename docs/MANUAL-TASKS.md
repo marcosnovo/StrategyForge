@@ -212,6 +212,10 @@ o dime qué ajustar. Todos son fáciles de revertir.
 - [ ] Panel de actividad: NO se abre solo en el primer run (sí en los siguientes).
 - [ ] Picker de estrategias: por defecto 4 (beginner) + botón "Ver todas".
 
+**Simplicidad Fase 2a** (reveals contextuales — cambian comportamiento visible):
+- [ ] Con un equipo (no solo): bajo la última respuesta aparece el chip **"Equipo de N ▸"**; al tocarlo se abre el panel de actividad (quién hizo qué).
+- [ ] Escribe algo repetible ("cada mañana revisa…", "sigue intentando hasta que pasen los tests") → aparece la tira **"¿ejecutarlo en un loop que se verifica solo?" + "Crear loop"**. En preguntas de una vez, NO aparece.
+
 **Feature nueva — Revisión automática del diff** (del artículo de LangChain):
 - [ ] En **Code mode** (chat con repo git y cambios sin commitear), pulsa **"Revisar"**. Un agente
   independiente read-only lee el `git diff` y lista hallazgos por severidad (cuadrado rojo = alta,
