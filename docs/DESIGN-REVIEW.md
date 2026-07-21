@@ -39,9 +39,11 @@ chat); (3) **coral Y teal ambos como color de acción** → la identidad se dilu
 > de selección), **D4** (header nativo en `.toolbar` — restyle), **D5** (material del rail —
 > ⚠️ *contradice una decisión intencionada*: el rail usa hoy `translucentColumn()` a propósito
 > para leerse como la misma superficie que la lista; D5 pide diferenciarlas — es una llamada
-> subjetiva del usuario), **A6** (micro-tipografía).
-> Fuera de la review: **UX de clonado** — la fila pulsada muestra "Clonando…" en vez de
-> congelarse. Todo lo marcado ✅ está en `main`, compilando y con 330 tests verdes.
+> subjetiva del usuario). · ✅ **A6 micro-tipografía** (hallazgo: `scaledFont` suela a 10pt,
+> así que 7/8/8.5/9 renderizan idénticos; fundido el 8.5, documentada la regla, 9 = micro
+> sancionada; normalizar los 7/8 restantes es puro aseo sin cambio visual, opcional).
+> **⏳ Solo quedan D3/D4/D5** (arriba). Fuera de la review: **UX de clonado** — la fila pulsada
+> muestra "Clonando…" en vez de congelarse. Todo ✅ está en `main`, compilando y 330 tests verdes.
 
 ### Ola A — wins globales de token/visual (una tarde, riesgo bajo, alta calidad percibida)
 - A1. **Display type más grande y ceñido** (`Theme.sfDisplay` → `.largeTitle`/bold, tracking −0.5); héroes ~28–34pt.
