@@ -9,11 +9,13 @@ nada todavía.
 > tono coral + `tealText`/`warningText` + aurora base = `appBg`) en `main`, 330 verdes. ✅
 > **Titular de Fase 2/3 — coral hero brillante** (burbuja/CTA/send desde #FF6B54 con scrim en el
 > glifo + glow coral; "answered by team" → neutro) en `main`. Descartado P1.3 (loader teal =
-> demos del ParticleLab, no el loader real). ⏳ **Pendiente, requiere tu revisión visual (claro+
-> oscuro):** resto del teal-diet (delegaciones en reposo, barras/anillos data-viz), modo claro
-> lleva la marca (subir rellenos 0.18–0.22 + borde), coral-por-sustracción (demote iconos
-> neutros), nativo macOS (semánticos, `glassPanel(material:)`, `.tint` redundantes), espectro de
-> equipo gobernado.
+> demos del ParticleLab, no el loader real). ✅ **Teal-diet data-viz** (spend bar + anillos/barras
+> de uso del rail → coral; teal reservado a vivo). ✅ **Modo claro lleva la marca** (accentSoft
+> 0.12→0.18, selectionFill 0.16→0.22). ⏳ **Pendiente — subjetivo/decisión, requiere tu revisión
+> visual:** delegaciones en reposo → neutro (pierde la señal de "handoff", tu llamada),
+> coral-por-sustracción (demote iconos-no-acción a neutro), 1.4.1 (glifo en dot de atención/update),
+> nativo macOS (`.primary/.secondary/.tertiary`, arreglar/borrar `glassPanel(material:)`), espectro
+> de equipo gobernado y desaturado.
 
 ## Tesis unificada
 
