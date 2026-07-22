@@ -16,13 +16,13 @@ nada todavía.
 > progresa a las métricas en vivo). ✅ **`glassPanel(material:)` muerto borrado**. ✅ **Delegaciones liberadas del teal**
 > (neutras, manteniendo forma de handoff). ✅ **Espectro de equipo gobernado y desaturado**
 > (teamBlue/Green/Violet/Amber/Rose en `Theme`; orquestador coral; reviewer≠warning, researcher≠
-> success). ⏳ **Último pendiente — coral-por-sustracción**: demote los ~50 iconos coral
-> decorativos a neutro (un momento coral por vista). Es un barrido grande y **por-icono subjetivo**
-> (qué es acción vs decoración) → lo quiero hacer contigo mirando. Descartados como no-recomendados:
-> texto neutro → semánticos (choca con los hex de contraste de Fase 1), y glifos en dots 1.4.1
-> (los dots ya tienen señales secundarias — bold/tooltip — no es fallo puro).
-> **Fuera de la review, arreglos de UX pedidos:** permiso de Uso (fichero-primero + cache), Skills
-> lento (cache en el singleton).
+> success). ✅ **"Ladrillo" en claro arreglado** (relleno = coral brillante + scrim; `accent` oscuro solo para
+> texto/icono; segmented + rail + data-viz a coral brillante). ✅ **Coral-por-sustracción
+> (conservador)**: eyebrows decorativos del panel a neutro, coral reservado a acción/orquestador/
+> selección. **PLAN DE COLOR COMPLETO.** Descartados como no-recomendados: texto neutro →
+> semánticos (choca con los hex de contraste de Fase 1), glifos en dots 1.4.1 (ya tienen señales
+> secundarias). **Fuera de la review, arreglos de UX pedidos:** permiso de Uso (fichero-primero +
+> cache), Skills lento (cache en el singleton).
 
 ## Tesis unificada
 
