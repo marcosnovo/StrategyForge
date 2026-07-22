@@ -59,13 +59,29 @@ final class UsageStore {
     /// — so a missing/expired token prompts (or no-ops) at most ONCE, never repeatedly.
     @ObservationIgnored private var didAttemptExactUsage = false
 
+    /// How fresh a cached exact-usage snapshot must be for the AUTO path (opening Usage) to
+    /// reuse it instead of touching the Keychain. The rate-limit windows are 5h/weekly, so a
+    /// snapshot up to 3h old is still a useful figure — and reusing it means opening Usage
+    /// never re-prompts for Keychain access once the first fetch has been granted.
+    private static let exactAutoInterval: TimeInterval = 3 * 3600
+
     /// Fetch Claude's authoritative rate-limit % from its usage endpoint. This reads the
-    /// Claude Code login token from the Keychain (which can prompt for the password), so
-    /// it runs ONLY on deliberate intent — opening the Usage section or an explicit
-    /// refresh — never at launch. Attempted once per session unless `force` is set (the
-    /// manual "refresh" / just-signed-in cases). Cached in `claudeExact` once it lands.
+    /// Claude Code login token from the Keychain, which prompts for access the first time
+    /// (and every time in a debug build, whose ad-hoc signature makes "Always Allow" not
+    /// stick). So the AUTO path (opening Usage) reuses a fresh cached snapshot and does NOT
+    /// touch the Keychain — the prompt happens only on the first-ever fetch or an explicit
+    /// `force` refresh (the ↻ button). Once granted, the result is cached and shown for
+    /// `exactAutoInterval` with no further prompts, across launches.
     func refreshExactUsage(force: Bool = false) async {
-        guard force || !didAttemptExactUsage else { return }
+        if !force {
+            // A fresh cached snapshot on hand → show it, skip the Keychain entirely.
+            if let cached = claudeExact ?? Self.loadCachedExact(),
+               Date().timeIntervalSince(cached.computedAt) < Self.exactAutoInterval {
+                claudeExact = cached
+                return
+            }
+            guard !didAttemptExactUsage else { return }
+        }
         didAttemptExactUsage = true
         if let exact = await Task.detached(priority: .utility, operation: { await ClaudeUsageAPI.fetch() }).value {
             claudeExact = exact

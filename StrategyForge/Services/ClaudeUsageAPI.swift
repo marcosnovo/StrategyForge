@@ -35,6 +35,14 @@ enum ClaudeUsageAPI {
     /// stores it keyed by config-dir, so we check the dir the app runs from + the default.
     static func accessToken() -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
+        // File-first: Claude Code also writes its OAuth to a plain credentials file in the
+        // config dir on some setups. Reading a file the user owns needs NO Keychain access,
+        // so it never prompts — try it before the Keychain (which does prompt).
+        let configDir = ClaudeRunner.resolveClaudeConfigDir() ?? "\(home)/.claude"
+        for path in ["\(configDir)/.credentials.json", "\(home)/.claude/.credentials.json"] {
+            if let data = FileManager.default.contents(atPath: path),
+               let token = freshToken(from: data) { return token }
+        }
         func service(for dir: String) -> String {
             let hash = SHA256.hash(data: Data(dir.utf8)).map { String(format: "%02x", $0) }.joined()
             return "Claude Code-credentials-\(hash.prefix(8))"
@@ -46,14 +54,20 @@ enum ClaudeUsageAPI {
                         service(for: "\(home)/.claude")]
         var seen = Set<String>(); services = services.filter { seen.insert($0).inserted }
         for svc in services {
-            guard let data = keychainData(service: svc),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let oauth = obj["claudeAiOauth"] as? [String: Any],
-                  let token = oauth["accessToken"] as? String else { continue }
-            let ms = (oauth["expiresAt"] as? Double) ?? Double((oauth["expiresAt"] as? Int) ?? 0)
-            if Date(timeIntervalSince1970: ms / 1000) > Date() { return token }
+            if let data = keychainData(service: svc), let token = freshToken(from: data) { return token }
         }
         return nil
+    }
+
+    /// Parse a Claude Code credentials blob (`{"claudeAiOauth":{"accessToken","expiresAt"}}`)
+    /// and return the access token only if it hasn't expired. Shared by the file + Keychain
+    /// sources.
+    private static func freshToken(from data: Data) -> String? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let oauth = obj["claudeAiOauth"] as? [String: Any],
+              let token = oauth["accessToken"] as? String else { return nil }
+        let ms = (oauth["expiresAt"] as? Double) ?? Double((oauth["expiresAt"] as? Int) ?? 0)
+        return Date(timeIntervalSince1970: ms / 1000) > Date() ? token : nil
     }
 
     private static func keychainData(service: String) -> Data? {
