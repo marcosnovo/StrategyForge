@@ -145,24 +145,32 @@ struct ProviderConfigView: View {
         }
     }
 
+    /// The screen's ONE hero surface: the connection status, tinted by state (green when
+    /// connected, coral CTA when not) and elevated — a clear focal point instead of one of
+    /// several equal cards (premium verdict A3).
     private var statusCard: some View {
         HStack(spacing: Space.m) {
+            Image(systemName: connected ? "checkmark.circle.fill" : "bolt.horizontal.circle")
+                .font(.system(size: 26))
+                .foregroundStyle(connected ? Theme.success : Theme.accent)
+            Text(model.t(connected ? "provider.connected" : "provider.notFound"))
+                .font(.sfCardTitle).foregroundStyle(Theme.ink)
+            Spacer(minLength: Space.s)
             if connected {
-                Label(model.t("provider.connected"), systemImage: "checkmark.circle.fill")
-                    .font(.sfCardTitle).foregroundStyle(Theme.success)
-                Spacer()
                 // Already connected — offer a discreet re-auth (web sign-in).
                 Button(model.t("provider.reconnect")) { connecting = true }
                     .buttonStyle(.plain).font(.sfCaption2).foregroundStyle(.secondary)
             } else {
-                Label(model.t("provider.notFound"), systemImage: "xmark.circle")
-                    .font(.sfCardTitle).foregroundStyle(.secondary)
-                Spacer()
                 Button(model.t("provider.connect")) { connecting = true }
                     .buttonStyle(.moon)
             }
         }
-        .card()
+        .padding(Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .fill(connected ? Theme.success.opacity(0.08) : Theme.accentSoft).elevation(.e3))
+        .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .strokeBorder((connected ? Theme.success : Theme.accent).opacity(0.25), lineWidth: 1))
     }
 
     /// Your subscription plan (declared manually — no CLI exposes it), surfaced here
