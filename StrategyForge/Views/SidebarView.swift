@@ -73,7 +73,7 @@ struct SidebarView: View {
             // can't suppress, which buried our soft selection treatment. Selection is
             // driven by tap so our .selectedRow (tint + hairline + bar) is the only cue.
             ScrollView {
-                LazyVStack(spacing: 2) {
+                LazyVStack(spacing: 5) {   // room to breathe — the list was too cramped (premium verdict)
                     ForEach(visibleConfigs) { config in
                         chatRow(config)
                             .selectedRow(model.selectedConfigID == config.id, cornerRadius: Theme.rowCorner)
@@ -341,6 +341,7 @@ struct SidebarView: View {
                 }
             }
         }
+        .padding(.vertical, 4)   // taller rows read premium; the list was cramped
         .contentShape(Rectangle())
         .onHover { h in
             if h { hoveredID = config.id }
