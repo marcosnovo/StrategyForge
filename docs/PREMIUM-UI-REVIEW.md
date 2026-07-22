@@ -50,10 +50,12 @@ de los **neutros** alrededor del coral, no de más coral.
 > **Estado (2026-07-22):** ✅ **Ola 1** — P1 elevación (`elevation(.e1…e4)`), **P2 CORREGIDO**:
 > el greige cálido se sentía sucio/off-identity → revertido a los neutros **reef fríos** de Coral
 > conservando la *escalera de profundidad* (card≠column) + el ladder de sombras; P3 `sfHero` 40/−0.8
-> en los 2 saludos, P4 `Space.xxl/xxxl`, P5 punto coral. ✅ **Ola 2 (conservadora)** — glass panels +
-> command palette flotan con profundidad real (solo sombra, **sin** cambio de tono). ⏸️ **Retenido de
-> Ola 2 hasta revisión visual** (tocan tono/fondo, y tras el feedback del greige): **tint cálido del
-> glass** y **dirección de luz del reef**. Olas 3–4 pendientes (sphere apoyada, anclas, eyebrows).
+> en los 2 saludos, P4 `Space.xxl/xxxl`, P5 punto coral. ✅ **Ola 2 completa** — glass + command palette
+> con profundidad; **tint del glass** e **iluminación del reef** iteradas *a la Coral* (frío/reef, pura
+> luminancia, **sin** calidez). ✅ **Ola 3 (firma)** — CoralSphere con **sombra de contacto** (apoyada
+> en el reef). ⏸️ **No hechos (bajo valor/contestado/churn):** ancla `.moon` en TeamBrowse (es un
+> browser, CTA forzado = ruido), delta de radios (materiales dijo que ya están bien), higiene de
+> eyebrows (~30 sitios, impacto visual casi nulo). Retomables si los pides tras la revisión visual.
 > **Lección:** la calidez greige NO pega con Coral; el premium viene de **profundidad + tipo hero +
 > el acento coral**, no de calentar el tono. **CI de tests pausado** para no quemar Actions.
 
