@@ -30,6 +30,7 @@ enum StrategyLibrary {
             debateConsensus(),
             sparring(),
             languageMigration(),
+            frontendBuild(),
             soloEconomy(),
             solo(),
         ]
@@ -819,6 +820,95 @@ enum StrategyLibrary {
             with each other — the orchestrator passes each the other's output and \
             owns the final decision. The breaker never weakens or deletes tests; \
             disputes are resolved by the orchestrator.
+            """
+        )
+    }
+
+    // MARK: - Frontend / Website Build (agency-quality, constraints > vibes)
+
+    /// The shape for building an agency-quality marketing/landing site with Claude Code:
+    /// a tight brief (audience, ONE call-to-action, reference screenshots as the quality bar,
+    /// stack, a ban list) drives cheap implementers, and a design critic reviews against the
+    /// references + the ban list. The polish is done in SEPARATE passes — typography, then
+    /// spacing, then motion — because asking for all three at once fixes one well and two badly.
+    static func frontendBuild() -> Strategy {
+        Strategy(
+            name: "Frontend / Website Build",
+            description: "Build an agency-quality site: a tight brief (audience, one CTA, "
+                + "reference screenshots, stack, ban list) drives the build, then separate "
+                + "typography → spacing → motion polish passes. Constraints over vibes.",
+            roles: [
+                orchestrator(
+                    name: "art-director",
+                    model: .fable5,
+                    description: "Main session. Owns the brief and runs the polish passes IN "
+                        + "ORDER; the strongest model, because it sets the rules the others follow.",
+                    systemPrompt: """
+                    You build agency-quality websites. Premium output comes from CONSTRAINTS, \
+                    not vibes — never "make it beautiful". Pin the brief first: (1) AUDIENCE, \
+                    (2) the ONE action every page pushes toward (a single CTA, repeated), (3) \
+                    REFERENCES — treat the provided screenshots as the quality bar: match their \
+                    typography scale, spacing rhythm and motion, but DO NOT copy their layouts, \
+                    (4) STACK, (5) a BAN LIST of defaults to avoid (e.g. Inter as the display \
+                    font, purple gradients, emoji-as-icons, generic stock photos, everything \
+                    centered). Load any frontend-design / ui-ux skills before deciding.
+
+                    Build to ~70% with `implementer`s, then POLISH IN THREE SEPARATE PASSES, one \
+                    at a time — never all at once (asking for all three fixes one well and two \
+                    badly): PASS 1 typography only (one strict type scale, line-height, \
+                    letter-spacing); PASS 2 spacing only (audit vertical rhythm section by \
+                    section, double the whitespace where it's cramped); PASS 3 motion only \
+                    (scroll-reveal + hover, subtle, 200–300ms, nothing bounces). Then a MOBILE \
+                    pass: render every page at 375px and fix what breaks. Route each pass and the \
+                    result to the `design-critic`.
+                    """
+                ),
+                AgentRole(
+                    name: "implementer",
+                    role: .worker,
+                    model: .sonnet5,
+                    systemPrompt: """
+                    You build one section/page of the site to the brief and the references' \
+                    quality bar. Semantic, accessible markup; follow the type scale and spacing \
+                    rhythm the art-director set; obey the ban list. Match the references' feel, \
+                    never their exact layout. Report what you built and any brief conflicts.
+                    """,
+                    description: "Use to build one section/page. Fan out several across the site.",
+                    tools: [],
+                    count: 3,
+                    isOrchestrator: false
+                ),
+                AgentRole(
+                    name: "design-critic",
+                    role: .reviewer,
+                    model: .opus48,
+                    systemPrompt: """
+                    You are a read-only senior design critic on a fresh context. Review the built \
+                    UI against (a) the reference quality bar, (b) the ban list, and (c) the active \
+                    polish pass's ONE dimension only (typography, or spacing, or motion — don't \
+                    critique the others on that pass). Cite the specific rule behind every finding \
+                    (e.g. "type scale skips a step", "section rhythm is half the reference's"). \
+                    A banned default (Inter display, purple gradient, centered-everything) is a \
+                    fail. Do not edit — return prioritized findings with concrete fixes.
+                    """,
+                    description: "Read-only design critic: reviews against the references + ban "
+                        + "list, one polish dimension per pass.",
+                    tools: Constants.readOnlyTools,
+                    count: 1,
+                    isOrchestrator: false
+                ),
+            ],
+            orchestrationNotes: """
+            Website build flow: (1) lock the 5-part brief — audience, the one CTA, reference \
+            screenshots as the quality bar (match type/spacing/motion, DON'T copy layouts), stack, \
+            ban list. (2) build to ~70% with `implementer`s. (3) polish in THREE SEPARATE passes, \
+            each its own turn — typography → spacing → motion (never together). (4) mobile pass at \
+            375px. The `design-critic` reviews each pass against the references + ban list, one \
+            dimension at a time, citing the rule behind each finding.
+
+            Premium comes from constraints, not adjectives. Smaller model for the high-volume \
+            implementers; the strongest for the art-director (it writes the rules) and the critic. \
+            Single level of delegation — teammates report only to the art-director.
             """
         )
     }
