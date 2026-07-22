@@ -15,9 +15,12 @@
 name: tests
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  # PAUSED to stop burning GitHub Actions minutes — macOS runners cost 10× and this
+  # isn't a production product. The push/PR triggers are commented out; the suite runs
+  # locally (`xcodebuild test`, the CLAUDE.md gate) instead. Re-enable by uncommenting.
+  #  push:
+  #    branches: [main]
+  #  pull_request:
   workflow_dispatch:
 
 concurrency:
