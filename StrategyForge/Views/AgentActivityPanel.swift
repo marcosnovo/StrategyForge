@@ -170,7 +170,7 @@ struct AgentActivityPanel: View {
     private func selectedVsRecommendedCard(recommended: Strategy) -> some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack(spacing: Space.xs) {
-                Image(systemName: "arrow.triangle.swap").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                Image(systemName: "arrow.triangle.swap").font(.system(size: 11)).foregroundStyle(.secondary)
                 Text(model.t("activity.compare.title"))
                     .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
             }
@@ -356,7 +356,7 @@ struct AgentActivityPanel: View {
             // plan is left" figure is visible here — not only on the Usage page.
             if let e = model.claudeExact {
                 HStack(spacing: 6) {
-                    Image(systemName: "gauge.with.needle").scaledFont(9).foregroundStyle(Theme.accent)
+                    Image(systemName: "gauge.with.needle").scaledFont(9).foregroundStyle(.secondary)
                     Text(model.t("activity.usage.claudePlan",
                                  Int(e.fiveHourPercent.rounded()), Int(e.weekPercent.rounded())))
                         .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
@@ -574,7 +574,7 @@ struct AgentActivityPanel: View {
             .padding(.top, Space.xs)
         } label: {
             HStack(spacing: Space.xs) {
-                Image(systemName: "clock.arrow.circlepath").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                Image(systemName: "clock.arrow.circlepath").font(.system(size: 11)).foregroundStyle(.secondary)
                 Text(model.t("activity.history")).font(.sfFieldLabel)
                     .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
                 Text("\(vm.history.count)").font(.sfCaption2.weight(.bold)).foregroundStyle(Theme.accent)
@@ -698,7 +698,7 @@ struct AgentActivityPanel: View {
     private var filesSection: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack(spacing: Space.xs) {
-                Image(systemName: "doc.on.doc.fill").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                Image(systemName: "doc.on.doc.fill").font(.system(size: 11)).foregroundStyle(.secondary)
                 Text(model.t("activity.files.title"))
                     .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
                 Text("\(vm.editedFiles.count)")
