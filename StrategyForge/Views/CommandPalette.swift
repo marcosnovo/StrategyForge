@@ -97,7 +97,7 @@ struct CommandPalette: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
             .strokeBorder(Theme.hairline, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
-        .shadow(color: .black.opacity(0.28), radius: 30, x: 0, y: 14)
+        .elevation(.e4)   // floating modal depth (ambient + contact, dark-aware)
         // Arrow-key navigation over the flat result list.
         .onKeyPress(.downArrow) { move(1); return .handled }
         .onKeyPress(.upArrow) { move(-1); return .handled }

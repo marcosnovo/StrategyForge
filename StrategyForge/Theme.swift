@@ -607,11 +607,13 @@ private struct GlassPanelModifier: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         if reduceTransparency {
-            content.background(shape.fill(Theme.cardBg))
+            content.background(shape.fill(Theme.cardBg).elevation(.e2))
                 .overlay(shape.strokeBorder(Theme.hairline, lineWidth: 1))
                 .clipShape(shape)
         } else {
-            content.glassEffect(.regular, in: shape)
+            // Give the glass panel real depth so it floats as a physical object, not a flat
+            // frost (premium review wave 2). Colour/tint untouched — depth only.
+            content.glassEffect(.regular, in: shape).elevation(.e2)
         }
     }
 }
