@@ -416,22 +416,42 @@ struct StrategyWriterTests {
 
 struct WorkflowGeneratorTests {
 
-    @Test func teamProducesRunnableWorkflowWithPhasesAndParallel() {
-        let strategy = StrategyLibrary.orchestratorWorkers()   // orchestrator + 3 workers
+    @Test func roleParallelWorkflowHasPhasesAndParallel() {
+        // Domain specialists (different roles) → one parallel branch per specialist, plus a
+        // Verify phase because the team has a reviewer.
+        let strategy = StrategyLibrary.domainSpecialists()
         let js = WorkflowGenerator.workflow(for: strategy)!
-        // Valid dynamic-workflow shape.
         #expect(js.contains("export const meta = {"))
-        #expect(js.contains("phases: [{ title: 'Plan' }, { title: 'Work' }, { title: 'Synthesize' }]"))
         #expect(js.contains("phase('Plan')"))
         #expect(js.contains("await parallel(["))
         #expect(js.contains("return final"))
-        // One agent() branch per teammate.
-        let branches = js.components(separatedBy: "() => agent(").count - 1
-        #expect(branches == strategy.subagentRoles.count)
-        // Pins each teammate's model.
-        #expect(js.contains("model: 'claude-fable-5'") || js.contains("model: 'claude-sonnet-5'"))
-        // The task is read from args.
+        // One Work branch per PRODUCER (specialists; the reviewer moves to Verify).
+        let producers = strategy.subagentRoles.filter { $0.role != .reviewer }
+        let workBranches = js.components(separatedBy: "phase: 'Work'").count - 1
+        #expect(workBranches == producers.count)
         #expect(js.contains("typeof args === 'string'"))
+    }
+
+    @Test func fanoutOfIdenticalWorkersBecomesItemFanout() {
+        // "N identical workers each take a slice" is one-agent-per-item: scout the work-list,
+        // fan out over items. No reviewer here → parallel (no per-item verify), 3 phases.
+        let js = WorkflowGenerator.workflow(for: StrategyLibrary.orchestratorWorkers())!
+        #expect(js.contains("phases: [{ title: 'Scout' }, { title: 'Work' }, { title: 'Synthesize' }]"))
+        #expect(js.contains("phase('Scout')"))
+        #expect(js.contains("JSON.parse"))                       // parses the scouted work-list
+        #expect(js.contains("items.map((item) => () => agent("))
+        #expect(js.contains("isolation: 'worktree'"))            // workers edit → isolated
+        #expect(!js.contains("phase('Verify')"))
+    }
+
+    @Test func itemFanoutWithReviewerVerifiesEachItemInAPipeline() {
+        // N implementers + a reviewer → item fan-out where each translated item is verified
+        // as soon as it lands (pipeline), before synthesis.
+        let js = WorkflowGenerator.workflow(for: StrategyLibrary.plannerImplementersReviewer())!
+        #expect(js.contains("{ title: 'Scout' }"))
+        #expect(js.contains("await pipeline(items,"))
+        #expect(js.contains("label: 'verify:' + item"))
+        #expect(js.contains("VERIFIED FINDINGS"))
     }
 
     @Test func soloTeamHasNoWorkflow() {
@@ -452,13 +472,12 @@ struct WorkflowGeneratorTests {
         #expect(js.contains("do \\`x\\` and \\${danger}"))
     }
 
-    @Test func reviewerBecomesAnIndependentVerifyPhase() {
-        // A team with a reviewer gates the edge: the reviewer moves out of Work into a
-        // dedicated Verify phase on fresh context, and synthesis reads the verified findings.
-        let s = StrategyLibrary.plannerImplementersReviewer()
+    @Test func roleParallelReviewerBecomesAnIndependentVerifyPhase() {
+        // A role-parallel team (specialists) with a reviewer gates the edge: the reviewer
+        // moves out of Work into a Verify phase on fresh context; synthesis reads verified.
+        let s = StrategyLibrary.domainSpecialists()
         let js = WorkflowGenerator.workflow(for: s)!
         #expect(js.contains("{ title: 'Verify' }"))
-        #expect(js.contains("phase('Verify')"))
         #expect(js.contains("const verified = await parallel(results"))
         #expect(js.contains("VERIFIED FINDINGS"))
         // The reviewer is NOT one of the parallel Work branches.
@@ -466,16 +485,11 @@ struct WorkflowGeneratorTests {
         #expect(!js.contains("label: '\(reviewerName)', phase: 'Work'"))
     }
 
-    @Test func fileWritingWorkersRunInIsolatedWorktrees() {
-        // Non-read-only workers (they edit) get their own worktree so parallel writers
-        // can't overwrite each other (the Bun-port lesson).
-        let js = WorkflowGenerator.workflow(for: StrategyLibrary.orchestratorWorkers())!
-        #expect(js.contains("isolation: 'worktree'"))
-    }
-
-    @Test func noReviewerKeepsTheThreePhaseShape() {
-        let js = WorkflowGenerator.workflow(for: StrategyLibrary.orchestratorWorkers())!
+    @Test func roleParallelNoReviewerKeepsTheThreePhaseShape() {
+        // Executor + advisor: one producer, no reviewer → plain Plan/Work/Synthesize.
+        let js = WorkflowGenerator.workflow(for: StrategyLibrary.executorAdvisor())!
         #expect(!js.contains("phase('Verify')"))
+        #expect(!js.contains("phase('Scout')"))
         #expect(js.contains("phases: [{ title: 'Plan' }, { title: 'Work' }, { title: 'Synthesize' }]"))
     }
 }

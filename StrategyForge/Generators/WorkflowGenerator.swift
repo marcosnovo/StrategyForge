@@ -54,6 +54,17 @@ enum WorkflowGenerator {
         let verifier = producers.isEmpty ? nil : reviewers.first
         let hasVerify = verifier != nil
 
+        // A fan-out of identical workers (all producers are plain workers, ≥2 instances via
+        // the role's `count`) is a "one agent per unit of work" job — a codebase audit, a
+        // migration, a sweep. Emit the canonical item fan-out (scout the work-list → pipeline
+        // one agent per item, verifying each as it lands → synthesize) instead of one branch
+        // per role. This is the migration/graph pattern.
+        let workerInstances = producers.filter { $0.role == .worker }.map { max(1, $0.count) }.reduce(0, +)
+        if !producers.isEmpty, producers.allSatisfy({ $0.role == .worker }), workerInstances >= 2 {
+            return itemFanoutWorkflow(strategy: strategy, orchestrator: orchestrator,
+                                      worker: producers[0], verifier: verifier)
+        }
+
         let name = slug(strategy)
         let description = jsLine(strategy.description.isEmpty ? strategy.name : strategy.description)
 
@@ -117,7 +128,88 @@ enum WorkflowGenerator {
         return out
     }
 
+    /// The item fan-out workflow (article's canonical shape): a scout discovers the work-list,
+    /// then a `pipeline` runs one worker agent per item and — when the team has a reviewer —
+    /// verifies each finding as soon as it lands, before a final synthesis. Resumable/wide by
+    /// construction; the fleet moves in waves. Used for fan-out-of-identical-worker teams.
+    static func itemFanoutWorkflow(strategy: Strategy, orchestrator: AgentRole,
+                                   worker: AgentRole, verifier: AgentRole?) -> String {
+        let name = slug(strategy)
+        let description = jsLine(strategy.description.isEmpty ? strategy.name : strategy.description)
+        let workerModel = worker.model.rawValue
+        let isolation = worker.role.isReadOnlyByDefault ? "" : ", isolation: 'worktree'"
+        let hasVerify = verifier != nil
+
+        var out = "\(managedSignature) for the team \"\(jsLine(strategy.name))\" — ITEM FAN-OUT.\n"
+        out += "// One agent per unit of work (file/item): scout the list, fan out, verify each.\n"
+        out += "// NOTE: this can fan out to many agents — it costs more than a single session and\n"
+        out += "// should be supervised. The scout starts scoped (≤50 items); widen once it behaves.\n\n"
+
+        let phases = hasVerify
+            ? "[{ title: 'Scout' }, { title: 'Work' }, { title: 'Verify' }, { title: 'Synthesize' }]"
+            : "[{ title: 'Scout' }, { title: 'Work' }, { title: 'Synthesize' }]"
+        out += "export const meta = {\n  name: '\(name)',\n  description: '\(description)',\n  phases: \(phases),\n}\n\n"
+
+        out += "// The task/target comes in as `args` (falls back to the team's purpose).\n"
+        out += "const task = (typeof args === 'string' && args) ? args : `\(jsTemplate(strategy.description))`\n\n"
+
+        // Scout — discover the work-list. Returns a JSON array of items (parsed tolerantly).
+        out += "phase('Scout')\n"
+        out += "const scoutText = await agent(`\(jsTemplate(scoutPrompt(orchestrator)))\n\nTASK:\n${task}`, "
+        out += "{ label: 'scout' })\n"
+        out += "let items = []\n"
+        out += "try { items = JSON.parse((scoutText.match(/\\[[\\s\\S]*\\]/) || ['[]'])[0]) } catch { items = [] }\n"
+        out += "items = items.filter(x => typeof x === 'string' && x.trim()).slice(0, 50)\n"
+        out += "log(`${items.length} item(s) to process`)\n\n"
+
+        // Work + Verify — pipeline: each item flows through work → verify independently, no
+        // barrier, so a fast item verifies while a slow one is still being worked.
+        out += "phase('Work')\n"
+        if hasVerify, let verifier {
+            let vModel = verifier.model.rawValue
+            out += "const findings = await pipeline(items,\n"
+            out += "  (item) => agent(`\(jsTemplate(itemWorkerPrompt(worker)))\n\nTASK:\n${task}\n\nITEM:\n${item}`, "
+            out += "{ label: 'work:' + item, phase: 'Work', model: '\(workerModel)'\(isolation) }),\n"
+            out += "  (result, item) => agent(`\(jsTemplate(verifyPrompt(verifier)))\n\nITEM:\n${item}\n\nWORK TO VERIFY:\n${result}`, "
+            out += "{ label: 'verify:' + item, phase: 'Verify', model: '\(vModel)' })\n"
+            out += ")\n\n"
+        } else {
+            out += "const findings = await parallel(items.map((item) => () => "
+            out += "agent(`\(jsTemplate(itemWorkerPrompt(worker)))\n\nTASK:\n${task}\n\nITEM:\n${item}`, "
+            out += "{ label: 'work:' + item, phase: 'Work', model: '\(workerModel)'\(isolation) })))\n\n"
+        }
+
+        // Synthesize — one report from the (verified) findings, not N separate chats.
+        out += "phase('Synthesize')\n"
+        out += "const final = await agent(`\(jsTemplate(synthesisPrompt))\n\n"
+        out += "TASK:\n${task}\n\n\(hasVerify ? "VERIFIED FINDINGS" : "FINDINGS"):\n${findings.filter(Boolean).join('\\n\\n---\\n\\n')}`, "
+        out += "{ label: 'synthesize' })\n\n"
+        out += "return final\n"
+        return out
+    }
+
     // MARK: - Prompts (pure)
+
+    /// The scout node's prompt: discover the independent units of work and return them as a
+    /// JSON array (files/items/crates), so the pipeline can fan out one agent per item.
+    private static func scoutPrompt(_ orchestrator: AgentRole) -> String {
+        let persona = orchestrator.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lead = persona.isEmpty ? "You are the orchestrator of a team of AI agents." : persona
+        return lead + "\nDiscover the independent units of work for this task — the files/items an "
+            + "agent should each handle on its own. Prefer a deterministic listing (a glob, a git "
+            + "ls-files, a script). Return ONLY a JSON array of strings (the item identifiers), "
+            + "nothing else. Start scoped: at most 50 items."
+    }
+
+    /// The per-item worker prompt: handle exactly ONE item and report its finding.
+    private static func itemWorkerPrompt(_ role: AgentRole) -> String {
+        let persona = role.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lead = persona.isEmpty
+            ? "You are \(role.name), a \(role.role.displayName.lowercased()) on the team."
+            : persona
+        return lead + "\nYou handle exactly ONE item (below). Do the task for just that item and "
+            + "report your finding concisely. If you can't do it confidently, flag it with a clear reason."
+    }
 
     private static func planPrompt(_ orchestrator: AgentRole) -> String {
         let persona = orchestrator.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
