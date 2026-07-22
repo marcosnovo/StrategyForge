@@ -84,7 +84,7 @@ struct ArtifactSheet: View {
                         Text(model.t("artifact.rendered")).tag(false)
                         Text(model.t("artifact.source")).tag(true)
                     }
-                    .pickerStyle(.segmented).fixedSize()
+                    .pickerStyle(.segmented).tint(Theme.coral).fixedSize()
                 }
                 if let a = current {
                     CopyButton(text: a.code, help: model.t("chat.copy"), flashKey: "banner.copied")

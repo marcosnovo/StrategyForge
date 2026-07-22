@@ -105,7 +105,7 @@ struct FilePreviewSheet: View {
                 if diffs.count > 6 {
                     picker.pickerStyle(.menu).fixedSize()
                 } else {
-                    picker.pickerStyle(.segmented)
+                    picker.pickerStyle(.segmented).tint(Theme.coral)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

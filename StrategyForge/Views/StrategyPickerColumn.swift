@@ -150,7 +150,8 @@ struct StrategyPickerColumn: View {
                             .font(.sfCaption2.weight(.medium))
                             .padding(.horizontal, 10).padding(.vertical, 4)
                             .foregroundStyle(on ? Theme.onAccent : Theme.ink)
-                            .background(Capsule().fill(on ? Theme.accent : Theme.hairline.opacity(0.55)))
+                            .shadow(color: on ? Theme.coralTextShadow : .clear, radius: 0.5, x: 0, y: 0.5)
+                            .background(Capsule().fill(on ? Theme.coral : Theme.hairline.opacity(0.55)))   // bright coral, not the dark text-accent
                     }
                     .buttonStyle(.plain)
                     .help(model.t(rank.labelKey))
@@ -175,7 +176,8 @@ struct StrategyPickerColumn: View {
                         .font(.sfCaption2.weight(.medium))
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .foregroundStyle(allOn ? Theme.onAccent : Theme.ink)
-                        .background(Capsule().fill(allOn ? Theme.accent : Theme.hairline.opacity(0.55)))
+                        .shadow(color: allOn ? Theme.coralTextShadow : .clear, radius: 0.5, x: 0, y: 0.5)
+                        .background(Capsule().fill(allOn ? Theme.coral : Theme.hairline.opacity(0.55)))   // bright coral, not the dark text-accent
                 }
                 .buttonStyle(.plain)
                 ForEach(AppModel.TopicBucket.allCases) { bucket in
@@ -187,7 +189,8 @@ struct StrategyPickerColumn: View {
                             .font(.sfCaption2.weight(.medium))
                             .padding(.horizontal, 10).padding(.vertical, 4)
                             .foregroundStyle(on ? Theme.onAccent : Theme.ink)
-                            .background(Capsule().fill(on ? Theme.accent : Theme.hairline.opacity(0.55)))
+                            .shadow(color: on ? Theme.coralTextShadow : .clear, radius: 0.5, x: 0, y: 0.5)
+                            .background(Capsule().fill(on ? Theme.coral : Theme.hairline.opacity(0.55)))   // bright coral, not the dark text-accent
                     }
                     .buttonStyle(.plain)
                 }

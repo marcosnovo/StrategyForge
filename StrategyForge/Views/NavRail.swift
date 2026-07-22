@@ -151,7 +151,7 @@ struct NavRail: View {
             HStack(spacing: Space.s) {
                 Image(systemName: "square.and.pencil")
                     .font(.system(size: 15))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.coral)
                     .frame(width: 22)
                 Text(model.t("sidebar.new"))
                     .font(.sfBodyM.weight(.medium))
@@ -223,11 +223,11 @@ struct NavRail: View {
         HStack(spacing: Space.s) {
             Image(systemName: icon)
                 .font(.system(size: 15))
-                .foregroundStyle(active ? Theme.accent : Theme.secondaryOnMaterial)
+                .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
                 .frame(width: 22)
             Text(label)
                 .font(.sfBodyM.weight(active ? .semibold : .regular))
-                .foregroundStyle(active ? Theme.accent : Theme.secondaryOnMaterial)
+                .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
                 .lineLimit(1)
             Spacer(minLength: 0)
             if running && !active { RunningPulseDot() }
@@ -241,7 +241,7 @@ struct NavRail: View {
         .overlay(alignment: .leading) {
             if active {
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                    .fill(Theme.accent)
+                    .fill(Theme.coral)
                     .frame(width: 3, height: 16)
             }
         }
@@ -289,7 +289,7 @@ struct NavRail: View {
             Button(action: openUsage) {
                 HStack(spacing: Space.s) {
                     Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                        .font(.system(size: 13)).foregroundStyle(Theme.accent).frame(width: 22)
+                        .font(.system(size: 13)).foregroundStyle(Theme.coral).frame(width: 22)
                     Text(model.t("rail.usage")).font(.sfCaption2.weight(.medium))
                         .foregroundStyle(Theme.secondaryOnMaterial)
                     Spacer(minLength: 0)
@@ -378,7 +378,7 @@ struct NavRail: View {
             ZStack {
                 Circle().stroke(Theme.hairline, lineWidth: 3.5)
                 Circle().trim(from: 0, to: max(0.02, min(fraction, 1)))
-                    .stroke(Theme.accent, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))   // your plan usage (data-viz) → coral, not teal
+                    .stroke(Theme.coral, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))   // your plan usage (data-viz) → bright coral
                     .rotationEffect(.degrees(-90))
                 Text(center).scaledFont(9, weight: .semibold, design: .rounded).foregroundStyle(Theme.ink)
             }
@@ -399,7 +399,7 @@ struct NavRail: View {
             GeometryReader { geo in
                 Capsule().fill(Theme.hairline)
                     .overlay(alignment: .leading) {
-                        Capsule().fill(Theme.accent)   // usage (data-viz) → coral, not teal
+                        Capsule().fill(Theme.coral)   // usage (data-viz) → bright coral
                             .frame(width: max(3, geo.size.width * CGFloat(min(max(fraction, 0), 1))))
                     }
             }

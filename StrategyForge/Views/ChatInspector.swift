@@ -23,7 +23,7 @@ struct ChatInspector: View {
                 Text(model.t("picker.header")).tag(Tab.strategy)
                 Text(model.t("inspector.config")).tag(Tab.config)
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.segmented).tint(Theme.coral)
             .labelsHidden()
             .tint(Theme.accent)
             .padding(.horizontal, Space.m).padding(.vertical, Space.s)

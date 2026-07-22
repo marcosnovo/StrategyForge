@@ -77,7 +77,7 @@ struct SkillsView: View {
                     Text(model.t("skills.tab.discover")).tag(Tab.discover)
                     Text(model.t("skills.tab.installed")).tag(Tab.installed)
                 }
-                .labelsHidden().pickerStyle(.segmented).padding(.top, Space.xs)
+                .labelsHidden().pickerStyle(.segmented).tint(Theme.coral).padding(.top, Space.xs)
             }
             .padding(Space.m).background(.regularMaterial).zoomWindowOnDoubleClick()
             Divider()
@@ -114,7 +114,7 @@ struct SkillsView: View {
                 Text(model.t("skills.kind.knowledge")).tag(KindFilter.knowledge)
                 Text(model.t("skills.kind.code")).tag(KindFilter.code)
             }
-            .labelsHidden().pickerStyle(.segmented)
+            .labelsHidden().pickerStyle(.segmented).tint(Theme.coral)
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s).background(.regularMaterial)
     }

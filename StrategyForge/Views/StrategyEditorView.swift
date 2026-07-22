@@ -522,7 +522,7 @@ struct CostBreakdownView: View {
                     Text(model.t(e.labelKey)).tag(e)
                 }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.segmented).tint(Theme.coral)
             .labelsHidden()
             Text(model.t("cost.effort.note"))
                 .font(.sfCaption2).foregroundStyle(.secondary)

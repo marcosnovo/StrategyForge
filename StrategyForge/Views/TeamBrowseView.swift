@@ -32,6 +32,7 @@ struct TeamBrowseView: View {
                     Text(model.t("team.browse.discover")).tag(Tab.discover)
                 }
                 .labelsHidden().pickerStyle(.segmented).frame(maxWidth: 320)
+                .tint(Theme.coral)   // bright coral selection, not the dark text-accent (brick in light)
                 .padding(.top, Space.xs)
             }
             .padding(.horizontal, Space.l).padding(.top, Space.l).padding(.bottom, Space.m)

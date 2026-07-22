@@ -316,7 +316,7 @@ struct CodeModeView: View {
                                 Text(model.t("code.diff")).tag(ViewMode.diff)
                                 Text(model.t("code.file")).tag(ViewMode.file)
                             }
-                            .pickerStyle(.segmented).labelsHidden().fixedSize()
+                            .pickerStyle(.segmented).tint(Theme.coral).labelsHidden().fixedSize()
                         }
                         Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) } label: {
                             Image(systemName: "folder")

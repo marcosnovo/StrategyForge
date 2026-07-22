@@ -423,7 +423,7 @@ struct LoopEditorView: View {
                         }
                     }
                     .labelsHidden()
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.segmented).tint(Theme.coral)
                     .frame(maxWidth: 320)
                 }
             }
@@ -502,7 +502,7 @@ struct LoopEditorView: View {
                     Text(model.t(e.labelKey)).tag(e)
                 }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.segmented).tint(Theme.coral)
             .labelsHidden()
             Text(model.t("loop.editor.effort.caption"))
                 .font(.sfCaption2).foregroundStyle(.secondary)
@@ -775,7 +775,7 @@ private struct LoopFilePreviewSheet: View {
                     }
                 }
                 .labelsHidden()
-                .pickerStyle(.segmented)
+                .pickerStyle(.segmented).tint(Theme.coral)
                 .padding(.horizontal, Space.l).padding(.top, Space.m)
 
                 let current = files.first { $0.id == effective }
