@@ -269,23 +269,33 @@ struct CodeLauncherView: View {
 
     // MARK: Resume last
 
+    /// The ONE hero surface of the Code screen: a coral-tinted, elevated card so "resume"
+    /// is unmistakably the primary action, instead of one of seven equal white cards (verdict A3).
     private var resumeCard: some View {
         Button {
             model.openCodeChat(repoURL: URL(fileURLWithPath: lastRepo))
         } label: {
             HStack(spacing: Space.m) {
-                Image(systemName: "clock.arrow.circlepath").font(.system(size: 18)).foregroundStyle(Theme.accent)
+                Image(systemName: "clock.arrow.circlepath").font(.system(size: 24)).foregroundStyle(Theme.accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(model.t("code.resume.title")).font(.sfCardTitle)
-                    Text((lastRepo as NSString).lastPathComponent).font(.sfCaption2).foregroundStyle(.secondary)
+                    Text(model.t("code.resume.title")).font(.sfFieldLabel).foregroundStyle(Theme.accent).tracking(0.6)
+                    Text((lastRepo as NSString).lastPathComponent).font(.sfCardTitle).foregroundStyle(Theme.ink)
+                        .lineLimit(1).truncationMode(.middle)
+                    Text(prettyPath(lastRepo)).font(.sfCaption2).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
                 }
-                Spacer()
-                Image(systemName: "arrow.right").foregroundStyle(.secondary)
+                Spacer(minLength: Space.s)
+                Image(systemName: "arrow.right.circle.fill").font(.system(size: 22)).foregroundStyle(Theme.accent)
             }
+            .padding(Space.l)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                .fill(Theme.accentSoft).elevation(.e3))
+            .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                .strokeBorder(Theme.selectionBorder, lineWidth: 1))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .card()
+        .buttonStyle(.plain).hoverLift()
     }
 
     /// Clarify that there's no in-app GitHub login — it uses the user's own creds.
