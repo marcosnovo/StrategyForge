@@ -1017,12 +1017,14 @@ struct ActivityStepRow: View {
         HStack(alignment: .top, spacing: Space.s) {
             Image(systemName: step.isDelegation ? "arrow.turn.down.right" : activityToolIcon(step.title))
                 .font(.system(size: step.isDelegation || isActive ? 11 : 10, weight: step.isDelegation ? .semibold : .regular))
-                .foregroundStyle(step.isDelegation ? Theme.teal : (isActive ? Theme.success : .secondary))
+                // A delegation is structure (a handoff), not a LIVE signal — the arrow +
+                // indent + wash carry it; teal is freed for live-only (color review).
+                .foregroundStyle(isActive ? Theme.success : .secondary)
                 .frame(width: 16)
                 .symbolEffect(.pulse, options: .repeating, isActive: isActive && !step.isDelegation)
             Text(activityPhrase(step, model))
                 .font(.sfCaption2.weight(step.isDelegation || isActive ? .semibold : .regular))
-                .foregroundStyle(step.isDelegation ? Theme.teal : (isActive ? .primary : .secondary))
+                .foregroundStyle(step.isDelegation ? AnyShapeStyle(.primary) : (isActive ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary)))
                 .fixedSize(horizontal: false, vertical: true)
             // Which agent performed this step (subagents only; orchestrator is implicit).
             if let agent = step.agent, !agent.isEmpty, !step.isDelegation {
@@ -1042,7 +1044,7 @@ struct ActivityStepRow: View {
         .padding(.horizontal, step.isDelegation ? Space.s : 0)
         .background {
             if step.isDelegation {
-                RoundedRectangle(cornerRadius: 8).fill(Theme.tealSoft)
+                RoundedRectangle(cornerRadius: 8).fill(Theme.hairline.opacity(0.5))   // neutral handoff wash (teal = live only)
             } else if isActive {
                 RoundedRectangle(cornerRadius: 8).fill(Theme.success.opacity(0.10))
             }
@@ -1050,7 +1052,7 @@ struct ActivityStepRow: View {
         .overlay(alignment: .leading) {
             if step.isDelegation || isActive {
                 RoundedRectangle(cornerRadius: 1.5)
-                    .fill(step.isDelegation ? Theme.teal : Theme.success)
+                    .fill(step.isDelegation ? AnyShapeStyle(Theme.secondaryOnMaterial) : AnyShapeStyle(Theme.success))
                     .frame(width: 2.5)
                     .padding(.vertical, 2)
                     .offset(x: -Space.s)
