@@ -46,20 +46,11 @@ struct ServicesListColumn: View {
     }
 
     private func row(_ p: AIProvider) -> some View {
-        let selected = model.selectedService == p
-        return HStack(spacing: Space.s) {
-            ProviderLogo(provider: p, size: 18, templateTint: p.tint).frame(width: 22)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(p.displayName).font(.sfBodyM.weight(selected ? .semibold : .medium)).lineLimit(1)
-                statusText(p)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 5).padding(.horizontal, Space.xs)
-        .contentShape(Rectangle())
-        .onTapGesture { model.selectedService = p; model.selectedTool = nil }
-        .selectedRow(selected && model.selectedTool == nil, cornerRadius: 8)
-        .hoverTint(cornerRadius: 8)
+        let selected = model.selectedService == p && model.selectedTool == nil
+        return CoralRow(title: p.displayName, selected: selected,
+                        leading: { ProviderLogo(provider: p, size: 20, templateTint: p.tint) },
+                        trailing: { statusText(p) })
+            .onTapGesture { model.selectedService = p; model.selectedTool = nil }
     }
 
     private func groupHeader(_ title: String) -> some View {
@@ -70,23 +61,16 @@ struct ServicesListColumn: View {
     /// A developer-tool row (GitHub / Git) — status is resolved live.
     private func toolRow(_ t: AppModel.DevTool) -> some View {
         let selected = model.selectedTool == t
-        return HStack(spacing: Space.s) {
-            Group {
-                if t == .github { GitHubMark(size: 16) }
-                else { Image(systemName: "arrow.triangle.branch").font(.system(size: 15)) }
-            }
-            .foregroundStyle(.secondary).frame(width: 22)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(t.displayName).font(.sfBodyM.weight(selected ? .semibold : .medium)).lineLimit(1)
-                toolStatus(t)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 5).padding(.horizontal, Space.xs)
-        .contentShape(Rectangle())
-        .onTapGesture { model.selectedTool = t }
-        .selectedRow(selected, cornerRadius: 8)
-        .hoverTint(cornerRadius: 8)
+        return CoralRow(title: t.displayName, selected: selected,
+                        leading: {
+                            Group {
+                                if t == .github { GitHubMark(size: 17) }
+                                else { Image(systemName: "arrow.triangle.branch").font(.system(size: 15)) }
+                            }
+                            .foregroundStyle(selected ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.secondary))
+                        },
+                        trailing: { toolStatus(t) })
+            .onTapGesture { model.selectedTool = t }
     }
 
     @ViewBuilder

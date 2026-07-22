@@ -174,7 +174,8 @@ struct CodeLauncherView: View {
         CoralRow(title: title,
                  subtitle: isCloning ? model.t("code.cloning") : subtitle,
                  selected: isCloning,
-                 leading: { Image(systemName: icon).font(.system(size: 15)) },
+                 leading: { Image(systemName: icon).font(.system(size: 15))
+                     .foregroundStyle(isCloning ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.secondary)) },
                  trailing: {
                      if isCloning {
                          WorkingLogo(size: 15)

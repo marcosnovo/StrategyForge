@@ -22,8 +22,7 @@ struct CoralRow<Leading: View, Trailing: View>: View {
     var body: some View {
         HStack(spacing: Space.s) {
             leading()
-                .frame(width: 30, height: 30)
-                .foregroundStyle(selected ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.secondary))
+                .frame(width: 30, height: 30)   // caller styles the leading (brand logos pass through)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink)
@@ -68,7 +67,8 @@ extension CoralRow where Leading == AnyView {
     init(_ title: String, subtitle: String? = nil, systemImage: String, selected: Bool = false,
          @ViewBuilder trailing: @escaping () -> Trailing) {
         self.init(title: title, subtitle: subtitle, selected: selected,
-                  leading: { AnyView(Image(systemName: systemImage).font(.system(size: 15))) },
+                  leading: { AnyView(Image(systemName: systemImage).font(.system(size: 15))
+                      .foregroundStyle(selected ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.secondary))) },
                   trailing: trailing)
     }
 }
@@ -76,7 +76,8 @@ extension CoralRow where Leading == AnyView {
 extension CoralRow where Leading == AnyView, Trailing == EmptyView {
     init(_ title: String, subtitle: String? = nil, systemImage: String, selected: Bool = false) {
         self.init(title: title, subtitle: subtitle, selected: selected,
-                  leading: { AnyView(Image(systemName: systemImage).font(.system(size: 15))) },
+                  leading: { AnyView(Image(systemName: systemImage).font(.system(size: 15))
+                      .foregroundStyle(selected ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.secondary))) },
                   trailing: { EmptyView() })
     }
 }
