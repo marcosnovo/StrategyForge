@@ -72,17 +72,33 @@ struct SidebarView: View {
             // selection highlight paints a solid system-accent block that .listStyle
             // can't suppress, which buried our soft selection treatment. Selection is
             // driven by tap so our .selectedRow (tint + hairline + bar) is the only cue.
-            ScrollView {
-                LazyVStack(spacing: 5) {   // room to breathe — the list was too cramped (premium verdict)
+            if model.configurations.isEmpty {
+                // The native, premium empty state (used consistently app-wide now).
+                ContentUnavailableView {
+                    Label(model.t("sidebar.empty.cta"), systemImage: "bubble.left.and.bubble.right")
+                } description: {
+                    Text(model.t("sidebar.empty"))
+                } actions: {
+                    Button { model.addConfiguration() } label: {
+                        Label(model.t("sidebar.new"), systemImage: "square.and.pencil")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                Spacer(minLength: 0)
+            } else {
+                // A REAL native List (premium verdict C1): keyboard nav (↑/↓, type-select),
+                // correct inset metrics, and the native `.sidebar` selection — a rounded coral
+                // capsule via `.tint`, replacing the hand-rolled wash (which is why the list was
+                // a ScrollView before). Custom selection/hover dropped; the platform does it.
+                List(selection: $model.selectedConfigID) {
                     ForEach(visibleConfigs) { config in
                         chatRow(config)
-                            .selectedRow(model.selectedConfigID == config.id, cornerRadius: Theme.rowCorner)
-                            .hoverTint(cornerRadius: Theme.rowCorner)
-                            .contentShape(Rectangle())
-                            .onTapGesture { model.selectedConfigID = config.id }
-                            // VoiceOver: one focusable button per chat, carrying its
-                            // selected state and a live "running / loop running" value so
-                            // the state isn't conveyed by color/spinner alone.
+                            .listRowInsets(EdgeInsets(top: 2, leading: Space.xs, bottom: 2, trailing: Space.xs))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .tag(config.id)
+                            // VoiceOver: one focusable button per chat, carrying its selected
+                            // state and a live "running / loop running" value.
                             .accessibilityElement(children: .combine)
                             .accessibilityAddTraits(model.selectedConfigID == config.id
                                                     ? [.isButton, .isSelected] : .isButton)
@@ -112,24 +128,11 @@ struct SidebarView: View {
                                 }
                             }
                     }
-                    if model.configurations.isEmpty {
-                        // The native, premium empty state (used consistently app-wide now).
-                        ContentUnavailableView {
-                            Label(model.t("sidebar.empty.cta"), systemImage: "bubble.left.and.bubble.right")
-                        } description: {
-                            Text(model.t("sidebar.empty"))
-                        } actions: {
-                            Button { model.addConfiguration() } label: {
-                                Label(model.t("sidebar.new"), systemImage: "square.and.pencil")
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                        .padding(.top, Space.xl)
-                    }
                 }
-                .padding(.horizontal, Space.s).padding(.top, Space.xs)
+                .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
+                .tint(Theme.accent)
             }
-            .scrollContentBackground(.hidden)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Translucent, but tinted to the chat/panel color (Theme.columnBg) rather than
