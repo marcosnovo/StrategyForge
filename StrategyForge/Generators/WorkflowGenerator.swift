@@ -58,7 +58,11 @@ enum WorkflowGenerator {
         let description = jsLine(strategy.description.isEmpty ? strategy.name : strategy.description)
 
         var out = "\(managedSignature) for the team \"\(jsLine(strategy.name))\".\n"
-        out += "// Run it with Claude Code: pass your task as args. Regenerated on Generate.\n\n"
+        out += "// Run it with Claude Code: pass your task as args. Regenerated on Generate.\n"
+        // The graph-engineering caution: a workflow fans out real agents, so it costs
+        // meaningfully more than one chat and wants a human watching. Scope the task first.
+        out += "// NOTE: this fans out parallel agents — it costs more than a single session and\n"
+        out += "// should be supervised. Start with a scoped task, watch usage, then widen.\n\n"
 
         // meta — a pure literal, phase titles matched in the body. Verify only when the
         // team has a reviewer to gate the edge with.
