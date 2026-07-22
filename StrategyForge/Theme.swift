@@ -50,7 +50,7 @@ enum Theme {
         light: Color(red: 0.784, green: 0.243, blue: 0.145),   // #C83E25
         dark:  Color(red: 1.000, green: 0.541, blue: 0.451))   // #FF8A73
     static let accentSoft = Color(
-        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.12),
+        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.18),   // raised: a 12% wash on white was nearly invisible (color review)
         dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.16))
     static let accentGlow = Color(
         light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.22),
@@ -60,7 +60,7 @@ enum Theme {
     /// Soft coral wash for a selected list row / card. Pale enough to read as a
     /// background state, not a solid block. Pair with `selectionBorder` + the bar.
     static let selectionFill = Color(
-        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.16),
+        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.22),   // raised so a selected row reads coral on white, not a peach ghost
         dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.20))
     /// Hairline border for a selected row/card (1 pt).
     static let selectionBorder = Color(

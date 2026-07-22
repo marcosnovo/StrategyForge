@@ -672,7 +672,7 @@ struct AgentActivityPanel: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.hairline).frame(height: 4)
-                    Capsule().fill(Theme.teal).frame(width: max(4, geo.size.width * frac), height: 4)
+                    Capsule().fill(Theme.accent).frame(width: max(4, geo.size.width * frac), height: 4)   // your spend (data-viz) → coral, not teal (teal = live only)
                 }
             }
             .frame(height: 4)

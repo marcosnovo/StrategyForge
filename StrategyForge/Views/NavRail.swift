@@ -354,7 +354,7 @@ struct NavRail: View {
             ZStack {
                 Circle().stroke(Theme.hairline, lineWidth: 3.5)
                 Circle().trim(from: 0, to: max(0.02, min(fraction, 1)))
-                    .stroke(Theme.teal, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    .stroke(Theme.accent, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))   // your plan usage (data-viz) → coral, not teal
                     .rotationEffect(.degrees(-90))
                 Text(center).scaledFont(9, weight: .semibold, design: .rounded).foregroundStyle(Theme.ink)
             }
@@ -375,7 +375,7 @@ struct NavRail: View {
             GeometryReader { geo in
                 Capsule().fill(Theme.hairline)
                     .overlay(alignment: .leading) {
-                        Capsule().fill(Theme.teal)
+                        Capsule().fill(Theme.accent)   // usage (data-viz) → coral, not teal
                             .frame(width: max(3, geo.size.width * CGFloat(min(max(fraction, 0), 1))))
                     }
             }
