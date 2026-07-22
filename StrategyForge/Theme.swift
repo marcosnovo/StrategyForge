@@ -36,10 +36,15 @@ enum Theme {
     // Coral = user/brand/action. Teal = system/agents/secondary.
     static let tealSoft   = Color(red: 0.078, green: 0.761, blue: 0.671).opacity(0.12)  // chip/worker washes
     static let tealEdge   = Color(red: 0.078, green: 0.761, blue: 0.671).opacity(0.30)  // faint worker borders
+    /// Teal #14C2AB is only ~2.1:1 on white — unreadable as text. Use this for teal
+    /// TEXT/icon labels (live-state) on light surfaces; `teal` stays for fills/dots/bars.
+    static let tealText   = Color(
+        light: Color(red: 0.039, green: 0.490, blue: 0.431),   // #0A7D6E (AA 5.0:1 on white)
+        dark:  Color(red: 0.078, green: 0.761, blue: 0.671))   // #14C2AB
 
     /// Accent = coral. Small text/icon tints resolve a hair deeper on light ground.
     static let accent = Color(
-        light: Color(red: 0.862, green: 0.290, blue: 0.180),   // #DC4A2E readable coral
+        light: Color(red: 0.765, green: 0.227, blue: 0.133),   // #C33A22 readable coral (AA 5.3:1 on white)
         dark:  Color(red: 1.000, green: 0.420, blue: 0.330))   // #FF6B54
     static let accentHover = Color(
         light: Color(red: 0.784, green: 0.243, blue: 0.145),   // #C83E25
@@ -123,21 +128,28 @@ enum Theme {
 
     // MARK: Text on materials — warm ink-dim / mono-dim (identity)
     static let secondaryOnMaterial = Color(
-        light: Color(red: 0.431, green: 0.482, blue: 0.471),   // #6E7B78 ink-dim
+        light: Color(red: 0.365, green: 0.416, blue: 0.404),   // #5D6A67 ink-dim (AA 5.6:1 on white)
         dark:  Color(red: 0.525, green: 0.627, blue: 0.627))   // #86A0A0
     static let tertiaryOnMaterial = Color(
-        light: Color(red: 0.576, green: 0.525, blue: 0.478),   // #93867A mono-dim
-        dark:  Color(red: 0.431, green: 0.541, blue: 0.541))   // #6E8A8A
+        light: Color(red: 0.451, green: 0.416, blue: 0.373),   // #736A5F mono-dim (AA 5.3:1 on white)
+        dark:  Color(red: 0.494, green: 0.604, blue: 0.604))   // #7E9A9A (AA on inset)
 
     // MARK: Status (aligned to the Coral identity)
     static let success = Color(
         light: Color(red: 0.090, green: 0.518, blue: 0.263),   // #178443 (was #35B06A ≈2.5:1 as text)
         dark:  Color(red: 0.306, green: 0.796, blue: 0.557))   // #4ECB8E
     static let warning = Color(
-        light: Color(red: 0.898, green: 0.631, blue: 0.227),   // #E5A13A amber
+        light: Color(red: 0.898, green: 0.631, blue: 0.227),   // #E5A13A amber (fills/icons)
         dark:  Color(red: 1.000, green: 0.773, blue: 0.239))   // #FFC53D
+    /// Amber can't pass AA as text on white without going brown — use this for warning
+    /// TEXT/labels on light surfaces; `warning` stays for fills/dots/icons.
+    static let warningText = Color(
+        light: Color(red: 0.561, green: 0.353, blue: 0.000),   // #8F5A00 amber-brown (AA 5.8:1)
+        dark:  Color(red: 1.000, green: 0.773, blue: 0.239))   // #FFC53D
+    /// Danger repainted off the coral hue (was #F03E27 ≈ coral): a cooler crimson so error
+    /// reads unmistakably "not-brand" and stays distinct for red-blind users.
     static let danger = Color(
-        light: Color(red: 0.941, green: 0.243, blue: 0.153),   // #F03E27 coral-hi
+        light: Color(red: 0.831, green: 0.176, blue: 0.247),   // #D42D3F crimson (AA 4.9:1, hue ~353°)
         dark:  Color(red: 1.000, green: 0.361, blue: 0.424))   // #FF5C6C
 
     // MARK: Metrics — softer, more rounded (reference-style)

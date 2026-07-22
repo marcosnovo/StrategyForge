@@ -240,7 +240,7 @@ struct LoopRunPanel: View {
                     .foregroundStyle(Theme.success)
             case .failed:
                 Label(model.t("loop.schedule.signInExpired"), systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Theme.warning)
+                    .foregroundStyle(Theme.warningText)
             case .idle:
                 Text(model.t("loop.schedule.verify"))
             }

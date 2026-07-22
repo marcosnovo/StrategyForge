@@ -323,10 +323,10 @@ struct AppAuroraBackground: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     // Pastel identity hues. On dark, the base goes to reef-ink and the blooms dim.
-    private var base: Color {
-        scheme == .dark ? Color(red: 0.043, green: 0.067, blue: 0.075)   // #0B1113
-                        : Color(red: 0.972, green: 0.965, blue: 0.960)   // #F8F6F5 warm white
-    }
+    // One background truth: the aurora base IS Theme.appBg, so the window's ground never
+    // subtly shifts depending on whether the aurora is mounted (was a near-but-not-equal
+    // inline hex — color review, phase 1).
+    private var base: Color { Theme.appBg }
     // A faint brand tint over the vibrancy so text stays legible over a busy wallpaper,
     // while the desktop still reads clearly through it — "leaning toward transparent".
     private var tintOpacity: Double { scheme == .dark ? 0.44 : 0.30 }

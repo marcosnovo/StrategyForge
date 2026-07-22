@@ -213,7 +213,7 @@ struct ChatView: View {
     /// Honest note when the team mixes providers that don't run yet.
     private var mixedProvidersStrip: some View {
         HStack(alignment: .top, spacing: Space.s) {
-            Image(systemName: "info.circle.fill").foregroundStyle(Theme.warning).font(.system(size: 11))
+            Image(systemName: "info.circle.fill").foregroundStyle(Theme.warningText).font(.system(size: 11))
             Text(model.t("chat.mixedProviders")).font(.sfCaption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Space.s)
@@ -692,7 +692,7 @@ struct ChatView: View {
                         .font(.sfCaption2.weight(.semibold))
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Capsule().fill(Theme.warning.opacity(0.18)))
-                        .foregroundStyle(Theme.warning)
+                        .foregroundStyle(Theme.warningText)
                 }
                 .buttonStyle(.plain)
                 .help(model.t("chat.fullAccessOn.help"))
@@ -1038,7 +1038,7 @@ struct ChatView: View {
                                         Label(model.t("chat.answeredByTeam", teamSize + 1), systemImage: "person.3.sequence.fill")
                                             .font(.sfCaption2.weight(.medium))
                                     }
-                                    .buttonStyle(.plain).foregroundStyle(Theme.teal)
+                                    .buttonStyle(.plain).foregroundStyle(Theme.tealText)
                                     .help(model.t("chat.answeredByTeam.help"))
                                 }
                                 // Cross-provider, made tangible: a "second opinion from X ▸"
@@ -1292,7 +1292,7 @@ struct ChatView: View {
     private var deniedStrip: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack(spacing: Space.s) {
-                Image(systemName: "hand.raised.fill").foregroundStyle(Theme.warning).font(.system(size: 12))
+                Image(systemName: "hand.raised.fill").foregroundStyle(Theme.warningText).font(.system(size: 12))
                     .symbolEffect(.pulse, options: .repeating)
                 Text(model.t("chat.denied.title")).font(.sfCallout.weight(.semibold))
                 Spacer()

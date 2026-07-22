@@ -36,7 +36,7 @@ struct TeamCatalogView: View {
                 pasteRow
                 if let e = errorText {
                     Label(e, systemImage: "exclamationmark.triangle.fill")
-                        .font(.sfCaption2).foregroundStyle(Theme.warning)
+                        .font(.sfCaption2).foregroundStyle(Theme.warningText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 LazyVStack(spacing: Space.m) {

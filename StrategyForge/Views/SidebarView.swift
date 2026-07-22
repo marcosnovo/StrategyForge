@@ -307,7 +307,7 @@ struct SidebarView: View {
                             .lineLimit(1).truncationMode(.tail)
                     } else if running {
                         Text(model.t("sidebar.working"))
-                            .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.teal)
+                            .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.tealText)
                             .lineLimit(1).truncationMode(.tail)
                     } else if loopRunning {
                         Image(systemName: "arrow.triangle.2.circlepath")

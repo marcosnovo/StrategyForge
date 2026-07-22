@@ -23,7 +23,7 @@ struct IndependentVerifierSeal: View {
             HStack(alignment: .top, spacing: Space.s) {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.tealText)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(model.t("seal.verifier.title"))
@@ -48,7 +48,7 @@ struct IndependentVerifierSeal: View {
                 Text(model.t("seal.verifier.compact"))
                     .font(.sfCaption2.weight(.medium))
             }
-            .foregroundStyle(Theme.teal)
+            .foregroundStyle(Theme.tealText)
             .padding(.horizontal, 8).padding(.vertical, 3)
             .background(Capsule().fill(Theme.tealSoft))
             .help(model.t("seal.verifier.body"))

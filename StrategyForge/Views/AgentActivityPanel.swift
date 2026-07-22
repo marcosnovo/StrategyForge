@@ -76,7 +76,7 @@ struct AgentActivityPanel: View {
                             .symbolEffect(.pulse, options: .repeating)
                         Text(model.t("activity.running")).font(.sfCaption2.weight(.semibold))
                     }
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.tealText)
                     .padding(.horizontal, Space.s).padding(.vertical, 3)
                     .glassEffect(.regular.tint(Theme.teal.opacity(0.18)), in: .capsule)
                 } else if vm.hasFinishedActivity {
@@ -318,7 +318,7 @@ struct AgentActivityPanel: View {
                     HStack(spacing: 4) {
                         Circle().fill(Theme.teal).frame(width: 6, height: 6)
                         Text(model.t("activity.usage.live")).scaledFont(9, weight: .semibold)
-                            .foregroundStyle(Theme.teal)
+                            .foregroundStyle(Theme.tealText)
                     }
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Capsule().fill(Theme.tealSoft))
@@ -395,7 +395,7 @@ struct AgentActivityPanel: View {
                         .contentTransition(.numericText())
                     if secs >= 90 {
                         Text(model.t("activity.working.slow"))
-                            .font(.sfCaption2).foregroundStyle(Theme.warning)
+                            .font(.sfCaption2).foregroundStyle(Theme.warningText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -724,11 +724,11 @@ struct AgentActivityPanel: View {
     private var skillsSection: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack(spacing: Space.xs) {
-                Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 11)).foregroundStyle(Theme.teal)
+                Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 11)).foregroundStyle(Theme.tealText)
                 Text(model.t("activity.skills.title"))
                     .font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
                 Text("\(vm.skillsUsed.count)")
-                    .font(.sfCaption2.weight(.bold)).foregroundStyle(Theme.teal)
+                    .font(.sfCaption2.weight(.bold)).foregroundStyle(Theme.tealText)
                     .padding(.horizontal, 6).padding(.vertical, 1)
                     .background(Capsule().fill(Theme.teal.opacity(0.14)))
                 Spacer()
@@ -895,7 +895,7 @@ struct AgentActivityPanel: View {
                     .symbolEffect(.pulse, options: .repeating)
                 Text(model.t("activity.running")).scaledFont(9, weight: .semibold)
             }
-            .foregroundStyle(Theme.teal)
+            .foregroundStyle(Theme.tealText)
             .padding(.horizontal, 6).padding(.vertical, 2)
             .background(Capsule().fill(Theme.tealSoft))
         case .done:
@@ -962,7 +962,7 @@ struct AgentActivityPanel: View {
     private func todoIcon(_ status: String) -> some View {
         switch status {
         case "completed": Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
-        case "in_progress": Image(systemName: "circle.dotted.circle").foregroundStyle(Theme.teal)
+        case "in_progress": Image(systemName: "circle.dotted.circle").foregroundStyle(Theme.tealText)
         default: Image(systemName: "circle").foregroundStyle(Theme.tertiaryOnMaterial)
         }
     }
@@ -1028,7 +1028,7 @@ struct ActivityStepRow: View {
             if let agent = step.agent, !agent.isEmpty, !step.isDelegation {
                 Text(agent)
                     .scaledFont(9, weight: .semibold, design: .monospaced)
-                    .foregroundStyle(Theme.teal).lineLimit(1)
+                    .foregroundStyle(Theme.tealText).lineLimit(1)
                     .padding(.horizontal, 5).padding(.vertical, 1)
                     .background(Capsule().fill(Theme.tealSoft))
             }

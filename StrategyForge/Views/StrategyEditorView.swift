@@ -161,7 +161,7 @@ struct StrategyEditorView: View {
                 .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.accentSoft))
             } else if !config.strategy.isValid {
                 Label(model.t("preview.fixErrors"), systemImage: "exclamationmark.triangle.fill")
-                    .font(.sfCallout).foregroundStyle(Theme.warning)
+                    .font(.sfCallout).foregroundStyle(Theme.warningText)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 

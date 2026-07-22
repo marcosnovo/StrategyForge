@@ -315,7 +315,7 @@ struct RoleEditorForm: View {
                         .foregroundStyle(selected ? Theme.accent : .secondary)
                     if m.safeguardNoteKey != nil {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .scaledFont(7).foregroundStyle(Theme.warning)
+                            .scaledFont(7).foregroundStyle(Theme.warningText)
                     }
                 }
                 Text(model.t(m.tierNameKey))

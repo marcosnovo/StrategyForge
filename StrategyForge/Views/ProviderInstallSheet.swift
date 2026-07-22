@@ -36,7 +36,7 @@ struct ProviderInstallSheet: View {
             switch state {
             case .needsNode:
                 Label(model.t("provider.needsNode"), systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout).foregroundStyle(Theme.warning).fixedSize(horizontal: false, vertical: true)
+                    .font(.callout).foregroundStyle(Theme.warningText).fixedSize(horizontal: false, vertical: true)
                 Link(model.t("provider.getNode"), destination: URL(string: "https://nodejs.org/en/download")!)
             case .failed(let msg):
                 Label(msg, systemImage: "xmark.octagon.fill")

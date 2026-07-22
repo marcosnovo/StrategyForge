@@ -131,7 +131,7 @@ struct LoopSelectorColumn: View {
                     // Scheduled to run unattended on a cadence — mark it so the list shows
                     // which loops are "armed" even when idle.
                     Image(systemName: "clock.badge.checkmark")
-                        .font(.system(size: 11)).foregroundStyle(Theme.teal)
+                        .font(.system(size: 11)).foregroundStyle(Theme.tealText)
                         .help(model.t("loop.schedule.on"))
                 } else {
                     Text(model.t("loop.list.turns", loop.maxTurns))

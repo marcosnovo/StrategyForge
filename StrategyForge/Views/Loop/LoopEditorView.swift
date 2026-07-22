@@ -122,7 +122,7 @@ struct LoopEditorView: View {
                 }
                 if h.isUnderperforming {
                     Label(model.t("loop.health.warn"), systemImage: "exclamationmark.triangle.fill")
-                        .font(.sfCallout).foregroundStyle(Theme.warning)
+                        .font(.sfCallout).foregroundStyle(Theme.warningText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

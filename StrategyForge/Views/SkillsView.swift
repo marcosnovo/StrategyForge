@@ -175,7 +175,7 @@ struct SkillsView: View {
             }
             if let e = errorText, tab == .top {
                 Label(e, systemImage: "exclamationmark.triangle.fill").font(.sfCaption2)
-                    .foregroundStyle(Theme.warning).fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(Theme.warningText).fixedSize(horizontal: false, vertical: true)
             }
             let shown = topSkills.filter(matchesFilters)
             ForEach(Array(shown.enumerated()), id: \.element.id) { i, c in curatedRow(c, rank: i + 1) }
@@ -196,7 +196,7 @@ struct SkillsView: View {
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.insetBg))
             if let e = errorText {
                 Label(e, systemImage: "exclamationmark.triangle.fill").font(.sfCaption2)
-                    .foregroundStyle(Theme.warning).fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(Theme.warningText).fixedSize(horizontal: false, vertical: true)
             }
             let shown = store.curated.filter(matchesFilters)
             if shown.isEmpty && kindFilter == .knowledge {
@@ -234,7 +234,7 @@ struct SkillsView: View {
                     HStack(spacing: 5) {
                         Text(c.name).font(.sfCallout.weight(.medium)).lineLimit(1)
                         if c.verified {
-                            Image(systemName: "checkmark.seal.fill").scaledFont(9).foregroundStyle(Theme.teal)
+                            Image(systemName: "checkmark.seal.fill").scaledFont(9).foregroundStyle(Theme.tealText)
                         }
                     }
                     Text(c.description).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(2)
@@ -303,7 +303,7 @@ struct SkillsView: View {
                 kindTag(skill.kind)
                 if skill.canRunCode {
                     Image(systemName: "exclamationmark.shield.fill").font(.system(size: 10))
-                        .foregroundStyle(Theme.warning).help(model.t("skills.trust.title"))
+                        .foregroundStyle(Theme.warningText).help(model.t("skills.trust.title"))
                 }
             }
             .padding(.vertical, 5).padding(.horizontal, Space.s)
@@ -349,7 +349,7 @@ struct SkillsView: View {
                     kindTag(s.kind)
                     if s.canRunCode {
                         Label(model.t("skills.trust.badge"), systemImage: "exclamationmark.shield.fill")
-                            .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.warning)
+                            .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.warningText)
                             .padding(.horizontal, 8).padding(.vertical, 3)
                             .background(Capsule().fill(Theme.warning.opacity(0.14)))
                     }
@@ -397,7 +397,7 @@ struct SkillsView: View {
                 }
                 if p.canRunCode {
                     HStack(alignment: .top, spacing: Space.s) {
-                        Image(systemName: "exclamationmark.shield.fill").foregroundStyle(Theme.warning)
+                        Image(systemName: "exclamationmark.shield.fill").foregroundStyle(Theme.warningText)
                         Text(model.t("skills.trust.body")).font(.sfCaption2).fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(Space.s).frame(maxWidth: .infinity, alignment: .leading)

@@ -141,7 +141,7 @@ struct FilePreviewSheet: View {
         case .modified:
             HStack(spacing: 12) {
                 Label(model.t("preview.diff.modified"), systemImage: "pencil.circle.fill")
-                    .foregroundStyle(Theme.warning)
+                    .foregroundStyle(Theme.warningText)
                 Text("+\(diff.added)").foregroundStyle(Theme.success)
                 Text("−\(diff.removed)").foregroundStyle(Theme.danger)
             }

@@ -56,7 +56,7 @@ struct TaskToStrategySheet: View {
 
             if !StrategyGenerator.isAIAvailable {
                 Label(model.t("task2strat.aiOff"), systemImage: "info.circle")
-                    .font(.sfCaption2).foregroundStyle(Theme.warning)
+                    .font(.sfCaption2).foregroundStyle(Theme.warningText)
                     .fixedSize(horizontal: false, vertical: true)
             }
 

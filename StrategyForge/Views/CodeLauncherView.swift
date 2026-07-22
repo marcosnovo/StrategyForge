@@ -304,7 +304,7 @@ struct CodeLauncherView: View {
 
     private var gitMissingNote: some View {
         Label(model.t("code.gitMissing"), systemImage: "exclamationmark.triangle.fill")
-            .font(.sfCaption2).foregroundStyle(Theme.warning)
+            .font(.sfCaption2).foregroundStyle(Theme.warningText)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

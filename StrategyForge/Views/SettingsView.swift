@@ -202,7 +202,7 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text(model.t("account.googleNote"))
-                        .font(.caption).foregroundStyle(Theme.warning)
+                        .font(.caption).foregroundStyle(Theme.warningText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {

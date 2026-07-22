@@ -182,7 +182,7 @@ struct TeamView: View {
                     .lineLimit(1)
                 if isDraft {
                     Label(model.t("team.draft.badge"), systemImage: "pencil.line")
-                        .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.warning)
+                        .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.warningText)
                 } else {
                     Text(model.strategyDisplayName(strategy))
                         .font(.sfCallout).foregroundStyle(.secondary).lineLimit(1)

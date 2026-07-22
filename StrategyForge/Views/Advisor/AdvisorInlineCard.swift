@@ -99,7 +99,7 @@ struct AdvisorInlineCard: View {
     /// as a comparison when the user already picked a team, rather than a blank pitch.
     private func chosenTeamRow(_ team: String) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.teal)
+            Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundStyle(Theme.tealText)
             Text(model.t("advisor.inline.youChose", team))
                 .font(.sfCaption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -168,7 +168,7 @@ struct AdvisorInlineCard: View {
     @ViewBuilder private func loopHintRow(_ sel: AdvisorEngine.Tier) -> some View {
         HStack(spacing: Space.s) {
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.teal)
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.tealText)
             VStack(alignment: .leading, spacing: 0) {
                 Text(model.t("advisor.loop.hint.title")).font(.sfCaption2.weight(.semibold))
                 Text(model.t("advisor.loop.hint.\(sel.advice.loopKind.rawValue)"))

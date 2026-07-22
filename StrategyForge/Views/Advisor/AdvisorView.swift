@@ -245,7 +245,7 @@ struct AdvisorView: View {
             if let note = advice.model.safeguardNoteKey.map({ model.t($0) }) {
                 Label(note, systemImage: "info.circle")
                     .font(.sfCaption2)
-                    .foregroundStyle(Theme.warning)
+                    .foregroundStyle(Theme.warningText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
