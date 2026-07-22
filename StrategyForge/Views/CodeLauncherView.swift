@@ -51,9 +51,7 @@ struct CodeLauncherView: View {
                 if loadingRepos || !ghRepos.isEmpty { githubReposCard }
                 // Start something brand-new on GitHub without leaving the app.
                 createRepoCard
-                // Open a LOCAL folder — the Claude-Code habit (work on a checkout you
-                // already have, nothing is cloned).
-                pickCard
+                // Bring in an existing repo (clone a URL or open a local folder) — one card.
                 cloneCard
                 credentialsNote
                 if !CodeGit.isAvailable { gitMissingNote }
@@ -240,6 +238,13 @@ struct CodeLauncherView: View {
                 .buttonStyle(.moon)
                 .disabled(cloning || cloneURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+            // Secondary path, grouped here (both bring in an EXISTING repo): open a local
+            // folder you already have — one card instead of two (verdict A3, kill the wall).
+            Button { model.pickAndOpenCodeChat() } label: {
+                Label(model.t("code.pick.action"), systemImage: "folder")
+            }
+            .buttonStyle(.bordered)
+            .help(model.t("code.pick.subtitle"))
         }
         .card()
     }
@@ -252,19 +257,6 @@ struct CodeLauncherView: View {
             await model.cloneAndOpenCodeChat(url: url)
             cloningRepo = nil
         }
-    }
-
-    // MARK: Pick a folder
-
-    private var pickCard: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            SectionHeader("folder", model.t("code.pick.title"),
-                          subtitle: model.t("code.pick.subtitle")) {
-                Button(model.t("code.pick.action")) { model.pickAndOpenCodeChat() }
-                    .buttonStyle(.bordered)
-            }
-        }
-        .card()
     }
 
     // MARK: Resume last
