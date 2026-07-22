@@ -63,7 +63,11 @@ hero + resto plano" está terminado.
   navegación por teclado + selección nativa (cápsula coral) sustituye el wash a mano. Context-menu,
   a11y, hover y rename (modal) conservados. ⚠️ **requiere tu revisión visual** (claro+oscuro): si la
   selección nativa no lee tan bien como el wash suave, revert de 1 commit.
-- ⏸️ **C2. Code/Connections en `Form.grouped`** — pendiente, revisión visual.
+- ✅ **C2 (equivalente).** Code y Connections ya no son muros de tarjetas planas: **hero por
+  pantalla** (Reanudar en Code, estado de conexión en el detalle de proveedor, tintado por estado)
+  + profundidad visible. No migré a `Form.grouped` nativo (el hero-card + elevación logra el foco
+  sin el look de Ajustes). **Arreglo de raíz del veredicto: completo.** La lista de chats se queda
+  con el wash coral a mano (el `List` nativo pintaba un bloque gris — confirmado en pantalla).
 
 ### Fase C — nativo (mayor blast radius, con revisión visual)
 - **C1. Lista de chats → `List(selection: $selectedConfigID)` + `.listStyle(.sidebar)`**, coral vía
