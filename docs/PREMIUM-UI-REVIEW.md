@@ -47,6 +47,13 @@ de los **neutros** alrededor del coral, no de más coral.
 
 ---
 
+> **Estado (2026-07-22):** ✅ **Ola 1 en `main`, 347 verdes** — P1 escalera de elevación
+> (`elevation(.e1…e4)`, ambient+contact, dark-aware; `PanelCard`+`card()` con profundidad), P2
+> neutros greige cálidos + escalera real (card≠column en oscuro), P3 `sfHero` 40/−0.8 en los 2
+> saludos, P4 `Space.xxl/xxxl`, P5 punto de acento coral. **⏳ Requiere tu revisión visual en
+> claro Y oscuro antes de seguir** (RenderPreview no arranca). Olas 2–4 pendientes (glass cálido,
+> dirección de luz del reef, sphere apoyada, anclas, higiene de eyebrows).
+
 ## Plan por olas (impacto ÷ esfuerzo ÷ riesgo)
 
 > Casi todo es **token-only, bajo riesgo** — pero profundidad/calidez/tipo hero **necesitan
