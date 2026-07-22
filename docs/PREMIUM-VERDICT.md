@@ -49,8 +49,8 @@ hero + resto plano" está terminado.
 ### Fase A — barato, alto impacto, riesgo bajo
 - ✅ **A1. Profundidad en claro visible** (subir alphas de elevación). *Hecho.*
 - ✅ **A2. `ContentUnavailableView`** en la lista de chats vacía. *Hecho.* (Pendiente: pantallas sparse.)
-- ✅ **A3. Hero en Code** — el card "Reanudar" es ahora la superficie hero (coral-tinted + e3);
-  falta demotar create/clone/pick del muro de tarjetas. + **lista de chats con aire** (2→5pt).
+- ✅ **A3. Code** — hero "Reanudar" (coral-tinted + e3) + clone/open-folder fusionados en una tarjeta
+  (muro de ~7 tarjetas → jerarquía clara). + **lista de chats con aire** (2→5pt).
 
 ### Fase B — el sistema de FILA (la mayor palanca)
 - ✅ **B1. `CoralRow`** adoptado en **repos (Code)**, **providers/tools (Services)** y **loops** →
