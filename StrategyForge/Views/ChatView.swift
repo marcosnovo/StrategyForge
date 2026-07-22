@@ -1080,15 +1080,16 @@ struct ChatView: View {
             // Airy, centered greeting (reference): a large iridescent presence orb,
             // a casual time-of-day greeting, the welcome copy under it, then the team
             // hook and glass suggestion pills.
-            CoralSphere(size: 72)
+            CoralSphere(size: 88)
                 .staggeredAppear(index: 0)
-            Text(chatGreeting)
-                .font(.sfDisplay)
-                .tracking(-0.5)
-                .foregroundStyle(Theme.ink)
+            // Hero greeting + a single coral accent-dot (the reference's signature gesture).
+            (Text(chatGreeting).foregroundStyle(Theme.ink)
+                + Text(".").foregroundStyle(Theme.coral))
+                .font(.sfHero)
+                .tracking(-0.8)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 520)
+                .frame(maxWidth: 560)
                 .staggeredAppear(index: 1)
             Text(model.t("chat.empty"))
                 .font(.sfCardTitle)

@@ -376,6 +376,10 @@ enum Space {
     static let m: CGFloat = 12
     static let l: CGFloat = 16
     static let xl: CGFloat = 24
+    /// Hero-only air (premium review): use ONLY around the single hero moment per screen —
+    /// this self-limits it so heroes feel lavish while work surfaces stay dense.
+    static let xxl: CGFloat = 40
+    static let xxxl: CGFloat = 64
 }
 
 // MARK: - Type scale
@@ -387,6 +391,10 @@ extension Font {
     /// Tight bold display for the hero title / brand (no serif). Larger + heavier so a
     /// hero greeting reads as a designed moment against its sphere, not a card title.
     /// Apply `.tracking(-0.5)` at hero sites for the ceñido look.
+    /// The ONE confident hero headline per screen (greetings, onboarding) — big + tight so
+    /// it reads as a designed moment, not a section title. Apply `.tracking(-0.8)` (premium
+    /// review). Fixed size on purpose; use only at the 2–4 hero sites.
+    static let sfHero = Font.system(size: 40, weight: .bold)
     static let sfDisplay = Font.system(.largeTitle, design: .default).weight(.bold)      // ~26
     static let sfCardTitle = Font.system(.title3).weight(.semibold)                     // ~15
     static let sfBodyM = Font.system(.body)                                             // ~13

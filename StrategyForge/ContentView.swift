@@ -385,17 +385,19 @@ private struct EmptyEditorState: View {
         // Reference-style landing ("Good Morning, …"): a big iridescent sphere over a
         // centered greeting + subtitle, then the primary/secondary actions — airy and
         // centered, floating on the aurora pane.
-        VStack(spacing: Space.xl) {
+        VStack(spacing: Space.xxl) {
             Spacer(minLength: 0)
 
             VStack(spacing: Space.l) {
-                CoralSphere(size: 84)
+                CoralSphere(size: 96)
                     .breathingGlow(color: Theme.accentGlow, enabled: false)
-                VStack(spacing: Space.xs) {
-                    Text(greeting)
-                        .font(.sfDisplay)
-                        .tracking(-0.5)
-                        .foregroundStyle(Theme.ink)
+                VStack(spacing: Space.s) {
+                    // Hero headline with a single coral accent-dot as punctuation (the
+                    // reference's signature gesture, on Coral's "one accent = you" rule).
+                    (Text(greeting).foregroundStyle(Theme.ink)
+                        + Text(".").foregroundStyle(Theme.coral))
+                        .font(.sfHero)
+                        .tracking(-0.8)
                         .multilineTextAlignment(.center)
                     Text(model.t("empty.editor.desc"))
                         .font(.sfBodyM).foregroundStyle(Theme.secondaryOnMaterial)
