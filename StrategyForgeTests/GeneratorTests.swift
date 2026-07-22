@@ -451,4 +451,31 @@ struct WorkflowGeneratorTests {
         // The backtick and ${ are escaped so they can't terminate/interpolate the literal.
         #expect(js.contains("do \\`x\\` and \\${danger}"))
     }
+
+    @Test func reviewerBecomesAnIndependentVerifyPhase() {
+        // A team with a reviewer gates the edge: the reviewer moves out of Work into a
+        // dedicated Verify phase on fresh context, and synthesis reads the verified findings.
+        let s = StrategyLibrary.plannerImplementersReviewer()
+        let js = WorkflowGenerator.workflow(for: s)!
+        #expect(js.contains("{ title: 'Verify' }"))
+        #expect(js.contains("phase('Verify')"))
+        #expect(js.contains("const verified = await parallel(results"))
+        #expect(js.contains("VERIFIED FINDINGS"))
+        // The reviewer is NOT one of the parallel Work branches.
+        let reviewerName = s.subagentRoles.first { $0.role == .reviewer }!.name
+        #expect(!js.contains("label: '\(reviewerName)', phase: 'Work'"))
+    }
+
+    @Test func fileWritingWorkersRunInIsolatedWorktrees() {
+        // Non-read-only workers (they edit) get their own worktree so parallel writers
+        // can't overwrite each other (the Bun-port lesson).
+        let js = WorkflowGenerator.workflow(for: StrategyLibrary.orchestratorWorkers())!
+        #expect(js.contains("isolation: 'worktree'"))
+    }
+
+    @Test func noReviewerKeepsTheThreePhaseShape() {
+        let js = WorkflowGenerator.workflow(for: StrategyLibrary.orchestratorWorkers())!
+        #expect(!js.contains("phase('Verify')"))
+        #expect(js.contains("phases: [{ title: 'Plan' }, { title: 'Work' }, { title: 'Synthesize' }]"))
+    }
 }

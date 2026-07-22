@@ -39,8 +39,20 @@ enum WorkflowGenerator {
 
     /// The dynamic-workflow program for a team, or nil for a solo team (no graph).
     static func workflow(for strategy: Strategy) -> String? {
-        let workers = strategy.subagentRoles.filter { Strategy.isValidRoleName($0.name) }
-        guard !workers.isEmpty, let orchestrator = strategy.orchestrator else { return nil }
+        let teammates = strategy.subagentRoles.filter { Strategy.isValidRoleName($0.name) }
+        guard !teammates.isEmpty, let orchestrator = strategy.orchestrator else { return nil }
+
+        // Split the roster into PRODUCERS (do the work in parallel) and REVIEWERS (gate the
+        // edge). A reviewer that fanned out alongside the producers would just be a fourth
+        // producer — the graph-engineering piece's "agrees with itself in a different font".
+        // Moving it to a dedicated Verify phase makes it an independent node on a fresh
+        // context, checking the producers' output before it flows to synthesis.
+        let reviewers = teammates.filter { $0.role == .reviewer }
+        let producers = teammates.filter { $0.role != .reviewer }
+        // If the team is ALL reviewers (unusual), treat them as producers so it still runs.
+        let workers = producers.isEmpty ? teammates : producers
+        let verifier = producers.isEmpty ? nil : reviewers.first
+        let hasVerify = verifier != nil
 
         let name = slug(strategy)
         let description = jsLine(strategy.description.isEmpty ? strategy.name : strategy.description)
@@ -48,11 +60,15 @@ enum WorkflowGenerator {
         var out = "\(managedSignature) for the team \"\(jsLine(strategy.name))\".\n"
         out += "// Run it with Claude Code: pass your task as args. Regenerated on Generate.\n\n"
 
-        // meta — a pure literal, phase titles matched in the body.
+        // meta — a pure literal, phase titles matched in the body. Verify only when the
+        // team has a reviewer to gate the edge with.
+        let phases = hasVerify
+            ? "[{ title: 'Plan' }, { title: 'Work' }, { title: 'Verify' }, { title: 'Synthesize' }]"
+            : "[{ title: 'Plan' }, { title: 'Work' }, { title: 'Synthesize' }]"
         out += "export const meta = {\n"
         out += "  name: '\(name)',\n"
         out += "  description: '\(description)',\n"
-        out += "  phases: [{ title: 'Plan' }, { title: 'Work' }, { title: 'Synthesize' }],\n"
+        out += "  phases: \(phases),\n"
         out += "}\n\n"
 
         out += "// The task comes in as `args` (falls back to the team's purpose).\n"
@@ -63,20 +79,35 @@ enum WorkflowGenerator {
         out += "const plan = await agent(`\(jsTemplate(planPrompt(orchestrator)))\n\nTASK:\n${task}`, "
         out += "{ label: 'plan' })\n\n"
 
-        // Work — one teammate per parallel branch.
+        // Work — one teammate per parallel branch. A producer that EDITS files (not
+        // read-only) runs in its own git worktree so parallel writers can't overwrite each
+        // other — the Bun-port lesson (isolate the workers, don't just prompt them nicely).
         out += "phase('Work')\n"
         out += "const results = await parallel([\n"
         for w in workers {
             let model = w.model.rawValue
+            let isolation = w.role.isReadOnlyByDefault ? "" : ", isolation: 'worktree'"
             out += "  () => agent(`\(jsTemplate(workerPrompt(w)))\n\nTASK:\n${task}\n\nPLAN:\n${plan}`, "
-            out += "{ label: '\(jsLine(w.name))', phase: 'Work', model: '\(model)' }),\n"
+            out += "{ label: '\(jsLine(w.name))', phase: 'Work', model: '\(model)'\(isolation) }),\n"
         }
         out += "])\n\n"
+
+        // Verify — an INDEPENDENT node on a fresh context checks each producer's finding
+        // against real evidence before it flows downstream (article: gate the edge).
+        var synthInput = "results"
+        if let verifier {
+            let model = verifier.model.rawValue
+            out += "phase('Verify')\n"
+            out += "const verified = await parallel(results.filter(Boolean).map((r, i) => () => "
+            out += "agent(`\(jsTemplate(verifyPrompt(verifier)))\n\nTASK:\n${task}\n\nWORK TO VERIFY:\n${r}`, "
+            out += "{ label: 'verify:' + i, phase: 'Verify', model: '\(model)' })))\n\n"
+            synthInput = "verified"
+        }
 
         // Synthesize.
         out += "phase('Synthesize')\n"
         out += "const final = await agent(`\(jsTemplate(synthesisPrompt))\n\n"
-        out += "TASK:\n${task}\n\nTEAMMATE RESULTS:\n${results.filter(Boolean).join('\\n\\n---\\n\\n')}`, "
+        out += "TASK:\n${task}\n\n\(hasVerify ? "VERIFIED FINDINGS" : "TEAMMATE RESULTS"):\n${\(synthInput).filter(Boolean).join('\\n\\n---\\n\\n')}`, "
         out += "{ label: 'synthesize' })\n\n"
         out += "return final\n"
         return out
@@ -98,8 +129,21 @@ enum WorkflowGenerator {
             : persona
     }
 
+    /// The verifier node's prompt: it did NOT produce the work and runs on a fresh context,
+    /// so it checks a real signal (does the test pass, is the claim grounded) rather than
+    /// "did the agent say it's done" — the graph-engineering piece's anti-"agrees-with-itself".
+    private static func verifyPrompt(_ reviewer: AgentRole) -> String {
+        let persona = reviewer.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lead = persona.isEmpty
+            ? "You are an INDEPENDENT verifier. You did not do this work."
+            : persona
+        return lead + "\nVerify the work below against real evidence — run/inspect the actual "
+            + "signal (a test that PASSED, a claim that's grounded), not whether it claims to be "
+            + "done. Return the finding only if it holds; otherwise state exactly what fails."
+    }
+
     private static var synthesisPrompt: String {
-        "You are the orchestrator. Combine the teammates' results into one coherent, "
+        "You are the orchestrator. Combine the verified results into one coherent, "
             + "actionable final answer. Resolve conflicts, remove redundancy."
     }
 
