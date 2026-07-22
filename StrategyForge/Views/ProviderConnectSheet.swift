@@ -37,7 +37,7 @@ struct ProviderConnectSheet: View {
             }
             .padding(.horizontal, Space.l).padding(.vertical, Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassPanel(cornerRadius: Theme.innerCorner, material: .regularMaterial)
+            .glassPanel(cornerRadius: Theme.innerCorner)
 
             steps
 

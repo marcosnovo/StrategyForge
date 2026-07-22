@@ -1730,7 +1730,7 @@ struct ChatView: View {
                 if let pr = prInfo { prStateBadge(pr) }
             }
             .padding(.horizontal, Space.m).padding(.vertical, 6)
-            .glassPanel(cornerRadius: Theme.innerCorner, material: .thinMaterial)
+            .glassPanel(cornerRadius: Theme.innerCorner)
             .contentShape(Rectangle())
             .onTapGesture {
                 if let pr = prInfo, let u = URL(string: pr.url) { NSWorkspace.shared.open(u) }

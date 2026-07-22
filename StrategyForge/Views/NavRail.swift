@@ -161,7 +161,7 @@ struct NavRail: View {
             }
             .padding(.horizontal, Space.m)
             .frame(height: 34)
-            .glassPanel(cornerRadius: Theme.buttonCorner, material: .thinMaterial)
+            .glassPanel(cornerRadius: Theme.buttonCorner)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

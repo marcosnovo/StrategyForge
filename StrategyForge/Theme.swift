@@ -507,9 +507,9 @@ extension View {
     /// A frosted glass panel for static cards/sheets. Converged (#38) onto the SAME
     /// native Liquid Glass engine as `.glassEffect` so the app speaks one glass language
     /// instead of three. Falls back to an opaque card under Reduce Transparency.
-    func glassPanel(cornerRadius: CGFloat = Theme.corner,
-                    material: Material = .regularMaterial,
-                    strokeOpacity: Double = 0.55) -> some View {
+    /// (Dropped the old `material:`/`strokeOpacity:` params — the modifier always renders
+    /// `.glassEffect(.regular)`, so those knobs did nothing but mislead callers.)
+    func glassPanel(cornerRadius: CGFloat = Theme.corner) -> some View {
         modifier(GlassPanelModifier(cornerRadius: cornerRadius))
     }
 }
