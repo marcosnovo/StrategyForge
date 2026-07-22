@@ -29,6 +29,7 @@ enum StrategyLibrary {
             researchFanout(),
             debateConsensus(),
             sparring(),
+            languageMigration(),
             soloEconomy(),
             solo(),
         ]
@@ -818,6 +819,134 @@ enum StrategyLibrary {
             with each other — the orchestrator passes each the other's output and \
             owns the final decision. The breaker never weakens or deletes tests; \
             disputes are resolved by the orchestrator.
+            """
+        )
+    }
+
+    // MARK: - Language Migration (large-scale code port)
+
+    /// The shape Anthropic uses for large code migrations (port a codebase to a new
+    /// language): cheap implementers fan out one-file-per-agent from a growing rulebook,
+    /// an ADVERSARIAL pair of strong reviewers checks each translation on fresh context,
+    /// and a tiebreaker resolves disagreement. The discipline: you fix the LOOP (the
+    /// rulebook), not the code — a repeated finding becomes one rulebook sentence and a
+    /// regenerated batch, never a hand-patch. Pair it with a mechanical gate (the
+    /// compiler / the ported test suite) as the referee.
+    static func languageMigration() -> Strategy {
+        Strategy(
+            name: "Language Migration (large port)",
+            description: "Port a codebase to a new language: implementers fan out file-by-file "
+                + "from a rulebook, an adversarial reviewer pair verifies each translation, a "
+                + "tiebreaker settles disputes, and a compiler/test gate is the referee.",
+            roles: [
+                orchestrator(
+                    name: "orchestrator",
+                    model: .fable5,
+                    description: "Main session. Owns the rulebook, dependency map and gap "
+                        + "inventory; slices the work from disk; feeds findings back into the RULES.",
+                    systemPrompt: """
+                    You run a large code migration. Before fanning out: build the RULEBOOK \
+                    (type/idiom lookup tables + a gap inventory of what the new language \
+                    requires that the old didn't), a dependency map, and stress-test the rules \
+                    on a few files (translate two ways, diff, refine) — then THROW those files \
+                    away. The goal is to refine the rules, not to make progress.
+
+                    Then translate everything: rebuild the work queue from disk every time (a \
+                    file is "done" if its translation exists), slice the pending files into \
+                    batches, and delegate each file to an `implementer`. When a reviewer keeps \
+                    catching the same mistake, DO NOT hand-patch the code — add one sentence to \
+                    the rulebook and regenerate the affected batch. The rulebook grows; the code \
+                    never gets patched against it. Your attention is on the PATTERNS, not \
+                    individual failures — those are the loop's job. Gate every stage on a \
+                    mechanical referee (the compiler, the ported test suite, a parity diff), not \
+                    on any agent's confidence.
+                    """
+                ),
+                AgentRole(
+                    name: "implementer",
+                    role: .worker,
+                    model: .sonnet5,
+                    systemPrompt: """
+                    You translate ONE file to the new language, following the rulebook exactly. \
+                    Preserve behavior; keep the structure unless the rulebook says to redesign. \
+                    Anything you can't translate confidently, leave a `// TODO(port): <reason>` \
+                    marker for a later pass — do not guess. Do the simplest faithful translation; \
+                    no gold-plating. Report the file and any TODOs you left.
+                    """,
+                    description: "Use to translate one file per the rulebook. Fan out many in "
+                        + "parallel — this is the high-volume, small-model implementation tier.",
+                    tools: [],
+                    count: 6,
+                    isOrchestrator: false
+                ),
+                AgentRole(
+                    name: "reviewer-a",
+                    role: .reviewer,
+                    model: .opus48,
+                    systemPrompt: """
+                    You are an ADVERSARIAL, read-only verifier on a FRESH context — you did not \
+                    write this translation. Compare the ported file against the original as the \
+                    spec. Cite the RULE behind every finding (so a violation becomes a queue item, \
+                    not a quiet divergence). A weakened assertion, a dropped edge case, or work \
+                    outside scope is a fail. The author's confidence is not evidence — check the \
+                    real signal. Do not edit code; return prioritized findings with file/line refs.
+                    """,
+                    description: "First adversarial reviewer. Read-only, fresh context, cites the "
+                        + "rule behind each finding.",
+                    tools: Constants.readOnlyTools,
+                    count: 1,
+                    isOrchestrator: false
+                ),
+                AgentRole(
+                    name: "reviewer-b",
+                    role: .reviewer,
+                    model: .opus48,
+                    systemPrompt: """
+                    You are a SECOND, independent adversarial verifier, separate from reviewer-a \
+                    and on your own fresh context — two reviewers that share a context aren't \
+                    verifying, they're agreeing in a different font. Review the same translation \
+                    against the original and the rulebook, independently. Cite the rule behind \
+                    each finding; a weakened test or an out-of-scope change is a fail. Read-only.
+                    """,
+                    description: "Second, independent adversarial reviewer — its disagreements "
+                        + "with reviewer-a go to the tiebreaker.",
+                    tools: Constants.readOnlyTools,
+                    count: 1,
+                    isOrchestrator: false
+                ),
+                AgentRole(
+                    name: "tiebreaker",
+                    role: .reviewer,
+                    model: .fable5,
+                    systemPrompt: """
+                    You settle disagreements between reviewer-a and reviewer-b on a fresh context. \
+                    Read both sets of findings, the original, and the translation, and rule on \
+                    each disputed point against the rulebook and the real signal (does the test \
+                    pass, is behavior preserved). Decide, cite the rule, and hand back a single \
+                    resolved verdict. Read-only.
+                    """,
+                    description: "Read-only tiebreaker: resolves disagreement between the two "
+                        + "adversarial reviewers.",
+                    tools: Constants.readOnlyTools,
+                    count: 1,
+                    isOrchestrator: false
+                ),
+            ],
+            orchestrationNotes: """
+            Large-migration flow (Anthropic's method): (0) build a strong JUDGE first — port the \
+            external-facing tests so they run against BOTH codebases, and validate the judge by \
+            confirming it PASSES the original and FAILS deliberately-broken code. (1) rulebook + \
+            dependency map + gap inventory. (2) stress-test the rules on a few files, then discard \
+            them. (3) translate everything from a disk-rebuilt queue (resumable by construction), \
+            each file reviewed by the adversarial pair; disagreement → tiebreaker. (4-6) compile, \
+            smoke-run, and match behavior against the original — each with a mechanical referee.
+
+            Discipline: fix the LOOP, not the code. A repeated finding becomes one rulebook \
+            sentence + a regenerated batch, never a hand-patch. Smaller model for the high-volume \
+            implementers; the strongest for reviewers and for the orchestrator that writes rules. \
+            Serialize the most expensive step (the rebuild): a single build daemon batches patches \
+            and rebuilds once, instead of many agents triggering it. Single level of delegation — \
+            teammates report only to the orchestrator, never to each other.
             """
         )
     }

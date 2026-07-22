@@ -485,6 +485,19 @@ struct WorkflowGeneratorTests {
         #expect(!js.contains("label: '\(reviewerName)', phase: 'Work'"))
     }
 
+    @Test func migrationTemplateEmitsItemFanoutWithAdversarialVerify() {
+        // The Language Migration template = cheap implementers fan out one-file-per-agent from a
+        // rulebook, verified per item by a reviewer — the article's "translate everything" shape.
+        let s = StrategyLibrary.languageMigration()
+        #expect(s.orchestrator != nil)
+        #expect(s.subagentRoles.contains { $0.role == .worker && $0.count >= 2 })   // fan-out implementers
+        #expect(s.subagentRoles.filter { $0.role == .reviewer }.count >= 2)         // adversarial pair + tiebreaker
+        let js = WorkflowGenerator.workflow(for: s)!
+        #expect(js.contains("phase('Scout')"))
+        #expect(js.contains("await pipeline(items,"))
+        #expect(js.contains("label: 'verify:' + item"))
+    }
+
     @Test func roleParallelNoReviewerKeepsTheThreePhaseShape() {
         // Executor + advisor: one producer, no reviewer → plain Plan/Work/Synthesize.
         let js = WorkflowGenerator.workflow(for: StrategyLibrary.executorAdvisor())!
