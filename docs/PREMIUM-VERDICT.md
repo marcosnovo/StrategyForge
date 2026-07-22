@@ -48,17 +48,13 @@ hero + resto plano" está terminado.
 
 ### Fase A — barato, alto impacto, riesgo bajo
 - ✅ **A1. Profundidad en claro visible** (subir alphas de elevación). *Hecho.*
-- **A2. `ContentUnavailableView`** en la lista de chats vacía (`SidebarView:115`) + pantallas sparse —
-  el patrón nativo premium que ya usas en TeamView/SkillsView. Uniformidad = se lee terminado.
-- **A3. Jerarquía de tarjetas en Code**: un `heroSurface` (Reanudar) + el resto como filas inset en
-  2-3 grupos con `SectionHeader` — no seis cards flotantes iguales.
+- ✅ **A2. `ContentUnavailableView`** en la lista de chats vacía. *Hecho.* (Pendiente: pantallas sparse.)
+- ⏳ **A3. Jerarquía de tarjetas en Code** (un hero + filas inset) — pendiente.
 
 ### Fase B — el sistema de FILA (la mayor palanca)
-- **B1. `CoralRow`**: UNA fila reutilizable (altura fija 44/56, slot leading 28-32pt, título
-  `sfBodyM.medium` + subtítulo `sfCaption2`, zona trailing consistente, `hoverTint`+`selectedRow`
-  siempre, agrupada con hairlines). Adoptar en repos + providers + catálogo primero.
-- **B2. Coral en contenido, por estado**: la cosa activa/primaria/viva lleva coral (spine izquierdo +
-  `accentSoft`), el resto neutro. Una o dos apariciones de coral por pantalla, en lo que importa.
+- ✅ **B1. `CoralRow`** creado y adoptado en **repos (Code)** + **providers/tools (Services)**. Falta:
+  catálogo, y la **lista de chats** (es la Fase C1, nativa).
+- 🟡 **B2. Coral en contenido, por estado** — empezado (fila activa/cloning lleva coral, resto neutro).
 
 ### Fase C — nativo (mayor blast radius, con revisión visual)
 - **C1. Lista de chats → `List(selection: $selectedConfigID)` + `.listStyle(.sidebar)`**, coral vía
