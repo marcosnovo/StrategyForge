@@ -471,13 +471,13 @@ private struct ElevationModifier: ViewModifier {
         -> (aA: Double, aR: CGFloat, aY: CGFloat, cA: Double, cR: CGFloat, cY: CGFloat) {
         switch (level, dark) {
         case (.e1, true):  return (0.28, 14,  6, 0.22, 2, 1)
-        case (.e1, false): return (0.06, 10,  4, 0.05, 1.5, 1)
+        case (.e1, false): return (0.10, 10,  4, 0.08, 1.5, 1)
         case (.e2, true):  return (0.34, 22, 10, 0.26, 3, 1)
-        case (.e2, false): return (0.10, 18,  8, 0.06, 2, 1)
+        case (.e2, false): return (0.17, 18,  9, 0.10, 2.5, 1)
         case (.e3, true):  return (0.40, 30, 14, 0.30, 4, 2)
-        case (.e3, false): return (0.14, 26, 12, 0.08, 3, 1)
+        case (.e3, false): return (0.23, 26, 12, 0.13, 3, 1)
         case (.e4, true):  return (0.48, 40, 20, 0.34, 5, 2)
-        case (.e4, false): return (0.20, 34, 16, 0.10, 4, 2)
+        case (.e4, false): return (0.28, 34, 16, 0.15, 4, 2)
         }
     }
 }
