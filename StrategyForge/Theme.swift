@@ -109,25 +109,26 @@ enum Theme {
     static let coralTextShadow = Color.black.opacity(0.28)
 
     // MARK: Surfaces — near-white (a whisper of warmth) in light, "reef ink" in dark
-    // Warm greige neutrals with a REAL elevation staircase (bg < column < card < inset), so
-    // depth reads from tone first and shadow is a whisper on top (premium review, wave 1).
+    // Clean COOL "reef" neutrals — Coral's own identity (teal-ink dark, crisp near-white
+    // light), NOT warm greige. Depth reads from a real elevation staircase (bg < column <
+    // card < inset) + the shadow ladder, keeping the tint neutral so it never looks dirty.
     static let appBg = Color(
-        light: Color(red: 0.969, green: 0.957, blue: 0.933),   // #F7F4EE warm sand ground
-        dark:  Color(red: 0.043, green: 0.071, blue: 0.078))   // #0B1214 warm reef ink
+        light: Color(red: 0.980, green: 0.978, blue: 0.973),   // #FAF9F6 soft white ground
+        dark:  Color(red: 0.047, green: 0.075, blue: 0.082))   // #0C1315 reef ink
     static let cardBg = Color(
-        light: Color(red: 1.000, green: 0.992, blue: 0.980),   // #FFFDFA warm off-white (lifts by tone)
-        dark:  Color(red: 0.082, green: 0.145, blue: 0.157))   // #152528 warm reef surface (≠ column)
+        light: .white,                                          // #FFFFFF crisp card (lifts off the column)
+        dark:  Color(red: 0.086, green: 0.149, blue: 0.165))   // #16262A reef surface — a step above column
     static let insetBg = Color(
-        light: Color(red: 0.937, green: 0.922, blue: 0.890),   // #EFEBE3 warm stone well
-        dark:  Color(red: 0.102, green: 0.180, blue: 0.196))   // #1A2E32 deeper well
-    /// Warm near-black surface for the left navigation rail (the darkest anchor).
+        light: Color(red: 0.957, green: 0.953, blue: 0.949),   // #F4F3F2 neutral well
+        dark:  Color(red: 0.106, green: 0.180, blue: 0.200))   // #1B2E33 deeper reef well
+    /// Near-black reef surface for the left navigation rail (the darkest anchor).
     static let railBg = Color(
-        light: Color(red: 0.031, green: 0.059, blue: 0.071),   // #080F12
-        dark:  Color(red: 0.031, green: 0.059, blue: 0.071))   // #080F12
+        light: Color(red: 0.031, green: 0.055, blue: 0.063),   // #081014
+        dark:  Color(red: 0.031, green: 0.055, blue: 0.063))   // #081014
     /// Panel surface for the chats + activity columns — sits BETWEEN ground and card.
     static let columnBg = Color(
-        light: Color(red: 0.984, green: 0.973, blue: 0.949),   // #FBF8F2 warm greige
-        dark:  Color(red: 0.063, green: 0.106, blue: 0.118))   // #101B1E
+        light: Color(red: 0.984, green: 0.984, blue: 0.980),   // #FBFBFA a neutral hair below the card
+        dark:  Color(red: 0.071, green: 0.118, blue: 0.129))   // #121E21
 
     // MARK: Lines — warm hairline (identity --line)
     // A hair quieter than the identity value so edges recede and material
@@ -141,7 +142,7 @@ enum Theme {
         light: Color(red: 0.365, green: 0.416, blue: 0.404),   // #5D6A67 ink-dim (AA 5.6:1 on white)
         dark:  Color(red: 0.525, green: 0.627, blue: 0.627))   // #86A0A0
     static let tertiaryOnMaterial = Color(
-        light: Color(red: 0.431, green: 0.392, blue: 0.349),   // #6E6459 mono-dim (keeps AA on the warmer inset)
+        light: Color(red: 0.451, green: 0.416, blue: 0.373),   // #736A5F mono-dim (AA 5.3:1 on white)
         dark:  Color(red: 0.494, green: 0.604, blue: 0.604))   // #7E9A9A (AA on inset)
 
     // MARK: Status (aligned to the Coral identity)
