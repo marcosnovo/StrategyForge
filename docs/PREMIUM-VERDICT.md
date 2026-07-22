@@ -59,9 +59,10 @@ hero + resto plano" está terminado.
 - 🟡 **B2. Coral en contenido, por estado** — fila activa/cloning + hero de Code llevan coral.
 
 ### Fase C — nativo (mayor blast radius, con revisión visual)
-- ⏸️ **C1. Lista de chats → `List` nativo** — **CONTRADICE una decisión documentada** en el código
-  (`SidebarView:71`: el bloque de selección del sistema tapaba el wash coral suave) + tiene rename
-  inline / overlay / context-menu / a11y. No a ciegas: hacer contigo mirando (reversible).
+- ✅ **C1. Lista de chats → `List(selection:)` nativo** — `.listStyle(.sidebar)` + `.tint(coral)`:
+  navegación por teclado + selección nativa (cápsula coral) sustituye el wash a mano. Context-menu,
+  a11y, hover y rename (modal) conservados. ⚠️ **requiere tu revisión visual** (claro+oscuro): si la
+  selección nativa no lee tan bien como el wash suave, revert de 1 commit.
 - ⏸️ **C2. Code/Connections en `Form.grouped`** — pendiente, revisión visual.
 
 ### Fase C — nativo (mayor blast radius, con revisión visual)
