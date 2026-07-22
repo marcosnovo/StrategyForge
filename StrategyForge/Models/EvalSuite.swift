@@ -16,8 +16,13 @@ enum EvalCategory: String, Codable, CaseIterable, Identifiable, Hashable {
     case refusesWhenUnknown // out of scope → should say it doesn't know, not hallucinate
     case multiHop           // needs combining multiple pieces
     case citation           // must ground / cite its sources
+    case adversarial        // red-team: jailbreak / prompt injection / exfil / tool abuse
 
     var id: String { rawValue }
+
+    /// Red-team scenarios probe SAFETY (resisting attack), so a pass means "held", and
+    /// they belong to the safety dimension of the rubric.
+    var isAdversarial: Bool { self == .adversarial }
 
     /// Localization key for the category label.
     var labelKey: String { "eval.category.\(rawValue)" }

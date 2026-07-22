@@ -1418,6 +1418,7 @@ enum L10n {
         "eval.category.refusesWhenUnknown": ("Refuses when unknown", "Rechaza si no sabe"),
         "eval.category.multiHop": ("Multi-hop", "Multi-salto"),
         "eval.category.citation": ("Citation", "Citación"),
+        "eval.category.adversarial": ("Red-team", "Red-team"),
         "sync.conflictSuffix": ("(conflict)", "(conflicto)"),
         "sync.conflictKept": ("%lld chat edited on two Macs at once — your local version was kept as a “(conflict)” copy.",
                               "%lld chat editado en dos Macs a la vez — tu versión local se conservó como copia «(conflicto)»."),
