@@ -674,7 +674,8 @@ struct HoverTint: ViewModifier {
         content
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.primary.opacity(hovering ? 0.045 : 0))
+                    // A faint CORAL hover (was a near-invisible 4.5% primary) — visible, on-brand.
+                    .fill(Theme.accent.opacity(hovering ? 0.09 : 0))
             )
             .animation(.easeOut(duration: 0.15), value: hovering)
             .onHover { hovering = $0 }
