@@ -18,3 +18,11 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
+
+# Local secrets / per-developer config (never commit)
+*.local.xcconfig
+Local.xcconfig
+Secrets.xcconfig
+.env
+.env.*
+GoogleService-Info.plist

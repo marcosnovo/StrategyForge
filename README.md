@@ -1,7 +1,7 @@
 # Coral
 
-A native macOS app (SwiftUI, macOS 14+) to **design *and* run multi-agent AI teams —
-on your own AI plans, locally.**
+**Open source (MIT) · native macOS (SwiftUI, macOS 14+).** Design *and* run multi-agent
+AI teams — **on your own AI plans, locally.**
 
 Coral is chat-first: you talk to a *team* of agents (an orchestrator plus specialized
 subagents) instead of a single assistant, and it drives the CLIs you already pay for —
@@ -90,6 +90,15 @@ there is no automatic upload and no analytics backend.
 - Ships **outside the Mac App Store** (App Sandbox is off — it spawns the provider CLIs),
   distributed as a Developer ID-signed, notarized DMG (see [`docs/RELEASE.md`](docs/RELEASE.md)).
 
+## Security & trust
+
+Coral runs **sandbox-off**, drives the CLIs with **your own logins**, and can run shell
+commands when you pick an autonomous mode — so its trust model is worth reading before you
+run it. There's no server, no token reselling, and telemetry is off by default and local.
+The whole point of open-sourcing it is that you can audit exactly what it does with your
+credentials: see **[`SECURITY.md`](SECURITY.md)** for the trust model, what to audit
+where, and how to report a vulnerability.
+
 ## Build & test
 
 ```
@@ -118,3 +127,16 @@ StrategyForgeTests/          # unit tests
 StrategyForgeUITests/        # UI tests
 docs/                        # RELEASE.md, BACKLOG.md, reviews
 ```
+
+## Contributing
+
+Contributions are welcome — especially **new providers** (there's a "Coming soon · vote"
+roadmap in the app; Kimi, GLM, Qwen and friends are waiting for adapters). See
+**[`CONTRIBUTING.md`](CONTRIBUTING.md)** for first-build setup (signing team, bundle id,
+optional Google/CloudKit config), the test gate, code style, the loop-engine guardrail,
+and a step-by-step for adding a provider.
+
+## License
+
+[MIT](LICENSE) © 2026 Marcos Novo. The license covers the source; the **Coral** name and
+logo are trademarks — don't use them to promote derived products without permission.
