@@ -168,35 +168,27 @@ struct CodeLauncherView: View {
         }
     }
 
-    /// One tappable repo row (recent or GitHub): icon + name + subtitle + chevron.
+    /// One tappable repo row (recent or GitHub) — the canonical `CoralRow`. The active
+    /// (cloning) row is the one that wears coral; the rest stay neutral (verdict B1/B2).
     private func repoRow(icon: String, title: String, subtitle: String?, badge: String?, isCloning: Bool = false) -> some View {
-        HStack(spacing: Space.m) {
-            Image(systemName: icon).font(.system(size: 14)).foregroundStyle(Theme.accent).frame(width: 22)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.sfCallout.weight(.medium)).lineLimit(1).truncationMode(.middle)
-                if isCloning {
-                    Text(model.t("code.cloning")).font(.sfCaption2).foregroundStyle(Theme.accent).lineLimit(1)
-                } else if let subtitle {
-                    Text(subtitle).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                }
-            }
-            Spacer(minLength: Space.s)
-            if isCloning {
-                WorkingLogo(size: 15)
-            } else {
-                if let badge {
-                    Text(badge).font(.sfCaption2).foregroundStyle(.secondary)
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(Capsule().fill(Theme.insetBg))
-                }
-                Image(systemName: "arrow.right").font(.system(size: 11)).foregroundStyle(.tertiary)
-            }
-        }
-        .padding(.vertical, 6).padding(.horizontal, Space.s)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8)
-            .fill(isCloning ? Theme.accent.opacity(0.08) : .clear))
-        .contentShape(Rectangle())
+        CoralRow(title: title,
+                 subtitle: isCloning ? model.t("code.cloning") : subtitle,
+                 selected: isCloning,
+                 leading: { Image(systemName: icon).font(.system(size: 15)) },
+                 trailing: {
+                     if isCloning {
+                         WorkingLogo(size: 15)
+                     } else {
+                         HStack(spacing: Space.s) {
+                             if let badge {
+                                 Text(badge).font(.sfCaption2).foregroundStyle(.secondary)
+                                     .padding(.horizontal, 7).padding(.vertical, 2)
+                                     .background(Capsule().fill(Theme.insetBg))
+                             }
+                             Image(systemName: "chevron.right").font(.system(size: 11)).foregroundStyle(.tertiary)
+                         }
+                     }
+                 })
     }
 
     private func prettyPath(_ path: String) -> String {

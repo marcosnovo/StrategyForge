@@ -113,18 +113,18 @@ struct SidebarView: View {
                             }
                     }
                     if model.configurations.isEmpty {
-                        VStack(alignment: .leading, spacing: Space.s) {
+                        // The native, premium empty state (used consistently app-wide now).
+                        ContentUnavailableView {
+                            Label(model.t("sidebar.empty.cta"), systemImage: "bubble.left.and.bubble.right")
+                        } description: {
                             Text(model.t("sidebar.empty"))
-                                .font(.sfCaption2)
-                                .foregroundStyle(.secondary)
-                            Button {
-                                model.addConfiguration()
-                            } label: {
-                                Label(model.t("sidebar.empty.cta"), systemImage: "square.and.pencil")
+                        } actions: {
+                            Button { model.addConfiguration() } label: {
+                                Label(model.t("sidebar.new"), systemImage: "square.and.pencil")
                             }
-                            .buttonStyle(.link)
+                            .buttonStyle(.borderedProminent)
                         }
-                        .padding(.vertical, Space.xs)
+                        .padding(.top, Space.xl)
                     }
                 }
                 .padding(.horizontal, Space.s).padding(.top, Space.xs)
