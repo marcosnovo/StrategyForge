@@ -12,6 +12,8 @@ import SwiftUI
 /// Second column: the list of AI services with connection status.
 struct ServicesListColumn: View {
     @Environment(AppModel.self) private var model
+    @State private var requesting = false
+    @State private var requestDraft = ""
 
     var body: some View {
         @Bindable var model = model
@@ -33,6 +35,7 @@ struct ServicesListColumn: View {
                     ForEach(AIProvider.allCases) { p in row(p) }
                     groupHeader(model.t("services.group.tools")).padding(.top, Space.s)
                     ForEach(AppModel.DevTool.allCases) { t in toolRow(t) }
+                    comingSoonGroup
                 }
                 .padding(.horizontal, Space.s).padding(.top, Space.xs)
             }
@@ -43,6 +46,72 @@ struct ServicesListColumn: View {
         // neutral vibrancy; the (.bar) title header above keeps the glass accent too.
         .translucentColumn()
         .task { await model.refreshConnectedProviders() }
+        .sheet(isPresented: $requesting) { requestSheet }
+    }
+
+    /// The roadmap: providers Coral doesn't run yet, which the user can upvote to tell us
+    /// which to build next. No fake counts — a vote is saved locally (and, opt-in, logged).
+    @ViewBuilder
+    private var comingSoonGroup: some View {
+        groupHeader(model.t("services.group.soon")).padding(.top, Space.s)
+        ForEach(FutureProvider.all) { f in futureRow(f) }
+        // "Request another" — a free-text path for anything not on the ballot.
+        CoralRow(model.t("future.request"), systemImage: "plus.circle")
+            .onTapGesture { requesting = true }
+        // Honest framing: not live, votes local, only shared if telemetry is on.
+        VStack(alignment: .leading, spacing: 2) {
+            Text(model.t("future.footer")).font(.sfCaption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            if model.futureVoteCount > 0 {
+                Text(model.t("future.voted.count", model.futureVoteCount))
+                    .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+            }
+        }
+        .padding(.horizontal, Space.xs).padding(.top, Space.xs).padding(.bottom, Space.s)
+    }
+
+    /// A future-provider row: a quiet reef-tinted glyph, the name + one-line "why", and a
+    /// vote pill. The row itself isn't selectable (no detail yet) — only the pill acts.
+    private func futureRow(_ f: FutureProvider) -> some View {
+        CoralRow(title: f.name, subtitle: model.t(f.taglineKey),
+                 leading: {
+                     Image(systemName: f.icon).font(.system(size: 15))
+                         .foregroundStyle(f.tint.opacity(0.75))
+                         .frame(width: 26, height: 26)
+                         .background(Circle().fill(f.tint.opacity(0.12)))
+                 },
+                 trailing: { VotePill(voted: model.hasVotedFuture(f.id)) { model.toggleFutureVote(f.id) } })
+    }
+
+    /// The "Request another provider" composer — a small sheet, one field, straight to
+    /// the team's list (persisted locally + logged when telemetry is on).
+    private var requestSheet: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            Text(model.t("future.request.title")).font(.sfCardTitle)
+            Text(model.t("future.request.hint")).font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            TextField(model.t("future.request.placeholder"), text: $requestDraft)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(submitRequest)
+            HStack {
+                Spacer()
+                Button(model.t("common.cancel")) { requesting = false }
+                Button(model.t("future.request.send"), action: submitRequest)
+                    .buttonStyle(.moon)
+                    .disabled(requestDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(Space.l)
+        .frame(width: 380)
+    }
+
+    private func submitRequest() {
+        let text = requestDraft.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        model.requestFutureProvider(text)
+        requestDraft = ""
+        requesting = false
+        model.flashSuccess(model.t("future.request.done"))
     }
 
     private func row(_ p: AIProvider) -> some View {
@@ -90,6 +159,38 @@ struct ServicesListColumn: View {
             Label(model.t("provider.notFound"), systemImage: "xmark.circle")
                 .font(.sfCaption2).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// The roadmap vote affordance: a compact pill in a future-provider row. Coral-outlined
+/// when un-voted, filled coral when voted (tap again to un-vote — honest, changeable).
+/// No numeric count — we have no backend and won't fake a global tally.
+private struct VotePill: View {
+    @Environment(AppModel.self) private var model
+    let voted: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.62)) { action() }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: voted ? "checkmark" : "arrow.up")
+                    .font(.system(size: 10, weight: .bold))
+                Text(model.t(voted ? "future.voted" : "future.vote"))
+                    .font(.sfCaption2.weight(.medium))
+            }
+            .foregroundStyle(voted ? .white : Theme.accent)
+            .padding(.horizontal, Space.s).padding(.vertical, 4)
+            .background(
+                Capsule().fill(voted ? AnyShapeStyle(Theme.accent)
+                                     : AnyShapeStyle(hovering ? Theme.accentSoft : Color.clear)))
+            .overlay(Capsule().strokeBorder(Theme.accent.opacity(voted ? 0 : 0.5), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(model.t(voted ? "future.voted" : "future.vote"))
     }
 }
 

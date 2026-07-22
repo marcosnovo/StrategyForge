@@ -120,6 +120,27 @@ final class AppModel {
         settings.setPlan(plan, for: p); _ = save(stamp: false)
     }
 
+    // MARK: Future-provider roadmap votes (local; no backend)
+
+    /// Whether the user has upvoted a future provider on the "Coming soon" roadmap.
+    func hasVotedFuture(_ id: String) -> Bool { settings.hasVotedFuture(id) }
+    /// How many roadmap providers the user has voted for (for the honest local footer).
+    var futureVoteCount: Int { settings.votedFutureProviders.count }
+    /// Toggle the user's roadmap vote, persist locally, and (opt-in) log the demand.
+    func toggleFutureVote(_ id: String) {
+        let voted = settings.toggleFutureVote(id)
+        _ = save(stamp: false)
+        Analytics.log(.futureProviderVoted(id: id, voted: voted))
+    }
+    /// Record a free-text request for a provider not on the ballot.
+    func requestFutureProvider(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        settings.requestedProviders.append(trimmed)
+        _ = save(stamp: false)
+        Analytics.log(.futureProviderRequested(text: trimmed))
+    }
+
     // MARK: OpenAI API key (Keychain) + runner config
 
     private static let openAIKeyItem = "openai.apiKey"

@@ -50,6 +50,11 @@ enum Analytics {
         /// run outcomes (Mission Reports) to tune the recommender and the model profiles.
         case recommendationMade(shape: String, teamSize: Int, intent: String, confidence: Int,
                                 usedAI: Bool, connected: String, deprioritized: String, providers: String)
+        /// Roadmap demand signals: which future providers users vote for, and free-text
+        /// requests for one not on the ballot. This is how the founder sees what to build
+        /// next without a backend — both land in the local JSONL (opt-in only).
+        case futureProviderVoted(id: String, voted: Bool)   // voted=false when un-voting
+        case futureProviderRequested(text: String)
 
         var name: String {
             switch self {
@@ -75,6 +80,8 @@ enum Analytics {
             case .licenseActivated: return "license_activated"
             case .testbenchComparisonRun: return "testbench_comparison_run"
             case .recommendationMade: return "recommendation_made"
+            case .futureProviderVoted: return "future_provider_voted"
+            case .futureProviderRequested: return "future_provider_requested"
             }
         }
 
@@ -110,6 +117,10 @@ enum Analytics {
                 return ["shape": shape, "team_size": "\(size)", "intent": intent,
                         "confidence": "\(conf)", "used_ai": "\(ai)", "connected": conn,
                         "deprioritized": deprio, "providers": provs]
+            case .futureProviderVoted(let id, let voted):
+                return ["id": id, "voted": "\(voted)"]
+            case .futureProviderRequested(let text):
+                return ["text": text]
             }
         }
     }

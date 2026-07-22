@@ -57,6 +57,13 @@ struct AppSettings: Codable, Hashable {
     /// When true, Codex runs via an OpenAI API key (stored in the Keychain, not here)
     /// which re-enables explicit model selection. Default false = subscription login.
     var openaiUseAPIKey: Bool
+    /// Future-provider slugs the user has upvoted on the "Coming soon" roadmap (local
+    /// only; no server). Rides along with the portable config's CloudKit sync so a vote
+    /// isn't lost on the user's other Mac.
+    var votedFutureProviders: Set<String>
+    /// Free-text "request another provider" submissions, kept so the row can show a
+    /// "Requested" confirmation (and, with telemetry on, they're logged for the team).
+    var requestedProviders: [String]
 
     init(
         defaultReposPath: String? = nil,
@@ -71,7 +78,9 @@ struct AppSettings: Codable, Hashable {
         showActivity: Bool = false,
         providerPlans: [String: String] = [:],
         codexReasoningEffort: String = "",
-        openaiUseAPIKey: Bool = false
+        openaiUseAPIKey: Bool = false,
+        votedFutureProviders: Set<String> = [],
+        requestedProviders: [String] = []
     ) {
         self.defaultReposPath = defaultReposPath
         self.defaultReposBookmark = defaultReposBookmark
@@ -86,6 +95,8 @@ struct AppSettings: Codable, Hashable {
         self.providerPlans = providerPlans
         self.codexReasoningEffort = codexReasoningEffort
         self.openaiUseAPIKey = openaiUseAPIKey
+        self.votedFutureProviders = votedFutureProviders
+        self.requestedProviders = requestedProviders
     }
 
     // Tolerant decoding so older saved data (without newer keys) still loads.
@@ -93,6 +104,7 @@ struct AppSettings: Codable, Hashable {
         case defaultReposPath, defaultReposBookmark, claudeBinary, codexBinary, geminiBinary
         case language, chatAutonomy, lastSelectedConfigID, lastSelectedTeamID, showActivity, providerPlans
         case codexReasoningEffort, openaiUseAPIKey
+        case votedFutureProviders, requestedProviders
     }
 
     init(from decoder: Decoder) throws {
@@ -110,6 +122,8 @@ struct AppSettings: Codable, Hashable {
         providerPlans = try c.decodeIfPresent([String: String].self, forKey: .providerPlans) ?? [:]
         codexReasoningEffort = try c.decodeIfPresent(String.self, forKey: .codexReasoningEffort) ?? ""
         openaiUseAPIKey = try c.decodeIfPresent(Bool.self, forKey: .openaiUseAPIKey) ?? false
+        votedFutureProviders = try c.decodeIfPresent(Set<String>.self, forKey: .votedFutureProviders) ?? []
+        requestedProviders = try c.decodeIfPresent([String].self, forKey: .requestedProviders) ?? []
     }
 
     /// The configured binary name/path for a provider.
@@ -129,5 +143,14 @@ struct AppSettings: Codable, Hashable {
     mutating func setPlan(_ plan: String?, for provider: AIProvider) {
         if let plan, !plan.isEmpty { providerPlans[provider.rawValue] = plan }
         else { providerPlans[provider.rawValue] = nil }
+    }
+
+    /// Whether the user has upvoted a future provider on the roadmap.
+    func hasVotedFuture(_ id: String) -> Bool { votedFutureProviders.contains(id) }
+    /// Toggle the user's vote for a future provider; returns the new voted state.
+    @discardableResult
+    mutating func toggleFutureVote(_ id: String) -> Bool {
+        if votedFutureProviders.contains(id) { votedFutureProviders.remove(id); return false }
+        votedFutureProviders.insert(id); return true
     }
 }
