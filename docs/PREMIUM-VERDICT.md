@@ -53,9 +53,16 @@ hero + resto plano" está terminado.
   falta demotar create/clone/pick del muro de tarjetas. + **lista de chats con aire** (2→5pt).
 
 ### Fase B — el sistema de FILA (la mayor palanca)
-- ✅ **B1. `CoralRow`** creado y adoptado en **repos (Code)** + **providers/tools (Services)**. Falta:
-  catálogo, y la **lista de chats** (es la Fase C1, nativa).
-- 🟡 **B2. Coral en contenido, por estado** — empezado (fila activa/cloning lleva coral, resto neutro).
+- ✅ **B1. `CoralRow`** adoptado en **repos (Code)**, **providers/tools (Services)** y **loops** →
+  TODAS las listas hand-rolled salvo la de chats comparten una fila. (El catálogo son *tarjetas*,
+  no filas — se quedan `.card()`.)
+- 🟡 **B2. Coral en contenido, por estado** — fila activa/cloning + hero de Code llevan coral.
+
+### Fase C — nativo (mayor blast radius, con revisión visual)
+- ⏸️ **C1. Lista de chats → `List` nativo** — **CONTRADICE una decisión documentada** en el código
+  (`SidebarView:71`: el bloque de selección del sistema tapaba el wash coral suave) + tiene rename
+  inline / overlay / context-menu / a11y. No a ciegas: hacer contigo mirando (reversible).
+- ⏸️ **C2. Code/Connections en `Form.grouped`** — pendiente, revisión visual.
 
 ### Fase C — nativo (mayor blast radius, con revisión visual)
 - **C1. Lista de chats → `List(selection: $selectedConfigID)` + `.listStyle(.sidebar)`**, coral vía
