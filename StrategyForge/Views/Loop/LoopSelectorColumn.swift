@@ -88,65 +88,40 @@ struct LoopSelectorColumn: View {
 
     private func loopRow(_ loop: LoopPlan) -> some View {
         let selected = store.selectedLoopID == loop.id
-        return Button {
-            store.selectedLoopID = loop.id
-            store.save()   // selection is persisted (restored on relaunch)
-        } label: {
-            HStack(spacing: Space.s) {
+        let source = loop.sourceChatName.flatMap { $0.isEmpty ? nil : $0 }
+        let subtitle = [model.t(loop.kind.labelKey), source].compactMap { $0 }.joined(separator: " · ")
+        return CoralRow(
+            title: loop.name.isEmpty ? model.t("loop.untitled") : loop.name,
+            subtitle: subtitle,
+            selected: selected,
+            leading: {
                 ZStack {
-                    Circle().fill(Theme.accentSoft).frame(width: 34, height: 34)
-                    Image(systemName: loop.kind.icon)
-                        .font(.system(size: 14, weight: .semibold))
+                    Circle().fill(Theme.accentSoft).frame(width: 28, height: 28)
+                    Image(systemName: loop.kind.icon).font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.accent)
                 }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(loop.name.isEmpty ? model.t("loop.untitled") : loop.name)
-                        .font(.sfCallout.weight(.medium)).foregroundStyle(Theme.ink).lineLimit(1)
-                    HStack(spacing: 4) {
-                        Text(model.t(loop.kind.labelKey))
-                            .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
-                        // Where it came from — a chat or a code chat — so a loop and its
-                        // origin stay visibly linked in the list.
-                        if let source = loop.sourceChatName, !source.isEmpty {
-                            Image(systemName: loop.sourceIsCode ? "chevron.left.forwardslash.chevron.right" : "bubble.left")
-                                .scaledFont(8).foregroundStyle(.tertiary)
-                            Text(source).font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
-                        }
-                    }
-                }
-                Spacer(minLength: 0)
+            },
+            trailing: {
                 if hoveredID == loop.id {
-                    Button {
-                        pendingDelete = loop.id
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                    Button { pendingDelete = loop.id } label: {
+                        Image(systemName: "trash").font(.system(size: 11)).foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.borderless)
-                    .help(model.t("loop.delete"))
+                    .buttonStyle(.borderless).help(model.t("loop.delete"))
                 } else if store.runningLoopIDs.contains(loop.id) {
                     WorkingLogo(size: 12)
                 } else if LoopScheduler.isScheduled(loop.id) {
-                    // Scheduled to run unattended on a cadence — mark it so the list shows
-                    // which loops are "armed" even when idle.
                     Image(systemName: "clock.badge.checkmark")
                         .font(.system(size: 11)).foregroundStyle(Theme.tealText)
                         .help(model.t("loop.schedule.on"))
                 } else {
                     Text(model.t("loop.list.turns", loop.maxTurns))
-                        .font(.sfCaption2).monospacedDigit()
-                        .foregroundStyle(.tertiary)
+                        .font(.sfCaption2).monospacedDigit().foregroundStyle(.tertiary)
                 }
-            }
-            .padding(.vertical, Space.xs).padding(.horizontal, Space.s)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            })
+        .onTapGesture {
+            store.selectedLoopID = loop.id
+            store.save()   // selection is persisted (restored on relaunch)
         }
-        .buttonStyle(.plain)
-        // Soft rounded glass selection + hover, matching the chat list (Aetheris).
-        .selectedRow(selected, cornerRadius: Theme.rowCorner)
-        .hoverTint(cornerRadius: Theme.rowCorner)
         .onHover { hovering in
             if hovering { hoveredID = loop.id }
             else if hoveredID == loop.id { hoveredID = nil }
