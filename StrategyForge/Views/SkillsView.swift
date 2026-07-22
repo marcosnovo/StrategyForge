@@ -20,11 +20,9 @@ struct SkillsView: View {
     @State private var pasteRef = ""
     @State private var fetching = false
     @State private var errorText: String?
-    /// The Top tab list (community-by-stars, or the official catalog as fallback).
-    @State private var topSkills: [CuratedSkill] = []
-    @State private var loadingTop = false
-    /// True when Top is showing community results (via gh); false = official fallback.
-    @State private var topCommunity = false
+    // The Top tab list (community-by-stars, or the official catalog fallback) now lives on
+    // SkillStore.shared so it survives this view being recreated when you switch sections —
+    // it loads once and is reused instead of re-fetching every time.
     /// A fetched, not-yet-installed skill awaiting the trust/confirm sheet.
     @State private var pending: AgentSkill?
     @State private var installing = false
@@ -58,32 +56,8 @@ struct SkillsView: View {
         .tint(Theme.accent)
         .task(id: tab) {
             store.scan(projectRepo: projectRepo)
-            if tab == .top, topSkills.isEmpty, !loadingTop { await loadTop() }
+            if tab == .top { await store.loadTopIfNeeded() }
         }
-    }
-
-    /// Load the Top tab: community skills ranked by GitHub stars (via `gh` code
-    /// search), falling back to the official catalog when gh isn't available.
-    private func loadTop() async {
-        loadingTop = true; errorText = nil
-        let community = await GitHubCLI.searchCommunitySkills()
-        if community.isEmpty {
-            topCommunity = false
-            do { topSkills = try await store.officialCatalog() }
-            catch { errorText = error.localizedDescription }
-        } else {
-            topCommunity = true
-            topSkills = community.map { r in
-                CuratedSkill(slug: r.slug, name: prettify(r.slug), description: "\(r.owner)/\(r.repo)",
-                             category: "Community", owner: r.owner, repo: r.repo, ref: r.defaultBranch,
-                             path: r.path, verified: false, stars: r.stars)
-            }
-        }
-        loadingTop = false
-    }
-
-    private func prettify(_ slug: String) -> String {
-        slug.split(separator: "-").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
     }
 
     private func formatStars(_ n: Int) -> String {
@@ -165,19 +139,19 @@ struct SkillsView: View {
     /// "installed" mark on any you already have.
     private var topList: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            Text(model.t(topCommunity ? "skills.top.community" : "skills.top.note"))
+            Text(model.t(store.topCommunity ? "skills.top.community" : "skills.top.note"))
                 .font(.sfCaption2).foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
-            if loadingTop {
+            if store.isLoadingTop {
                 HStack(spacing: Space.s) { WorkingLogo(size: 14)
                     Text(model.t("skills.top.loading")).font(.sfCaption2).foregroundStyle(.secondary) }
                     .padding(.vertical, Space.s)
             }
-            if let e = errorText, tab == .top {
+            if let e = store.topError, tab == .top {
                 Label(e, systemImage: "exclamationmark.triangle.fill").font(.sfCaption2)
                     .foregroundStyle(Theme.warningText).fixedSize(horizontal: false, vertical: true)
             }
-            let shown = topSkills.filter(matchesFilters)
+            let shown = store.topSkills.filter(matchesFilters)
             ForEach(Array(shown.enumerated()), id: \.element.id) { i, c in curatedRow(c, rank: i + 1) }
         }
         .padding(Space.s)

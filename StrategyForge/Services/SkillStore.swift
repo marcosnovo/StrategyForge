@@ -23,6 +23,41 @@ final class SkillStore {
 
     private(set) var installed: [AgentSkill] = []
 
+    // MARK: - "Top" tab cache (lives on the singleton, so switching sections doesn't
+    // re-hit the network every time SkillsView is recreated — it loads once and stays).
+    private(set) var topSkills: [CuratedSkill] = []
+    private(set) var topCommunity = false
+    private(set) var topError: String?
+    private(set) var isLoadingTop = false
+    @ObservationIgnored private var didLoadTop = false
+
+    /// Load the Top list once (community-by-stars via gh, else the official catalog) and
+    /// cache it. No-ops on later calls unless `force` (the manual refresh). A failed load
+    /// leaves the cache empty so the next visit retries.
+    func loadTopIfNeeded(force: Bool = false) async {
+        if !force { guard !didLoadTop, !isLoadingTop else { return } }
+        isLoadingTop = true; topError = nil
+        let community = await GitHubCLI.searchCommunitySkills()
+        if community.isEmpty {
+            topCommunity = false
+            do { topSkills = try await officialCatalog() }
+            catch { topError = error.localizedDescription }
+        } else {
+            topCommunity = true
+            topSkills = community.map { r in
+                CuratedSkill(slug: r.slug, name: Self.prettifySlug(r.slug), description: "\(r.owner)/\(r.repo)",
+                             category: "Community", owner: r.owner, repo: r.repo, ref: r.defaultBranch,
+                             path: r.path, verified: false, stars: r.stars)
+            }
+        }
+        didLoadTop = !topSkills.isEmpty   // cache only a real result; retry after a failure
+        isLoadingTop = false
+    }
+
+    static func prettifySlug(_ slug: String) -> String {
+        slug.split(separator: "-").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+    }
+
     // MARK: - Scan (filesystem is the source of truth)
 
     private var personalDir: URL {
