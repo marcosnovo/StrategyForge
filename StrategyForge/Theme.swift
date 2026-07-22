@@ -160,6 +160,15 @@ enum Theme {
         light: Color(red: 0.831, green: 0.176, blue: 0.247),   // #D42D3F crimson (AA 4.9:1, hue ~353°)
         dark:  Color(red: 1.000, green: 0.361, blue: 0.424))   // #FF5C6C
 
+    // MARK: Team spectrum (governed) — muted, cool-leaning teammate hues so the coral
+    // ORCHESTRATOR stays the unmistakable hero in any topology. Desaturated ~25% from the
+    // old full-strength set; reviewer/researcher no longer collide with warning/success.
+    static let teamBlue   = Color(red: 0.329, green: 0.471, blue: 0.659)   // #5478A8 planner
+    static let teamGreen  = Color(red: 0.290, green: 0.588, blue: 0.439)   // #4A9670 researcher (≠ success)
+    static let teamViolet = Color(red: 0.502, green: 0.451, blue: 0.682)   // #8073AE advisor
+    static let teamAmber  = Color(red: 0.710, green: 0.541, blue: 0.322)   // #B58A52 reviewer (≠ warning)
+    static let teamRose   = Color(red: 0.745, green: 0.498, blue: 0.596)   // #BE7F98 specialist
+
     // MARK: Metrics — softer, more rounded (reference-style)
     /// Top inset for column headers so their content clears the floating traffic
     /// lights / hidden titlebar (content fills to the window edge; this pushes the
