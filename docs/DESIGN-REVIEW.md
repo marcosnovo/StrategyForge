@@ -39,13 +39,14 @@ chat); (3) **coral Y teal ambos como color de acción** → la identidad se dilu
 > **D5 material del rail** (rail = `.regularMaterial` denso vs columnas `.ultraThinMaterial`,
 > separación predecible y text-safe; nuevo `railColumn()`). · ✅ **A6 micro-tipografía**
 > (hallazgo: `scaledFont` suela a 10pt, así que 7/8/8.5/9 renderizan idénticos; fundido el 8.5,
-> documentada la regla, 9 = micro sancionada). · ⏳ **Único pendiente — D4** (header nativo en
-> `.toolbar`): **NO hecho a ciegas a propósito** — es una reescritura *destructiva* de un header
-> a medida y denso (título editable, cápsula de equipo glass, clúster de controles) a una sola
-> fila de `ToolbarItem`s; `RenderPreview` no arranca en este entorno (el host de preview no puede
-> instanciar `AppModel` en 30s), así que no puedo autoverificarlo. El header actual ya resuelve
-> los traffic-lights vía `titlebarInset`. **Hacer en sesión en vivo** (el usuario corre + captura,
-> yo itero). Fuera de la review: **UX de clonado** arreglada. Todo ✅ está en `main`, 330 verdes.
+> documentada la regla, 9 = micro sancionada). · ✅ **D4 — inset adaptativo en full-screen**
+> (el objetivo real de D4 —traffic-lights/full-screen— ya lo daba `WindowConfigurator`; en vez de
+> reescribir el header denso a `.toolbar` de una fila, arreglado el bug concreto: en full-screen
+> los semáforos desaparecen y el inset de 30pt quedaba muerto → `AppModel.isFullScreen` vía
+> notificaciones async de NSWindow colapsa `titlebarTopInset` en las 4 columnas). La migración
+> total a `.toolbar` nativo se descartó a conciencia: destruye un header a medida y de dos líneas
+> sin ganancia funcional (los semáforos ya son correctos). **REDISEÑO COMPLETO.** Fuera de la
+> review: **UX de clonado** arreglada. Todo ✅ está en `main`, compilando, 330 tests verdes.
 
 ### Ola A — wins globales de token/visual (una tarde, riesgo bajo, alta calidad percibida)
 - A1. **Display type más grande y ceñido** (`Theme.sfDisplay` → `.largeTitle`/bold, tracking −0.5); héroes ~28–34pt.
