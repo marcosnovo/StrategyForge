@@ -109,23 +109,25 @@ enum Theme {
     static let coralTextShadow = Color.black.opacity(0.28)
 
     // MARK: Surfaces — near-white (a whisper of warmth) in light, "reef ink" in dark
+    // Warm greige neutrals with a REAL elevation staircase (bg < column < card < inset), so
+    // depth reads from tone first and shadow is a whisper on top (premium review, wave 1).
     static let appBg = Color(
-        light: Color(red: 0.980, green: 0.978, blue: 0.973),   // #FAF9F6 soft white
-        dark:  Color(red: 0.047, green: 0.075, blue: 0.082))   // #0C1315 reef ink
+        light: Color(red: 0.969, green: 0.957, blue: 0.933),   // #F7F4EE warm sand ground
+        dark:  Color(red: 0.043, green: 0.071, blue: 0.078))   // #0B1214 warm reef ink
     static let cardBg = Color(
-        light: .white,                                          // #FFFFFF
-        dark:  Color(red: 0.071, green: 0.118, blue: 0.129))   // #121E21 reef surface
+        light: Color(red: 1.000, green: 0.992, blue: 0.980),   // #FFFDFA warm off-white (lifts by tone)
+        dark:  Color(red: 0.082, green: 0.145, blue: 0.157))   // #152528 warm reef surface (≠ column)
     static let insetBg = Color(
-        light: Color(red: 0.957, green: 0.953, blue: 0.949),   // #F4F3F2 neutral well
-        dark:  Color(red: 0.086, green: 0.149, blue: 0.165))   // #16262A
-    /// Warm near-black surface for the left navigation rail.
+        light: Color(red: 0.937, green: 0.922, blue: 0.890),   // #EFEBE3 warm stone well
+        dark:  Color(red: 0.102, green: 0.180, blue: 0.196))   // #1A2E32 deeper well
+    /// Warm near-black surface for the left navigation rail (the darkest anchor).
     static let railBg = Color(
-        light: Color(red: 0.047, green: 0.075, blue: 0.082),   // #0C1315
-        dark:  Color(red: 0.031, green: 0.055, blue: 0.063))   // #081014
-    /// Panel surface for the chats + activity columns (warm white / reef surface).
+        light: Color(red: 0.031, green: 0.059, blue: 0.071),   // #080F12
+        dark:  Color(red: 0.031, green: 0.059, blue: 0.071))   // #080F12
+    /// Panel surface for the chats + activity columns — sits BETWEEN ground and card.
     static let columnBg = Color(
-        light: .white,
-        dark:  Color(red: 0.071, green: 0.118, blue: 0.129))   // #121E21
+        light: Color(red: 0.984, green: 0.973, blue: 0.949),   // #FBF8F2 warm greige
+        dark:  Color(red: 0.063, green: 0.106, blue: 0.118))   // #101B1E
 
     // MARK: Lines — warm hairline (identity --line)
     // A hair quieter than the identity value so edges recede and material
@@ -139,7 +141,7 @@ enum Theme {
         light: Color(red: 0.365, green: 0.416, blue: 0.404),   // #5D6A67 ink-dim (AA 5.6:1 on white)
         dark:  Color(red: 0.525, green: 0.627, blue: 0.627))   // #86A0A0
     static let tertiaryOnMaterial = Color(
-        light: Color(red: 0.451, green: 0.416, blue: 0.373),   // #736A5F mono-dim (AA 5.3:1 on white)
+        light: Color(red: 0.431, green: 0.392, blue: 0.349),   // #6E6459 mono-dim (keeps AA on the warmer inset)
         dark:  Color(red: 0.494, green: 0.604, blue: 0.604))   // #7E9A9A (AA on inset)
 
     // MARK: Status (aligned to the Coral identity)
@@ -439,6 +441,45 @@ extension View {
     }
 }
 
+// MARK: - Elevation (physical depth: objects resting on the reef)
+
+/// An elevation level — a floating card reads as a physical object because it casts BOTH a
+/// soft ambient shadow and a tight contact shadow, and (critically on dark) the ambient must
+/// be 2–3× stronger than a flat 0.12 or it vanishes on reef ink (premium review, wave 1).
+enum Elevation { case e1, e2, e3, e4 }
+
+private struct ElevationModifier: ViewModifier {
+    let level: Elevation
+    @Environment(\.colorScheme) private var scheme
+    func body(content: Content) -> some View {
+        let p = Self.params(level: level, dark: scheme == .dark)
+        content
+            .shadow(color: .black.opacity(p.aA), radius: p.aR, x: 0, y: p.aY)   // ambient (soft, spread)
+            .shadow(color: .black.opacity(p.cA), radius: p.cR, x: 0, y: p.cY)   // contact (tight, grounding)
+    }
+    /// (ambient alpha/radius/y, contact alpha/radius/y) per level × appearance.
+    static func params(level: Elevation, dark: Bool)
+        -> (aA: Double, aR: CGFloat, aY: CGFloat, cA: Double, cR: CGFloat, cY: CGFloat) {
+        switch (level, dark) {
+        case (.e1, true):  return (0.28, 14,  6, 0.22, 2, 1)
+        case (.e1, false): return (0.06, 10,  4, 0.05, 1.5, 1)
+        case (.e2, true):  return (0.34, 22, 10, 0.26, 3, 1)
+        case (.e2, false): return (0.10, 18,  8, 0.06, 2, 1)
+        case (.e3, true):  return (0.40, 30, 14, 0.30, 4, 2)
+        case (.e3, false): return (0.14, 26, 12, 0.08, 3, 1)
+        case (.e4, true):  return (0.48, 40, 20, 0.34, 5, 2)
+        case (.e4, false): return (0.20, 34, 16, 0.10, 4, 2)
+        }
+    }
+}
+
+extension View {
+    /// A dark-mode-aware elevation (ambient + contact shadow) so a surface reads as a
+    /// physical object resting on the reef. e1 = inline cards, e2 = floating cards,
+    /// e3 = popovers, e4 = sheets / command palette.
+    func elevation(_ level: Elevation) -> some View { modifier(ElevationModifier(level: level)) }
+}
+
 // MARK: - Card surface
 
 private struct CardModifier: ViewModifier {
@@ -450,9 +491,7 @@ private struct CardModifier: ViewModifier {
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(Theme.cardBg)
-                    // Modern "float": a larger, softer, lower-alpha shadow instead
-                    // of a hard drop — cards hover over the paper rather than sit on it.
-                    .shadow(color: .black.opacity(0.12), radius: 22, x: 0, y: 9)
+                    .elevation(.e2)   // floats above the reef with ambient + contact depth
             )
     }
 }
@@ -472,7 +511,7 @@ extension View {
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(Theme.cardBg)
-                    .shadow(color: .black.opacity(0.12), radius: 22, x: 0, y: 9)
+                    .elevation(.e2)
             )
     }
 

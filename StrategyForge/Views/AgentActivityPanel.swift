@@ -995,9 +995,10 @@ private struct PanelCard: ViewModifier {
         content
             .padding(Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.cardBg))
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+                .fill(Theme.cardBg).elevation(.e1))   // lift off the column with ambient depth
             .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-                .strokeBorder(Theme.hairline.opacity(0.6), lineWidth: 1))
+                .strokeBorder(Theme.hairline.opacity(0.4), lineWidth: 1))
     }
 }
 extension View {
