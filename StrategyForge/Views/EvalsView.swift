@@ -14,6 +14,7 @@ struct EvalsView: View {
     @Binding var strategy: Strategy
 
     @State private var run: EvalRun?
+    @State private var regression: EvalRegression?
     @State private var isBusy = false
     @State private var progress: (done: Int, total: Int)?
 
@@ -32,6 +33,7 @@ struct EvalsView: View {
             } else {
                 summaryRow
                 if run != nil { thresholdCaption }
+                if let reg = regression, reg.hasBaseline { regressionRow(reg) }
                 ForEach(scenarios) { scenario in scenarioRow(scenario, run: run) }
             }
 
@@ -67,14 +69,38 @@ struct EvalsView: View {
             .font(.sfCaption2).foregroundStyle(.tertiary)
     }
 
+    /// Regression vs the suite's saved baseline: what broke / got fixed since last run (#6).
+    private func regressionRow(_ reg: EvalRegression) -> some View {
+        HStack(spacing: Space.s) {
+            if reg.regressed.isEmpty && reg.fixed.isEmpty {
+                Label(model.t("eval.noRegression"), systemImage: "equal.circle")
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+            } else {
+                if !reg.regressed.isEmpty {
+                    Label(model.t("eval.regressed", reg.regressed.count), systemImage: "arrow.down.right.circle.fill")
+                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.danger)
+                }
+                if !reg.fixed.isEmpty {
+                    Label(model.t("eval.fixed", reg.fixed.count), systemImage: "arrow.up.right.circle.fill")
+                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.success)
+                }
+                Text(model.t("eval.regression.since")).font(.sfFieldLabel).foregroundStyle(.tertiary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Space.s).padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+    }
+
     private func scenarioRow(_ scenario: EvalScenario, run: EvalRun?) -> some View {
         let result = run?.results.first { $0.scenarioID == scenario.id }
         return HStack(alignment: .top, spacing: Space.s) {
             // Verdict marker: pass = green circle, fail = red square (colorblind-safe),
-            // unrun = hollow.
+            // unrun = hollow. Uses the EFFECTIVE verdict (a human override wins).
             Group {
                 if let r = result {
-                    if r.passed {
+                    if r.effectivePassed {
                         Circle().fill(Theme.success)
                     } else {
                         RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Theme.danger)
@@ -84,18 +110,69 @@ struct EvalsView: View {
                 }
             }
             .frame(width: 9, height: 9).padding(.top, 3)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(scenario.prompt).font(.sfCaption2).foregroundStyle(Theme.ink).lineLimit(2)
-                Text(model.t(scenario.category.labelKey)).font(.sfFieldLabel).foregroundStyle(.tertiary)
-                if let r = result, !r.passed {
+                HStack(spacing: Space.xs) {
+                    Text(model.t(scenario.category.labelKey)).font(.sfFieldLabel).foregroundStyle(.tertiary)
+                    // Trajectory verdict (#4): whether the PATH matched, when graded.
+                    if let tp = result?.trajectoryPassed {
+                        Label(model.t(tp ? "eval.path.ok" : "eval.path.bad"), systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                            .labelStyle(.titleOnly).font(.sfFieldLabel)
+                            .foregroundStyle(tp ? Theme.success : Theme.danger)
+                            .help(model.t("eval.path.help"))
+                    }
+                    if result?.humanVerdict != nil {
+                        Text(model.t("eval.overridden")).font(.sfFieldLabel).foregroundStyle(Theme.accent)
+                    }
+                }
+                // Per-dimension rubric scores (#3), when the judge returned them.
+                if let scores = result?.scores, !scores.isEmpty { rubricLine(scores) }
+                if let r = result, !r.effectivePassed, !r.reason.isEmpty {
                     Text(r.reason).font(.sfCaption2).foregroundStyle(Theme.danger)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            Spacer(minLength: 0)
+            // Judge calibration (#8): agree / disagree, so a drifting judge can be caught.
+            if let r = result { calibrateButtons(for: r) }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(scenario.prompt)
-        .accessibilityValue(result.map { $0.passed ? model.t("eval.pass") : "\(model.t("eval.fail")): \($0.reason)" } ?? "")
+        .accessibilityValue(result.map { $0.effectivePassed ? model.t("eval.pass") : "\(model.t("eval.fail")): \($0.reason)" } ?? "")
+    }
+
+    /// "correctness 4 · grounding 3 · safety 5" in the rubric's dimension order.
+    private func rubricLine(_ scores: [String: Int]) -> some View {
+        let ordered = EvalRunner.rubricDimensions.filter { scores[$0] != nil }
+            + scores.keys.filter { !EvalRunner.rubricDimensions.contains($0) }.sorted()
+        return Text(ordered.map { "\(model.t("eval.dim.\($0)")) \(scores[$0]!)" }.joined(separator: " · "))
+            .font(.sfFieldLabel).foregroundStyle(.secondary)
+    }
+
+    private func calibrateButtons(for result: EvalResult) -> some View {
+        HStack(spacing: 2) {
+            let agree = result.humanVerdict == result.passed && result.humanVerdict != nil
+            let disagree = result.humanVerdict != nil && result.humanVerdict != result.passed
+            Button { setHuman(result.scenarioID, result.passed) } label: {
+                Image(systemName: agree ? "hand.thumbsup.fill" : "hand.thumbsup")
+            }
+            .buttonStyle(.plain).foregroundStyle(agree ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.tertiary))
+            .help(model.t("eval.calibrate.agree"))
+            Button { setHuman(result.scenarioID, !result.passed) } label: {
+                Image(systemName: disagree ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+            }
+            .buttonStyle(.plain).foregroundStyle(disagree ? AnyShapeStyle(Theme.danger) : AnyShapeStyle(.tertiary))
+            .help(model.t("eval.calibrate.disagree"))
+        }
+        .font(.system(size: 11))
+    }
+
+    /// Record the human's verdict for a scenario, updating the gate live.
+    private func setHuman(_ scenarioID: UUID, _ verdict: Bool) {
+        guard var out = run, let i = out.results.firstIndex(where: { $0.scenarioID == scenarioID }) else { return }
+        // Toggle off if they tap the same verdict they already set.
+        out.results[i].humanVerdict = (out.results[i].humanVerdict == verdict) ? nil : verdict
+        run = out
     }
 
     // MARK: Actions
@@ -130,8 +207,9 @@ struct EvalsView: View {
         guard !scenarios.isEmpty else { model.flashFailure(model.t("eval.generateFailed")); return }
         var s = strategy.evalSuite ?? EvalSuite()
         s.scenarios = scenarios
+        s.baseline = [:]   // new scenarios have new ids — the old baseline no longer applies
         strategy.evalSuite = s
-        run = nil   // stale results no longer match the new scenarios
+        run = nil; regression = nil   // stale results no longer match the new scenarios
         model.flashSuccess(model.t("eval.generated", scenarios.count))
     }
 
@@ -144,7 +222,13 @@ struct EvalsView: View {
             judgeRunner: model.oneShotRunner(readOnly: true)) { done, total in
                 Task { @MainActor in progress = (done, total) }
             }
+        // Regression vs the saved baseline BEFORE we overwrite it (#6).
+        regression = EvalRegression.between(baseline: suite.baseline, run: outcome)
         run = outcome
+        // Persist this run as the new baseline for next time.
+        var s = strategy.evalSuite ?? EvalSuite()
+        s.baseline = outcome.baselineMap
+        strategy.evalSuite = s
         model.flashSuccess(model.t("eval.doneBanner", outcome.passed, outcome.total))
     }
 }
