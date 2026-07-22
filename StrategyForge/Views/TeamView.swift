@@ -147,6 +147,10 @@ struct TeamView: View {
                     // Evals: measure the team against a scenario suite before trusting it.
                     EvalsView(strategy: $team.strategy)
                         .staggeredAppear(index: strategy.subagentRoles.count + 2)
+
+                    // Tool unit tests: deterministic tool checks, no model in the loop.
+                    ToolChecksView(strategy: $team.strategy)
+                        .staggeredAppear(index: strategy.subagentRoles.count + 3)
                 }
                 .padding(Space.xl)
                 .frame(maxWidth: .infinity, alignment: .leading)

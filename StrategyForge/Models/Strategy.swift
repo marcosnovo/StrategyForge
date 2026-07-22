@@ -29,6 +29,9 @@ struct Strategy: Codable, Identifiable, Hashable {
     /// "reviewer ≠ author" judge grades each), so you can measure a team BEFORE trusting
     /// it. Travels with the team (sync/export) like the rest of the portable shape.
     var evalSuite: EvalSuite?
+    /// Deterministic tool unit tests (article #5): each runs a command and asserts on the
+    /// output, no model in the loop — "most agent bugs are tool bugs wearing a costume".
+    var toolChecks: [ToolCheck]
 
     init(
         id: UUID = UUID(),
@@ -38,7 +41,8 @@ struct Strategy: Codable, Identifiable, Hashable {
         orchestrationNotes: String,
         mcpServers: [McpServer] = [],
         skills: [String] = [],
-        evalSuite: EvalSuite? = nil
+        evalSuite: EvalSuite? = nil,
+        toolChecks: [ToolCheck] = []
     ) {
         self.id = id
         self.name = name
@@ -48,12 +52,13 @@ struct Strategy: Codable, Identifiable, Hashable {
         self.mcpServers = mcpServers
         self.skills = skills
         self.evalSuite = evalSuite
+        self.toolChecks = toolChecks
     }
 
-    // Tolerant decode: `mcpServers`/`skills`/`evalSuite` are new, so strategies saved by
-    // older versions (Configuration/SavedTeam JSON) simply default to none. Encode stays synthesized.
+    // Tolerant decode: `mcpServers`/`skills`/`evalSuite`/`toolChecks` are new, so strategies
+    // saved by older versions (Configuration/SavedTeam JSON) simply default to none. Encode stays synthesized.
     enum CodingKeys: String, CodingKey {
-        case id, name, description, roles, orchestrationNotes, mcpServers, skills, evalSuite
+        case id, name, description, roles, orchestrationNotes, mcpServers, skills, evalSuite, toolChecks
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -65,6 +70,7 @@ struct Strategy: Codable, Identifiable, Hashable {
         mcpServers = try c.decodeIfPresent([McpServer].self, forKey: .mcpServers) ?? []
         skills = try c.decodeIfPresent([String].self, forKey: .skills) ?? []
         evalSuite = try? c.decodeIfPresent(EvalSuite.self, forKey: .evalSuite) ?? nil
+        toolChecks = (try? c.decodeIfPresent([ToolCheck].self, forKey: .toolChecks) ?? []) ?? []
     }
 
     // MARK: - Convenience
