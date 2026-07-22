@@ -1081,6 +1081,7 @@ struct ChatView: View {
             // a casual time-of-day greeting, the welcome copy under it, then the team
             // hook and glass suggestion pills.
             CoralSphere(size: 88)
+                .restingShadow(diameter: 88)   // the hero object rests on the reef
                 .staggeredAppear(index: 0)
             // Hero greeting + a single coral accent-dot (the reference's signature gesture).
             (Text(chatGreeting).foregroundStyle(Theme.ink)

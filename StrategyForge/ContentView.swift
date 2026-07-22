@@ -399,6 +399,7 @@ private struct EmptyEditorState: View {
 
             VStack(spacing: Space.l) {
                 CoralSphere(size: 96)
+                    .restingShadow(diameter: 96)   // the hero object rests on the reef
                     .breathingGlow(color: Theme.accentGlow, enabled: false)
                 VStack(spacing: Space.s) {
                     // Hero headline with a single coral accent-dot as punctuation (the

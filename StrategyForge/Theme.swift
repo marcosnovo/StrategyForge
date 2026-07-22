@@ -487,6 +487,24 @@ extension View {
     /// physical object resting on the reef. e1 = inline cards, e2 = floating cards,
     /// e3 = popovers, e4 = sheets / command palette.
     func elevation(_ level: Elevation) -> some View { modifier(ElevationModifier(level: level)) }
+
+    /// A soft elliptical CONTACT shadow beneath a hero object (the CoralSphere) so it reads
+    /// as *resting on* the reef surface, not floating in the void (premium review wave 3).
+    func restingShadow(diameter: CGFloat) -> some View { modifier(RestingShadow(diameter: diameter)) }
+}
+
+private struct RestingShadow: ViewModifier {
+    let diameter: CGFloat
+    @Environment(\.colorScheme) private var scheme
+    func body(content: Content) -> some View {
+        content.background(alignment: .bottom) {
+            Ellipse()
+                .fill(Color.black.opacity(scheme == .dark ? 0.38 : 0.14))
+                .frame(width: diameter * 0.66, height: diameter * 0.15)
+                .blur(radius: diameter * 0.13)
+                .offset(y: diameter * 0.16)
+        }
+    }
 }
 
 // MARK: - Card surface
