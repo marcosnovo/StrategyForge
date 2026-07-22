@@ -5,6 +5,16 @@ Panel: **arquitecto de sistema de color**, **especialista macOS/Liquid Glass**,
 código real (citan `archivo:línea`). Este documento es la **síntesis + plan**. No implementa
 nada todavía.
 
+> **Estado (2026-07-22):** ✅ **Fase 1** (correcciones objetivas de contraste + error fuera del
+> tono coral + `tealText`/`warningText` + aurora base = `appBg`) en `main`, 330 verdes. ✅
+> **Titular de Fase 2/3 — coral hero brillante** (burbuja/CTA/send desde #FF6B54 con scrim en el
+> glifo + glow coral; "answered by team" → neutro) en `main`. Descartado P1.3 (loader teal =
+> demos del ParticleLab, no el loader real). ⏳ **Pendiente, requiere tu revisión visual (claro+
+> oscuro):** resto del teal-diet (delegaciones en reposo, barras/anillos data-viz), modo claro
+> lleva la marca (subir rellenos 0.18–0.22 + borde), coral-por-sustracción (demote iconos
+> neutros), nativo macOS (semánticos, `glassPanel(material:)`, `.tint` redundantes), espectro de
+> equipo gobernado.
+
 ## Tesis unificada
 
 El coral (#FF6B54) es un gran color de marca al que se le pide hacer demasiados trabajos, a
