@@ -294,6 +294,14 @@ final class AppModel {
     var showInspector = false
     /// The ⌘K command palette (chat/section quick-switcher) overlay.
     var showCommandPalette = false
+    /// True while the window is in macOS full-screen. Drives the titlebar inset: in
+    /// full-screen the traffic lights are hidden, so the 30pt top offset that clears them
+    /// becomes dead space — the columns collapse it to a normal pad instead.
+    var isFullScreen = false
+
+    /// The top inset the columns/header use to clear the floating traffic lights —
+    /// collapses to a normal pad in full-screen where there are none (design review D4).
+    var titlebarTopInset: CGFloat { isFullScreen ? Space.s : Theme.titlebarInset }
     /// Right-side agent-activity panel visibility (persisted so it's restored).
     var showActivity = false {
         didSet { if showActivity != oldValue { settings.showActivity = showActivity; save(stamp: false) } }

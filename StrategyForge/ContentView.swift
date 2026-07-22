@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
@@ -219,6 +220,18 @@ struct ContentView: View {
         .onChange(of: model.selectedTeamID) { model.rememberSelection() }
         .task { await model.refreshConnectedProviders() }
         .task { await model.checkForUpdates() }
+        // Track full-screen so the columns can drop the traffic-light inset when there are
+        // no traffic lights (design review D4). Async sequences — no Combine.
+        .task {
+            for await _ in NotificationCenter.default.notifications(named: NSWindow.willEnterFullScreenNotification) {
+                model.isFullScreen = true
+            }
+        }
+        .task {
+            for await _ in NotificationCenter.default.notifications(named: NSWindow.willExitFullScreenNotification) {
+                model.isFullScreen = false
+            }
+        }
         // Load usage from LOCAL logs at launch (no Keychain, no prompt) so the rail's
         // Claude usage is populated by default — not only after visiting the Usage page.
         .task { await model.refreshUsage() }
@@ -410,7 +423,7 @@ private struct EmptyEditorState: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, Space.xl + Space.s)
-        .padding(.top, Theme.titlebarInset + Space.l)
+        .padding(.top, model.titlebarTopInset + Space.l)
     }
 
     /// A personal greeting when signed in ("Hi, {first name}"), else a neutral welcome.

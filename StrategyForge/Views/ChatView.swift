@@ -748,7 +748,7 @@ struct ChatView: View {
             .fixedSize()
             .layoutPriority(1)
         }
-        .padding(.horizontal, Space.m).padding(.bottom, Space.m).padding(.top, Theme.titlebarInset)
+        .padding(.horizontal, Space.m).padding(.bottom, Space.m).padding(.top, model.titlebarTopInset)
         .background {
             Rectangle().fill(.bar)
                 .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
