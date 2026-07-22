@@ -950,13 +950,14 @@ struct ChatView: View {
                     .font(.sfBodyM)
                     .lineSpacing(Theme.bodyLineSpacing)
                     .foregroundStyle(Theme.onAccent)
+                    .shadow(color: Theme.coralTextShadow, radius: 0.5, x: 0, y: 0.5)   // legible on bright coral
                     .textSelection(.enabled)
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                     .frame(maxWidth: 560, alignment: .trailing)
-                    // Vivid coral gradient pill (reference look) — the user's turns are
-                    // the bold, floating bubbles; white text on the Coral identity fill.
+                    // The user's turn: a bright coral pill that floats in a soft coral glow —
+                    // one of the app's three signature coral "hero" beats (color review).
                     .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.userBubbleFill))
-                    .shadow(color: Theme.accentGlow.opacity(0.5), radius: 2, x: 0, y: 1)
+                    .shadow(color: Theme.coral.opacity(0.30), radius: 7, x: 0, y: 3)
                     .contextMenu {
                         copyButton(message.text)
                         Button { editMessage(message) } label: {
@@ -1038,7 +1039,7 @@ struct ChatView: View {
                                         Label(model.t("chat.answeredByTeam", teamSize + 1), systemImage: "person.3.sequence.fill")
                                             .font(.sfCaption2.weight(.medium))
                                     }
-                                    .buttonStyle(.plain).foregroundStyle(Theme.tealText)
+                                    .buttonStyle(.plain).foregroundStyle(.secondary)   // finished-turn attribution, not live → neutral (teal = live only)
                                     .help(model.t("chat.answeredByTeam.help"))
                                 }
                                 // Cross-provider, made tangible: a "second opinion from X ▸"
@@ -1500,6 +1501,7 @@ struct ChatView: View {
             Image(systemName: system)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(Theme.onAccent)
+                .shadow(color: Theme.coralTextShadow, radius: 0.5, x: 0, y: 0.5)   // legible on bright coral
                 .frame(width: 32, height: 32)
                 .background(Circle().fill(Theme.primaryFill))
                 .shadow(color: Theme.accentGlow, radius: 6, x: 0, y: 2)

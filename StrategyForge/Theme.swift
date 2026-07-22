@@ -86,19 +86,27 @@ enum Theme {
         light: Color(red: 0.431, green: 0.482, blue: 0.471),   // #6E7B78
         dark:  Color(red: 0.525, green: 0.627, blue: 0.627))   // #86A0A0
 
-    /// Primary button fill — the identity CTA gradient (158°, coral-lo → coral-hi).
+    /// Primary button fill — the identity CTA gradient, now the TRUE brand coral: bright
+    /// #FF6B54 into a controlled deep. White text legibility is guaranteed at the glyph via
+    /// `coralTextShadow` (a scrim on the text), NOT by browning the whole fill — so the CTA
+    /// finally reads as Coral, not rust (color review, hero-coral decision).
     static let primaryFill = LinearGradient(
-        colors: [Color(red: 0.835, green: 0.235, blue: 0.141),   // #D53C24 coral-lo (white 4.6:1)
-                 Color(red: 0.784, green: 0.196, blue: 0.110)],  // #C8321C coral-hi (white 5.2:1)
+        colors: [Color(red: 1.000, green: 0.420, blue: 0.330),   // #FF6B54 bright coral
+                 Color(red: 0.886, green: 0.251, blue: 0.165)],  // #E24029 coralDeep
         startPoint: .topLeading, endPoint: .bottomTrailing)
 
-    /// Vivid coral gradient for the user's chat bubble — the reference's bold pill,
-    /// rendered in the Coral identity instead of blue/purple. White text sits on it, so
-    /// both stops keep white ≥ 4.5:1 (see the onAccent contrast rule above).
+    /// Vivid coral gradient for the user's chat bubble — the founder's bright coral (#FF6B54)
+    /// into coralDeep. White text rides on `coralTextShadow` so the top bright stop stays
+    /// legible without darkening the fill to brick.
     static let userBubbleFill = LinearGradient(
-        colors: [Color(red: 0.835, green: 0.235, blue: 0.141),   // #D53C24 coral-lo (white 4.6:1)
-                 Color(red: 0.761, green: 0.188, blue: 0.102)],  // #C2301A coral-hi (white 5.5:1)
+        colors: [Color(red: 1.000, green: 0.420, blue: 0.330),   // #FF6B54 bright coral
+                 Color(red: 0.886, green: 0.251, blue: 0.165)],  // #E24029 coralDeep
         startPoint: .topLeading, endPoint: .bottomTrailing)
+
+    /// A soft dark scrim applied to white text/glyphs sitting on a bright coral fill (user
+    /// bubble, `.moon` CTA, send button). Lets the fill stay vivid #FF6B54 while keeping the
+    /// white legible — the "contrast at the glyph" approach.
+    static let coralTextShadow = Color.black.opacity(0.28)
 
     // MARK: Surfaces — near-white (a whisper of warmth) in light, "reef ink" in dark
     static let appBg = Color(
@@ -258,6 +266,7 @@ private struct MoonButtonBody: View {
         configuration.label
             .font(.callout.weight(.semibold))
             .foregroundStyle(Theme.onAccent)
+            .shadow(color: Theme.coralTextShadow, radius: 0.5, x: 0, y: 0.5)   // legible on bright coral
             .padding(.horizontal, Space.m)
             .padding(.vertical, Space.s)
             .background(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous).fill(Theme.primaryFill))
