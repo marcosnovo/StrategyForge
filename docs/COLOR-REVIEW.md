@@ -11,11 +11,14 @@ nada todavía.
 > glifo + glow coral; "answered by team" → neutro) en `main`. Descartado P1.3 (loader teal =
 > demos del ParticleLab, no el loader real). ✅ **Teal-diet data-viz** (spend bar + anillos/barras
 > de uso del rail → coral; teal reservado a vivo). ✅ **Modo claro lleva la marca** (accentSoft
-> 0.12→0.18, selectionFill 0.16→0.22). ⏳ **Pendiente — subjetivo/decisión, requiere tu revisión
-> visual:** delegaciones en reposo → neutro (pierde la señal de "handoff", tu llamada),
-> coral-por-sustracción (demote iconos-no-acción a neutro), 1.4.1 (glifo en dot de atención/update),
-> nativo macOS (`.primary/.secondary/.tertiary`, arreglar/borrar `glassPanel(material:)`), espectro
-> de equipo gobernado y desaturado.
+> 0.12→0.18, selectionFill 0.16→0.22). ✅ **Uso siempre visible** (el rail
+> tenía el card de uso condicional a datos → añadido punto de entrada permanente al fondo que
+> progresa a las métricas en vivo). ✅ **`glassPanel(material:)` muerto borrado**. ⏳ **Pendiente —
+> todo subjetivo/visual, requiere tu ojo y decisión:** delegaciones en reposo → neutro (pierde la
+> señal de "handoff", tu llamada), coral-por-sustracción (demote iconos-no-acción a neutro; barrido
+> grande), 1.4.1 (glifo en dot de atención/update), texto neutro → `.primary/.secondary/.tertiary`
+> (⚠️ *choca con los hex de contraste afinados en Fase 1*; barrido enorme), espectro de equipo
+> gobernado y desaturado (acertar 5 tonos nuevos — mejor contigo mirando).
 
 ## Tesis unificada
 
