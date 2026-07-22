@@ -349,6 +349,15 @@ struct AppAuroraBackground: View {
             // hid the behind-window glass sitting below this view). At this opacity the
             // desktop reads clearly through the frosted haze while text stays legible.
             base.opacity(tintOpacity)
+            // A whisper of directional LIGHT — brighter at the top, deeper at the bottom — so
+            // panels read as resting on a lit reef surface (their downward contact shadows land
+            // on something). Pure luminance, no hue, so it never warms/dirties the neutral (W2).
+            LinearGradient(
+                colors: scheme == .dark
+                    ? [.white.opacity(0.05), .clear, .black.opacity(0.08)]
+                    : [.white.opacity(0.45), .clear, .black.opacity(0.03)],
+                startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
             // Two corner blooms only — the identity duality: coral leads (top-trailing),
             // teal answers (bottom-leading). Peach + mint were dropped so the wash reads
             // as one calm gradient, not four hues (design review, wave A).

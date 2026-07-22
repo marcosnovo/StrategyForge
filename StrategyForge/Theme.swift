@@ -611,9 +611,10 @@ private struct GlassPanelModifier: ViewModifier {
                 .overlay(shape.strokeBorder(Theme.hairline, lineWidth: 1))
                 .clipShape(shape)
         } else {
-            // Give the glass panel real depth so it floats as a physical object, not a flat
-            // frost (premium review wave 2). Colour/tint untouched — depth only.
-            content.glassEffect(.regular, in: shape).elevation(.e2)
+            // Frost the glass toward Coral's COOL reef surface (cardBg), not a neutral gray —
+            // so a glass panel reads as tinted reef glass, cohesive with the cards, and floats
+            // with real depth. Cool tint only (no warmth), subtle, keeps translucency (premium W2).
+            content.glassEffect(.regular.tint(Theme.cardBg.opacity(0.35)), in: shape).elevation(.e2)
         }
     }
 }
