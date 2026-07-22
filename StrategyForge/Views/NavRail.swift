@@ -255,17 +255,20 @@ struct NavRail: View {
     /// ring + bars. Claude publishes no token cap, so its ring is the 5-hour window's
     /// time-to-reset and its two bars are this week's / this block's tokens; Codex
     /// reports a real plan %, so its ring + bar show that exact percentage.
+    /// Opens the full Usage page (and fetches the exact rate-limit %).
+    private func openUsage() {
+        model.guardedLeave {
+            model.navSection = .usage
+            Task { await model.refreshUsage(includeExact: true) }
+        }
+    }
+
     @ViewBuilder private var usageCard: some View {
         let rows = usageProviders
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: Space.m) {
                 ForEach(rows, id: \.self) { providerUsageRow($0) }
-                Button {
-                    model.guardedLeave {
-                        model.navSection = .usage
-                        Task { await model.refreshUsage(includeExact: true) }
-                    }
-                } label: {
+                Button(action: openUsage) {
                     Text(model.t("rail.usage.view")).font(.sfCaption2.weight(.medium))
                         .foregroundStyle(.secondary)   // secondary nav link → neutral
                 }
@@ -274,11 +277,32 @@ struct NavRail: View {
             .padding(Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
             // Neutral card ground + hairline — no colored gradient behind the numbers.
-            // Only the ring/bar STROKES carry teal, so the data reads with clean contrast.
+            // Only the ring/bar strokes carry the coral accent, so the data reads clean.
             .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
                 .fill(Theme.cardBg))
             .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
                 .strokeBorder(Theme.hairline, lineWidth: 1))
+        } else {
+            // No usage loaded yet (signed out / not fetched) — keep a quiet, always-present
+            // Usage entry point at the rail bottom so it never "disappears". It upgrades to
+            // the live rings/bars above once data is available.
+            Button(action: openUsage) {
+                HStack(spacing: Space.s) {
+                    Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                        .font(.system(size: 13)).foregroundStyle(Theme.accent).frame(width: 22)
+                    Text(model.t("rail.usage")).font(.sfCaption2.weight(.medium))
+                        .foregroundStyle(Theme.secondaryOnMaterial)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, Space.s).padding(.vertical, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+                .fill(Theme.cardBg.opacity(0.5)))
+            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+                .strokeBorder(Theme.hairline.opacity(0.6), lineWidth: 1))
         }
     }
 
