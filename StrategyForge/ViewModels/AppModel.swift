@@ -642,6 +642,22 @@ final class AppModel {
         save()
     }
 
+    /// Start a new chat pinned to a specific provider and jump to it (used by the
+    /// Connections "Used by" empty state — one tap from a provider to a chat on it).
+    func addConfiguration(provider: AIProvider) {
+        let config = Configuration(
+            name: "",
+            strategy: StrategyLibrary.executorAdvisor(),
+            provider: provider,
+            lastActiveAt: Date(),
+            strategyIsAuto: true
+        )
+        configurations.append(config)
+        selectedConfigID = config.id
+        navSection = .chats
+        save()
+    }
+
     /// Token Saver: start a fresh chat that keeps a chat's team, provider and
     /// repo binding but drops the transcript (the token furnace). An optional
     /// summary is seeded as the draft so context carries forward for a few
