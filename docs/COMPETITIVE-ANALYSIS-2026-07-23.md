@@ -18,8 +18,10 @@ verificador independiente no auto-calificado, y exportación de la configuració
 para que el equipo diseñado corra también fuera de la app. Nadie más junta las cuatro cosas.
 
 **Hallazgos clave:**
-1. El hueco más grande y de mayor impacto práctico es la falta de **notificación/companion remoto**
-   para loops largos desatendidos — varios competidores ya resuelven esto (aunque de forma parcial).
+1. Coral ya notifica localmente (`LoopNotifier`, notificación del sistema) cuando un loop termina o
+   falla, incluso en segundo plano — pero solo si el Mac está despierto. El hueco real y de mayor
+   impacto práctico es la falta de **notificación remota/fuera del Mac** (móvil, email) para cuando
+   el equipo está dormido o el usuario no está delante — varios competidores resuelven parte de esto.
 2. Coral vende "mezcla de proveedores por rol" como diferenciador pero no tiene **procedencia por
    línea** (qué modelo escribió qué) — nadie más lo tiene resuelto tampoco: oportunidad de ser
    primeros, no de ponerse al día.
@@ -144,7 +146,7 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Memoria/conocimiento persistente **entre proyectos** | ⚠️ (STATE.md por loop) | ⚠️ (contexto compartido, alcance sin confirmar) | ❌ | ✅ (BEADS + base de conocimiento + reflexión) | ❌ | ❌ |
 | Sandboxing opcional (Docker) por tarea | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Sesiones remotas (SSH a otra máquina) | ❌ | ❌ | ⚠️ (solo ver progreso vía QR/Tailscale) | ❌ | ✅ | ❌ |
-| Notificación/companion remoto del estado del loop | ❌ | ⚠️ (sync entre dispositivos, sin push explícito) | ⚠️ (notif. de escritorio + QR remoto) | ❌ | ❌ | ⚠️ (vigila CI, no notifica al usuario fuera de la app) |
+| Notificación/companion remoto del estado del loop | ⚠️ (notificación local del sistema vía `LoopNotifier` al terminar/fallar un run; nada fuera del Mac) | ⚠️ (sync entre dispositivos, sin push explícito) | ⚠️ (notif. de escritorio + QR remoto) | ❌ | ❌ | ⚠️ (vigila CI, no notifica al usuario fuera de la app) |
 | Procedencia por línea (qué modelo escribió qué) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Exporta config real reutilizable fuera de la app | ✅ (`.claude/agents` + `CLAUDE.md` + workflow) | ❌ | ❌ | N/A (la config *es* el producto) | ❌ | ❌ |
 | Sync multi-dispositivo (config/equipos) | ✅ (CloudKit) | ✅ | ❌ | ❌ | ❌ (por diseño) | ❌ |
@@ -227,10 +229,12 @@ bajo, cierran los huecos de mayor fricción:
 2. **Procedencia por línea** (qué modelo/rol escribió cada línea, en el diff de Code mode). *Por
    qué:* nadie en la categoría lo resuelve — es una oportunidad de ser primeros, no de ponerse al
    día, y complementa directamente el diferenciador ya vendido ("mezcla proveedores por rol").
-3. **Notificación/companion cuando un loop termina o el verificador falla** (aunque sea algo simple:
-   notificación push local o email, sin necesidad de una app móvil completa de entrada). *Por qué:*
-   es el hallazgo de mayor impacto práctico de la investigación — los loops de Coral pueden correr
-   horas desatendidos y hoy no hay forma de enterarse sin tener el Mac delante.
+3. **Notificación remota/companion cuando un loop termina o el verificador falla, más allá de la
+   notificación local que ya existe** (`LoopNotifier`). Empezar simple: email o push a móvil cuando
+   el Mac está dormido/cerrado, sin necesidad de una app móvil completa de entrada. *Por qué:* la
+   notificación local ya cubre "Mac despierto, app en segundo plano"; el hallazgo de mayor impacto
+   práctico de la investigación es específicamente el caso "el equipo está dormido o no estoy
+   delante", que hoy no está cubierto.
 
 **Medio plazo (3-12 meses)** — más ambiciosas, requieren diseño propio o tocan el modelo de
 confianza:
@@ -257,7 +261,8 @@ Lista corta de arranque, en el orden sugerido arriba:
 
 - [ ] Loop de auto-fix cerrado desde Review (Code mode)
 - [ ] Procedencia por línea de qué modelo escribió qué
-- [ ] Notificación/companion de estado de loop (empezar simple: push local/email)
+- [ ] Notificación remota/companion de estado de loop, más allá de la notificación local ya
+      existente (`LoopNotifier`) — cubrir el caso Mac dormido/cerrado (push a móvil o email)
 - [ ] Memoria de conocimiento entre proyectos (más allá de STATE.md por loop)
 - [ ] Modo "Arena" (competir proveedores en la misma tarea)
 - [ ] Sandboxing Docker opcional por loop
