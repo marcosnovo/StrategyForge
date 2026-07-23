@@ -579,6 +579,10 @@ struct ParticleLabView: View {
                 .overlay(RoundedRectangle(cornerRadius: Theme.corner).strokeBorder(Theme.hairline, lineWidth: 1))
                 Divider()
 
+                // Live agent graph — the team executing in real time (fan-out / fan-in).
+                LiveGraphLabSection()
+                Divider()
+
                 // Wow-moment candidates to choose from (rich, in motion).
                 WowGalleryLabSection()
                 Divider()
