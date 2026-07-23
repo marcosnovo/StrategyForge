@@ -26,3 +26,7 @@ Secrets.xcconfig
 .env
 .env.*
 GoogleService-Info.plist
+
+# Internal founder docs — kept local, not in the public repo
+docs/MANUAL-TASKS.md
+docs/landing-copy.md

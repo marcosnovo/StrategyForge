@@ -107,9 +107,8 @@ xcodebuild test -project StrategyForge.xcodeproj -scheme StrategyForge -destinat
 
 Unit tests (`Testing` framework) are the automated gate; the shared scheme skips the
 UITests target. See [`CLAUDE.md`](CLAUDE.md) for the loop-verifier gate and the
-sensitive-files policy, [`docs/BACKLOG.md`](docs/BACKLOG.md) for the prioritized
-roadmap, and [`docs/MANUAL-TASKS.md`](docs/MANUAL-TASKS.md) for the founder's checklist
-(release setup, privacy policy, CloudKit verification, visual sign-off).
+sensitive-files policy, and [`docs/BACKLOG.md`](docs/BACKLOG.md) for the prioritized
+roadmap.
 
 ## Project structure
 
