@@ -89,16 +89,19 @@ struct ClaudeRunnerConcurrencyTests {
 
     @Test func cancelAfterStartStopsTheTimer() async throws {
         let fired = Flag()
-        // A generous window: on a loaded CI runner the thread can be preempted
-        // for tens of milliseconds between start() and cancel(), and a timeout
-        // shorter than that pause lets the timer fire legitimately before the
-        // cancel — a flake, not a failure. 500ms comfortably exceeds any
-        // plausible preemption; the sleep still covers deadline + one repeat.
-        let w = InactivityWatchdog(timeout: 0.5) { fired.set() }
+        // Deterministic by construction: a long timeout means the armed timer
+        // CANNOT fire legitimately within the short observation window, so the
+        // only way `fired` could flip is the cancelled-guard breaking — a real
+        // regression, never a wall-clock race. (The earlier short-timeout version
+        // flaked on loaded CI: if the test thread is preempted for longer than
+        // the timeout between start() and cancel(), the timer fires legitimately
+        // first. This isolates the invariant instead of racing it.)
+        let w = InactivityWatchdog(timeout: 30) { fired.set() }
         w.start()
         w.cancel()
-        try await Task.sleep(for: .milliseconds(1200))
+        try await Task.sleep(for: .milliseconds(200))
         #expect(!fired.isSet)
+        #expect(!w.didFire)
     }
 
     @Test func concurrentCancelsAreSafe() async throws {
