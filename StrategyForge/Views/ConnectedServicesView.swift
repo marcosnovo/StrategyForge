@@ -41,10 +41,17 @@ struct ConnectedServicesSection: View {
     @ViewBuilder
     private func providerRow(_ provider: AIProvider) -> some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            HStack(spacing: Space.s) {
+            HStack(spacing: Space.m) {
+                // The provider logo in a soft tinted disc (the app's IconBadge language) so
+                // each service reads as a crafted, coloured identity, not a bare glyph.
                 ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
-                    .frame(width: 20)
-                Text(provider.displayName).font(.body.weight(.medium))
+                    .frame(width: 30, height: 30)
+                    .background(
+                        Circle().fill(provider.tint.opacity(0.14))
+                            .overlay(Circle().fill(LinearGradient(
+                                colors: [.white.opacity(0.22), .clear], startPoint: .top, endPoint: .center)))
+                    )
+                Text(provider.displayName).font(.sfCardTitle)
                 Spacer()
                 statusBadge(provider)
                 actionButtons(provider)
@@ -73,8 +80,8 @@ struct ConnectedServicesSection: View {
                 EmptyView()
             }
 
-            HStack {
-                Text(model.t("settings.binary")).font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: Space.s) {
+                FieldLabel(text: model.t("settings.binary"))
                 TextField(provider.binaryName, text: binaryBinding(provider))
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { model.save(); Task { await detect(provider) } }

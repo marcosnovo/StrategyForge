@@ -497,33 +497,28 @@ struct AgentActivityPanel: View {
     /// The whole team, listed from the start, each with its objective, live status
     /// and a filling progress bar (Claude-style).
     private var teamSection: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            // Collapsible header (collapsed by default) so the panel stays compact.
-            Button { withAnimation(.easeInOut(duration: 0.15)) { showTeam.toggle() } } label: {
-                HStack {
-                    Text(model.t("activity.team")).font(.sfFieldLabel)
-                        .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
-                    Text("\(shownStrategy.roles.count)")
-                        .font(.sfCaption2.weight(.bold)).monospacedDigit()
-                        .foregroundStyle(Theme.secondaryOnMaterial)
-                        .padding(.horizontal, 6).padding(.vertical, 1)
-                        .background(Capsule().fill(Theme.hairline.opacity(0.6)))
-                    Spacer()
-                    Image(systemName: showTeam ? "chevron.up" : "chevron.down")
-                        .scaledFont(9, weight: .semibold).foregroundStyle(.secondary)
-                }
-                .contentShape(Rectangle())
+        // ALWAYS visible (Codex-style): "who's on the crew and what each is doing right now."
+        // Each row is coloured by its ROLE (icon + hue matching the constellation stage), so
+        // the panel reads at a glance as a live crew, not a collapsed list.
+        VStack(alignment: .leading, spacing: Space.xs) {
+            HStack(spacing: Space.s) {
+                Text(model.t("activity.team")).font(.sfFieldLabel)
+                    .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
+                Text("\(shownStrategy.roles.count)")
+                    .font(.sfCaption2.weight(.bold)).monospacedDigit()
+                    .foregroundStyle(Theme.secondaryOnMaterial)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(Capsule().fill(Theme.hairline.opacity(0.6)))
+                Spacer()
             }
-            .buttonStyle(.plain)
-            if showTeam {
-                agentRow(name: orchestratorName, icon: "brain.head.profile", target: .orchestrator,
-                         objective: orchestratorObjective, status: orchestratorStatus)
-                ForEach(shownStrategy.subagentRoles) { role in
-                    let name = titleCase(role.name)
-                    agentRow(name: name, icon: "person.fill", target: .sub(name),
-                             objective: objective(forSubagent: name, fallback: role.description),
-                             status: status(forSubagent: name))
-                }
+            agentRow(name: orchestratorName, icon: RoleKind.orchestrator.icon,
+                     tint: RoleKind.orchestrator.tint, target: .orchestrator,
+                     objective: orchestratorObjective, status: orchestratorStatus)
+            ForEach(shownStrategy.subagentRoles) { role in
+                let name = titleCase(role.name)
+                agentRow(name: name, icon: role.role.icon, tint: role.role.tint, target: .sub(name),
+                         objective: objective(forSubagent: name, fallback: role.description),
+                         status: status(forSubagent: name))
             }
         }
     }
@@ -850,7 +845,7 @@ struct AgentActivityPanel: View {
         }
     }
 
-    private func agentRow(name: String, icon: String, target: AgentFocus,
+    private func agentRow(name: String, icon: String, tint: Color, target: AgentFocus,
                           objective: String, status: AgentStatus) -> some View {
         let isOpen = focus == target
         return Button {
@@ -858,9 +853,11 @@ struct AgentActivityPanel: View {
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: Space.s) {
-                    Image(systemName: icon).font(.system(size: 11))
-                        .foregroundStyle(status == .active ? Theme.teal : .secondary)
-                        .frame(width: 16)
+                    // The role's own icon in its own hue (dimmed when idle) — the same colour
+                    // the agent has on the constellation stage, so row ↔ node map at a glance.
+                    Image(systemName: icon).font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(status == .idle ? tint.opacity(0.55) : tint)
+                        .frame(width: 18)
                     Text(name)
                         .font(.sfCaption2.weight(status == .active || isOpen ? .semibold : .medium))
                         .foregroundStyle(status == .idle ? .secondary : .primary)
@@ -896,12 +893,12 @@ struct AgentActivityPanel: View {
             }
             .padding(.horizontal, Space.s).padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
-                .fill(status == .active ? Theme.tealSoft
+                .fill(status == .active ? tint.opacity(0.13)
                       : (isOpen ? Theme.accentSoft
                          : (hoveredAgent == target ? Theme.hairline.opacity(0.6) : .clear))))
             .overlay(alignment: .leading) {
                 if status == .active {
-                    RoundedRectangle(cornerRadius: 1.5).fill(Theme.teal)
+                    RoundedRectangle(cornerRadius: 1.5).fill(tint)
                         .frame(width: 2.5).padding(.vertical, 4)
                 }
             }

@@ -737,9 +737,10 @@ struct ChatView: View {
             // Mission report — the shareable summary of the finished run.
             if vm.hasFinishedActivity {
                 Button { showReport = true } label: {
-                    Image(systemName: "flag.checkered")
+                    Image(systemName: "flag.checkered").font(.system(size: 14))
                 }
                 .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
                 .help(model.t("report.open"))
                 .accessibilityLabel(model.t("report.title"))
             }
@@ -749,6 +750,7 @@ struct ChatView: View {
                     if codeMode { showActivity = false }   // one right-side slot, mutually exclusive
                 } label: {
                     Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.system(size: 14))
                         .foregroundStyle(codeMode ? Theme.accent : .secondary)
                 }
                 .buttonStyle(.borderless)
@@ -764,6 +766,7 @@ struct ChatView: View {
                 if !showActivity { agentFocus = nil }
             } label: {
                 Image(systemName: "sidebar.trailing")
+                    .font(.system(size: 14))
                     .foregroundStyle(showActivity ? Theme.accent : .secondary)
             }
             .buttonStyle(.borderless)
@@ -771,9 +774,10 @@ struct ChatView: View {
             .accessibilityLabel(model.t("chat.activity"))
 
             Button { showInspector = true } label: {
-                Image(systemName: "slider.horizontal.3")
+                Image(systemName: "slider.horizontal.3").font(.system(size: 14))
             }
             .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
             .help(model.t("inspector.toggle"))
             .accessibilityLabel(model.t("chat.settings"))
             }
