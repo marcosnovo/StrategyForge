@@ -87,3 +87,55 @@ struct LoopWebhookEndpointTests {
         #expect(LoopWebhookNotifier.endpoint(from: "mailto:me@example.com") == nil)
     }
 }
+
+struct LoopWebhookEncodingTests {
+
+    private func summary(pass: Bool?) -> LoopRunSummary {
+        LoopRunSummary(date: Date(timeIntervalSince1970: 0), pass: pass, reason: nil,
+                       iterations: 1, tokens: 10, costUSD: 0.01)
+    }
+
+    @Test func ntfyHostsUseRawTextEncoding() throws {
+        // A topic URL publishes its RAW body as the message, so JSON there would show the
+        // literal blob — ntfy.sh must use plain text + headers instead.
+        let topic = try #require(LoopWebhookNotifier.endpoint(from: "https://ntfy.sh/my-topic"))
+        #expect(LoopWebhookNotifier.encoding(for: topic) == .ntfy)
+        let selfHostedSub = try #require(LoopWebhookNotifier.endpoint(from: "https://push.ntfy.sh/topic"))
+        #expect(LoopWebhookNotifier.encoding(for: selfHostedSub) == .ntfy)
+    }
+
+    @Test func slackDiscordAndGenericUseJSON() throws {
+        for s in ["https://hooks.slack.com/services/T/B/x",
+                  "https://discord.com/api/webhooks/1/abc",
+                  "https://example.com/hook",
+                  "https://notify.ntfy.example.com/topic"] {   // not an ntfy.sh host
+            let url = try #require(LoopWebhookNotifier.endpoint(from: s))
+            #expect(LoopWebhookNotifier.encoding(for: url) == .json)
+        }
+    }
+
+    @Test func ntfyRequestIsPlainTextWithTitleAndOutcomeTag() throws {
+        let url = try #require(LoopWebhookNotifier.endpoint(from: "https://ntfy.sh/my-topic"))
+        let req = try #require(LoopWebhookNotifier.request(for: url, title: "Nightly",
+                                                           body: "Nightly failed", summary: summary(pass: false)))
+        #expect(req.contentType.hasPrefix("text/plain"))
+        #expect(String(data: req.body, encoding: .utf8) == "Nightly failed")   // raw message, not JSON
+        #expect(req.headers["Title"] == "Nightly")
+        #expect(req.headers["Tags"] == "x")                                     // failed → ✗
+    }
+
+    @Test func ntfyTagReflectsOutcome() {
+        #expect(LoopWebhookNotifier.ntfyTag(for: true) == "white_check_mark")
+        #expect(LoopWebhookNotifier.ntfyTag(for: false) == "x")
+        #expect(LoopWebhookNotifier.ntfyTag(for: nil) == "grey_question")
+    }
+
+    @Test func jsonRequestKeepsStructuredBody() throws {
+        let url = try #require(LoopWebhookNotifier.endpoint(from: "https://hooks.slack.com/x"))
+        let req = try #require(LoopWebhookNotifier.request(for: url, title: "L",
+                                                           body: "done", summary: summary(pass: true)))
+        #expect(req.contentType == "application/json")
+        let obj = try #require(try JSONSerialization.jsonObject(with: req.body) as? [String: Any])
+        #expect(obj["text"] as? String == "L: done")   // Slack-compatible field survives
+    }
+}

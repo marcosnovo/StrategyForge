@@ -9,11 +9,13 @@
 //  generic endpoint — with NO backend of our own, no account, and no stored credentials
 //  (the URL itself is the only secret, and it rides in the user's own settings).
 //
-//  The payload carries the same field under several well-known keys (`text` for Slack,
-//  `content` for Discord, `message`/`title` for ntfy-JSON and generic consumers) so one
-//  body works with the common services without asking the user which one they use. It's
-//  best-effort: a bad URL or a network failure is swallowed (the local notification
-//  already fired), never surfaced as a loop error.
+//  The JSON payload carries the same field under several well-known keys (`text` for
+//  Slack, `content` for Discord, `message`/`title` for generic consumers) so one body
+//  works across services without asking the user which they use. ntfy.sh topic URLs are
+//  special-cased: they publish the RAW request body as the message, so they get a
+//  plain-text body + ntfy's Title/Tags headers instead of the JSON (see `encoding`/
+//  `request`). It's best-effort: a bad URL or a network failure is swallowed (the local
+//  notification already fired), never surfaced as a loop error.
 //
 
 import Foundation
@@ -78,19 +80,69 @@ enum LoopWebhookNotifier {
         return url
     }
 
-    /// POST the finished-run payload to the configured webhook. Best-effort: an invalid
-    /// URL or any network/encoding failure is swallowed (the local notification already
-    /// covered the at-the-Mac case). Never throws.
+    /// How to encode the POST body for a given endpoint. ntfy topic URLs
+    /// (`https://ntfy.sh/<topic>`) publish the RAW request body as the notification
+    /// message — sending them our JSON would show the literal JSON blob on the phone. So
+    /// ntfy.sh gets a plain-text body + ntfy's own headers; everyone else (Slack, Discord,
+    /// generic) gets the multi-keyed JSON.
+    enum BodyEncoding: Equatable { case json, ntfy }
+
+    /// ntfy.sh is detected by host (the public service — the exact URL our Settings copy
+    /// suggests). Self-hosted ntfy on an arbitrary host isn't auto-detected; for those the
+    /// JSON path still delivers (ntfy accepts JSON publishes to its ROOT url, and a topic
+    /// URL there would show the JSON as text — an acceptable, documented fallback).
+    static func encoding(for url: URL) -> BodyEncoding {
+        let host = url.host?.lowercased() ?? ""
+        return (host == "ntfy.sh" || host.hasSuffix(".ntfy.sh")) ? .ntfy : .json
+    }
+
+    /// ntfy tag (an emoji shortname) for a run outcome — a nice status glyph on the phone.
+    static func ntfyTag(for pass: Bool?) -> String {
+        switch pass {
+        case .some(true): return "white_check_mark"
+        case .some(false): return "x"
+        case .none: return "grey_question"
+        }
+    }
+
+    /// The concrete request pieces for an endpoint — pure, so encoding choice + headers are
+    /// unit-tested without a network. nil if the JSON body can't be encoded.
+    struct WebhookRequest: Equatable {
+        var contentType: String
+        var body: Data
+        var headers: [String: String]   // extra headers beyond Content-Type (e.g. ntfy's)
+    }
+
+    static func request(for url: URL, title: String, body: String,
+                        summary: LoopRunSummary) -> WebhookRequest? {
+        switch encoding(for: url) {
+        case .ntfy:
+            // Raw message text + ntfy's Title/Tags headers → a clean phone notification.
+            return WebhookRequest(
+                contentType: "text/plain; charset=utf-8",
+                body: Data(body.utf8),
+                headers: ["Title": title, "Tags": ntfyTag(for: summary.pass)])
+        case .json:
+            guard let data = try? JSONEncoder().encode(payload(title: title, body: body, summary: summary)) else {
+                return nil
+            }
+            // Title header is harmless for Slack/Discord/generic and helps ntfy-on-root.
+            return WebhookRequest(contentType: "application/json", body: data, headers: ["Title": title])
+        }
+    }
+
+    /// POST the finished-run notification to the configured webhook. Best-effort: an
+    /// invalid URL or any network/encoding failure is swallowed (the local notification
+    /// already covered the at-the-Mac case). Never throws.
     static func notify(urlString: String?, title: String, body: String,
                        summary: LoopRunSummary, session: URLSession = .shared) async {
-        guard let url = endpoint(from: urlString) else { return }
-        guard let data = try? JSONEncoder().encode(payload(title: title, body: body, summary: summary)) else { return }
+        guard let url = endpoint(from: urlString),
+              let spec = request(for: url, title: title, body: body, summary: summary) else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        // A concise Title header so ntfy shows a heading without needing JSON parsing.
-        request.setValue(title, forHTTPHeaderField: "Title")
-        request.httpBody = data
+        request.setValue(spec.contentType, forHTTPHeaderField: "Content-Type")
+        for (k, v) in spec.headers { request.setValue(v, forHTTPHeaderField: k) }
+        request.httpBody = spec.body
         request.timeoutInterval = 12
         _ = try? await session.data(for: request)
     }
