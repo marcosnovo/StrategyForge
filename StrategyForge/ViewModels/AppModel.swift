@@ -311,7 +311,10 @@ final class AppModel {
     }
 
     // MARK: - UI layout state (restored across launches; see settings)
-    var showSidebar = true
+    /// The chat-list column is HIDDEN by default so an open chat gets the full centred
+    /// reading column (ChatGPT-calm). The rail's Chats icon reveals/hides it on demand;
+    /// it also auto-shows whenever no chat is selected (so New chat stays reachable).
+    var showSidebar = false
     var showInspector = false
     /// The ⌘K command palette (chat/section quick-switcher) overlay.
     var showCommandPalette = false

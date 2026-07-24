@@ -26,84 +26,73 @@ struct NavRail: View {
     @State private var theme = ThemeStore.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
+        // ChatGPT-calm: a narrow ICON rail (64pt). Labels live in tooltips (.help), so the
+        // rail stops being a second text column and the conversation becomes the protagonist.
+        // Destinations scroll if the window is short; theme/settings/avatar pin at the foot.
+        VStack(spacing: Space.xs) {
             brand
-
             newChatButton
-            item("bubble.left.and.bubble.right.fill", "sidebar.chats",
-                 active: model.navSection == .chats,
-                 running: !model.runningChatIDs.isEmpty || !model.attentionChatIDs.isEmpty) {
-                model.guardedLeave {
-                    model.navSection = .chats
-                    if !showSidebar {
-                        if reduceMotion { showSidebar = true }
-                        else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
-                    }
-                }
-            }
-            // ChatGPT-calm: everything past Chats lives behind ONE "More" disclosure
-            // (collapsed by default) — Team, Code, and the advanced tools — so the resting
-            // rail is just New chat · Chats · More · Connected · Settings. Auto-expands when
-            // one of its sections is active so the selected pill is always visible.
-            let advancedActive: Bool = [.team, .code, .loops, .skills, .memory, .arena, .usage]
-                .contains(model.navSection)
-            advancedHeader(expanded: showAdvanced || advancedActive)
-            if showAdvanced || advancedActive {
-                item("person.3.sequence.fill", "rail.team",
-                     active: model.navSection == .team) {
-                    model.guardedLeave { model.navSection = .team }
-                }
-                item("chevron.left.forwardslash.chevron.right", "rail.code",
-                     active: model.navSection == .code) {
-                    model.guardedLeave { model.navSection = .code }
-                }
-                item("arrow.triangle.2.circlepath", "rail.loops",
-                     active: model.navSection == .loops,
-                     running: !LoopStore.shared.runningLoopIDs.isEmpty) {
-                    model.guardedLeave { model.navSection = .loops }
-                }
-                item("puzzlepiece.extension.fill", "rail.skills",
-                     active: model.navSection == .skills) {
-                    model.guardedLeave { model.navSection = .skills }
-                }
-                item("brain", "rail.memory",
-                     active: model.navSection == .memory) {
-                    model.guardedLeave { model.navSection = .memory }
-                }
-                item("flag.checkered", "rail.arena",
-                     active: model.navSection == .arena) {
-                    model.guardedLeave { model.navSection = .arena }
-                }
-                item("gauge.with.dots.needle.bottom.50percent", "rail.usage",
-                     active: model.navSection == .usage) {
-                    model.guardedLeave {
-                        model.navSection = .usage
-                        Task { await model.refreshUsage(includeExact: true) }
-                    }
-                }
-            }
-            item("point.3.connected.trianglepath.dotted", "rail.connected",
-                 active: model.navSection == .services) {
-                model.guardedLeave { model.navSection = .services }
-            }
-            .padding(.top, Space.xs)
 
-            #if DEBUG
-            // DEBUG-only: preview the dot/particle motion system (spinners + waits).
-            devItem("sparkles", "Lab", active: model.navSection == .particleLab) {
-                model.navSection = .particleLab
-            }
-            #endif
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: Space.xs) {
+                    item("bubble.left.and.bubble.right.fill", "sidebar.chats",
+                         active: model.navSection == .chats,
+                         running: !model.runningChatIDs.isEmpty || !model.attentionChatIDs.isEmpty) {
+                        model.guardedLeave {
+                            model.navSection = .chats
+                            toggleSidebar()          // the Chats icon reveals / hides the list
+                        }
+                    }
 
-            // Design-system switcher — try each visual direction live.
+                    railDivider
+
+                    item("person.3.sequence.fill", "rail.team", active: model.navSection == .team) {
+                        model.guardedLeave { model.navSection = .team }
+                    }
+                    item("chevron.left.forwardslash.chevron.right", "rail.code", active: model.navSection == .code) {
+                        model.guardedLeave { model.navSection = .code }
+                    }
+                    item("flag.checkered", "rail.arena", active: model.navSection == .arena) {
+                        model.guardedLeave { model.navSection = .arena }
+                    }
+                    item("brain", "rail.memory", active: model.navSection == .memory) {
+                        model.guardedLeave { model.navSection = .memory }
+                    }
+                    item("arrow.triangle.2.circlepath", "rail.loops",
+                         active: model.navSection == .loops,
+                         running: !LoopStore.shared.runningLoopIDs.isEmpty) {
+                        model.guardedLeave { model.navSection = .loops }
+                    }
+                    item("puzzlepiece.extension.fill", "rail.skills", active: model.navSection == .skills) {
+                        model.guardedLeave { model.navSection = .skills }
+                    }
+                    item("gauge.with.dots.needle.bottom.50percent", "rail.usage", active: model.navSection == .usage) {
+                        model.guardedLeave {
+                            model.navSection = .usage
+                            Task { await model.refreshUsage(includeExact: true) }
+                        }
+                    }
+
+                    railDivider
+
+                    item("point.3.connected.trianglepath.dotted", "rail.connected", active: model.navSection == .services) {
+                        model.guardedLeave { model.navSection = .services }
+                    }
+
+                    #if DEBUG
+                    devItem("sparkles", "Lab", active: model.navSection == .particleLab) {
+                        model.navSection = .particleLab
+                    }
+                    #endif
+                }
+                .padding(.vertical, Space.xs)
+            }
+
             themePicker
-
-            Spacer(minLength: Space.m)
 
             item("gearshape.fill", "sidebar.settings", active: model.navSection == .settings) {
                 model.guardedLeave { model.navSection = .settings }
             }
-            // A coral dot signals a downloadable update (surfaced fully in Settings).
             .overlay(alignment: .topTrailing) {
                 if model.availableUpdate != nil {
                     Circle().fill(Theme.coral)
@@ -112,13 +101,11 @@ struct NavRail: View {
                         .accessibilityLabel(model.t("settings.updates.badge"))
                 }
             }
-            // ChatGPT-calm: the persistent usage data-card is gone from the rail (it was the
-            // biggest resting data blob) — usage lives in the Usage section + the chat header.
             profileRow
         }
-        .frame(width: 200)
+        .frame(width: 64)
         .frame(maxHeight: .infinity)
-        .padding(.horizontal, Space.m)
+        .padding(.horizontal, Space.s)
         .padding(.top, 34)          // clear the floating traffic lights (hidden titlebar)
         .padding(.bottom, Space.m)
         // The rail uses the native macOS `.sidebar` vibrancy so it reads as a true sidebar,
@@ -161,38 +148,29 @@ struct NavRail: View {
                 }
             }
         } label: {
-            HStack(spacing: Space.s) {
-                Image(systemName: "paintpalette").font(.system(size: 13)).frame(width: 22)
-                    .foregroundStyle(Theme.secondaryOnMaterial)
-                Text(theme.active.displayName).font(.sfCaption2.weight(.medium))
-                    .foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
-                Spacer(minLength: 0)
-                Circle().fill(theme.active.palette.coral).frame(width: 11, height: 11)
-                    .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 0.5))
-            }
-            .padding(.horizontal, Space.s).padding(.vertical, 7)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            Image(systemName: "paintpalette")
+                .font(.system(size: 16))
+                .foregroundStyle(Theme.secondaryOnMaterial)
+                .frame(width: 40, height: 34)
+                .overlay(alignment: .bottomTrailing) {
+                    Circle().fill(theme.active.palette.coral).frame(width: 8, height: 8)
+                        .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 0.5))
+                        .offset(x: -6, y: -5)
+                }
+                .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden)
-        .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
-            .fill(Theme.cardBg.opacity(0.35)))
+        .frame(width: 40)
+        .help(model.t("rail.theme"))
         .accessibilityLabel(model.t("rail.theme"))
     }
 
-    /// Brand row: the coral mark (matches the app icon, breathing slowly) + wordmark.
+    /// Brand mark: just the coral glyph (matches the app icon) — the wordmark is dropped
+    /// on the narrow icon rail.
     private var brand: some View {
-        HStack(spacing: Space.s) {
-            CoralMark(size: 24, color: Theme.coral)
-                .breathingGlow(color: Theme.coral, enabled: false)
-            Text("Coral")
-                .font(.sfMono)
-                .foregroundStyle(Theme.ink)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, Space.s)
-        .padding(.top, Space.xs)
-        .padding(.bottom, Space.s)
+        CoralMark(size: 26, color: Theme.coral)
+            .frame(width: 40, height: 36)
+            .padding(.bottom, Space.xs)
     }
 
     /// The "New chat" affordance: a friendly rounded glass pill with a coral icon and
@@ -204,21 +182,12 @@ struct NavRail: View {
                 model.addConfiguration()
             }
         } label: {
-            HStack(spacing: Space.s) {
-                Image(systemName: "square.and.pencil")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Theme.coral)
-                    .frame(width: 22)
-                Text(model.t("sidebar.new"))
-                    .font(.sfBodyM.weight(.medium))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, Space.m)
-            .frame(height: 34)
-            .glassPanel(cornerRadius: Theme.buttonCorner)
-            .contentShape(Rectangle())
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 16))
+                .foregroundStyle(Theme.coral)
+                .frame(width: 40, height: 34)
+                .glassPanel(cornerRadius: Theme.buttonCorner)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(model.t("sidebar.new"))
@@ -263,35 +232,33 @@ struct NavRail: View {
         .accessibilityValue(expanded ? model.t("common.expanded") : model.t("common.collapsed"))
     }
 
-    /// Shared row chrome (used by `item` and the DEBUG `devItem`).
+    /// Toggle the chat-list column open/closed (the Chats icon is now the reveal gesture).
+    private func toggleSidebar() {
+        if reduceMotion { showSidebar.toggle() }
+        else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar.toggle() } }
+    }
+
+    /// A short hairline rule that groups the icon rail into sections.
+    private var railDivider: some View {
+        Rectangle().fill(Theme.hairline).frame(width: 24, height: 1)
+            .padding(.vertical, 2)
+    }
+
+    /// Shared row chrome (used by `item` and the DEBUG `devItem`): a centered icon in a
+    /// square tap target, with a soft coral pill + coral tint when active and a running
+    /// pulse dot in the corner. The label rides in the tooltip (`.help`), not on the rail.
     private func rowBody(icon: String, label: String, active: Bool, running: Bool) -> some View {
-        HStack(spacing: Space.s) {
-            Image(systemName: icon)
-                .font(.system(size: 15))
-                .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
-                .frame(width: 22)
-            Text(label)
-                .font(.sfBodyM.weight(active ? .semibold : .regular))
-                .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            if running && !active { RunningPulseDot() }
-        }
-        .padding(.horizontal, Space.m)
-        .frame(height: 34)
-        // A soft coral wash hugs the active row (tight radius, no hard border) with a
-        // short coral leading bar as the single strong accent cue.
-        .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
-            .fill(active ? Theme.accentSoft : .clear))
-        .overlay(alignment: .leading) {
-            if active {
-                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                    .fill(Theme.coral)
-                    .frame(width: 3, height: 16)
+        Image(systemName: icon)
+            .font(.system(size: 17))
+            .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
+            .frame(width: 40, height: 34)
+            .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+                .fill(active ? Theme.accentSoft : .clear))
+            .overlay(alignment: .topTrailing) {
+                if running && !active { RunningPulseDot().offset(x: -3, y: 3) }
             }
-        }
-        .hoverTint(cornerRadius: Theme.rowCorner)
-        .contentShape(Rectangle())   // whole row is tappable
+            .hoverTint(cornerRadius: Theme.rowCorner)
+            .contentShape(Rectangle())
     }
 
 
@@ -302,20 +269,19 @@ struct NavRail: View {
     @ViewBuilder private var profileRow: some View {
         if let acc = auth.account {
             Button { showAccountMenu.toggle() } label: {
-                profileCard(avatar: avatarCircle(initials(acc.label)),
-                            title: acc.label, sub: acc.email,
-                            trailingIcon: "chevron.down")
+                avatarCircle(initials(acc.label))
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $showAccountMenu, arrowEdge: .bottom) { accountMenu }
+            .help(acc.label)
+            .popover(isPresented: $showAccountMenu, arrowEdge: .trailing) { accountMenu }
+            .padding(.top, Space.xs)
         } else {
             Button { model.navSection = .settings } label: {
-                profileCard(avatar: signInAvatar,
-                            title: model.t("rail.profile.signin"),
-                            sub: model.t("rail.profile.signin.sub"),
-                            trailingIcon: nil)
+                signInAvatar
             }
             .buttonStyle(.plain)
+            .help(model.t("rail.profile.signin"))
+            .padding(.top, Space.xs)
         }
     }
 

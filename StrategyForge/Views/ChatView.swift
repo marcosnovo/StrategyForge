@@ -117,29 +117,25 @@ struct ChatView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            chatColumn
-            // Code Mode opens as the RIGHT-side panel (the chat stays put on the left)
-            // rather than replacing the conversation. It takes precedence over the
-            // activity panel while open.
+        Group {
+            // Code Mode opens as the RIGHT-side panel inline (it's a workspace and earns real
+            // width; the chat stays on the left). The activity panel, by contrast, now floats
+            // as a right INSPECTOR over the conversation so it never squeezes the reading
+            // column — the conversation stays the dominant, centred protagonist.
             if codeMode {
-                ResizableDivider(
-                    width: Binding(get: { CGFloat(codeW) }, set: { codeW = Double($0) }),
-                    range: 380...900, sign: -1)
-                CodeModeView(vm: vm)
-                    .frame(width: CGFloat(codeW))
-            } else if showActivity {
-                ResizableDivider(
-                    width: Binding(get: { CGFloat(activityW) }, set: { activityW = Double($0) }),
-                    range: 260...560, sign: -1)
-                AgentActivityPanel(vm: vm, focus: $agentFocus,
-                                   previewStrategy: advisorPreviewStrategy, previewLabel: advisorPreviewLabel,
-                                   previewReason: advisorPreviewReason)
-                    .frame(width: CGFloat(activityW))
-                if let focus = agentFocus {
-                    SubagentDetailPanel(vm: vm, focus: focus) { agentFocus = nil }
-                        .frame(width: 300)
+                HStack(spacing: 0) {
+                    chatColumn
+                    ResizableDivider(
+                        width: Binding(get: { CGFloat(codeW) }, set: { codeW = Double($0) }),
+                        range: 380...900, sign: -1)
+                    CodeModeView(vm: vm)
+                        .frame(width: CGFloat(codeW))
                 }
+            } else {
+                chatColumn
+                    .overlay(alignment: .trailing) {
+                        if showActivity { activityInspector }
+                    }
             }
         }
         // NOTE: no implicit animation / transition here. These panels contain
@@ -248,6 +244,26 @@ struct ChatView: View {
         // (when idle) so the next turn actually uses the binary just located.
         if !vm.isRunning { model.invalidateChatVM(config.id) }
         Task { await checkEngine() }
+    }
+
+    /// The activity panel as a floating right INSPECTOR — an opaque, softly-shadowed card
+    /// pinned to the trailing edge, over the conversation, so opening it never subtracts
+    /// width from the centred reading column (ChatGPT-canvas behaviour).
+    private var activityInspector: some View {
+        HStack(spacing: 0) {
+            AgentActivityPanel(vm: vm, focus: $agentFocus,
+                               previewStrategy: advisorPreviewStrategy, previewLabel: advisorPreviewLabel,
+                               previewReason: advisorPreviewReason)
+                .frame(width: CGFloat(activityW))
+            if let focus = agentFocus {
+                SubagentDetailPanel(vm: vm, focus: focus) { agentFocus = nil }
+                    .frame(width: 300)
+            }
+        }
+        .frame(maxHeight: .infinity)
+        .background(.regularMaterial)
+        .overlay(alignment: .leading) { Divider() }
+        .shadow(color: .black.opacity(0.14), radius: 20, x: -6, y: 0)
     }
 
     private var chatColumn: some View {
@@ -1501,6 +1517,10 @@ struct ChatView: View {
             .animation(.easeOut(duration: 0.18), value: inputFocused)
             composerFooter
         }
+        // Center the composer on the SAME reading measure as the messages, so the whole
+        // conversation reads as one centred document; the `.bar` still spans full width.
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity, alignment: .center)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: mentionMatches.count)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: slashMatches.count)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: branchStat)
