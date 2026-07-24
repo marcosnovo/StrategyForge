@@ -952,14 +952,20 @@ struct ChatView: View {
                 Text(message.text)
                     .font(.sfBodyM)
                     .lineSpacing(Theme.bodyLineSpacing)
-                    .foregroundStyle(Theme.onAccent)
-                    .shadow(color: Theme.coralTextShadow, radius: 0.5, x: 0, y: 0.5)   // legible on bright coral
+                    .foregroundStyle(Theme.ink)
                     .textSelection(.enabled)
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                     .frame(maxWidth: 560, alignment: .trailing)
-                    // The user's turn: a flat coral pill — signature coral kept, but the glow
-                    // and gradient dropped for ChatGPT-calm (brand decision 2026-07-24).
-                    .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.coral))
+                    // The user's turn: a QUIET chip — a whisper of coral tint over a neutral
+                    // fill with ink text, not a saturated coral slab. The old bright-coral
+                    // fill read as an alert/error and was the loudest thing on screen; calm
+                    // chat UIs keep the user's own words near-neutral (ChatGPT/Claude).
+                    // Coral is reclaimed for actions + the live agent moment, not chat history.
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
+                            .fill(Theme.coral.opacity(0.10))
+                            .overlay(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
+                                .strokeBorder(Theme.coral.opacity(0.16), lineWidth: 1)))
                     .contextMenu {
                         copyButton(message.text)
                         Button { editMessage(message) } label: {

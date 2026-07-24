@@ -440,9 +440,9 @@ private struct ElevationModifier: ViewModifier {
         -> (aA: Double, aR: CGFloat, aY: CGFloat, cA: Double, cR: CGFloat, cY: CGFloat) {
         switch (level, dark) {
         case (.e1, true):  return (0.28, 14,  6, 0.22, 2, 1)
-        case (.e1, false): return (0.10, 10,  4, 0.08, 1.5, 1)
+        case (.e1, false): return (0.14, 10,  4, 0.10, 1.5, 1)
         case (.e2, true):  return (0.34, 22, 10, 0.26, 3, 1)
-        case (.e2, false): return (0.17, 18,  9, 0.10, 2.5, 1)
+        case (.e2, false): return (0.22, 18,  9, 0.12, 2.5, 1)
         case (.e3, true):  return (0.40, 30, 14, 0.30, 4, 2)
         case (.e3, false): return (0.23, 26, 12, 0.13, 3, 1)
         case (.e4, true):  return (0.48, 40, 20, 0.34, 5, 2)
@@ -486,8 +486,10 @@ private struct CardModifier: ViewModifier {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(Theme.cardBg))
-            // ChatGPT-calm: flat surface separated by a hairline, not a shadow.
+                    .fill(Theme.cardBg)
+                    // A soft contact shadow so the card reads as a LIT object resting on the
+                    // (now darker) ground — a hairline alone left every panel flat on white.
+                    .elevation(.e1))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .strokeBorder(Theme.hairline, lineWidth: 1))
@@ -508,7 +510,8 @@ extension View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(Theme.cardBg))
+                    .fill(Theme.cardBg)
+                    .elevation(.e1))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .strokeBorder(Theme.hairline, lineWidth: 1))

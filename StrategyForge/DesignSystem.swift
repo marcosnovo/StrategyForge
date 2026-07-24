@@ -62,24 +62,28 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
     var palette: Palette {
         switch self {
         case .classic:
+            // A real ~12 L* value ladder so cards read as LIT objects on a darker ground
+            // (the old F A F 9 F 6 → F F F F F F cluster was all within ~3%, so nothing popped).
             return Palette(
-                appBg: hex("FAF9F6", "0C1315"), columnBg: hex("FBFBFA", "121E21"),
-                cardBg: hex("FFFFFF", "16262A"), insetBg: hex("F4F3F2", "1B2E33"),
+                appBg: hex("F1EFEA", "0C1315"), columnBg: hex("EAE8E2", "121E21"),
+                cardBg: hex("FFFFFF", "16262A"), insetBg: hex("E3E1D9", "1B2E33"),
                 railBg: hex("081014", "081014"),
                 ink: hex("1A2426", "EAF3F1"), secondary: hex("5D6A67", "86A0A0"),
-                tertiary: hex("736A5F", "7E9A9A"), hairline: hex("EAE3D9", "1D2D32"),
+                tertiary: hex("736A5F", "7E9A9A"), hairline: hex("D8D4CB", "1D2D32"),
                 coral: hex("FF6B54", "FF6B54"), coralDeep: hex("E24029", "E24029"),
                 accent: hex("C33A22", "FF6B54"), glow: 0.22,
                 backdrop: .auroraCoral, usesGlass: true, hero: .standard)
 
         case .reefPaper:
-            // Editorial: warm porcelain, matte paper (no glass), serif hero, no glow.
+            // Editorial: warm PORCELAIN ground (not pure white), matte paper (no glass),
+            // serif hero. The base sits ~12 L* below the white cards so cards read as sheets
+            // resting on a warm desk, giving the flat paper language real figure/ground.
             return Palette(
-                appBg: hex("F7F7F5", "0E1114"), columnBg: hex("F2F2EF", "141A1E"),
-                cardBg: hex("FFFFFF", "1A2227"), insetBg: hex("ECECE8", "10161A"),
+                appBg: hex("EFEDE8", "0E1114"), columnBg: hex("E7E5DF", "141A1E"),
+                cardBg: hex("FFFFFF", "1A2227"), insetBg: hex("E0DED7", "10161A"),
                 railBg: hex("0C0E12", "080B0E"),
                 ink: hex("1C1D1F", "ECEFF1"), secondary: hex("63656A", "98A0A6"),
-                tertiary: hex("8A8C92", "6E767C"), hairline: hex("E4E3DE", "242E33"),
+                tertiary: hex("8A8C92", "6E767C"), hairline: hex("D6D4CC", "242E33"),
                 coral: hex("F5573C", "FF6E56"), coralDeep: hex("E0432B", "E8482E"),
                 accent: hex("C4402A", "FF7C64"), glow: 0.06,
                 backdrop: .paper, usesGlass: false, hero: .serif)
@@ -87,22 +91,22 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
         case .bioluminescence:
             // Luminous reef: near-black void + caustic glow, glowing rounded hero, glass.
             return Palette(
-                appBg: hex("F4F7F8", "070C10"), columnBg: hex("EDF2F3", "0B1318"),
-                cardBg: hex("FFFFFF", "101A20"), insetBg: hex("E6EDEE", "0A1015"),
+                appBg: hex("E8ECED", "070C10"), columnBg: hex("DFE5E6", "0B1318"),
+                cardBg: hex("FFFFFF", "101A20"), insetBg: hex("D6DEDF", "0A1015"),
                 railBg: hex("05090C", "05090C"),
                 ink: hex("0E1618", "EAF4F2"), secondary: hex("4E5E60", "7FA0A0"),
-                tertiary: hex("6E7C7E", "6E8888"), hairline: hex("DEE7E8", "17242A"),
+                tertiary: hex("6E7C7E", "6E8888"), hairline: hex("CBD3D4", "17242A"),
                 coral: hex("F04A30", "FF6E56"), coralDeep: hex("D8341C", "FF3D6B"),
                 accent: hex("C6381F", "FF7A63"), glow: 0.42,
                 backdrop: .caustic, usesGlass: true, hero: .rounded)
 
         case .ember:
             return Palette(
-                appBg: hex("FCFBFD", "0D0B12"), columnBg: hex("F6F5F9", "141221"),
-                cardBg: hex("FFFFFF", "181521"), insetBg: hex("EFEDF3", "1E1A2A"),
+                appBg: hex("EFEDF2", "0D0B12"), columnBg: hex("E8E5EE", "141221"),
+                cardBg: hex("FFFFFF", "181521"), insetBg: hex("E2DEEA", "1E1A2A"),
                 railBg: hex("0A0810", "0A0810"),
                 ink: hex("141118", "F0ECF4"), secondary: hex("615A6C", "A79FB4"),
-                tertiary: hex("7C7488", "8A8398"), hairline: hex("ECE8F0", "241F2E"),
+                tertiary: hex("7C7488", "8A8398"), hairline: hex("D6D2DE", "241F2E"),
                 coral: hex("FF6B54", "FF6B54"), coralDeep: hex("E5397E", "FF3D8A"),
                 accent: hex("D62D6E", "FF7A9C"), glow: 0.24,
                 backdrop: .duotone, usesGlass: true, hero: .standard)
