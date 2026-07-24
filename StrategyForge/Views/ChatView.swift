@@ -1030,30 +1030,11 @@ struct ChatView: View {
                     // we render PLAIN text (re-parsing Markdown on every token is what
                     // made it feel choppy); the full Markdown renders once it settles.
                     Group {
-                        if isStreaming && vm.isOrchestrating {
-                            // The SIGNATURE moment: while the team delegates/works/synthesizes,
-                            // the assistant bubble shows the live agent graph — orchestrator core
-                            // fanning out to role-coloured subagent nodes — instead of raw log
-                            // narration. The honest step text is demoted to a compact caption
-                            // beneath it. When the final answer starts streaming, `isOrchestrating`
-                            // flips false and this crossfades to the prose/Markdown below.
-                            VStack(alignment: .leading, spacing: Space.s) {
-                                LiveAgentGraphView(snapshot: vm.liveGraph)
-                                    .frame(height: 208)
-                                    .frame(maxWidth: Theme.readingColumn)
-                                    .transition(.opacity)
-                                let lines = message.text
-                                    .split(separator: "\n", omittingEmptySubsequences: true)
-                                    .suffix(3).map(String.init)
-                                if !lines.isEmpty {
-                                    Text(lines.joined(separator: "\n"))
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(3)
-                                        .textSelection(.enabled)
-                                }
-                            }
-                        } else if isStreaming {
+                        if isStreaming {
+                            // While a meta turn orchestrates, this is the live narration (role
+                            // chips + step lines + "Paso N/M") — text-first and legible, the
+                            // pattern the founder liked. The topology lives in the panel's
+                            // light stage, not as a dark canvas dropped into the transcript.
                             Text(message.text)
                                 .font(.sfBodyM).lineSpacing(Theme.bodyLineSpacing)
                                 .foregroundStyle(Theme.ink)

@@ -132,11 +132,17 @@ struct AgentActivityPanel: View {
     /// A quiet in-card separator between two grouped sections.
     private var sectionDivider: some View { Divider().padding(.vertical, 2) }
 
-    /// The pinned constellation stage — a dark "engine viewport" showing the live (or, at
-    /// rest, the configured-idle) agent graph as a framed inset under the header.
+    /// The pinned team stage — the LIGHT, role-coloured topology (the same crafted diagram
+    /// as the Team screen), pinned under the header and always visible. It belongs to the
+    /// warm app instead of clashing as a dark game-canvas: orchestrator coral, each role in
+    /// its own hue, coral S-curve wires, live signal dots + a breathing halo on the active
+    /// agent while running. At rest it's the calm configured crew ("your team, ready").
     private var agentStage: some View {
-        LiveAgentGraphView(snapshot: vm.liveGraph)
-            .frame(height: 288)
+        StrategyDiagramView(strategy: shownStrategy,
+                            activeAgent: vm.activeSubagent,
+                            isLive: vm.isRunning,
+                            compact: true)
+            .frame(height: 236)
             .padding(Space.m)
     }
 
