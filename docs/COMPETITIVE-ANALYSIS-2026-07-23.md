@@ -6,21 +6,24 @@ públicos de cada competidor. Todas las afirmaciones citan fuente; donde la fuen
 dato no estaba documentado públicamente se marca **(no confirmado)**.
 **Audiencia:** producto/roadmap interno.
 
-> **Actualización 2026-07-24 — los tres items "Inmediato" están implementados** (PR #27,
-> rama `claude/littlellm-coral-differences-3e0qmy`), pendientes de pasar el gate
-> `xcodebuild test` en un Mac antes de dar por cerrado:
+> **Estado a 2026-07-24 — en `main`, gate `xcodebuild test` verde (401 tests).** Todo lo
+> "Inmediato" y la **memoria entre proyectos** completa están mergeados y verdes; ya no es
+> una proyección. Cerrado desde que se escribió el análisis:
 > 1. **Loop de Review cerrado** — botón opt-in "Corregir todo" que reinyecta los hallazgos
 >    al equipo autor.
 > 2. **Procedencia por línea** — atribución por línea en el diff (ruta nativa Claude),
->    barra tintada por proveedor + tooltip "Agente · Modelo". Coral pasa a ser **el único
->    de la categoría** con esto.
+>    barra tintada por proveedor + tooltip "Agente · Modelo". Coral es **el único de la
+>    categoría** con esto (cross-proveedor por línea sigue pendiente).
 > 3. **Notificación remota de loops** — webhook (ntfy→móvil / Slack / Discord / genérico)
 >    al terminar un run, además de la notificación local existente.
+> 4. **Memoria de conocimiento entre proyectos** — base global de learnings que se inyecta
+>    en `CLAUDE.md` y en el `LOOP.md` del loop, con captura (manual / STATE.md / Review) y
+>    **reflexión post-run**. Sync CloudKit codificado pero dormido (Slice 7). Esto era un
+>    item de *medio plazo*: se ha adelantado.
 >
-> La matriz (§3) y las recomendaciones (§6–7) reflejan ya este nuevo estado; los tres
-> huecos que abren el análisis quedan **cerrados a nivel de código** (matices y trabajo
-> restante anotados en cada fila). La foto "dónde estaríamos con la proyección" es ahora
-> el escenario base, no una hipótesis.
+> Único trabajo manual restante (no bloquea código): **captura visual light/dark** de las
+> features nuevas, y **verificar el sync CloudKit en dispositivo** (añadir el record type
+> "Learning" al esquema del container — tarea de fundador, igual que el sync de config).
 
 ---
 
@@ -108,7 +111,9 @@ más fricción/desconfianza generan** sin diluir su identidad ("nativo, tu suscr
 - **Fuerte en:** metaswarm tiene la **memoria entre proyectos más madura** de toda la categoría — una
   base de conocimiento (BEADS + JSONL) de la que los agentes "priman" antes de cada tarea y a la que
   aportan aprendizajes tras cada merge. Los gates de ambos son genuinamente independientes (agentes
-  separados, no auto-calificación).
+  separados, no auto-calificación). *(Actualización 2026-07-24: Coral ya tiene base de conocimiento
+  entre proyectos con inyección + reflexión post-run; la ventaja de metaswarm se reduce a madurez
+  —BEADS, reflexión más rica—, no a existencia.)*
 - **Débil en:** sin interfaz gráfica; maestro no confirma mezcla de proveedores dentro de una misma
   tarea colaborativa (cada runtime se apunta por separado); sin exportación a otro formato — la
   config *es* el producto.
@@ -161,14 +166,14 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Mezcla de proveedores por rol en un mismo equipo | ✅ | ✅ | ❌ (Arena = competir, no repartir roles) | ✅ (regla explícita autor≠revisor) | ❌ | ⚠️ |
 | Plantillas de estrategia/topología predefinidas | ✅ (13, editables) | ⚠️ (Epic Mode auto-decide, sin catálogo nombrado) | ❌ | ✅ (pipeline fijo) | ❌ | ❌ |
 | Loop autónomo con verificador independiente | ✅ | ✅ | ❌ | ✅ | ❌ | ⚠️ |
-| **Auto-fix cerrado desde la revisión** (hallazgo → vuelve solo al autor) | ✅ (nuevo — botón opt-in "Corregir todo"; pendiente gate en Mac) | ✅ | ❌ | ✅ | ❌ | ⚠️ (no confirmado auto-push) |
+| **Auto-fix cerrado desde la revisión** (hallazgo → vuelve solo al autor) | ✅ (botón opt-in "Corregir todo") | ✅ | ❌ | ✅ | ❌ | ⚠️ (no confirmado auto-push) |
 | Aislamiento por git worktree | ✅ (en loops) | ❌ | ✅ (su feature central) | ⚠️ | ⚠️ | ✅ |
 | Ejecución competitiva multi-proveedor ("Arena") | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Memoria/conocimiento persistente **entre proyectos** | ✅ (nuevo — base global de learnings patrón/decisión/error, `MemoryStore`; se inyecta en `CLAUDE.md` **y en el `LOOP.md` del loop**; captura manual / import de STATE.md / promote desde Review; **reflexión post-run** que cosecha el STATE.md a la base al terminar. Sync CloudKit codificado pero dormido hasta verificar en dispositivo) | ⚠️ (contexto compartido, alcance sin confirmar) | ❌ | ✅ (BEADS + base de conocimiento + reflexión) | ❌ | ❌ |
 | Sandboxing opcional (Docker) por tarea | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Sesiones remotas (SSH a otra máquina) | ❌ | ❌ | ⚠️ (solo ver progreso vía QR/Tailscale) | ❌ | ✅ | ❌ |
-| Notificación/companion remoto del estado del loop | ✅ (nuevo — webhook ntfy→móvil / Slack / Discord / genérico al terminar; + notificación local `LoopNotifier`; pendiente gate en Mac) | ⚠️ (sync entre dispositivos, sin push explícito) | ⚠️ (notif. de escritorio + QR remoto) | ❌ | ❌ | ⚠️ (vigila CI, no notifica al usuario fuera de la app) |
-| Procedencia por línea (qué modelo/rol escribió qué) | ✅ (nuevo — por línea en el diff, ruta nativa Claude; cross-proveedor pendiente; pendiente gate en Mac) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Notificación/companion remoto del estado del loop | ✅ (webhook ntfy→móvil / Slack / Discord / genérico al terminar; + notificación local `LoopNotifier`) | ⚠️ (sync entre dispositivos, sin push explícito) | ⚠️ (notif. de escritorio + QR remoto) | ❌ | ❌ | ⚠️ (vigila CI, no notifica al usuario fuera de la app) |
+| Procedencia por línea (qué modelo/rol escribió qué) | ✅ (por línea en el diff, ruta nativa Claude; cross-proveedor pendiente) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Exporta config real reutilizable fuera de la app | ✅ (`.claude/agents` + `CLAUDE.md` + workflow) | ❌ | ❌ | N/A (la config *es* el producto) | ❌ | ❌ |
 | Sync multi-dispositivo (config/equipos) | ✅ (CloudKit) | ✅ | ❌ | ❌ | ❌ (por diseño) | ❌ |
 | Seguimiento de uso/coste (tokens, % de plan) | ✅ | ⚠️ (cuotas por "artifacts", no tokens) | ❌ | ❌ | ❌ | ❌ |
@@ -179,10 +184,10 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Precio | Gratis | Freemium ~$10-40/u/mes (app en sí, gratis) | Gratis | Gratis | Gratis | Gratis |
 
 **Nota de calidad:** "✅" en verificador/gates no significa lo mismo en todos — metaswarm y Traycer
-tienen el bucle más cerrado (hallazgo → fix automático). Con PR #27 Coral **cierra su bucle de
-Review** (botón opt-in que reinyecta los hallazgos al equipo autor), sumándose a ese grupo; la
-diferencia restante es que en Traycer/metaswarm el reintento es automático dentro del pipeline,
-mientras en Coral es un tap deliberado (opt-in por diseño, para no gastar tokens sin que lo pidas).
+tienen el bucle más cerrado (hallazgo → fix automático). Coral **cierra su bucle de Review** (botón
+opt-in que reinyecta los hallazgos al equipo autor), sumándose a ese grupo; la diferencia restante es
+que en Traycer/metaswarm el reintento es automático dentro del pipeline, mientras en Coral es un tap
+deliberado (opt-in por diseño, para no gastar tokens sin que lo pidas).
 
 **Nota sobre "procedencia por línea":** Coral pasa a ser el único de la categoría con atribución por
 línea en el diff, pero con un matiz honesto: es **a nivel de línea en la ruta nativa Claude** (donde
@@ -299,39 +304,34 @@ confianza:
 
 ## 7. Backlog
 
-**Hecho (PR #27 — pendiente gate `xcodebuild test` en Mac):**
+**Hecho y en `main` (gate `xcodebuild test` verde):**
 
 - [x] Loop de auto-fix cerrado desde Review (Code mode) — botón opt-in "Corregir todo"
 - [x] Procedencia por línea de qué modelo/rol escribió cada línea — en el diff, ruta nativa Claude
 - [x] Notificación remota de estado de loop — webhook (ntfy/Slack/Discord/genérico), + local existente
-
-**Hecho (memoria entre proyectos — gate `xcodebuild test` verde en Mac, en `main`):**
-
-- [x] Base de conocimiento global (`MemoryStore`) + modelo `Learning` con `source` obligatoria
-- [x] Inyección del digest en el `CLAUDE.md` de cada equipo (`ClaudeMdGenerator`, digest vacío = no-op)
-- [x] Captura: manual, import de `STATE.md` (`StateFileParser`), promote desde Review
+- [x] **Memoria entre proyectos** — base de conocimiento global (`MemoryStore`) + `Learning` con
+      `source` obligatoria (sin conocimiento fabricado)
+- [x] Inyección del digest en el `CLAUDE.md` de cada equipo **y en el `LOOP.md` del loop**
+      (`ClaudeMdGenerator` / `LoopFileGenerator`, digest vacío = salida byte-idéntica)
+- [x] Captura: manual, import de `STATE.md` (`StateFileParser`), promote desde Review, y **reflexión
+      post-run** que cosecha el `STATE.md` a la base al terminar (`LoopStore.harvestStateFile`)
 - [x] Sección de nav **Memoria** (lista + editor + filtros)
+- [x] Sync CloudKit de la memoria — código hecho (`LearningSyncStore` + `LearningMerge` LWW), **dormido**
+      tras `LocalOnly`
 
-**Pendiente antes de cerrar PR #27:**
+**Trabajo manual restante (no bloquea código):**
 
-- [ ] Correr `xcodebuild test … -scheme StrategyForge` en un Mac (no se puede en el sandbox Linux)
-- [ ] Capturas light/dark del botón "Corregir todo", el punto por-fichero y la barra por-línea
+- [ ] Capturas light/dark del botón "Corregir todo", el punto por-fichero, la barra por-línea y la
+      sección **Memoria** (verificación visual del fundador)
+- [ ] Activar el sync CloudKit de memoria: añadir el record type "Learning" al esquema del container
+      y verificar en dispositivo (misma tarea pendiente que el sync de config)
 
 **Siguiente foco (medio plazo, sin empezar):**
 
+- [ ] **Modo "Arena"** (competir proveedores en la misma tarea) — *en curso*
 - [ ] **Procedencia por línea cross-proveedor** — el paso que le falta a la feature 2: workers
       editando en worktrees aislados que podamos diffear, para atribuir líneas a modelos de distintos
       proveedores (hoy es Claude-nativa). El modelo de datos ya está listo.
-- [x] ~~Memoria de conocimiento entre proyectos (más allá de STATE.md por loop)~~ — base + inyección + UI hechos
-- [x] ~~**Memoria Slice 6:** inyección en el `LOOP.md` del loop + reflexión post-run~~ — hecho. El
-      loop recibe el digest en LOOP.md (gated, vacío = idéntico) y al terminar cosecha su `STATE.md`
-      a la base global (`LoopStore.harvestStateFile`, honesto + deduplicado). Diff del fichero vetado
-      revisado (mínimo, aditivo).
-- [x] ~~**Memoria Slice 7:** sync CloudKit de la base de conocimiento entre Macs~~ — código hecho
-      (`LearningSyncStore` + `LearningMerge` LWW, imita `ConfigSyncStore`). **Dormido** tras
-      `LocalOnly` hasta añadir el record type "Learning" al esquema del container y verificar en
-      dispositivo (tarea de fundador, igual que el sync de config).
-- [ ] Modo "Arena" (competir proveedores en la misma tarea)
 - [ ] Sandboxing Docker opcional por loop
 - [ ] Sesiones remotas SSH — solo si hay señal de demanda
 
