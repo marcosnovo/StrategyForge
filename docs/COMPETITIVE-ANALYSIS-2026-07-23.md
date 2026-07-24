@@ -172,7 +172,7 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Loop autónomo con verificador independiente | ✅ | ✅ | ❌ | ✅ | ❌ | ⚠️ |
 | **Auto-fix cerrado desde la revisión** (hallazgo → vuelve solo al autor) | ✅ (botón opt-in "Corregir todo") | ✅ | ❌ | ✅ | ❌ | ⚠️ (no confirmado auto-push) |
 | Aislamiento por git worktree | ✅ (en loops) | ❌ | ✅ (su feature central) | ⚠️ | ⚠️ | ✅ |
-| Ejecución competitiva multi-proveedor ("Arena") | ✅✅ (nuevo — **dos niveles**: *Models* (misma tarea a N proveedores) y *Teams* (compite **estrategias de equipo enteras** multi-proveedor a la vez, con progreso en vivo por competidor: fase, agentes activos, tokens/coste, reloj; solo-lectura y con guard de coste). El nivel *Teams* **nadie más lo tiene** — requiere diseñar equipos) | ❌ | ✅ (solo nivel Models) | ❌ | ❌ | ❌ |
+| Ejecución competitiva multi-proveedor ("Arena") | ✅✅ (nuevo — **dos niveles**: *Models* (misma tarea a N proveedores) y *Teams* (compite **estrategias de equipo enteras** multi-proveedor a la vez, con progreso en vivo por competidor: fase, agentes activos, tokens/coste, reloj; solo-lectura y con guard de coste) + **juez independiente** opt-in que puntúa por calidad. El nivel *Teams* **nadie más lo tiene** — requiere diseñar equipos) | ❌ | ✅ (solo nivel Models, sin juez) | ❌ | ❌ | ❌ |
 | Memoria/conocimiento persistente **entre proyectos** | ✅ (nuevo — base global de learnings patrón/decisión/error, `MemoryStore`; se inyecta en `CLAUDE.md` **y en el `LOOP.md` del loop**; captura manual / import de STATE.md / promote desde Review; **reflexión post-run** que cosecha el STATE.md a la base al terminar. Sync CloudKit codificado pero dormido hasta verificar en dispositivo) | ⚠️ (contexto compartido, alcance sin confirmar) | ❌ | ✅ (BEADS + base de conocimiento + reflexión) | ❌ | ❌ |
 | Sandboxing opcional (Docker) por tarea | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Sesiones remotas (SSH a otra máquina) | ❌ | ❌ | ⚠️ (solo ver progreso vía QR/Tailscale) | ❌ | ✅ | ❌ |
@@ -301,10 +301,12 @@ confianza:
      solo-lectura → los competidores no se pisan). **Transparencia en vivo** por competidor —fase
      (planificar/delegar/sintetizar), agentes activos como chips, reloj que avanza cada segundo,
      tokens/coste acumulando— porque un run agéntico tarda minutos y no puede parecer bloqueado.
-     Guard de coste con confirmación antes de lanzar; cancelable. *Resultado:* Coral **supera** a
-     Parallel Code aquí — su Arena es solo de modelos; la de equipos solo la puede hacer quien diseña
-     equipos. *Pendiente (ver backlog):* competir en tareas de **código** (worktrees aislados por
-     competidor + diff) y un **juez independiente** que puntúe el resultado en vez del pick humano.
+     Guard de coste con confirmación antes de lanzar; cancelable. **Juez independiente** opt-in
+     (`ArenaJudge`, read-only, autor≠juez) que puntúa 0-100 cada respuesta y elige ganador por
+     *calidad* — disponible en ambos niveles. *Resultado:* Coral **supera** a Parallel Code aquí — su
+     Arena es solo de modelos y sin juez; la de equipos solo la puede hacer quien diseña equipos.
+     *Pendiente (ver backlog):* competir en tareas de **código** (worktrees aislados por competidor +
+     diff).
 3. **Sandboxing Docker opcional por loop.** *Por qué:* responde directamente a la objeción de
    confianza que el propio SECURITY.md ya reconoce (sandbox-off, ejecuta shell autónomamente), sin
    renunciar al modelo "tu propia máquina, tu propia suscripción".
@@ -352,10 +354,11 @@ confianza:
       **aislar cada competidor en su propio git worktree** (ya existe la infra en loops) y comparar el
       **diff** por competidor. Es el paso natural y el que une Arena con "procedencia por línea
       cross-proveedor" (misma pieza: workers editando en worktrees diffables).
-- [ ] **P1 · Juez independiente para la Arena** — hoy el ganador es un *pick* humano con pista "más
-      barato". Un agente juez read-only (como el verificador de loops, autor≠juez) que puntúe cada
-      resultado contra la tarea daría un ganador por *calidad*, no solo por coste. Reutiliza el patrón
-      del verificador. Opt-in (gasta tokens extra).
+- [x] ~~**P1 · Juez independiente para la Arena**~~ — **HECHO** (`ArenaJudge`). Botón opt-in "Juzgar"
+      en Models y Teams: un agente read-only (el proveedor conectado más fuerte, prefiere Claude)
+      puntúa 0-100 cada respuesta contra la tarea y elige ganador por *calidad*, no solo coste.
+      Candidatos anonimizados por letra (juzga la sustancia, no la marca); autor≠juez; badge de nota +
+      razón por tarjeta.
 - [ ] **P2 · Estimación de coste previa en la Arena de equipos** — hoy se avisa y se muestra el coste
       en vivo; una estimación *antes* de lanzar (por nº de agentes/modelos) daría más control. Reutiliza
       `CostEstimationHooks`.
