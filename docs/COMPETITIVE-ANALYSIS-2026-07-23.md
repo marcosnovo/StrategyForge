@@ -47,10 +47,10 @@ para que el equipo diseñado corra también fuera de la app. Nadie más junta la
    impacto práctico es la falta de **notificación remota/fuera del Mac** (móvil, email) para cuando
    el equipo está dormido o el usuario no está delante — varios competidores resuelven parte de esto.
    **→ Resuelto en PR #27** (webhook ntfy/Slack/Discord/genérico).
-2. Coral vende "mezcla de proveedores por rol" como diferenciador pero no tiene **procedencia por
-   línea** (qué modelo escribió qué) — nadie más lo tiene resuelto tampoco: oportunidad de ser
-   primeros, no de ponerse al día. **→ Resuelto en PR #27** a nivel de línea en la ruta nativa
-   (cross-proveedor por línea sigue pendiente).
+2. Coral vende "mezcla de proveedores por rol" como diferenciador pero no tenía **procedencia por
+   línea** (qué modelo escribió qué). **→ Resuelto por completo:** por línea en la ruta nativa Claude
+   **y cross-proveedor** (`CrossProviderEditor` corre workers de distinto proveedor editando en
+   secuencia y atribuye cada línea a su proveedor). Nadie más en la categoría lo tiene.
 3. El "Review" de Code mode hoy es de un solo sentido (agente lee el diff, humano decide) mientras
    que Traycer y metaswarm ya **cierran el bucle**: hallazgos categorizados que vuelven solos al
    agente autor para arreglarse. **→ Resuelto en PR #27** (botón opt-in de reinyección).
@@ -178,7 +178,7 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Sandboxing opcional (Docker) por tarea | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Sesiones remotas (SSH a otra máquina) | ❌ | ❌ | ⚠️ (solo ver progreso vía QR/Tailscale) | ❌ | ✅ | ❌ |
 | Notificación/companion remoto del estado del loop | ✅ (webhook ntfy→móvil / Slack / Discord / genérico al terminar; + notificación local `LoopNotifier`) | ⚠️ (sync entre dispositivos, sin push explícito) | ⚠️ (notif. de escritorio + QR remoto) | ❌ | ❌ | ⚠️ (vigila CI, no notifica al usuario fuera de la app) |
-| Procedencia por línea (qué modelo/rol escribió qué) | ✅ (por línea en el diff, ruta nativa Claude; cross-proveedor pendiente) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Procedencia por línea (qué modelo/rol escribió qué) | ✅✅ (por línea en el diff en la ruta nativa Claude **Y cross-proveedor**: `CrossProviderEditor` corre los workers de distinto proveedor en secuencia editando el mismo worktree y atribuye cada línea a su proveedor vía `LineAttributor`; se ve en la Arena de código con panel "escrito por") | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Exporta config real reutilizable fuera de la app | ✅ (`.claude/agents` + `CLAUDE.md` + workflow) | ❌ | ❌ | N/A (la config *es* el producto) | ❌ | ❌ |
 | Sync multi-dispositivo (config/equipos) | ✅ (CloudKit) | ✅ | ❌ | ❌ | ❌ (por diseño) | ❌ |
 | Seguimiento de uso/coste (tokens, % de plan) | ✅ | ⚠️ (cuotas por "artifacts", no tokens) | ❌ | ❌ | ❌ | ❌ |
@@ -194,12 +194,12 @@ opt-in que reinyecta los hallazgos al equipo autor), sumándose a ese grupo; la 
 que en Traycer/metaswarm el reintento es automático dentro del pipeline, mientras en Coral es un tap
 deliberado (opt-in por diseño, para no gastar tokens sin que lo pidas).
 
-**Nota sobre "procedencia por línea":** Coral pasa a ser el único de la categoría con atribución por
-línea en el diff, pero con un matiz honesto: es **a nivel de línea en la ruta nativa Claude** (donde
-los subagentes editan ficheros de verdad). La atribución **cross-proveedor** por línea sigue
-pendiente — los workers cross-proveedor devuelven texto, no editan ficheros — y necesita el paso
-arquitectónico de que cada worker edite en un worktree aislado que podamos diffear. El modelo de
-datos (`EditProvenance`, `LineAttributor`) ya está listo para ese salto.
+**Nota sobre "procedencia por línea":** Coral es el único de la categoría con atribución por línea en
+el diff — y ahora **en ambas rutas**: la nativa Claude (subagentes editando en una sesión `claude`) y
+la **cross-proveedor** (`CrossProviderEditor` corre los workers de distinto proveedor en secuencia
+editando el mismo worktree, y `LineAttributor` acredita cada línea a su proveedor). Se ve en la Arena
+de código. *Polish restante:* un diff coloreado línea a línea por proveedor (los datos ya están en
+`CrossProviderResult.lineAuthors`).
 
 ---
 
@@ -309,9 +309,11 @@ confianza:
      solo el código). Comparas diffs y **solo el ganador que apliques** se mergea (el resto se limpia;
      árbol del usuario intacto hasta aplicar). Verificado con tests de git real.
    - **Juez independiente** opt-in (`ArenaJudge`, read-only, autor≠juez) que puntúa 0-100 por *calidad*
-     en los tres niveles (en Code puntúa los diffs). *Resultado:* Coral **supera** a Parallel Code —
-     su Arena es solo de modelos, sin juez ni aislamiento. *Siguiente paso:* equipos con orquestador
-     **no-Claude** editando (necesita el paso cross-proveedor).
+     en los tres niveles (en Code puntúa los diffs). **Estimación de coste previa** (`ArenaCostEstimator`)
+     junto a Run y en las confirmaciones. **Cross-proveedor:** equipos con roles de distinto proveedor
+     editan por el `CrossProviderEditor` (workers en secuencia, procedencia por línea). *Resultado:*
+     Coral **supera** con creces a Parallel Code (solo modelos, sin juez, sin aislamiento, sin
+     procedencia). *Polish restante:* diff coloreado por proveedor línea a línea.
 3. **Sandboxing Docker opcional por loop.** *Por qué:* responde directamente a la objeción de
    confianza que el propio SECURITY.md ya reconoce (sandbox-off, ejecuta shell autónomamente), sin
    renunciar al modelo "tu propia máquina, tu propia suscripción".
@@ -374,17 +376,18 @@ confianza:
 **Otras (medio plazo):**
 
 - [x] ~~**P2 · Arena de CÓDIGO con equipos multi-agente enteros**~~ — **HECHO**. La arena de código
-      compite ahora *proveedores sueltos* O *equipos enteros*: un equipo se materializa en el worktree
-      (`.claude/agents` + `CLAUDE.md`, commit baseline) y corre nativo con `claude` (orquestador →
-      subagentes editando). El diff comparado excluye el andamiaje. `CodeContestant` unifica ambos.
-      Verificado con test de git real. *Restante:* equipos con orquestador **no-Claude** editando —
-      necesita el paso cross-proveedor (↓).
-- [ ] **Procedencia por línea cross-proveedor** — workers editando en worktrees aislados que podamos
-      diffear. **Ya desbloqueado en parte:** `CodeArenaEngine` demuestra la ejecución write-capable
-      aislada por proveedor; falta atribuir líneas del diff al proveedor (modelo `EditProvenance` listo).
-- [ ] **P2 · Estimación de coste previa** en las arenas de equipos/código (reutiliza `CostEstimationHooks`).
-- [ ] Sandboxing Docker opcional por loop
-- [ ] Sesiones remotas SSH — solo si hay señal de demanda
+      compite *proveedores sueltos* O *equipos enteros* (nativo Claude o cross-proveedor, ↓).
+      `CodeContestant` unifica ambos; diff comparado excluye el andamiaje. Verificado con git real.
+- [x] ~~**Procedencia por línea cross-proveedor**~~ — **HECHO** (`CrossProviderEditor`). Workers de
+      distinto proveedor editan el mismo worktree en secuencia; cada línea se atribuye a su proveedor
+      (`LineAttributor`). Se ve en la Arena de código (panel "escrito por" por fichero). *Polish
+      restante:* un diff coloreado por proveedor línea a línea (los datos ya están en `lineAuthors`).
+- [x] ~~**Equipos con orquestador no-Claude editando**~~ — **HECHO** vía el editor secuencial de arriba.
+- [x] ~~**P2 · Estimación de coste previa**~~ — **HECHO** (`ArenaCostEstimator`): chip "~Xk tok · $Y"
+      junto a Run y en las confirmaciones de las tres arenas.
+- [ ] **Polish:** diff coloreado por proveedor línea a línea en la Arena/Code mode (datos ya listos).
+- [ ] Sandboxing Docker opcional por loop — *si hay demanda*
+- [ ] Sesiones remotas SSH — *si hay demanda*
 
 ## Fuentes
 
