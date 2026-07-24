@@ -20,10 +20,11 @@ dato no estaba documentado públicamente se marca **(no confirmado)**.
 >    en `CLAUDE.md` y en el `LOOP.md` del loop, con captura (manual / STATE.md / Review) y
 >    **reflexión post-run**. Sync CloudKit codificado pero dormido (Slice 7). Item de *medio
 >    plazo* adelantado.
-> 5. **Modo "Arena"** en dos niveles — *Models* (misma tarea a N proveedores) y *Teams*
->    (compite **estrategias de equipo enteras** multi-proveedor, con progreso en vivo por
->    competidor, solo-lectura y guard de coste). El nivel *Teams* **supera** a Parallel Code
->    (su Arena es solo de modelos). Item de *medio plazo* adelantado.
+> 5. **Modo "Arena"** en tres niveles — *Models* (N proveedores), *Teams* (estrategias de
+>    equipo enteras, progreso en vivo) y *Code* (**cada proveedor edita en su worktree git
+>    aislado** → comparas diffs → aplicas el ganador; árbol intacto hasta aplicar), + **juez
+>    independiente** que puntúa por calidad. **Supera** a Parallel Code (solo modelos, sin
+>    juez ni aislamiento). Varios items de *medio plazo* adelantados.
 >
 > Único trabajo manual restante (no bloquea código): **captura visual light/dark** de las
 > features nuevas, y **verificar el sync CloudKit en dispositivo** (añadir el record type
@@ -172,7 +173,7 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Loop autónomo con verificador independiente | ✅ | ✅ | ❌ | ✅ | ❌ | ⚠️ |
 | **Auto-fix cerrado desde la revisión** (hallazgo → vuelve solo al autor) | ✅ (botón opt-in "Corregir todo") | ✅ | ❌ | ✅ | ❌ | ⚠️ (no confirmado auto-push) |
 | Aislamiento por git worktree | ✅ (en loops) | ❌ | ✅ (su feature central) | ⚠️ | ⚠️ | ✅ |
-| Ejecución competitiva multi-proveedor ("Arena") | ✅✅ (nuevo — **dos niveles**: *Models* (misma tarea a N proveedores) y *Teams* (compite **estrategias de equipo enteras** multi-proveedor a la vez, con progreso en vivo por competidor: fase, agentes activos, tokens/coste, reloj; solo-lectura y con guard de coste) + **juez independiente** opt-in que puntúa por calidad. El nivel *Teams* **nadie más lo tiene** — requiere diseñar equipos) | ❌ | ✅ (solo nivel Models, sin juez) | ❌ | ❌ | ❌ |
+| Ejecución competitiva multi-proveedor ("Arena") | ✅✅✅ (nuevo — **tres niveles**: *Models* (misma tarea a N proveedores), *Teams* (estrategias de equipo enteras multi-proveedor, progreso en vivo) y *Code* (**cada proveedor EDITA en su propio worktree git aislado** → compara diffs → aplica el ganador; árbol del usuario intacto hasta aplicar), + **juez independiente** opt-in que puntúa por calidad en los tres. Solo Coral: los niveles *Teams* y *Code*-con-worktrees-por-proveedor no los tiene nadie más) | ❌ | ✅ (solo nivel Models, sin juez ni aislamiento) | ❌ | ❌ | ❌ |
 | Memoria/conocimiento persistente **entre proyectos** | ✅ (nuevo — base global de learnings patrón/decisión/error, `MemoryStore`; se inyecta en `CLAUDE.md` **y en el `LOOP.md` del loop**; captura manual / import de STATE.md / promote desde Review; **reflexión post-run** que cosecha el STATE.md a la base al terminar. Sync CloudKit codificado pero dormido hasta verificar en dispositivo) | ⚠️ (contexto compartido, alcance sin confirmar) | ❌ | ✅ (BEADS + base de conocimiento + reflexión) | ❌ | ❌ |
 | Sandboxing opcional (Docker) por tarea | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Sesiones remotas (SSH a otra máquina) | ❌ | ❌ | ⚠️ (solo ver progreso vía QR/Tailscale) | ❌ | ✅ | ❌ |
@@ -301,12 +302,14 @@ confianza:
      solo-lectura → los competidores no se pisan). **Transparencia en vivo** por competidor —fase
      (planificar/delegar/sintetizar), agentes activos como chips, reloj que avanza cada segundo,
      tokens/coste acumulando— porque un run agéntico tarda minutos y no puede parecer bloqueado.
-     Guard de coste con confirmación antes de lanzar; cancelable. **Juez independiente** opt-in
-     (`ArenaJudge`, read-only, autor≠juez) que puntúa 0-100 cada respuesta y elige ganador por
-     *calidad* — disponible en ambos niveles. *Resultado:* Coral **supera** a Parallel Code aquí — su
-     Arena es solo de modelos y sin juez; la de equipos solo la puede hacer quien diseña equipos.
-     *Pendiente (ver backlog):* competir en tareas de **código** (worktrees aislados por competidor +
-     diff).
+     Guard de coste con confirmación antes de lanzar; cancelable.
+   - **Code** (`CodeArenaEngine`): cada proveedor **edita en su propio git worktree aislado**;
+     comparas los diffs lado a lado y **solo el ganador que apliques** se mergea al repo (el resto se
+     limpia; árbol del usuario intacto hasta aplicar). Verificado con tests de git real.
+   - **Juez independiente** opt-in (`ArenaJudge`, read-only, autor≠juez) que puntúa 0-100 por *calidad*
+     en los tres niveles (en Code puntúa los diffs). *Resultado:* Coral **supera** a Parallel Code —
+     su Arena es solo de modelos, sin juez ni aislamiento por competidor. *Siguiente paso:* que
+     compitan **equipos multi-agente enteros** editando código (subagentes editando por competidor).
 3. **Sandboxing Docker opcional por loop.** *Por qué:* responde directamente a la objeción de
    confianza que el propio SECURITY.md ya reconoce (sandbox-off, ejecuta shell autónomamente), sin
    renunciar al modelo "tu propia máquina, tu propia suscripción".
@@ -349,11 +352,14 @@ confianza:
 
 **Descubierto durante la Arena de equipos (priorizado):**
 
-- [ ] **P1 · Arena de equipos para tareas de CÓDIGO** — hoy la Arena de equipos corre solo-lectura y
-      compara la *respuesta sintetizada*. Para competir en tareas que editan ficheros hace falta
-      **aislar cada competidor en su propio git worktree** (ya existe la infra en loops) y comparar el
-      **diff** por competidor. Es el paso natural y el que une Arena con "procedencia por línea
-      cross-proveedor" (misma pieza: workers editando en worktrees diffables).
+- [x] ~~**P1 · Arena para tareas de CÓDIGO**~~ — **HECHO** (`CodeArenaEngine`, modo *Code*). Cada
+      proveedor edita en su propio **git worktree aislado** (rama off HEAD); se captura el diff (incl.
+      ficheros nuevos), se comparan lado a lado y **solo el ganador que apliques** se mergea (mergeNoFF)
+      al árbol del usuario — el resto de worktrees/ramas se limpian. Verificado con tests de git real
+      (aislamiento, apply, cleanup). El juez puntúa los diffs. *Restante honesto:* hoy compite
+      **proveedores** editando (Claude ya es agéntico dentro de su worktree); competir **equipos
+      multi-agente enteros** editando (subagentes editando) necesita ejecución nativa por competidor —
+      siguiente paso. Y comparte pieza con ↓.
 - [x] ~~**P1 · Juez independiente para la Arena**~~ — **HECHO** (`ArenaJudge`). Botón opt-in "Juzgar"
       en Models y Teams: un agente read-only (el proveedor conectado más fuerte, prefiere Claude)
       puntúa 0-100 cada respuesta contra la tarea y elige ganador por *calidad*, no solo coste.
@@ -365,8 +371,15 @@ confianza:
 
 **Otras (medio plazo):**
 
+- [ ] **P2 · Arena de CÓDIGO con equipos multi-agente enteros** — hoy la arena de código compite
+      *proveedores* editando (cada uno agéntico dentro de su worktree). El siguiente salto es que
+      compitan **estrategias de equipo** enteras editando (subagentes editando por competidor), lo que
+      necesita ejecución nativa por competidor dentro del worktree. Reutiliza `CodeArenaEngine` +
+      worktrees; cambia el "runner" de un one-shot a una ejecución de equipo con escritura.
 - [ ] **Procedencia por línea cross-proveedor** — workers editando en worktrees aislados que podamos
-      diffear (comparte pieza con P1 de arriba). El modelo de datos (`EditProvenance`) ya está listo.
+      diffear. **Ya desbloqueado en parte:** `CodeArenaEngine` demuestra la ejecución write-capable
+      aislada por proveedor; falta atribuir líneas del diff al proveedor (modelo `EditProvenance` listo).
+- [ ] **P2 · Estimación de coste previa** en las arenas de equipos/código (reutiliza `CostEstimationHooks`).
 - [ ] Sandboxing Docker opcional por loop
 - [ ] Sesiones remotas SSH — solo si hay señal de demanda
 
