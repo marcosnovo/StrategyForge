@@ -85,6 +85,62 @@ final class ArenaModel {
         isRunningTeams = false
     }
 
+    // MARK: Code mode (providers edit in isolated worktrees; compare diffs)
+
+    var codeOrder: [ArenaEntrant] = []
+    var codeOutcomes: [String: CodeArenaOutcome] = [:]
+    var codeWinnerID: String?
+    var isRunningCode = false
+    var codeRepo: String?
+    var codeStart: [String: Date] = [:]
+    var codeEnd: [String: Date] = [:]
+    @ObservationIgnored private var codeTask: Task<Void, Never>?
+
+    func runCode(task: String, repo: String, entrants: [ArenaEntrant], runner: OneShotRunner) {
+        guard !isRunningCode, entrants.count >= 2 else { return }
+        isRunningCode = true; codeRepo = repo; codeOrder = entrants
+        codeOutcomes = Dictionary(uniqueKeysWithValues: entrants.map { ($0.id, CodeArenaOutcome(entrant: $0, state: .queued)) })
+        codeWinnerID = nil; codeStart = [:]; codeEnd = [:]; verdicts = [:]
+        codeTask = Task { [weak self] in
+            let finals = await CodeArenaEngine.run(task: task, repo: repo, entrants: entrants, runner: runner) { id, o in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if self.codeStart[id] == nil { self.codeStart[id] = Date() }
+                    if (o.state == .done || o.state == .failed), self.codeEnd[id] == nil { self.codeEnd[id] = Date() }
+                    self.codeOutcomes[id] = o
+                }
+            }
+            guard let self, !Task.isCancelled else { return }
+            self.codeWinnerID = finals.values
+                .filter { $0.state == .done && $0.producedChanges }
+                .min { $0.costUSD < $1.costUSD }?.id
+            self.isRunningCode = false
+        }
+    }
+
+    /// Merge the chosen contestant's branch into the user's repo, then tear down the rest.
+    func applyCodeWinner(_ id: String) async -> (ok: Bool, out: String) {
+        guard let repo = codeRepo, let winner = codeOutcomes[id] else { return (false, "no winner") }
+        let res = await CodeArenaEngine.applyWinner(repo: repo, winner: winner, all: Array(codeOutcomes.values))
+        if res.ok { codeOutcomes = [:]; codeOrder = []; codeWinnerID = nil }
+        return res
+    }
+
+    /// Discard every arena worktree/branch (nothing merged) — the user's tree is untouched.
+    func discardCode() {
+        guard let repo = codeRepo, !codeOutcomes.isEmpty else { return }
+        let all = Array(codeOutcomes.values)
+        Task { await CodeArenaEngine.cleanup(repo: repo, all: all) }
+        codeOutcomes = [:]; codeOrder = []; codeWinnerID = nil
+    }
+
+    func cancelCode() {
+        codeTask?.cancel(); codeTask = nil
+        LiveProcesses.terminateAll()
+        isRunningCode = false
+        discardCode()
+    }
+
     // MARK: Independent judge (opt-in, quality-based winner)
 
     var verdicts: [String: ArenaVerdict] = [:]
@@ -111,7 +167,7 @@ final class ArenaModel {
     }
 }
 
-enum ArenaMode: String, CaseIterable { case models, teams }
+enum ArenaMode: String, CaseIterable { case models, teams, code }
 
 struct ArenaView: View {
     @Environment(AppModel.self) private var model
@@ -123,8 +179,18 @@ struct ArenaView: View {
     // Teams mode
     @State private var selectedTeams: Set<String> = []
     @State private var showTeamCostConfirm = false
+    // Code mode
+    @State private var showCodeConfirm = false
 
     private var connected: [AIProvider] { AIProvider.allCases.filter { model.isConnected($0) } }
+
+    private var headerSubtitleKey: String {
+        switch mode {
+        case .models: return "arena.subtitle"
+        case .teams: return "arena.teams.subtitle"
+        case .code: return "arena.code.subtitle"
+        }
+    }
 
     private var entrants: [ArenaEntrant] {
         connected.filter { selected.contains($0) }.map {
@@ -139,12 +205,16 @@ struct ArenaView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.l) {
                     taskCard
-                    if mode == .models {
+                    switch mode {
+                    case .models:
                         entrantsCard
                         if !arena.outcomes.isEmpty || arena.isRunning { resultsSection }
-                    } else {
+                    case .teams:
                         teamsCard
                         if !arena.teamOrder.isEmpty { teamsResultsSection }
+                    case .code:
+                        codeCard
+                        if !arena.codeOrder.isEmpty { codeResultsSection }
                     }
                 }
                 .padding(Space.xl).frame(maxWidth: 900, alignment: .leading)
@@ -156,6 +226,7 @@ struct ArenaView: View {
         .task {
             await model.refreshConnectedProviders()
             if !didSeed { selected = Set(connected); didSeed = true }   // default: everyone in
+            if arena.codeRepo == nil { arena.codeRepo = model.selectedConfiguration?.repoPath }
         }
         .confirmationDialog(model.t("arena.teams.cost.title"), isPresented: $showTeamCostConfirm, titleVisibility: .visible) {
             Button(model.t("arena.teams.cost.run"), role: .destructive) {
@@ -166,19 +237,31 @@ struct ArenaView: View {
         } message: {
             Text(model.t("arena.teams.cost.body", chosenTeams.count))
         }
+        .confirmationDialog(model.t("arena.code.cost.title"), isPresented: $showCodeConfirm, titleVisibility: .visible) {
+            Button(model.t("arena.code.cost.run"), role: .destructive) {
+                if let repo = arena.codeRepo {
+                    arena.runCode(task: arena.prompt, repo: repo, entrants: entrants,
+                                  runner: model.oneShotRunner(readOnly: false))
+                }
+            }
+            Button(model.t("common.cancel"), role: .cancel) {}
+        } message: {
+            Text(model.t("arena.code.cost.body", entrants.count))
+        }
     }
 
     private var header: some View {
         HStack(spacing: Space.m) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.t("arena.title")).font(.sfCardTitle)
-                Text(model.t(mode == .models ? "arena.subtitle" : "arena.teams.subtitle"))
+                Text(model.t(headerSubtitleKey))
                     .font(.sfCaption2).foregroundStyle(.secondary)
             }
             Spacer()
             Picker("", selection: $mode) {
                 Text(model.t("arena.mode.models")).tag(ArenaMode.models)
                 Text(model.t("arena.mode.teams")).tag(ArenaMode.teams)
+                Text(model.t("arena.mode.code")).tag(ArenaMode.code)
             }
             .pickerStyle(.segmented).labelsHidden().fixedSize()
         }
@@ -571,6 +654,192 @@ struct ArenaView: View {
         let time = secs < 60 ? "\(secs)s" : "\(secs / 60)m \(secs % 60)s"
         let cost = p.costUSD > 0 ? String(format: " · %@$%.3f", tilde, p.costUSD) : ""
         return "\(tilde)\(fmtTokens(p.tokens)) tok\(cost) · \(time)"
+    }
+
+    // MARK: - Code mode
+
+    @ViewBuilder
+    private var codeCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            // Repo bar.
+            HStack(spacing: Space.s) {
+                Image(systemName: "folder").foregroundStyle(.secondary)
+                Text(arena.codeRepo.map { ($0 as NSString).lastPathComponent } ?? model.t("arena.code.noRepo"))
+                    .font(.sfBodyM.weight(.medium)).lineLimit(1)
+                Spacer()
+                Button(model.t("arena.code.chooseRepo")) { chooseCodeRepo() }.controlSize(.small)
+            }
+            Divider()
+            HStack {
+                Text(model.t("arena.entrants")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Spacer()
+                codeRunButton
+            }
+            if connected.isEmpty {
+                Text(model.t("arena.noProviders")).font(.sfCaption2).foregroundStyle(.secondary)
+            } else {
+                FlowRow(spacing: Space.s) { ForEach(connected) { p in entrantChip(p) } }
+            }
+            Label(model.t("arena.code.safety"), systemImage: "lock.shield")
+                .font(.sfCaption2).foregroundStyle(Theme.success).fixedSize(horizontal: false, vertical: true)
+        }
+        .card()
+    }
+
+    private var codeRunButton: some View {
+        Group {
+            if arena.isRunningCode {
+                Button(role: .cancel) { arena.cancelCode() } label: {
+                    HStack(spacing: Space.xs) { WorkingLogo(size: 13); Text(model.t("arena.cancel")) }
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+            } else {
+                Button { showCodeConfirm = true } label: {
+                    Label(model.t("arena.run"), systemImage: "flag.checkered")
+                }
+                .buttonStyle(.moon).controlSize(.small)
+                .disabled(arena.codeRepo == nil
+                          || arena.prompt.trimmingCharacters(in: .whitespaces).isEmpty
+                          || entrants.count < 2)
+            }
+        }
+    }
+
+    private var codeResultsSection: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack {
+                Text(model.t("arena.results")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Spacer()
+                if !arena.isRunningCode {
+                    judgeButton(candidates: codeCandidates) { arena.codeWinnerID = $0 }
+                    Button(model.t("arena.code.discard"), role: .destructive) { arena.discardCode() }
+                        .buttonStyle(.bordered).controlSize(.small)
+                }
+            }
+            TimelineView(.periodic(from: Date(), by: 1)) { context in
+                let cols = [GridItem(.adaptive(minimum: 340, maximum: 460), spacing: Space.l, alignment: .top)]
+                LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
+                    ForEach(arena.codeOrder) { e in codeResultCard(e, now: context.date) }
+                }
+            }
+        }
+    }
+
+    private func codeResultCard(_ e: ArenaEntrant, now: Date) -> some View {
+        let o = arena.codeOutcomes[e.id] ?? CodeArenaOutcome(entrant: e)
+        let isWinner = arena.codeWinnerID == e.id
+        let elapsed = arena.codeStart[e.id].map { (arena.codeEnd[e.id] ?? now).timeIntervalSince($0) } ?? 0
+        return VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: Space.s) {
+                ProviderAvatar(provider: e.provider, size: 22, active: isWinner)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(e.provider.displayName).font(.sfBodyM.weight(.medium))
+                    Text(shortModel(e.model, e.provider)).font(.sfCaption2).foregroundStyle(.secondary)
+                }
+                Spacer()
+                verdictBadge(e.id)
+                if o.state == .done, o.producedChanges { Button { arena.codeWinnerID = e.id } label: {
+                    Image(systemName: isWinner ? "trophy.fill" : "trophy").foregroundStyle(isWinner ? Theme.accent : .secondary)
+                }.buttonStyle(.plain).help(model.t("arena.pickWinner")) }
+            }
+
+            codeLiveStatus(o, elapsed: elapsed)
+            verdictReason(e.id)
+
+            switch o.state {
+            case .done:
+                if o.producedChanges {
+                    Text(model.t("arena.code.changed", o.changedFiles)).font(.sfCaption2).foregroundStyle(.secondary)
+                    diffView(o.diff)
+                    Button(model.t("arena.code.apply")) { applyCode(e.id) }
+                        .buttonStyle(.moon).controlSize(.small)
+                } else {
+                    Text(model.t("arena.code.noChanges")).font(.sfCaption2).foregroundStyle(.secondary)
+                }
+            case .failed:
+                Label(o.error ?? model.t("arena.error"), systemImage: "exclamationmark.triangle.fill")
+                    .font(.sfCaption2).foregroundStyle(Theme.danger).fixedSize(horizontal: false, vertical: true)
+            case .queued, .running:
+                EmptyView()
+            }
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .fill(Theme.cardBg).elevation(isWinner ? .e3 : .e1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .strokeBorder(isWinner ? Theme.accent.opacity(0.4) : Theme.hairline, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func codeLiveStatus(_ o: CodeArenaOutcome, elapsed: TimeInterval) -> some View {
+        HStack(spacing: Space.s) {
+            switch o.state {
+            case .queued:
+                Image(systemName: "clock").font(.sfCaption2).foregroundStyle(.secondary)
+                Text(model.t("arena.state.queued")).font(.sfCaption2).foregroundStyle(.secondary)
+            case .running:
+                WorkingLogo(size: 13)
+                Text(model.t("arena.code.editing")).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+            case .done:
+                Image(systemName: "checkmark.circle.fill").font(.sfCaption2).foregroundStyle(Theme.success)
+                Text(model.t("arena.state.done")).font(.sfCaption2).foregroundStyle(Theme.success)
+            case .failed:
+                EmptyView()
+            }
+            Spacer()
+            if o.tokens > 0 || elapsed > 0 {
+                let secs = Int(elapsed.rounded())
+                let t = secs < 60 ? "\(secs)s" : "\(secs / 60)m \(secs % 60)s"
+                Text("\(o.estimated ? "~" : "")\(fmtTokens(o.tokens)) tok · \(t)")
+                    .font(.sfCaption2.monospaced()).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func diffView(_ diff: String) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                let lines = diff.split(separator: "\n", omittingEmptySubsequences: false).prefix(500)
+                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                    Text(String(line)).font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(diffColor(String(line)))
+                        .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                }
+            }
+        }
+        .frame(maxHeight: 240)
+        .padding(Space.s)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+    }
+
+    private func diffColor(_ line: String) -> Color {
+        if line.hasPrefix("+"), !line.hasPrefix("+++") { return Theme.success }
+        if line.hasPrefix("-"), !line.hasPrefix("---") { return Theme.danger }
+        if line.hasPrefix("@@") { return Theme.accent }
+        return .secondary
+    }
+
+    private var codeCandidates: [ArenaCandidate] {
+        arena.codeOrder.compactMap { e in
+            guard let o = arena.codeOutcomes[e.id], o.state == .done, o.producedChanges else { return nil }
+            return ArenaCandidate(id: e.id, label: e.provider.displayName, text: o.diff)
+        }
+    }
+
+    private func chooseCodeRepo() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
+        panel.message = model.t("arena.code.chooseRepo")
+        if panel.runModal() == .OK, let url = panel.url { arena.codeRepo = url.path }
+    }
+
+    private func applyCode(_ id: String) {
+        Task {
+            let res = await arena.applyCodeWinner(id)
+            if res.ok { model.flashSuccess(model.t("arena.code.applied")) }
+            else { model.flashFailure(model.t("arena.code.applyFailed", res.out)) }
+        }
     }
 
     // MARK: - Independent judge (shared by both modes)
