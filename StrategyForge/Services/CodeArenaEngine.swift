@@ -53,6 +53,9 @@ struct CodeArenaOutcome: Sendable, Equatable, Identifiable {
     /// Cross-provider per-file authorship (which providers edited each file), when this
     /// contestant is a cross-provider team run through the sequential editor.
     var authorship: [FileProvenance] = []
+    /// Per-line authorship (repo-relative file → one author per final line), for coloring
+    /// the diff by the provider that wrote each line.
+    var lineAuthors: [String: [EditProvenance?]] = [:]
     var error: String?
 
     var producedChanges: Bool { !diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -119,6 +122,7 @@ enum CodeArenaEngine {
                             task: task, worktree: path, strategy: strategy, runner: runner) { _ in }
                         outcome.tokens = res.tokens; outcome.costUSD = res.costUSD; outcome.estimated = res.estimated
                         outcome.authorship = res.perFile
+                        outcome.lineAuthors = res.lineAuthors
                         if let e = res.error {
                             outcome.state = .failed; outcome.error = e
                             onUpdate(c.id, outcome); return (c.id, outcome)

@@ -784,7 +784,7 @@ struct ArenaView: View {
                 if o.producedChanges {
                     Text(model.t("arena.code.changed", o.changedFiles)).font(.sfCaption2).foregroundStyle(.secondary)
                     if !o.authorship.isEmpty { authorshipView(o.authorship) }
-                    diffView(o.diff)
+                    diffView(o.diff, lineAuthors: o.lineAuthors)
                     Button(model.t("arena.code.apply")) { applyCode(c.id) }
                         .buttonStyle(.moon).controlSize(.small)
                 } else {
@@ -831,13 +831,13 @@ struct ArenaView: View {
         }
     }
 
-    private func diffView(_ diff: String) -> some View {
-        ScrollView {
+    private func diffView(_ diff: String, lineAuthors: [String: [EditProvenance?]] = [:]) -> some View {
+        let lines = ProvenanceDiff.annotate(diff, lineAuthors: lineAuthors).prefix(500)
+        return ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                let lines = diff.split(separator: "\n", omittingEmptySubsequences: false).prefix(500)
-                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                    Text(String(line)).font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(diffColor(String(line)))
+                ForEach(Array(lines), id: \.id) { line in
+                    Text(line.text).font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(diffColor(line))
                         .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
                 }
             }
@@ -870,11 +870,15 @@ struct ArenaView: View {
         .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
     }
 
-    private func diffColor(_ line: String) -> Color {
-        if line.hasPrefix("+"), !line.hasPrefix("+++") { return Theme.success }
-        if line.hasPrefix("-"), !line.hasPrefix("---") { return Theme.danger }
-        if line.hasPrefix("@@") { return Theme.accent }
-        return .secondary
+    /// Added lines are tinted by the PROVIDER that wrote them (cross-provider provenance);
+    /// removed = danger, hunk header = accent, file header/context = secondary.
+    private func diffColor(_ line: ProvenanceDiffLine) -> Color {
+        switch line.kind {
+        case .added: return line.provider?.tint ?? Theme.success
+        case .removed: return Theme.danger
+        case .hunkHeader: return Theme.accent
+        case .fileHeader, .context: return .secondary
+        }
     }
 
     private var codeCandidates: [ArenaCandidate] {
