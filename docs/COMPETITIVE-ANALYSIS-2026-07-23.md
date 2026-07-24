@@ -6,6 +6,22 @@ públicos de cada competidor. Todas las afirmaciones citan fuente; donde la fuen
 dato no estaba documentado públicamente se marca **(no confirmado)**.
 **Audiencia:** producto/roadmap interno.
 
+> **Actualización 2026-07-24 — los tres items "Inmediato" están implementados** (PR #27,
+> rama `claude/littlellm-coral-differences-3e0qmy`), pendientes de pasar el gate
+> `xcodebuild test` en un Mac antes de dar por cerrado:
+> 1. **Loop de Review cerrado** — botón opt-in "Corregir todo" que reinyecta los hallazgos
+>    al equipo autor.
+> 2. **Procedencia por línea** — atribución por línea en el diff (ruta nativa Claude),
+>    barra tintada por proveedor + tooltip "Agente · Modelo". Coral pasa a ser **el único
+>    de la categoría** con esto.
+> 3. **Notificación remota de loops** — webhook (ntfy→móvil / Slack / Discord / genérico)
+>    al terminar un run, además de la notificación local existente.
+>
+> La matriz (§3) y las recomendaciones (§6–7) reflejan ya este nuevo estado; los tres
+> huecos que abren el análisis quedan **cerrados a nivel de código** (matices y trabajo
+> restante anotados en cada fila). La foto "dónde estaríamos con la proyección" es ahora
+> el escenario base, no una hipótesis.
+
 ---
 
 ## 1. Resumen ejecutivo
@@ -22,12 +38,14 @@ para que el equipo diseñado corra también fuera de la app. Nadie más junta la
    falla, incluso en segundo plano — pero solo si el Mac está despierto. El hueco real y de mayor
    impacto práctico es la falta de **notificación remota/fuera del Mac** (móvil, email) para cuando
    el equipo está dormido o el usuario no está delante — varios competidores resuelven parte de esto.
+   **→ Resuelto en PR #27** (webhook ntfy/Slack/Discord/genérico).
 2. Coral vende "mezcla de proveedores por rol" como diferenciador pero no tiene **procedencia por
    línea** (qué modelo escribió qué) — nadie más lo tiene resuelto tampoco: oportunidad de ser
-   primeros, no de ponerse al día.
+   primeros, no de ponerse al día. **→ Resuelto en PR #27** a nivel de línea en la ruta nativa
+   (cross-proveedor por línea sigue pendiente).
 3. El "Review" de Code mode hoy es de un solo sentido (agente lee el diff, humano decide) mientras
    que Traycer y metaswarm ya **cierran el bucle**: hallazgos categorizados que vuelven solos al
-   agente autor para arreglarse.
+   agente autor para arreglarse. **→ Resuelto en PR #27** (botón opt-in de reinyección).
 4. metaswarm tiene la **memoria entre proyectos** más madura de la categoría (base de conocimiento +
    reflexión post-merge); el STATE.md de Coral es por-loop y no acumula entre ejecuciones distintas.
 5. Nadie en la categoría —ni Coral— resuelve bien la tensión "sandbox-off por diseño" vs. confianza;
@@ -140,14 +158,14 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Mezcla de proveedores por rol en un mismo equipo | ✅ | ✅ | ❌ (Arena = competir, no repartir roles) | ✅ (regla explícita autor≠revisor) | ❌ | ⚠️ |
 | Plantillas de estrategia/topología predefinidas | ✅ (13, editables) | ⚠️ (Epic Mode auto-decide, sin catálogo nombrado) | ❌ | ✅ (pipeline fijo) | ❌ | ❌ |
 | Loop autónomo con verificador independiente | ✅ | ✅ | ❌ | ✅ | ❌ | ⚠️ |
-| **Auto-fix cerrado desde la revisión** (hallazgo → vuelve solo al autor) | ❌ | ✅ | ❌ | ✅ | ❌ | ⚠️ (no confirmado auto-push) |
+| **Auto-fix cerrado desde la revisión** (hallazgo → vuelve solo al autor) | ✅ (nuevo — botón opt-in "Corregir todo"; pendiente gate en Mac) | ✅ | ❌ | ✅ | ❌ | ⚠️ (no confirmado auto-push) |
 | Aislamiento por git worktree | ✅ (en loops) | ❌ | ✅ (su feature central) | ⚠️ | ⚠️ | ✅ |
 | Ejecución competitiva multi-proveedor ("Arena") | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Memoria/conocimiento persistente **entre proyectos** | ⚠️ (STATE.md por loop) | ⚠️ (contexto compartido, alcance sin confirmar) | ❌ | ✅ (BEADS + base de conocimiento + reflexión) | ❌ | ❌ |
 | Sandboxing opcional (Docker) por tarea | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Sesiones remotas (SSH a otra máquina) | ❌ | ❌ | ⚠️ (solo ver progreso vía QR/Tailscale) | ❌ | ✅ | ❌ |
-| Notificación/companion remoto del estado del loop | ⚠️ (notificación local del sistema vía `LoopNotifier` al terminar/fallar un run; nada fuera del Mac) | ⚠️ (sync entre dispositivos, sin push explícito) | ⚠️ (notif. de escritorio + QR remoto) | ❌ | ❌ | ⚠️ (vigila CI, no notifica al usuario fuera de la app) |
-| Procedencia por línea (qué modelo escribió qué) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Notificación/companion remoto del estado del loop | ✅ (nuevo — webhook ntfy→móvil / Slack / Discord / genérico al terminar; + notificación local `LoopNotifier`; pendiente gate en Mac) | ⚠️ (sync entre dispositivos, sin push explícito) | ⚠️ (notif. de escritorio + QR remoto) | ❌ | ❌ | ⚠️ (vigila CI, no notifica al usuario fuera de la app) |
+| Procedencia por línea (qué modelo/rol escribió qué) | ✅ (nuevo — por línea en el diff, ruta nativa Claude; cross-proveedor pendiente; pendiente gate en Mac) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Exporta config real reutilizable fuera de la app | ✅ (`.claude/agents` + `CLAUDE.md` + workflow) | ❌ | ❌ | N/A (la config *es* el producto) | ❌ | ❌ |
 | Sync multi-dispositivo (config/equipos) | ✅ (CloudKit) | ✅ | ❌ | ❌ | ❌ (por diseño) | ❌ |
 | Seguimiento de uso/coste (tokens, % de plan) | ✅ | ⚠️ (cuotas por "artifacts", no tokens) | ❌ | ❌ | ❌ | ❌ |
@@ -158,8 +176,17 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Precio | Gratis | Freemium ~$10-40/u/mes (app en sí, gratis) | Gratis | Gratis | Gratis | Gratis |
 
 **Nota de calidad:** "✅" en verificador/gates no significa lo mismo en todos — metaswarm y Traycer
-tienen el bucle más cerrado (hallazgo → fix automático); el verificador de Coral hoy es fuerte en
-loops (PASS/freno duro) pero el Review de Code mode es de un solo sentido, no un bucle.
+tienen el bucle más cerrado (hallazgo → fix automático). Con PR #27 Coral **cierra su bucle de
+Review** (botón opt-in que reinyecta los hallazgos al equipo autor), sumándose a ese grupo; la
+diferencia restante es que en Traycer/metaswarm el reintento es automático dentro del pipeline,
+mientras en Coral es un tap deliberado (opt-in por diseño, para no gastar tokens sin que lo pidas).
+
+**Nota sobre "procedencia por línea":** Coral pasa a ser el único de la categoría con atribución por
+línea en el diff, pero con un matiz honesto: es **a nivel de línea en la ruta nativa Claude** (donde
+los subagentes editan ficheros de verdad). La atribución **cross-proveedor** por línea sigue
+pendiente — los workers cross-proveedor devuelven texto, no editan ficheros — y necesita el paso
+arquitectónico de que cada worker edite en un worktree aislado que podamos diffear. El modelo de
+datos (`EditProvenance`, `LineAttributor`) ya está listo para ese salto.
 
 ---
 
@@ -219,22 +246,24 @@ sesiones paralelas), que es un problema más simple y ya tiene varios jugadores 
 
 ## 6. Recomendaciones estratégicas
 
-**Inmediato (0-3 meses)** — extienden features que ya existen, coste de implementación relativamente
-bajo, cierran los huecos de mayor fricción:
+**Inmediato (0-3 meses) — ✅ HECHO en PR #27** (pendiente gate `xcodebuild test` en Mac). Los tres
+eran extensiones de features ya existentes; se implementaron en una sola tanda:
 
-1. **Cerrar el loop de Review** — que los hallazgos categorizados del Review de Code mode puedan
-   reinyectarse automáticamente al agente autor (opt-in), en vez de terminar en una lista que el
-   humano aplica a mano. *Por qué:* Traycer y metaswarm ya lo tienen; es la brecha de paridad más
-   visible frente a la categoría, y reutiliza infraestructura ya existente (el propio Review agent).
-2. **Procedencia por línea** (qué modelo/rol escribió cada línea, en el diff de Code mode). *Por
-   qué:* nadie en la categoría lo resuelve — es una oportunidad de ser primeros, no de ponerse al
-   día, y complementa directamente el diferenciador ya vendido ("mezcla proveedores por rol").
-3. **Notificación remota/companion cuando un loop termina o el verificador falla, más allá de la
-   notificación local que ya existe** (`LoopNotifier`). Empezar simple: email o push a móvil cuando
-   el Mac está dormido/cerrado, sin necesidad de una app móvil completa de entrada. *Por qué:* la
-   notificación local ya cubre "Mac despierto, app en segundo plano"; el hallazgo de mayor impacto
-   práctico de la investigación es específicamente el caso "el equipo está dormido o no estoy
-   delante", que hoy no está cubierto.
+1. **Cerrar el loop de Review** — ✅ botón opt-in "Corregir todo" en el panel de Review que compone
+   los hallazgos (`DiffReviewer.fixPrompt`) y los reinyecta al equipo autor como un turno de chat
+   (`ChatViewModel.requestReviewFixes`). Revisor ≠ autor se mantiene: el revisor solo califica.
+   *Resultado:* Coral se suma a Traycer/metaswarm; la diferencia restante es automático (ellos) vs.
+   opt-in de un tap (nosotros, por diseño para no gastar tokens sin permiso).
+2. **Procedencia por línea** — ✅ atribución por línea en el diff (`LineAttributor`, diff por
+   snapshot en cada edición) con barra tintada por proveedor + tooltip "Agente · Modelo"; punto por
+   fichero (último editor) en la lista de cambios. *Resultado:* Coral queda **solo** en la categoría
+   con esto. *Restante:* es a nivel de línea en la ruta nativa Claude; la versión cross-proveedor
+   necesita workers editando en worktrees aislados (medio plazo — ver abajo).
+3. **Notificación remota de loops** — ✅ `LoopWebhookNotifier` hace POST a un webhook configurable
+   (ntfy→móvil / Slack / Discord / genérico) al terminar un run, junto a la notificación local
+   existente. Off por defecto, sin backend, URL local. *Resultado:* cubre el caso "no estoy delante
+   del Mac" que era el hueco de mayor impacto práctico. *Elección de diseño:* webhook en vez de
+   email (SMTP) o APNs (servidor) para no romper el ethos "sin backend, sin credenciales".
 
 **Medio plazo (3-12 meses)** — más ambiciosas, requieren diseño propio o tocan el modelo de
 confianza:
@@ -255,14 +284,24 @@ confianza:
 
 ---
 
-## 7. Backlog para retomar mañana
+## 7. Backlog
 
-Lista corta de arranque, en el orden sugerido arriba:
+**Hecho (PR #27 — pendiente gate `xcodebuild test` en Mac):**
 
-- [ ] Loop de auto-fix cerrado desde Review (Code mode)
-- [ ] Procedencia por línea de qué modelo escribió qué
-- [ ] Notificación remota/companion de estado de loop, más allá de la notificación local ya
-      existente (`LoopNotifier`) — cubrir el caso Mac dormido/cerrado (push a móvil o email)
+- [x] Loop de auto-fix cerrado desde Review (Code mode) — botón opt-in "Corregir todo"
+- [x] Procedencia por línea de qué modelo/rol escribió cada línea — en el diff, ruta nativa Claude
+- [x] Notificación remota de estado de loop — webhook (ntfy/Slack/Discord/genérico), + local existente
+
+**Pendiente antes de cerrar PR #27:**
+
+- [ ] Correr `xcodebuild test … -scheme StrategyForge` en un Mac (no se puede en el sandbox Linux)
+- [ ] Capturas light/dark del botón "Corregir todo", el punto por-fichero y la barra por-línea
+
+**Siguiente foco (medio plazo, sin empezar):**
+
+- [ ] **Procedencia por línea cross-proveedor** — el paso que le falta a la feature 2: workers
+      editando en worktrees aislados que podamos diffear, para atribuir líneas a modelos de distintos
+      proveedores (hoy es Claude-nativa). El modelo de datos ya está listo.
 - [ ] Memoria de conocimiento entre proyectos (más allá de STATE.md por loop)
 - [ ] Modo "Arena" (competir proveedores en la misma tarea)
 - [ ] Sandboxing Docker opcional por loop
