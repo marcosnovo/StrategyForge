@@ -50,6 +50,9 @@ struct CodeArenaOutcome: Sendable, Equatable, Identifiable {
     var estimated: Bool = false
     var branch: String = ""
     var worktreePath: String = ""
+    /// Cross-provider per-file authorship (which providers edited each file), when this
+    /// contestant is a cross-provider team run through the sequential editor.
+    var authorship: [FileProvenance] = []
     var error: String?
 
     var producedChanges: Bool { !diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -109,13 +112,28 @@ enum CodeArenaEngine {
                     }
 
                     // 3) Run the contestant, write-capable, inside the worktree.
-                    do {
-                        let r = try await runner.run(prompt: task, provider: c.provider, model: c.model, cwd: path)
-                        outcome.tokens = r.tokens; outcome.costUSD = r.costUSD; outcome.estimated = r.estimated
-                    } catch {
-                        outcome.state = .failed
-                        outcome.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                        onUpdate(c.id, outcome); return (c.id, outcome)
+                    if let strategy = c.strategy, CrossProviderEditor.isCrossProvider(strategy) {
+                        // A cross-provider team: its workers (different providers) edit the
+                        // worktree in sequence, with per-line provenance.
+                        let res = await CrossProviderEditor.run(
+                            task: task, worktree: path, strategy: strategy, runner: runner) { _ in }
+                        outcome.tokens = res.tokens; outcome.costUSD = res.costUSD; outcome.estimated = res.estimated
+                        outcome.authorship = res.perFile
+                        if let e = res.error {
+                            outcome.state = .failed; outcome.error = e
+                            onUpdate(c.id, outcome); return (c.id, outcome)
+                        }
+                    } else {
+                        // A single provider, or a Claude-native team (its subagents edit
+                        // through one `claude` session).
+                        do {
+                            let r = try await runner.run(prompt: task, provider: c.provider, model: c.model, cwd: path)
+                            outcome.tokens = r.tokens; outcome.costUSD = r.costUSD; outcome.estimated = r.estimated
+                        } catch {
+                            outcome.state = .failed
+                            outcome.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                            onUpdate(c.id, outcome); return (c.id, outcome)
+                        }
                     }
 
                     // 4) Capture the diff (incl. new untracked files) BEFORE committing.

@@ -763,6 +763,7 @@ enum L10n {
         "arena.code.kind.providers": ("Providers", "Proveedores"),
         "arena.code.kind.teams": ("Teams", "Equipos"),
         "arena.code.teamRuntime": ("team · native run", "equipo · ejecución nativa"),
+        "arena.code.authoredBy": ("AUTHORED BY (cross-provider)", "ESCRITO POR (cross-proveedor)"),
         "arena.est": ("Est.", "Est."),
         "arena.est.hint": ("A rough pre-run estimate — actual tokens/cost depend on the task and how much each agent reads and writes.",
                            "Estimación aproximada antes de correr — los tokens/coste reales dependen de la tarea y de cuánto lee y escribe cada agente."),

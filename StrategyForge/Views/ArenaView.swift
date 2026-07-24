@@ -783,6 +783,7 @@ struct ArenaView: View {
             case .done:
                 if o.producedChanges {
                     Text(model.t("arena.code.changed", o.changedFiles)).font(.sfCaption2).foregroundStyle(.secondary)
+                    if !o.authorship.isEmpty { authorshipView(o.authorship) }
                     diffView(o.diff)
                     Button(model.t("arena.code.apply")) { applyCode(c.id) }
                         .buttonStyle(.moon).controlSize(.small)
@@ -843,6 +844,29 @@ struct ArenaView: View {
         }
         .frame(maxHeight: 240)
         .padding(Space.s)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
+    }
+
+    /// Cross-provider authorship: per file, which providers edited it — the payoff of a
+    /// mixed-provider team made auditable in the arena.
+    private func authorshipView(_ files: [FileProvenance]) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(model.t("arena.code.authoredBy")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
+            ForEach(files) { fp in
+                HStack(spacing: Space.xs) {
+                    Text((fp.file as NSString).lastPathComponent).font(.sfCaption2.monospaced()).lineLimit(1)
+                    Spacer(minLength: Space.xs)
+                    ForEach(Array(fp.authors.enumerated()), id: \.offset) { _, a in
+                        HStack(spacing: 2) {
+                            ProviderAvatar(provider: a.provider, size: 14)
+                            Text(a.agent ?? a.model).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(Space.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(Theme.insetBg))
     }
 
