@@ -46,10 +46,11 @@ para que el equipo diseñado corra también fuera de la app. Nadie más junta la
 3. El "Review" de Code mode hoy es de un solo sentido (agente lee el diff, humano decide) mientras
    que Traycer y metaswarm ya **cierran el bucle**: hallazgos categorizados que vuelven solos al
    agente autor para arreglarse. **→ Resuelto en PR #27** (botón opt-in de reinyección).
-4. metaswarm tiene la **memoria entre proyectos** más madura de la categoría (base de conocimiento +
-   reflexión post-merge). **→ Resuelto en parte:** Coral ya tiene base global de learnings que se
-   inyecta en el `CLAUDE.md` de cada equipo (`MemoryStore`/`MemoryDigest`); la ventaja restante de
-   metaswarm es la **reflexión post-merge automática** (Coral Slice 6, toca el motor de loops).
+4. metaswarm tenía la **memoria entre proyectos** más madura de la categoría (base de conocimiento +
+   reflexión post-merge). **→ Resuelto:** Coral ya tiene base global de learnings que se inyecta en
+   el `CLAUDE.md` de cada equipo y en el `LOOP.md` del loop, **y reflexión post-run** que cosecha el
+   STATE.md a la base al terminar (`MemoryStore`/`MemoryDigest`/`LoopStore.harvestStateFile`). La
+   diferencia restante con metaswarm es de *madurez* (BEADS, reflexión más rica), no de existencia.
 5. Nadie en la categoría —ni Coral— resuelve bien la tensión "sandbox-off por diseño" vs. confianza;
    Parallel Code es el único con sandboxing Docker opcional por tarea.
 
@@ -163,7 +164,7 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | **Auto-fix cerrado desde la revisión** (hallazgo → vuelve solo al autor) | ✅ (nuevo — botón opt-in "Corregir todo"; pendiente gate en Mac) | ✅ | ❌ | ✅ | ❌ | ⚠️ (no confirmado auto-push) |
 | Aislamiento por git worktree | ✅ (en loops) | ❌ | ✅ (su feature central) | ⚠️ | ⚠️ | ✅ |
 | Ejecución competitiva multi-proveedor ("Arena") | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Memoria/conocimiento persistente **entre proyectos** | ✅ (nuevo — base global de learnings patrón/decisión/error, `MemoryStore`; se inyecta en el `CLAUDE.md` de futuros equipos; captura manual / import de STATE.md / promote desde Review. Reflexión post-run automática y sync CloudKit pendientes) | ⚠️ (contexto compartido, alcance sin confirmar) | ❌ | ✅ (BEADS + base de conocimiento + reflexión) | ❌ | ❌ |
+| Memoria/conocimiento persistente **entre proyectos** | ✅ (nuevo — base global de learnings patrón/decisión/error, `MemoryStore`; se inyecta en `CLAUDE.md` **y en el `LOOP.md` del loop**; captura manual / import de STATE.md / promote desde Review; **reflexión post-run** que cosecha el STATE.md a la base al terminar. Sync CloudKit codificado pero dormido hasta verificar en dispositivo) | ⚠️ (contexto compartido, alcance sin confirmar) | ❌ | ✅ (BEADS + base de conocimiento + reflexión) | ❌ | ❌ |
 | Sandboxing opcional (Docker) por tarea | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Sesiones remotas (SSH a otra máquina) | ❌ | ❌ | ⚠️ (solo ver progreso vía QR/Tailscale) | ❌ | ✅ | ❌ |
 | Notificación/companion remoto del estado del loop | ✅ (nuevo — webhook ntfy→móvil / Slack / Discord / genérico al terminar; + notificación local `LoopNotifier`; pendiente gate en Mac) | ⚠️ (sync entre dispositivos, sin push explícito) | ⚠️ (notif. de escritorio + QR remoto) | ❌ | ❌ | ⚠️ (vigila CI, no notifica al usuario fuera de la app) |
@@ -240,9 +241,9 @@ sesiones paralelas), que es un problema más simple y ya tiene varios jugadores 
 - Si quiere ejecutar en un servidor remoto siempre encendido → Clave (SSH).
 - Si necesita colaboración de varias personas en tiempo real sobre el mismo tablero → Traycer.
 - Si quiere el roster más amplio posible de CLIs soportadas (23+) → agent-orchestrator.
-- ~~Si quiere memoria de conocimiento acumulada entre proyectos *ya hoy* → metaswarm.~~ **(cerrado
-  parcialmente:** Coral ya tiene base de conocimiento entre proyectos que se inyecta en el `CLAUDE.md`;
-  metaswarm mantiene ventaja solo en la **reflexión post-merge automática**, que es Coral Slice 6.)
+- ~~Si quiere memoria de conocimiento acumulada entre proyectos *ya hoy* → metaswarm.~~ **(cerrado:**
+  Coral tiene base de conocimiento entre proyectos con inyección en `CLAUDE.md`/`LOOP.md` y reflexión
+  post-run; metaswarm solo mantiene ventaja de *madurez*, no de existencia.)
 - Si prefiere no instalar/autenticar CLIs propias y pagar por token vía un agregador → LittleLLM
   (segmento distinto, pero roba consideración a usuarios menos técnicos).
 
@@ -278,9 +279,11 @@ confianza:
    (`MemoryDigest`) dentro del bloque gestionado del `CLAUDE.md` de cada equipo (digest vacío =
    salida byte-idéntica). Captura: manual, import de `STATE.md` (`StateFileParser`), y "Guardar en
    memoria" desde el panel de Review. Sección de nav **Memoria** para gestionarla. *Resultado:*
-   refuerza "equipos que mejoran con el tiempo". *Pendiente (Slice 6/7):* inyección en el `LOOP.md`
-   del propio loop + **reflexión post-run automática** que escribe learnings de vuelta (toca el motor
-   de loops, revisión humana), y **sync CloudKit** de la base entre Macs.
+   refuerza "equipos que mejoran con el tiempo". **Slice 6 hecho:** inyección también en el `LOOP.md`
+   del loop (gated, revisión del diff vetado hecha) + **reflexión post-run** que cosecha el `STATE.md`
+   a la base al terminar (`LoopStore.harvestStateFile`). **Slice 7 hecho (dormido):** sync CloudKit
+   codificado (`LearningSyncStore`/`LearningMerge` LWW), pendiente solo de añadir el record type
+   "Learning" al esquema y verificar en dispositivo.
 2. **Modo "Arena" opcional** — correr la misma tarea contra varios proveedores y quedarte con el
    mejor resultado, como alternativa a diseñar roles a mano. *Por qué:* abre la puerta a usuarios que
    no confían en repartir roles ellos mismos; es un modo de uso distinto al actual, no un reemplazo.
@@ -320,9 +323,14 @@ confianza:
       editando en worktrees aislados que podamos diffear, para atribuir líneas a modelos de distintos
       proveedores (hoy es Claude-nativa). El modelo de datos ya está listo.
 - [x] ~~Memoria de conocimiento entre proyectos (más allá de STATE.md por loop)~~ — base + inyección + UI hechos
-- [ ] **Memoria Slice 6:** inyección en el `LOOP.md` del loop + reflexión post-run automática que
-      escribe learnings de vuelta (toca el motor de loops — revisión humana del diff)
-- [ ] **Memoria Slice 7:** sync CloudKit de la base de conocimiento entre Macs
+- [x] ~~**Memoria Slice 6:** inyección en el `LOOP.md` del loop + reflexión post-run~~ — hecho. El
+      loop recibe el digest en LOOP.md (gated, vacío = idéntico) y al terminar cosecha su `STATE.md`
+      a la base global (`LoopStore.harvestStateFile`, honesto + deduplicado). Diff del fichero vetado
+      revisado (mínimo, aditivo).
+- [x] ~~**Memoria Slice 7:** sync CloudKit de la base de conocimiento entre Macs~~ — código hecho
+      (`LearningSyncStore` + `LearningMerge` LWW, imita `ConfigSyncStore`). **Dormido** tras
+      `LocalOnly` hasta añadir el record type "Learning" al esquema del container y verificar en
+      dispositivo (tarea de fundador, igual que el sync de config).
 - [ ] Modo "Arena" (competir proveedores en la misma tarea)
 - [ ] Sandboxing Docker opcional por loop
 - [ ] Sesiones remotas SSH — solo si hay señal de demanda
