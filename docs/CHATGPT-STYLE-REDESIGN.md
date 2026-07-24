@@ -111,9 +111,16 @@ coral plano.
 - [x] Aurora reducida a un bloom coral tenue (fuera el teal + un wash).
 - [x] Panel de actividad: diagrama opt-in (`showDiagram` false); fuera el 2º punto parpadeante.
 
-**Pendiente (Fase 1 cola + Fase 2/3 — más intrusivo, validar visualmente primero):**
-- [ ] Rail: quitar la `usageCard` persistente + fundir grupos (≈11 destinos → ≈3 + "Más").
+**Fase 2 — hecho (commits en `main`, tests verdes, pendiente validación visual):**
+- [x] **Rail calmado**: Team + Code dentro del disclosure "Más"; **fuera la usage-card persistente**
+      (+ su subsistema de widgets, ~180 líneas); labels de grupo sobrantes fuera. Reposo = Nuevo chat ·
+      Chats · Más · Connected · Settings (≈11 destinos → ≈3).
+- [x] **Arena rediseñada** (apunte del usuario): dos ejes explícitos **Compiten** (Modelos·Equipos) ×
+      **Comparan** (Respuestas·Código) en vez de modos Models/Teams/Code + sub-toggle inconsistente. Un
+      picker + un botón Run que despacha por el 2×2. Subtítulo describe la combinación.
+
+**Pendiente (Fase 2/3 — lo más intrusivo, validar visualmente antes):**
 - [ ] Panel de actividad: **fila de chips por agente** + pill "Paso N/M" + una narración gris (sustituir
-      las filas con barras de progreso por agente).
-- [ ] Fundir la lista de chats en el rail; simplificar el `if/else` de 11 ramas de `ContentView`.
+      las filas con barras de progreso por agente) — el movimiento firma; es el cambio ciego más grande.
+- [ ] Fundir la lista de chats en el rail; simplificar el `if/else` de ramas de `ContentView`.
 - [ ] Consistencia de iconos (outline); densidad (subir un paso el ritmo de `CoralRow`).
