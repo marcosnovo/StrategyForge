@@ -251,7 +251,8 @@ struct ArenaView: View {
             }
             Button(model.t("common.cancel"), role: .cancel) {}
         } message: {
-            Text(model.t("arena.teams.cost.body", chosenTeams.count))
+            Text(model.t("arena.teams.cost.body", chosenTeams.count)
+                 + "\n\n" + model.t("arena.est") + " " + teamsEstimate.headline)
         }
         .confirmationDialog(model.t("arena.code.cost.title"), isPresented: $showCodeConfirm, titleVisibility: .visible) {
             Button(model.t("arena.code.cost.run"), role: .destructive) {
@@ -262,7 +263,8 @@ struct ArenaView: View {
             }
             Button(model.t("common.cancel"), role: .cancel) {}
         } message: {
-            Text(model.t("arena.code.cost.body", codeContestants.count))
+            Text(model.t("arena.code.cost.body", codeContestants.count)
+                 + "\n\n" + model.t("arena.est") + " " + codeEstimate.headline)
         }
     }
 
@@ -313,6 +315,7 @@ struct ArenaView: View {
             HStack {
                 Text(model.t("arena.entrants")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
                 Spacer()
+                if entrants.count >= 2, !arena.isRunning { estimateChip(modelsEstimate) }
                 runButton
             }
             if connected.isEmpty {
@@ -493,6 +496,7 @@ struct ArenaView: View {
             HStack {
                 Text(model.t("arena.teams.pick")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
                 Spacer()
+                if chosenTeams.count >= 2, !arena.isRunningTeams { estimateChip(teamsEstimate) }
                 teamsRunButton
             }
             ScrollView {
@@ -693,6 +697,7 @@ struct ArenaView: View {
                 }
                 .pickerStyle(.segmented).labelsHidden().fixedSize()
                 Spacer()
+                if codeContestants.count >= 2, !arena.isRunningCode { estimateChip(codeEstimate) }
                 codeRunButton
             }
             if codeKind == .providers {
@@ -867,6 +872,30 @@ struct ArenaView: View {
             let res = await arena.applyCodeWinner(id)
             if res.ok { model.flashSuccess(model.t("arena.code.applied")) }
             else { model.flashFailure(model.t("arena.code.applyFailed", res.out)) }
+        }
+    }
+
+    // MARK: - Pre-run cost estimate (rough, honest)
+
+    private var modelsEstimate: ArenaCostEstimator.Estimate {
+        ArenaCostEstimator.total(entrants.map { ArenaCostEstimator.shot(prompt: arena.prompt, model: $0.model, code: false) })
+    }
+    private var teamsEstimate: ArenaCostEstimator.Estimate {
+        ArenaCostEstimator.total(chosenTeams.map { ArenaCostEstimator.strategy($0.strategy) })
+    }
+    private var codeEstimate: ArenaCostEstimator.Estimate {
+        ArenaCostEstimator.total(codeContestants.map {
+            $0.strategy.map { ArenaCostEstimator.strategy($0) }
+                ?? ArenaCostEstimator.shot(prompt: arena.prompt, model: $0.model, code: true)
+        })
+    }
+
+    @ViewBuilder
+    private func estimateChip(_ est: ArenaCostEstimator.Estimate) -> some View {
+        if est.tokens > 0 {
+            Text("\(model.t("arena.est")) \(est.headline)")
+                .font(.sfCaption2.monospaced()).foregroundStyle(.tertiary)
+                .help(model.t("arena.est.hint"))
         }
     }
 
