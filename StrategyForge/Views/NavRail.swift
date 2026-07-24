@@ -140,12 +140,24 @@ struct NavRail: View {
     /// brand-coral swatch; picking one re-skins the whole app instantly.
     private var themePicker: some View {
         Menu {
-            ForEach(DesignSystem.allCases) { ds in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.25)) { theme.active = ds }
-                } label: {
-                    if theme.active == ds { Label(ds.displayName, systemImage: "checkmark") }
-                    else { Text(ds.displayName) }
+            Section(model.t("rail.theme")) {
+                ForEach(DesignSystem.allCases) { ds in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) { theme.active = ds }
+                    } label: {
+                        if theme.active == ds { Label(ds.displayName, systemImage: "checkmark") }
+                        else { Text(ds.displayName) }
+                    }
+                }
+            }
+            Section(model.t("appearance.title")) {
+                ForEach(AppAppearance.allCases) { ap in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) { theme.appearance = ap }
+                    } label: {
+                        if theme.appearance == ap { Label(model.t(ap.labelKey), systemImage: "checkmark") }
+                        else { Text(model.t(ap.labelKey)) }
+                    }
                 }
             }
         } label: {

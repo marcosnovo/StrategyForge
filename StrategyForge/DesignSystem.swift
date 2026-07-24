@@ -93,6 +93,16 @@ enum ThemeState {
         DesignSystem(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .reefLight
 }
 
+/// Appearance override so the light palettes are actually visible even when macOS is in
+/// dark mode (the "they're all dark" trap: without this, every non-Midnight system just
+/// shows its dark variant on a dark system).
+enum AppAppearance: String, CaseIterable, Identifiable, Sendable {
+    case auto, light, dark
+    var id: String { rawValue }
+    var scheme: ColorScheme? { self == .light ? .light : (self == .dark ? .dark : nil) }
+    var labelKey: String { "appearance.\(rawValue)" }
+}
+
 /// Observable holder for the rail picker: mutating `active` persists it, updates the
 /// nonisolated snapshot, and (because the root reads it) re-renders the whole app.
 @Observable
@@ -105,7 +115,20 @@ final class ThemeStore {
             ThemeState.active = active
         }
     }
-    private init() { active = ThemeState.active }
+    /// User-chosen appearance override (auto follows the system, unless the design system
+    /// forces one — Midnight is always dark).
+    var appearance: AppAppearance {
+        didSet { UserDefaults.standard.set(appearance.rawValue, forKey: Self.appearanceKey) }
+    }
+    /// The color scheme to force on the shell: the design system's own (Midnight → dark),
+    /// else the user's appearance override.
+    var resolvedScheme: ColorScheme? { active.forcedScheme ?? appearance.scheme }
+
+    static let appearanceKey = "coral.appearance"
+    private init() {
+        active = ThemeState.active
+        appearance = AppAppearance(rawValue: UserDefaults.standard.string(forKey: Self.appearanceKey) ?? "") ?? .auto
+    }
 }
 
 // MARK: - Hex helper

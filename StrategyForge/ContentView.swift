@@ -202,7 +202,7 @@ struct ContentView: View {
         // Re-skin live when the design system changes: `.id` forces the tree to rebuild so
         // every palette-driven Theme token is re-read; Midnight forces a dark appearance.
         .id(theme.active)
-        .preferredColorScheme(theme.active.forcedScheme)
+        .preferredColorScheme(theme.resolvedScheme)
         // Fill the window edge-to-edge — macOS rounds the window corners for us (no
         // inset "capsule"). A very subtle aurora sits behind the panels as a warm
         // ambient; behind-window glass sits below it.
