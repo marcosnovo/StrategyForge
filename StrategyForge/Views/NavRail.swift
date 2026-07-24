@@ -53,7 +53,7 @@ struct NavRail: View {
             // Advanced: collapsed by default. Auto-expands when one of its sections is active
             // (so the selected pill is always visible). Advisor left the rail — it's redundant
             // with the inline advisor in chat.
-            let advancedActive = [.loops, .skills, .memory, .usage].contains(model.navSection)
+            let advancedActive = [.loops, .skills, .memory, .arena, .usage].contains(model.navSection)
             advancedHeader(expanded: showAdvanced || advancedActive)
             if showAdvanced || advancedActive {
                 item("arrow.triangle.2.circlepath", "rail.loops",
@@ -68,6 +68,10 @@ struct NavRail: View {
                 item("brain", "rail.memory",
                      active: model.navSection == .memory) {
                     model.guardedLeave { model.navSection = .memory }
+                }
+                item("flag.checkered", "rail.arena",
+                     active: model.navSection == .arena) {
+                    model.guardedLeave { model.navSection = .arena }
                 }
                 item("gauge.with.dots.needle.bottom.50percent", "rail.usage",
                      active: model.navSection == .usage) {
