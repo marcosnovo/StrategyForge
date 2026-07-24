@@ -21,10 +21,10 @@ dato no estaba documentado públicamente se marca **(no confirmado)**.
 >    **reflexión post-run**. Sync CloudKit codificado pero dormido (Slice 7). Item de *medio
 >    plazo* adelantado.
 > 5. **Modo "Arena"** en tres niveles — *Models* (N proveedores), *Teams* (estrategias de
->    equipo enteras, progreso en vivo) y *Code* (**cada proveedor edita en su worktree git
->    aislado** → comparas diffs → aplicas el ganador; árbol intacto hasta aplicar), + **juez
->    independiente** que puntúa por calidad. **Supera** a Parallel Code (solo modelos, sin
->    juez ni aislamiento). Varios items de *medio plazo* adelantados.
+>    equipo enteras, progreso en vivo) y *Code* (edita en worktree git aislado → comparas
+>    diffs → aplicas el ganador; **compite proveedores sueltos O equipos multi-agente enteros**),
+>    + **juez independiente** que puntúa por calidad. **Supera** a Parallel Code (solo modelos,
+>    sin juez ni aislamiento). Varios items de *medio plazo* adelantados.
 >
 > Único trabajo manual restante (no bloquea código): **captura visual light/dark** de las
 > features nuevas, y **verificar el sync CloudKit en dispositivo** (añadir el record type
@@ -173,7 +173,7 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Loop autónomo con verificador independiente | ✅ | ✅ | ❌ | ✅ | ❌ | ⚠️ |
 | **Auto-fix cerrado desde la revisión** (hallazgo → vuelve solo al autor) | ✅ (botón opt-in "Corregir todo") | ✅ | ❌ | ✅ | ❌ | ⚠️ (no confirmado auto-push) |
 | Aislamiento por git worktree | ✅ (en loops) | ❌ | ✅ (su feature central) | ⚠️ | ⚠️ | ✅ |
-| Ejecución competitiva multi-proveedor ("Arena") | ✅✅✅ (nuevo — **tres niveles**: *Models* (misma tarea a N proveedores), *Teams* (estrategias de equipo enteras multi-proveedor, progreso en vivo) y *Code* (**cada proveedor EDITA en su propio worktree git aislado** → compara diffs → aplica el ganador; árbol del usuario intacto hasta aplicar), + **juez independiente** opt-in que puntúa por calidad en los tres. Solo Coral: los niveles *Teams* y *Code*-con-worktrees-por-proveedor no los tiene nadie más) | ❌ | ✅ (solo nivel Models, sin juez ni aislamiento) | ❌ | ❌ | ❌ |
+| Ejecución competitiva multi-proveedor ("Arena") | ✅✅✅ (nuevo — **tres niveles**: *Models* (N proveedores), *Teams* (estrategias enteras multi-proveedor, progreso en vivo) y *Code* (**edita en worktree git aislado** → compara diffs → aplica ganador; árbol intacto hasta aplicar). *Code* compite **proveedores sueltos O equipos multi-agente enteros** —cada equipo corre nativo con sus subagentes editando, andamiaje `.claude` como baseline para que el diff sea solo el código—. + **juez** que puntúa por calidad en los tres. Solo Coral: *Teams* y *Code*-de-equipos no los tiene nadie) | ❌ | ✅ (solo *Models*, sin juez ni aislamiento) | ❌ | ❌ | ❌ |
 | Memoria/conocimiento persistente **entre proyectos** | ✅ (nuevo — base global de learnings patrón/decisión/error, `MemoryStore`; se inyecta en `CLAUDE.md` **y en el `LOOP.md` del loop**; captura manual / import de STATE.md / promote desde Review; **reflexión post-run** que cosecha el STATE.md a la base al terminar. Sync CloudKit codificado pero dormido hasta verificar en dispositivo) | ⚠️ (contexto compartido, alcance sin confirmar) | ❌ | ✅ (BEADS + base de conocimiento + reflexión) | ❌ | ❌ |
 | Sandboxing opcional (Docker) por tarea | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Sesiones remotas (SSH a otra máquina) | ❌ | ❌ | ⚠️ (solo ver progreso vía QR/Tailscale) | ❌ | ✅ | ❌ |
@@ -303,13 +303,15 @@ confianza:
      (planificar/delegar/sintetizar), agentes activos como chips, reloj que avanza cada segundo,
      tokens/coste acumulando— porque un run agéntico tarda minutos y no puede parecer bloqueado.
      Guard de coste con confirmación antes de lanzar; cancelable.
-   - **Code** (`CodeArenaEngine`): cada proveedor **edita en su propio git worktree aislado**;
-     comparas los diffs lado a lado y **solo el ganador que apliques** se mergea al repo (el resto se
-     limpia; árbol del usuario intacto hasta aplicar). Verificado con tests de git real.
+   - **Code** (`CodeArenaEngine`): compite **proveedores sueltos O equipos multi-agente enteros**,
+     cada uno **editando en su propio git worktree aislado**; los equipos corren nativos (`.claude`
+     materializado + `claude` con sus subagentes editando, andamiaje como baseline para que el diff sea
+     solo el código). Comparas diffs y **solo el ganador que apliques** se mergea (el resto se limpia;
+     árbol del usuario intacto hasta aplicar). Verificado con tests de git real.
    - **Juez independiente** opt-in (`ArenaJudge`, read-only, autor≠juez) que puntúa 0-100 por *calidad*
      en los tres niveles (en Code puntúa los diffs). *Resultado:* Coral **supera** a Parallel Code —
-     su Arena es solo de modelos, sin juez ni aislamiento por competidor. *Siguiente paso:* que
-     compitan **equipos multi-agente enteros** editando código (subagentes editando por competidor).
+     su Arena es solo de modelos, sin juez ni aislamiento. *Siguiente paso:* equipos con orquestador
+     **no-Claude** editando (necesita el paso cross-proveedor).
 3. **Sandboxing Docker opcional por loop.** *Por qué:* responde directamente a la objeción de
    confianza que el propio SECURITY.md ya reconoce (sandbox-off, ejecuta shell autónomamente), sin
    renunciar al modelo "tu propia máquina, tu propia suscripción".
@@ -371,11 +373,12 @@ confianza:
 
 **Otras (medio plazo):**
 
-- [ ] **P2 · Arena de CÓDIGO con equipos multi-agente enteros** — hoy la arena de código compite
-      *proveedores* editando (cada uno agéntico dentro de su worktree). El siguiente salto es que
-      compitan **estrategias de equipo** enteras editando (subagentes editando por competidor), lo que
-      necesita ejecución nativa por competidor dentro del worktree. Reutiliza `CodeArenaEngine` +
-      worktrees; cambia el "runner" de un one-shot a una ejecución de equipo con escritura.
+- [x] ~~**P2 · Arena de CÓDIGO con equipos multi-agente enteros**~~ — **HECHO**. La arena de código
+      compite ahora *proveedores sueltos* O *equipos enteros*: un equipo se materializa en el worktree
+      (`.claude/agents` + `CLAUDE.md`, commit baseline) y corre nativo con `claude` (orquestador →
+      subagentes editando). El diff comparado excluye el andamiaje. `CodeContestant` unifica ambos.
+      Verificado con test de git real. *Restante:* equipos con orquestador **no-Claude** editando —
+      necesita el paso cross-proveedor (↓).
 - [ ] **Procedencia por línea cross-proveedor** — workers editando en worktrees aislados que podamos
       diffear. **Ya desbloqueado en parte:** `CodeArenaEngine` demuestra la ejecución write-capable
       aislada por proveedor; falta atribuir líneas del diff al proveedor (modelo `EditProvenance` listo).
