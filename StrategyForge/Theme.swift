@@ -30,17 +30,16 @@ enum Theme {
     /// keep contrast. This is the app's action color and the orchestrator's hue.
     static let coral      = Color(red: 1.000, green: 0.420, blue: 0.330)   // #FF6B54
     static let coralDeep  = Color(red: 0.886, green: 0.251, blue: 0.165)   // #E24029 (fills/pressed)
-    /// The reef-water secondary: team agents, active/live state, secondary actions.
-    static let teal       = Color(red: 0.078, green: 0.761, blue: 0.671)   // #14C2AB
-    static let tealDeep   = Color(red: 0.047, green: 0.549, blue: 0.486)   // #0C8C7C
-    // Coral = user/brand/action. Teal = system/agents/secondary.
-    static let tealSoft   = Color(red: 0.078, green: 0.761, blue: 0.671).opacity(0.12)  // chip/worker washes
-    static let tealEdge   = Color(red: 0.078, green: 0.761, blue: 0.671).opacity(0.30)  // faint worker borders
-    /// Teal #14C2AB is only ~2.1:1 on white — unreadable as text. Use this for teal
-    /// TEXT/icon labels (live-state) on light surfaces; `teal` stays for fills/dots/bars.
-    static let tealText   = Color(
-        light: Color(red: 0.039, green: 0.490, blue: 0.431),   // #0A7D6E (AA 5.0:1 on white)
-        dark:  Color(red: 0.078, green: 0.761, blue: 0.671))   // #14C2AB
+    /// TEAL RETIRED (ChatGPT-calm, single accent): the former "reef-water secondary" for
+    /// live/agent state now resolves to the coral accent, so the whole app runs on ONE
+    /// accent. These tokens are kept as aliases so the many call sites don't churn; the
+    /// team-spectrum hues (teamBlue…teamRose) still disambiguate nodes in the topology
+    /// diagram, which is the only place a second palette survives.
+    static let teal       = coral
+    static let tealDeep   = coralDeep
+    static let tealSoft   = accentSoft
+    static let tealEdge   = Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.30)
+    static let tealText   = accent
 
     /// Accent = coral. Small text/icon tints resolve a hair deeper on light ground.
     static let accent = Color(
@@ -400,7 +399,9 @@ extension Font {
     static let sfCallout = Font.system(.callout)                                        // ~12
     static let sfCaption2 = Font.system(.subheadline)                                   // ~11
     /// Monospaced, all-caps field labels — the technical fingerprint.
-    static let sfFieldLabel = Font.system(.caption, design: .monospaced).weight(.semibold) // ~10
+    /// Section "eyebrow" labels — plain sans grey (ChatGPT-calm), NOT monospace. The
+    /// mono/technical look now lives only in `sfMono`/`sfCode` (code, IDs, model tags).
+    static let sfFieldLabel = Font.system(.caption, design: .default).weight(.semibold)  // ~11 sans
     static let sfCode = Font.system(.callout, design: .monospaced)                      // ~12
     /// Monospaced wordmark / model tags.
     static let sfMono = Font.system(.body, design: .monospaced).weight(.semibold)       // ~13

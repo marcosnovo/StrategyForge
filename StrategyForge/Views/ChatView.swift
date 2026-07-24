@@ -954,10 +954,9 @@ struct ChatView: View {
                     .textSelection(.enabled)
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                     .frame(maxWidth: 560, alignment: .trailing)
-                    // The user's turn: a bright coral pill that floats in a soft coral glow —
-                    // one of the app's three signature coral "hero" beats (color review).
-                    .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.userBubbleFill))
-                    .shadow(color: Theme.coral.opacity(0.30), radius: 7, x: 0, y: 3)
+                    // The user's turn: a flat coral pill — signature coral kept, but the glow
+                    // and gradient dropped for ChatGPT-calm (brand decision 2026-07-24).
+                    .background(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous).fill(Theme.coral))
                     .contextMenu {
                         copyButton(message.text)
                         Button { editMessage(message) } label: {
