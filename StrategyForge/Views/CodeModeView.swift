@@ -208,6 +208,8 @@ struct CodeModeView: View {
                     Text((path as NSString).lastPathComponent)
                         .font(.sfCaption2.weight(isSel ? .semibold : .regular))
                         .foregroundStyle(isSel ? .primary : .secondary).lineLimit(1).truncationMode(.middle)
+                    // Who wrote it: a provider-tinted dot, tooltip = "Agent · Model".
+                    provenanceDot(for: path)
                     Spacer(minLength: Space.xs)
                     // Per-file change size + kind — the "how much did each change" signal.
                     if let s = stat(for: path) {
@@ -240,6 +242,22 @@ struct CodeModeView: View {
                 .foregroundStyle(kindColor(s.kind))
                 .frame(width: 12, height: 12)
                 .background(RoundedRectangle(cornerRadius: 3).fill(kindColor(s.kind).opacity(0.15)))
+        }
+    }
+
+    /// A small provider-tinted dot crediting the agent that wrote this file, with the
+    /// full "Agent · Model" in the tooltip. Nothing when the file has no provenance
+    /// (e.g. restored from a past session — provenance is live, not persisted).
+    @ViewBuilder
+    private func provenanceDot(for path: String) -> some View {
+        if let p = vm.fileProvenance[path] {
+            let orch = vm.config.strategy.orchestrator?.name ?? model.t("code.orchestrator")
+            Circle()
+                .fill(p.provider.tint)
+                .frame(width: 6, height: 6)
+                .overlay(Circle().strokeBorder(.background, lineWidth: 0.5))
+                .help(p.label(orchestratorName: orch))
+                .accessibilityLabel(Text("\(model.t("code.writtenBy")): \(p.label(orchestratorName: orch))"))
         }
     }
 
@@ -430,6 +448,20 @@ struct CodeModeView: View {
                         .foregroundStyle(review.hasBlocking ? Theme.danger : Theme.warning)
                 }
                 Spacer()
+                // Close the loop (opt-in): hand the findings back to the author team to
+                // fix in place. Only when there's something actionable and the reviewer
+                // actually ran (a failed review has nothing to fix).
+                if review.error == nil, !review.findings.isEmpty {
+                    Button {
+                        vm.requestReviewFixes(review.findings)
+                        model.diffReview = nil
+                        model.flashSuccess(model.t("review.fixSent"))
+                    } label: {
+                        Label(model.t("review.fix"), systemImage: "wrench.and.screwdriver")
+                    }
+                    .buttonStyle(.bordered).controlSize(.small)
+                    .help(model.t("review.fixHint"))
+                }
                 // No verifier seal on a failed run — nothing was verified.
                 if review.error == nil { IndependentVerifierSeal(style: .compact) }
                 Button { model.diffReview = nil } label: { Image(systemName: "xmark").font(.system(size: 10)) }

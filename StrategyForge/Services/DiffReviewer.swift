@@ -63,6 +63,31 @@ enum DiffReviewer {
         """
     }
 
+    /// Turn the reviewer's findings into an instruction for the AUTHOR agent to fix them
+    /// — the opt-in "close the loop" step. The reviewer stays independent (it only grades);
+    /// the fix is applied by the same team that wrote the code, in its own chat turn. Pure
+    /// so it's unit-tested; returns nil when there's nothing actionable to send back.
+    static func fixPrompt(findings: [ReviewFinding]) -> String? {
+        let actionable = findings.sorted { $0.severity.rank < $1.severity.rank }
+        guard !actionable.isEmpty else { return nil }
+        let items = actionable.enumerated().map { i, f -> String in
+            let loc: String
+            if f.file.isEmpty { loc = "" }
+            else if let line = f.line { loc = " [\(f.file):\(line)]" }
+            else { loc = " [\(f.file)]" }
+            let detail = f.detail.isEmpty ? "" : " — \(f.detail)"
+            return "\(i + 1). (\(f.severity.rawValue))\(loc) \(f.title)\(detail)"
+        }.joined(separator: "\n")
+        return """
+        An independent code review of your working changes found the issues below. Fix each \
+        one in place, then briefly note what you changed. Address the high-severity items \
+        first. If any finding is a false positive, say why instead of changing the code.
+
+        REVIEW FINDINGS:
+        \(items)
+        """
+    }
+
     /// Tolerant parse: extract the first JSON array even if wrapped; drop malformed
     /// entries; clamp unknown severities to medium; sort high-severity first.
     static func parseFindings(_ text: String) -> [ReviewFinding] {

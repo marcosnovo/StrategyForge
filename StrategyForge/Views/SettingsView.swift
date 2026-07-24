@@ -95,6 +95,18 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            Section(model.t("settings.loopNotify")) {
+                TextField(model.t("settings.loopNotify.webhook"), text: Binding(
+                    get: { model.settings.loopWebhookURL ?? "" },
+                    set: { model.settings.loopWebhookURL = $0.isEmpty ? nil : $0; model.save() }
+                ), prompt: Text(verbatim: "https://ntfy.sh/my-topic"))
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+                Text(model.t("settings.loopNotify.caption"))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             updatesSection
         }
         .sheet(isPresented: $showChangelog) { ChangelogSheet() }

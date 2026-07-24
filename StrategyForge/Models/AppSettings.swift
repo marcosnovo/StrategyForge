@@ -64,6 +64,12 @@ struct AppSettings: Codable, Hashable {
     /// Free-text "request another provider" submissions, kept so the row can show a
     /// "Requested" confirmation (and, with telemetry on, they're logged for the team).
     var requestedProviders: [String]
+    /// Optional webhook URL POSTed when a loop run finishes, so a finished/failed loop
+    /// reaches you off the Mac (ntfy → phone, Slack/Discord channel, or any endpoint).
+    /// Empty/nil = off. Kept here with the other local settings, not in the Keychain — a
+    /// posting URL isn't a credential the way an API key is, and it never leaves this Mac
+    /// except as the POST target the user chose.
+    var loopWebhookURL: String?
 
     init(
         defaultReposPath: String? = nil,
@@ -80,7 +86,8 @@ struct AppSettings: Codable, Hashable {
         codexReasoningEffort: String = "",
         openaiUseAPIKey: Bool = false,
         votedFutureProviders: Set<String> = [],
-        requestedProviders: [String] = []
+        requestedProviders: [String] = [],
+        loopWebhookURL: String? = nil
     ) {
         self.defaultReposPath = defaultReposPath
         self.defaultReposBookmark = defaultReposBookmark
@@ -97,6 +104,7 @@ struct AppSettings: Codable, Hashable {
         self.openaiUseAPIKey = openaiUseAPIKey
         self.votedFutureProviders = votedFutureProviders
         self.requestedProviders = requestedProviders
+        self.loopWebhookURL = loopWebhookURL
     }
 
     // Tolerant decoding so older saved data (without newer keys) still loads.
@@ -105,6 +113,7 @@ struct AppSettings: Codable, Hashable {
         case language, chatAutonomy, lastSelectedConfigID, lastSelectedTeamID, showActivity, providerPlans
         case codexReasoningEffort, openaiUseAPIKey
         case votedFutureProviders, requestedProviders
+        case loopWebhookURL
     }
 
     init(from decoder: Decoder) throws {
@@ -124,6 +133,7 @@ struct AppSettings: Codable, Hashable {
         openaiUseAPIKey = try c.decodeIfPresent(Bool.self, forKey: .openaiUseAPIKey) ?? false
         votedFutureProviders = try c.decodeIfPresent(Set<String>.self, forKey: .votedFutureProviders) ?? []
         requestedProviders = try c.decodeIfPresent([String].self, forKey: .requestedProviders) ?? []
+        loopWebhookURL = try c.decodeIfPresent(String.self, forKey: .loopWebhookURL)
     }
 
     /// The configured binary name/path for a provider.
