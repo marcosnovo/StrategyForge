@@ -42,7 +42,9 @@ struct AgentActivityPanel: View {
     var previewReason: String? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hoveredAgent: AgentFocus?
-    @State private var showDiagram = true
+    /// ChatGPT-calm: the topology diagram is opt-in (heavy for the resting state) — the
+    /// panel opens as narration + steps, with "Show diagram" one tap away.
+    @State private var showDiagram = false
     /// The team list starts collapsed so the panel reads at a glance.
     @State private var showTeam = false
     @State private var previewingFiles = false
@@ -388,8 +390,8 @@ struct AgentActivityPanel: View {
             TimelineView(.periodic(from: Date(), by: 1)) { ctx in
                 let secs = Int(max(0, ctx.date.timeIntervalSince(started)))
                 HStack(spacing: 6) {
-                    Circle().fill(Theme.teal).frame(width: 5, height: 5)
-                        .opacity(secs % 2 == 0 ? 1 : 0.35)   // a slow blink = "alive"
+                    // ChatGPT-calm: no second blinking dot — the header already carries the
+                    // single "alive" pulse.
                     Text(model.t("activity.working.elapsed", activityElapsed(from: started, to: ctx.date)))
                         .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
                         .contentTransition(.numericText())

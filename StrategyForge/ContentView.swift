@@ -380,18 +380,17 @@ struct AppAuroraBackground: View {
                     : [.white.opacity(0.45), .clear, .black.opacity(0.03)],
                 startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
-            // Two corner blooms only — the identity duality: coral leads (top-trailing),
-            // teal answers (bottom-leading). Peach + mint were dropped so the wash reads
-            // as one calm gradient, not four hues (design review, wave A).
+            // ChatGPT-calm: the corner blooms are retired — the background is a flat neutral
+            // with only the faint top luminance above. A single whisper-thin coral bloom
+            // stays in the top-trailing corner so it's still recognizably "Coral", not a
+            // dual coral+teal wash.
             GeometryReader { geo in
                 let w = geo.size.width, h = geo.size.height
                 let d = max(w, h)
-                ZStack {
-                    bloom(Theme.coral, at: CGPoint(x: w * 0.92, y: h * 0.04), size: d * 1.05)
-                    bloom(Theme.teal, at: CGPoint(x: w * 0.06, y: h * 0.98), size: d * 1.0)
-                }
-                .blur(radius: 70)
-                .drawingGroup()
+                bloom(Theme.coral, at: CGPoint(x: w * 0.94, y: h * 0.02), size: d * 0.9)
+                    .blur(radius: 80)
+                    .opacity(0.6)
+                    .drawingGroup()
             }
         }
         .ignoresSafeArea()

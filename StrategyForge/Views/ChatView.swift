@@ -905,7 +905,10 @@ struct ChatView: View {
                     completionBeat
                 }
                 .padding(Space.l)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                // ChatGPT-calm: a centered reading column with generous gutters, instead
+                // of hugging the left edge.
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: vm.messages.count)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: vm.isRunning)
             }
