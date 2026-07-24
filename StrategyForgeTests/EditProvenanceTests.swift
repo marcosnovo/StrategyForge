@@ -59,3 +59,59 @@ struct EditProvenanceTests {
         #expect(p.label(orchestratorName: "lead").contains("lead"))
     }
 }
+
+struct LineAttributorTests {
+
+    private let alice = EditProvenance(agent: "alice", model: "Sonnet 5", provider: .claude)
+    private let bob = EditProvenance(agent: "bob", model: "Gemini", provider: .gemini)
+
+    @Test func firstEditCreditsEveryLineToTheAuthor() {
+        let out = LineAttributor.attribute(old: [], oldAuthors: [],
+                                           new: ["a", "b", "c"], author: alice)
+        #expect(out == [alice, alice, alice])
+    }
+
+    @Test func emptyNewYieldsEmpty() {
+        #expect(LineAttributor.attribute(old: ["x"], oldAuthors: [alice], new: [], author: bob).isEmpty)
+    }
+
+    @Test func insertedLinesGetTheNewAuthorUnchangedKeepTheirs() {
+        // alice wrote ["a","b","c"]; bob inserts "b2" between b and c.
+        let out = LineAttributor.attribute(
+            old: ["a", "b", "c"], oldAuthors: [alice, alice, alice],
+            new: ["a", "b", "b2", "c"], author: bob)
+        #expect(out == [alice, alice, bob, alice])
+    }
+
+    @Test func replacedLineIsCreditedToTheEditorOnlyOnThatLine() {
+        // alice wrote 3 lines; bob changes the middle one.
+        let out = LineAttributor.attribute(
+            old: ["a", "b", "c"], oldAuthors: [alice, alice, alice],
+            new: ["a", "B!", "c"], author: bob)
+        #expect(out == [alice, bob, alice])
+    }
+
+    @Test func deletedLinesLeaveRemainingAuthorshipIntact() {
+        // alice wrote 3 lines; bob deletes the middle one — no line is credited to bob.
+        let out = LineAttributor.attribute(
+            old: ["a", "b", "c"], oldAuthors: [alice, alice, alice],
+            new: ["a", "c"], author: bob)
+        #expect(out == [alice, alice])
+    }
+
+    @Test func appendedLinesAtEndGetTheEditor() {
+        let out = LineAttributor.attribute(
+            old: ["a"], oldAuthors: [alice],
+            new: ["a", "b", "c"], author: bob)
+        #expect(out == [alice, bob, bob])
+    }
+
+    @Test func oversizeDiffFallsBackToAllAuthorWithoutAligning() {
+        // Beyond the LCS guard, everything is credited to the current editor (bounded work).
+        let big = Array(repeating: "x", count: 1500)
+        let out = LineAttributor.attribute(old: big, oldAuthors: Array(repeating: alice, count: 1500),
+                                           new: big, author: bob)
+        #expect(out.count == 1500)
+        #expect(out.allSatisfy { $0 == bob })   // 1500*1500 = 2.25M > maxPairs → no alignment
+    }
+}

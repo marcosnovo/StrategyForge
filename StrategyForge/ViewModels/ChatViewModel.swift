@@ -226,9 +226,14 @@ final class ChatViewModel {
     /// Absolute paths of files the agent has written/edited in this chat.
     var editedFiles: [String] = []
     /// Per-file authorship (abs path → the team member that last edited it), so Code
-    /// mode's diff shows which agent/model wrote each file — the "mix providers per role"
-    /// payoff made auditable. Live/transient (not persisted): rebuilt as a run edits.
+    /// mode's changed-files list shows which agent/model wrote each file — the "mix
+    /// providers per role" payoff made auditable. Live/transient (not persisted).
     var fileProvenance: [String: EditProvenance] = [:]
+    /// Per-LINE authorship (abs path → author per new-file line, 0-based), so the diff can
+    /// tint each line by who wrote it. Built by snapshot-diffing the file on each edit.
+    var lineProvenance: [String: [EditProvenance?]] = [:]
+    /// The last content we saw for each edited file, to diff the next edit against.
+    @ObservationIgnored private var fileSnapshots: [String: [String]] = [:]
     /// Agent Skills the model has pulled in across this chat (slugs, unique).
     var skillsUsed: [String] = []
     /// Skills used within the current turn only — snapshotted into TurnActivity.
@@ -501,6 +506,22 @@ final class ChatViewModel {
         input = prompt
         submit()
         return true
+    }
+
+    /// Update per-line authorship for `path` after an edit: snapshot the file and diff it
+    /// against the previous snapshot, crediting the lines this edit changed to `author`.
+    /// Best-effort and size-capped so a huge file never blocks the run; on any read
+    /// failure we keep just the file-level attribution.
+    private func recordLineProvenance(path: String, author: EditProvenance) {
+        guard let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int,
+              size <= 512_000,
+              let text = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        let newLines = text.components(separatedBy: "\n")
+        let authors = LineAttributor.attribute(old: fileSnapshots[path] ?? [],
+                                               oldAuthors: lineProvenance[path] ?? [],
+                                               new: newLines, author: author)
+        lineProvenance[path] = authors
+        fileSnapshots[path] = newLines
     }
 
     /// If the run is idle and messages are waiting, send the next one. Called at the end
@@ -780,9 +801,12 @@ final class ChatViewModel {
                 if !editedFiles.contains(path) { editedFiles.append(path) }
                 if !turnEditedFiles.contains(path) { turnEditedFiles.append(path) }
                 // Credit the change to whoever was active — the delegated subagent (with
-                // its pinned model) or the orchestrator. Last editor wins.
-                fileProvenance[path] = EditProvenanceResolver.attribute(subagent: activeSubagent,
-                                                                        strategy: config.strategy)
+                // its pinned model) or the orchestrator. Last editor wins for the file dot;
+                // the per-line map credits exactly the lines this edit changed.
+                let author = EditProvenanceResolver.attribute(subagent: activeSubagent,
+                                                              strategy: config.strategy)
+                fileProvenance[path] = author
+                recordLineProvenance(path: path, author: author)
             case .skillUsed(let slug):
                 if !turnSkillsUsed.contains(slug) { turnSkillsUsed.append(slug) }
                 if !skillsUsed.contains(slug) { skillsUsed.append(slug) }
