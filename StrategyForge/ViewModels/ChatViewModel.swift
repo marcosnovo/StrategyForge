@@ -553,6 +553,57 @@ final class ChatViewModel {
         return providers.count > 1 || orch != .claude
     }
 
+    // MARK: - Live agent graph (the signature multi-agent moment)
+
+    /// True while a team turn is still ORCHESTRATING — the orchestrator has begun (there's
+    /// live narration) but the final prose answer hasn't started streaming yet. This is the
+    /// window in which the conversation shows the live agent graph in place of the raw
+    /// narration text. (`metaNarration` is `@ObservationIgnored`, but the assistant
+    /// message's `text` — which is rendered *from* it — is observable and changes in
+    /// lockstep, so the view re-renders at exactly the right moments.)
+    var isOrchestrating: Bool {
+        isRunning && usesMetaOrchestrator && !metaNarration.isEmpty
+    }
+
+    /// A snapshot of the running team mapped onto the `LiveAgentGraphView`'s honest value
+    /// model: the configured roster becomes ring nodes (idle until they run), coloured by
+    /// role kind so the coral orchestrator core stays the hero; live state comes from
+    /// `rolesInProgress` (running), `timeline` role.failed steps (failed), and
+    /// `agentsInvolved` (done). Everything here already exists — this is pure projection.
+    var liveGraph: LiveGraphSnapshot {
+        let strategy = config.strategy
+        let failed = Set(timeline.filter { $0.title == "role.failed" }.map(\.detail))
+        let nodes: [LiveGraphNode] = strategy.subagentRoles.map { role in
+            let name = role.name
+            let state: LiveNodeState =
+                rolesInProgress.contains(name) ? .running
+                : failed.contains(name)        ? .failed
+                : agentsInvolved.contains(name) ? .done
+                : .idle
+            return LiveGraphNode(
+                id: name,
+                title: name,
+                subtitle: roleTasks[name],
+                state: state,
+                tint: role.role.tint,
+                startedAt: roleStartedAt[name])
+        }
+        let anyRunning = nodes.contains { $0.state == .running }
+        let anyFinished = nodes.contains { $0.state == .done || $0.state == .failed }
+        let phase: String =
+            !isRunning   ? ""
+            : anyRunning  ? "working"
+            : anyFinished ? "synthesizing"
+            : "planning"
+        return LiveGraphSnapshot(
+            orchestratorTitle: strategy.orchestrator?.name ?? "orchestrator",
+            nodes: nodes,
+            phase: phase,
+            tokens: totalTokens,
+            elapsed: turnStartedAt.map { Date().timeIntervalSince($0) } ?? 0,
+            running: isRunning)
+    }
+
     /// The chat's bound project folder is set but no longer exists on disk (moved or
     /// deleted after it was picked) — we can't run there and must say so clearly.
     var repoFolderMissing: Bool {

@@ -442,11 +442,19 @@ struct AgentActivityPanel: View {
             }
             .buttonStyle(.plain)
             if showDiagram {
-                StrategyDiagramView(strategy: shownStrategy,
-                                    activeAgent: vm.activeSubagent,
-                                    isLive: vm.isRunning,
-                                    compact: true)
-                    .frame(height: 240)
+                // While the team runs, the diagram becomes the SAME living object as the
+                // inline conversation graph — orchestrator core fanning out to role-coloured
+                // nodes. At rest it falls back to the static configured topology.
+                if vm.isRunning {
+                    LiveAgentGraphView(snapshot: vm.liveGraph)
+                        .frame(height: 240)
+                } else {
+                    StrategyDiagramView(strategy: shownStrategy,
+                                        activeAgent: vm.activeSubagent,
+                                        isLive: vm.isRunning,
+                                        compact: true)
+                        .frame(height: 240)
+                }
             }
         }
     }
