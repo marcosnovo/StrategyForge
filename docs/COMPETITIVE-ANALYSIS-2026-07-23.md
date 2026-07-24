@@ -20,9 +20,10 @@ dato no estaba documentado públicamente se marca **(no confirmado)**.
 >    en `CLAUDE.md` y en el `LOOP.md` del loop, con captura (manual / STATE.md / Review) y
 >    **reflexión post-run**. Sync CloudKit codificado pero dormido (Slice 7). Item de *medio
 >    plazo* adelantado.
-> 5. **Modo "Arena"** — misma tarea a N proveedores a la vez, tarjeta por competidor con
->    coste/tokens, ganador sugerido + "Seguir en un chat". Iguala la única feature en la que
->    Parallel Code sacaba ventaja. Otro item de *medio plazo* adelantado.
+> 5. **Modo "Arena"** en dos niveles — *Models* (misma tarea a N proveedores) y *Teams*
+>    (compite **estrategias de equipo enteras** multi-proveedor, con progreso en vivo por
+>    competidor, solo-lectura y guard de coste). El nivel *Teams* **supera** a Parallel Code
+>    (su Arena es solo de modelos). Item de *medio plazo* adelantado.
 >
 > Único trabajo manual restante (no bloquea código): **captura visual light/dark** de las
 > features nuevas, y **verificar el sync CloudKit en dispositivo** (añadir el record type
@@ -171,7 +172,7 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Loop autónomo con verificador independiente | ✅ | ✅ | ❌ | ✅ | ❌ | ⚠️ |
 | **Auto-fix cerrado desde la revisión** (hallazgo → vuelve solo al autor) | ✅ (botón opt-in "Corregir todo") | ✅ | ❌ | ✅ | ❌ | ⚠️ (no confirmado auto-push) |
 | Aislamiento por git worktree | ✅ (en loops) | ❌ | ✅ (su feature central) | ⚠️ | ⚠️ | ✅ |
-| Ejecución competitiva multi-proveedor ("Arena") | ✅ (nuevo — modo Arena: misma tarea a N proveedores conectados a la vez, tarjeta por competidor con tokens/coste, ganador sugerido = más barato, "Seguir en un chat" con el que gane) | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Ejecución competitiva multi-proveedor ("Arena") | ✅✅ (nuevo — **dos niveles**: *Models* (misma tarea a N proveedores) y *Teams* (compite **estrategias de equipo enteras** multi-proveedor a la vez, con progreso en vivo por competidor: fase, agentes activos, tokens/coste, reloj; solo-lectura y con guard de coste). El nivel *Teams* **nadie más lo tiene** — requiere diseñar equipos) | ❌ | ✅ (solo nivel Models) | ❌ | ❌ | ❌ |
 | Memoria/conocimiento persistente **entre proyectos** | ✅ (nuevo — base global de learnings patrón/decisión/error, `MemoryStore`; se inyecta en `CLAUDE.md` **y en el `LOOP.md` del loop**; captura manual / import de STATE.md / promote desde Review; **reflexión post-run** que cosecha el STATE.md a la base al terminar. Sync CloudKit codificado pero dormido hasta verificar en dispositivo) | ⚠️ (contexto compartido, alcance sin confirmar) | ❌ | ✅ (BEADS + base de conocimiento + reflexión) | ❌ | ❌ |
 | Sandboxing opcional (Docker) por tarea | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Sesiones remotas (SSH a otra máquina) | ❌ | ❌ | ⚠️ (solo ver progreso vía QR/Tailscale) | ❌ | ✅ | ❌ |
@@ -292,12 +293,18 @@ confianza:
    a la base al terminar (`LoopStore.harvestStateFile`). **Slice 7 hecho (dormido):** sync CloudKit
    codificado (`LearningSyncStore`/`LearningMerge` LWW), pendiente solo de añadir el record type
    "Learning" al esquema y verificar en dispositivo.
-2. **Modo "Arena" opcional** — ✅ **HECHO.** Sección **Arena**: misma tarea a N proveedores conectados
-   a la vez (`ArenaEngine` sobre `OneShotRunner`, cada fallo aislado), tarjeta por competidor con la
-   respuesta + tokens/coste, ganador sugerido = el más barato con éxito (pista, decide el usuario), y
-   "Seguir en un chat" que abre un chat en el proveedor ganador con la tarea sembrada. Corre en modo
-   solo-lectura (una arena no edita el repo). *Resultado:* Coral iguala la única feature en la que
-   Parallel Code le sacaba ventaja, pero sobre tu propia suscripción y en la app nativa.
+2. **Modo "Arena"** — ✅ **HECHO en dos niveles.**
+   - **Models** (`ArenaEngine` sobre `OneShotRunner`): misma tarea a N proveedores, tarjeta por
+     competidor con respuesta + tokens/coste, ganador sugerido = el más barato, "Seguir en un chat".
+   - **Teams** (`StrategyArenaEngine` sobre `MetaOrchestrator`): compite **estrategias de equipo
+     enteras** (multi-proveedor/multi-modelo) en la misma tarea. **Seguro por construcción** (runner
+     solo-lectura → los competidores no se pisan). **Transparencia en vivo** por competidor —fase
+     (planificar/delegar/sintetizar), agentes activos como chips, reloj que avanza cada segundo,
+     tokens/coste acumulando— porque un run agéntico tarda minutos y no puede parecer bloqueado.
+     Guard de coste con confirmación antes de lanzar; cancelable. *Resultado:* Coral **supera** a
+     Parallel Code aquí — su Arena es solo de modelos; la de equipos solo la puede hacer quien diseña
+     equipos. *Pendiente (ver backlog):* competir en tareas de **código** (worktrees aislados por
+     competidor + diff) y un **juez independiente** que puntúe el resultado en vez del pick humano.
 3. **Sandboxing Docker opcional por loop.** *Por qué:* responde directamente a la objeción de
    confianza que el propio SECURITY.md ya reconoce (sandbox-off, ejecuta shell autónomamente), sin
    renunciar al modelo "tu propia máquina, tu propia suscripción".
@@ -334,11 +341,29 @@ confianza:
 
 **Siguiente foco (medio plazo, sin empezar):**
 
-- [x] ~~**Modo "Arena"** (competir proveedores en la misma tarea)~~ — hecho (`ArenaEngine` + sección
-      Arena; ganador sugerido = más barato, "Seguir en un chat" con el ganador)
-- [ ] **Procedencia por línea cross-proveedor** — el paso que le falta a la feature 2: workers
-      editando en worktrees aislados que podamos diffear, para atribuir líneas a modelos de distintos
-      proveedores (hoy es Claude-nativa). El modelo de datos ya está listo.
+- [x] ~~**Modo "Arena"** (competir proveedores en la misma tarea)~~ — hecho en 2 niveles: *Models*
+      (`ArenaEngine`) y *Teams* (`StrategyArenaEngine` sobre `MetaOrchestrator`, con progreso en vivo,
+      solo-lectura y guard de coste)
+
+**Descubierto durante la Arena de equipos (priorizado):**
+
+- [ ] **P1 · Arena de equipos para tareas de CÓDIGO** — hoy la Arena de equipos corre solo-lectura y
+      compara la *respuesta sintetizada*. Para competir en tareas que editan ficheros hace falta
+      **aislar cada competidor en su propio git worktree** (ya existe la infra en loops) y comparar el
+      **diff** por competidor. Es el paso natural y el que une Arena con "procedencia por línea
+      cross-proveedor" (misma pieza: workers editando en worktrees diffables).
+- [ ] **P1 · Juez independiente para la Arena** — hoy el ganador es un *pick* humano con pista "más
+      barato". Un agente juez read-only (como el verificador de loops, autor≠juez) que puntúe cada
+      resultado contra la tarea daría un ganador por *calidad*, no solo por coste. Reutiliza el patrón
+      del verificador. Opt-in (gasta tokens extra).
+- [ ] **P2 · Estimación de coste previa en la Arena de equipos** — hoy se avisa y se muestra el coste
+      en vivo; una estimación *antes* de lanzar (por nº de agentes/modelos) daría más control. Reutiliza
+      `CostEstimationHooks`.
+
+**Otras (medio plazo):**
+
+- [ ] **Procedencia por línea cross-proveedor** — workers editando en worktrees aislados que podamos
+      diffear (comparte pieza con P1 de arriba). El modelo de datos (`EditProvenance`) ya está listo.
 - [ ] Sandboxing Docker opcional por loop
 - [ ] Sesiones remotas SSH — solo si hay señal de demanda
 
