@@ -385,7 +385,12 @@ confianza:
 - [x] ~~**Equipos con orquestador no-Claude editando**~~ — **HECHO** vía el editor secuencial de arriba.
 - [x] ~~**P2 · Estimación de coste previa**~~ — **HECHO** (`ArenaCostEstimator`): chip "~Xk tok · $Y"
       junto a Run y en las confirmaciones de las tres arenas.
-- [ ] **Polish:** diff coloreado por proveedor línea a línea en la Arena/Code mode (datos ya listos).
+- [x] ~~**Polish:** diff coloreado por proveedor línea a línea en la Arena/Code mode~~ — **HECHO**
+      (`ProvenanceDiff`): cada línea añadida se tinta con el tono del proveedor que la escribió.
+- [ ] **P1 · Rediseño "ChatGPT-calm"** — plan completo en [`CHATGPT-STYLE-REDESIGN.md`](CHATGPT-STYLE-REDESIGN.md):
+      bajar de ~11 destinos de nav a ~3+"Más", panel de agente calmado (chips + paso N/M + narración),
+      selección gris, retirar teal como 2º acento, aplanar elevación/aurora, columna de lectura centrada.
+      Fase 1 sin riesgo de marca; 3 decisiones de marca pendientes (teal, eyebrows mono, bubble usuario).
 - [ ] Sandboxing Docker opcional por loop — *si hay demanda*
 - [ ] Sesiones remotas SSH — *si hay demanda*
 
