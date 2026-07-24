@@ -18,6 +18,10 @@ import Foundation
 struct StrategyWriter {
     let repoURL: URL
     var binary: String = "claude"
+    /// Pre-rendered "Learnings from past runs" markdown (MemoryDigest), injected into the
+    /// managed CLAUDE.md block. Empty (default) keeps output identical to before, so
+    /// every existing construction and test is unaffected.
+    var memory: String = ""
 
     private var fm: FileManager { .default }
 
@@ -28,7 +32,7 @@ struct StrategyWriter {
     func previewFiles(for strategy: Strategy) -> [GeneratedFile] {
         var files = AgentFileGenerator.generate(for: strategy)
         let existing = try? String(contentsOf: claudeMdURL, encoding: .utf8)
-        let merged = ClaudeMdGenerator.merged(existing: existing, strategy: strategy, binary: binary)
+        let merged = ClaudeMdGenerator.merged(existing: existing, strategy: strategy, binary: binary, memory: memory)
         files.append(GeneratedFile(relativePath: ClaudeMdGenerator.fileName, contents: merged))
         if let mcp = McpConfigGenerator.json(for: strategy.mcpServers) {
             files.append(GeneratedFile(relativePath: McpConfigGenerator.fileName, contents: mcp))
@@ -161,7 +165,7 @@ struct StrategyWriter {
 
         // 2. CLAUDE.md — merge into whatever exists.
         let existing = try? String(contentsOf: claudeMdURL, encoding: .utf8)
-        let merged = ClaudeMdGenerator.merged(existing: existing, strategy: strategy, binary: binary)
+        let merged = ClaudeMdGenerator.merged(existing: existing, strategy: strategy, binary: binary, memory: memory)
         try merged.write(to: claudeMdURL, atomically: true, encoding: .utf8)
         written.append(ClaudeMdGenerator.fileName)
 

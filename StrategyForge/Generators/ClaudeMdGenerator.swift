@@ -33,8 +33,11 @@ enum ClaudeMdGenerator {
     }
 
     /// The StrategyForge-managed section (WITHOUT the markers). This is the part
-    /// that gets regenerated on every write.
-    static func section(for strategy: Strategy, binary: String = "claude") -> String {
+    /// that gets regenerated on every write. `memory` is an optional, pre-rendered
+    /// "Learnings from past runs" markdown block (see MemoryDigest); when non-empty it's
+    /// appended inside the managed section, so cross-project knowledge rides into the
+    /// team's CLAUDE.md. Empty (the default) keeps output byte-identical to before.
+    static func section(for strategy: Strategy, binary: String = "claude", memory: String = "") -> String {
         let orchestrator = strategy.orchestrator
         let orchestratorName = orchestrator?.name ?? "orchestrator"
         let orchestratorModel = orchestrator?.model.displayName ?? "—"
@@ -118,6 +121,11 @@ enum ClaudeMdGenerator {
         // Working agreement — Anthropic's tested prompt guidance for Fable 5.
         out += workingAgreement + "\n"
 
+        // Learnings from past runs (cross-project memory), when any apply to this team.
+        // Appended before Limitations; neutralizeMarkers below sanitizes its content.
+        let mem = memory.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !mem.isEmpty { out += mem + "\n\n" }
+
         // Limitations
         out += "## Limitations (Claude Code)\n\n"
         out += "- **Single level of delegation.** The orchestrator delegates to "
@@ -194,8 +202,8 @@ enum ClaudeMdGenerator {
     """
 
     /// The full managed block, including the start/end markers.
-    static func markedBlock(for strategy: Strategy, binary: String = "claude") -> String {
-        "\(startMarker)\n\(section(for: strategy, binary: binary))\(endMarker)\n"
+    static func markedBlock(for strategy: Strategy, binary: String = "claude", memory: String = "") -> String {
+        "\(startMarker)\n\(section(for: strategy, binary: binary, memory: memory))\(endMarker)\n"
     }
 
     // MARK: - Idempotent merge
@@ -207,8 +215,8 @@ enum ClaudeMdGenerator {
     /// - Otherwise → appends the managed block to the end, preserving prior content.
     ///
     /// Running this repeatedly with the same strategy is idempotent.
-    static func merged(existing: String?, strategy: Strategy, binary: String = "claude") -> String {
-        let block = markedBlock(for: strategy, binary: binary)
+    static func merged(existing: String?, strategy: Strategy, binary: String = "claude", memory: String = "") -> String {
+        let block = markedBlock(for: strategy, binary: binary, memory: memory)
 
         guard let existing, !existing.isEmpty else {
             return block

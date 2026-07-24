@@ -1462,7 +1462,8 @@ final class AppModel {
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
         do {
-            _ = try StrategyWriter(repoURL: url, binary: settings.claudeBinary).write(strategy: config.strategy)
+            _ = try StrategyWriter(repoURL: url, binary: settings.claudeBinary,
+                                   memory: memoryDigest(for: config, repoPath: url.path)).write(strategy: config.strategy)
         } catch {
             // Surface the failure (a run against stale/missing team files is a
             // silent misconfiguration) and don't stamp lastGeneratedAt.
@@ -2013,17 +2014,29 @@ final class AppModel {
 
     // MARK: - Preview
 
+    /// The cross-project learnings block (MemoryDigest) to inject into a config's
+    /// generated CLAUDE.md, selected for its repo + task context. Empty when nothing in
+    /// the knowledge base is relevant, which keeps the generated file identical to before.
+    func memoryDigest(for config: Configuration, repoPath: String?) -> String {
+        let ctx = MemoryContext(repoPath: repoPath, language: nil, taskText: config.name)
+        let picked = MemorySelector.topN(MemoryStore.shared.learnings, context: ctx, limit: 6)
+        return MemoryDigest.render(picked)
+    }
+
     /// Files that would be written for a configuration, merged against disk.
     func previewFiles(for config: Configuration) -> [GeneratedFile] {
         if let url = repoURL(for: config) {
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-            return StrategyWriter(repoURL: url, binary: settings.claudeBinary)
+            return StrategyWriter(repoURL: url, binary: settings.claudeBinary,
+                                  memory: memoryDigest(for: config, repoPath: url.path))
                 .previewFiles(for: config.strategy)
         }
         // No repo yet: still preview agent files + a from-scratch CLAUDE.md.
         var files = AgentFileGenerator.generate(for: config.strategy)
-        let claude = ClaudeMdGenerator.merged(existing: nil, strategy: config.strategy, binary: settings.claudeBinary)
+        let claude = ClaudeMdGenerator.merged(existing: nil, strategy: config.strategy,
+                                              binary: settings.claudeBinary,
+                                              memory: memoryDigest(for: config, repoPath: nil))
         files.append(GeneratedFile(relativePath: ClaudeMdGenerator.fileName, contents: claude))
         return files
     }
@@ -2034,7 +2047,8 @@ final class AppModel {
         if let url = repoURL(for: config) {
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-            return StrategyWriter(repoURL: url, binary: settings.claudeBinary)
+            return StrategyWriter(repoURL: url, binary: settings.claudeBinary,
+                                  memory: memoryDigest(for: config, repoPath: url.path))
                 .previewDiffs(for: config.strategy)
         }
         return previewFiles(for: config).map { FileDiff.make(file: $0, existing: nil) }
@@ -2077,7 +2091,8 @@ final class AppModel {
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
         do {
-            let writer = StrategyWriter(repoURL: url, binary: settings.claudeBinary)
+            let writer = StrategyWriter(repoURL: url, binary: settings.claudeBinary,
+                                        memory: memoryDigest(for: config, repoPath: url.path))
             // Classify what's about to change (before the write) for the funnel.
             let diffs = writer.previewDiffs(for: config.strategy)
             let written = try writer.write(strategy: config.strategy)

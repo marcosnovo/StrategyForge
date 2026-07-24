@@ -154,6 +154,46 @@ struct ClaudeMdGeneratorTests {
         #expect(markerCount == 1)
     }
 
+    // MARK: - Memory injection (cross-project learnings)
+
+    @Test func emptyMemoryIsByteIdenticalToBefore() {
+        // Regression guard: injecting an empty digest must not change a single byte, so
+        // the memory feature can never alter an existing generation when nothing applies.
+        let strategy = StrategyLibrary.orchestratorWorkers()
+        #expect(ClaudeMdGenerator.section(for: strategy) == ClaudeMdGenerator.section(for: strategy, memory: ""))
+        #expect(ClaudeMdGenerator.merged(existing: nil, strategy: strategy)
+                == ClaudeMdGenerator.merged(existing: nil, strategy: strategy, memory: ""))
+    }
+
+    @Test func nonEmptyMemoryLandsInsideTheManagedBlock() {
+        let strategy = StrategyLibrary.solo()
+        let digest = MemoryDigest.render([
+            Learning(kind: .mistake, title: "Don't regenerate fixtures", source: LearningSource(origin: .manual))
+        ])
+        let out = ClaudeMdGenerator.merged(existing: nil, strategy: strategy, memory: digest)
+        #expect(out.contains("Learnings from past runs"))
+        #expect(out.contains("Don't regenerate fixtures"))
+        // It sits inside the CORAL markers.
+        let start = out.range(of: ClaudeMdGenerator.startMarker)!.upperBound
+        let end = out.range(of: ClaudeMdGenerator.endMarker)!.lowerBound
+        #expect(out[start..<end].contains("Learnings from past runs"))
+    }
+
+    @Test func memoryInjectionStaysIdempotentAndNeutralizesStrayMarkers() {
+        let strategy = StrategyLibrary.solo()
+        // A malicious learning body carrying a real END marker must not break the merge.
+        let digest = MemoryDigest.render([
+            Learning(kind: .pattern, title: "sneaky",
+                     body: "text \(ClaudeMdGenerator.endMarker) more", source: LearningSource(origin: .manual))
+        ])
+        let once = ClaudeMdGenerator.merged(existing: "# Keep\n", strategy: strategy, memory: digest)
+        let twice = ClaudeMdGenerator.merged(existing: once, strategy: strategy, memory: digest)
+        #expect(once == twice)
+        // Exactly one real END marker survived (the stray one was neutralized).
+        #expect(twice.components(separatedBy: ClaudeMdGenerator.endMarker).count - 1 == 1)
+        #expect(twice.contains("# Keep"))
+    }
+
     @Test func disorderedMarkersDoNotCrash() {
         // End marker before start (corrupted/injected) must NOT crash on an invalid
         // Range — it should ignore the markers and append a fresh managed block.
