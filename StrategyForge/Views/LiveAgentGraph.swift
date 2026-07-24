@@ -93,6 +93,13 @@ struct LiveAgentGraphView: View {
         let n = snapshot.nodes.count
         let flow = !reduceMotion
 
+        // Stage atmosphere: a faint ADDITIVE coral glow pooled at the core so the dark
+        // viewport reads as deep water with light in it, not flat black.
+        var wash = ctx; wash.blendMode = .plusLighter
+        wash.fill(Path(CGRect(origin: .zero, size: size)),
+                  with: .radialGradient(Gradient(colors: [Theme.coral.opacity(0.07), .clear]),
+                                        center: c, startRadius: 0, endRadius: max(size.width, size.height) * 0.55))
+
         // Edges first (behind nodes).
         for (i, node) in snapshot.nodes.enumerated() {
             drawEdge(&ctx, from: c, to: position(i, n, size), node: node, clock: clock, flow: flow)
@@ -147,34 +154,44 @@ struct LiveAgentGraphView: View {
         let active = Double(snapshot.activeCount)
         let breathe = flow ? 1 + 0.05 * sin(clock * 2.0) : 1
         let R0 = (18 + active * 3) * breathe
-        let intensity = min(0.22 + active * 0.12, 0.7)
+        let intensity = min(0.30 + active * 0.12, 0.74)
 
-        // Glow gem.
-        ctx.fill(Path(ellipseIn: CGRect(x: c.x - R0 * 2, y: c.y - R0 * 2, width: R0 * 4, height: R0 * 4)),
-                 with: .radialGradient(Gradient(colors: [Theme.accent.opacity(intensity), Theme.accent.opacity(0)]),
-                                       center: c, startRadius: 0, endRadius: R0 * 2))
-        // Orbiting swarm — golden-angle, capped, denser while agents run.
+        // Outer bloom — ADDITIVE so it reads as emitted light, not a painted disc.
+        var bloom = ctx; bloom.blendMode = .plusLighter
+        bloom.fill(Path(ellipseIn: CGRect(x: c.x - R0 * 2.4, y: c.y - R0 * 2.4, width: R0 * 4.8, height: R0 * 4.8)),
+                   with: .radialGradient(Gradient(colors: [Theme.coral.opacity(intensity), Theme.coral.opacity(0)]),
+                                         center: c, startRadius: 0, endRadius: R0 * 2.4))
+        // Orbiting swarm — a subtle additive coral mist (denser while agents run).
         if flow {
-            let count = min(18 + snapshot.activeCount * 8, 54)
-            let ga = 2.399963, rot = clock * 0.5
+            var mist = ctx; mist.blendMode = .plusLighter
+            let count = min(16 + snapshot.activeCount * 8, 48)
+            let ga = 2.399963, rot = clock * 0.4
             for i in 0..<count {
                 let t = Double(i) / Double(count)
-                let rad = R0 * (0.5 + t * 1.1)
+                let rad = R0 * (0.55 + t * 1.1)
                 let ang = ga * Double(i) + rot
                 let p = CGPoint(x: c.x + CGFloat(cos(ang)) * rad, y: c.y + CGFloat(sin(ang)) * rad)
-                let col = i % 3 == 0 ? Theme.teal : Theme.accent
-                dot(&ctx, p, r: 1.3, color: col, op: 0.25 + 0.35 * (1 - t))
+                dot(&mist, p, r: 1.2, color: Theme.coral, op: 0.14 + 0.26 * (1 - t))
             }
         }
-        // Solid coral heart.
-        let hr = 4.5 * breathe
+        // Rim ring — a thin coral halo that thickens as more agents run (the "pulse").
+        ctx.stroke(Path(ellipseIn: CGRect(x: c.x - R0, y: c.y - R0, width: R0 * 2, height: R0 * 2)),
+                   with: .color(Theme.coral.opacity(0.5)), lineWidth: 1.5 + active * 0.6)
+        // The heart — a small disc with a slowly rotating coral→deep gradient (it visibly
+        // "spins" while thinking) + a crisp specular so it reads as a lit gem, not a flat dot.
+        let hr = 6.5 * breathe
         ctx.fill(Path(ellipseIn: CGRect(x: c.x - hr, y: c.y - hr, width: hr * 2, height: hr * 2)),
-                 with: .color(Theme.accent.opacity(0.95)))
+                 with: .conicGradient(Gradient(colors: [Theme.coral, Theme.coralDeep, Theme.coral]),
+                                      center: c, angle: Angle(radians: flow ? clock * 0.5 : 0)))
+        var spec = ctx; spec.blendMode = .plusLighter
+        let sr = hr * 0.28
+        spec.fill(Path(ellipseIn: CGRect(x: c.x - hr * 0.32 - sr, y: c.y - hr * 0.32 - sr, width: sr * 2, height: sr * 2)),
+                  with: .color(.white.opacity(0.85)))
         // Orchestrator label.
         ctx.draw(Text(snapshot.orchestratorTitle.uppercased())
             .font(.system(size: 9, weight: .semibold, design: .monospaced))
-            .foregroundColor(Theme.accent.opacity(0.9)),
-                 at: CGPoint(x: c.x, y: c.y + R0 + 12))
+            .foregroundColor(Theme.coral.opacity(0.9)),
+                 at: CGPoint(x: c.x, y: c.y + R0 + 14))
     }
 
     private func drawNode(_ ctx: inout GraphicsContext, at p: CGPoint, node: LiveGraphNode,

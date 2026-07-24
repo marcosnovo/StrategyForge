@@ -94,6 +94,13 @@ struct AgentActivityPanel: View {
             .zoomWindowOnDoubleClick()
             .zIndex(1)
 
+            // THE STAGE — the multi-agent constellation, pinned under the header and always
+            // visible (not a buried toggle). At rest it shows the CONFIGURED team as a calm
+            // idle constellation ("your crew, ready"); during a run it comes alive with
+            // fan-out/fan-in. This is Coral's signature — the one thing only Coral has.
+            agentStage
+                .zIndex(0)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.m) {
                     // When a recommendation is on screen over a team the user chose,
@@ -125,13 +132,19 @@ struct AgentActivityPanel: View {
     /// A quiet in-card separator between two grouped sections.
     private var sectionDivider: some View { Divider().padding(.vertical, 2) }
 
-    /// "Now" — what's happening this turn: the live usage meter, the orchestrator +
-    /// live topology, and the current task list.
+    /// The pinned constellation stage — a dark "engine viewport" showing the live (or, at
+    /// rest, the configured-idle) agent graph as a framed inset under the header.
+    private var agentStage: some View {
+        LiveAgentGraphView(snapshot: vm.liveGraph)
+            .frame(height: 288)
+            .padding(Space.m)
+    }
+
+    /// "Now" — what's happening this turn: the live usage meter and the current task list.
+    /// (The topology moved OUT to the always-on `agentStage` above.)
     private var nowCard: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             liveUsageCard
-            sectionDivider
-            orchestratorDiagramCard
             if !vm.todos.isEmpty {
                 sectionDivider
                 tasksSection
