@@ -61,6 +61,9 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
     var repoScope: String?
     var source: LearningSource
     var createdAt: Date
+    /// Last edit time — the last-writer-wins key for cross-device sync. Defaults to
+    /// createdAt for entries saved before this field existed.
+    var updatedAt: Date
     /// How many times this learning has been injected into a generated file — a light
     /// usefulness signal for ranking.
     var timesApplied: Int
@@ -69,7 +72,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
 
     init(id: UUID = UUID(), kind: LearningKind, title: String, body: String = "",
          tags: [String] = [], repoScope: String? = nil,
-         source: LearningSource, createdAt: Date = Date(),
+         source: LearningSource, createdAt: Date = Date(), updatedAt: Date? = nil,
          timesApplied: Int = 0, pinned: Bool = false) {
         self.id = id
         self.kind = kind
@@ -79,6 +82,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
         self.repoScope = repoScope
         self.source = source
         self.createdAt = createdAt
+        self.updatedAt = updatedAt ?? createdAt
         self.timesApplied = timesApplied
         self.pinned = pinned
     }
@@ -86,7 +90,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
     // Tolerant decode so older saved data (without newer keys) still loads — the same
     // per-field `decodeIfPresent ?? default` idiom as AppSettings.
     private enum CodingKeys: String, CodingKey {
-        case id, kind, title, body, tags, repoScope, source, createdAt, timesApplied, pinned
+        case id, kind, title, body, tags, repoScope, source, createdAt, updatedAt, timesApplied, pinned
     }
 
     init(from decoder: Decoder) throws {
@@ -100,6 +104,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
         source = try c.decodeIfPresent(LearningSource.self, forKey: .source)
             ?? LearningSource(origin: .manual)
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
         timesApplied = try c.decodeIfPresent(Int.self, forKey: .timesApplied) ?? 0
         pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
     }

@@ -13,6 +13,18 @@ import Testing
 import Foundation
 @testable import Coral
 
+/// A scriptable sync backend for exercising MemoryStore.syncNow without CloudKit.
+private final class FakeLearningSync: LearningSyncStore, @unchecked Sendable {
+    var available: Bool
+    var remote: [Learning]
+    var pushed: [Learning] = []
+    init(available: Bool = true, remote: [Learning] = []) { self.available = available; self.remote = remote }
+    var isAvailable: Bool { get async { available } }
+    func push(_ learnings: [Learning]) async throws { pushed = learnings }
+    func pull() async throws -> [Learning] { remote }
+    func delete(ids: [UUID]) async throws {}
+}
+
 @MainActor
 struct MemoryStoreTests {
 
@@ -115,6 +127,47 @@ struct MemoryStoreTests {
         }
     }
 
+    @Test func updateStampsANewerUpdatedAt() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("coral-mem-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = MemoryStore(storeDirectory: dir)
+        let id = store.add(Learning(kind: .pattern, title: "x", source: .init(origin: .manual),
+                                    createdAt: Date(timeIntervalSinceReferenceDate: 0),
+                                    updatedAt: Date(timeIntervalSinceReferenceDate: 0)))
+        var l = store.learnings.first { $0.id == id }!
+        l.title = "x edited"
+        store.update(l)
+        #expect(store.learnings.first { $0.id == id }!.updatedAt > Date(timeIntervalSinceReferenceDate: 0))
+    }
+
+    @Test func syncPullsMergesInRemoteAndPushesReconciled() async {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("coral-mem-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let remote = Learning(kind: .decision, title: "from another mac", source: .init(origin: .manual))
+        let fake = FakeLearningSync(remote: [remote])
+        let store = MemoryStore(storeDirectory: dir, syncStore: fake)
+        store.add(manual(.pattern, "local one"))
+
+        await store.syncNow()
+        // The remote learning was merged in locally…
+        #expect(store.learnings.contains { $0.title == "from another mac" })
+        // …and the reconciled set (both) was pushed back.
+        #expect(Set(fake.pushed.map(\.title)) == ["local one", "from another mac"])
+    }
+
+    @Test func syncIsANoOpWhenUnavailable() async {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("coral-mem-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fake = FakeLearningSync(available: false, remote: [manual(.pattern, "should-not-appear")])
+        let store = MemoryStore(storeDirectory: dir, syncStore: fake)
+        await store.syncNow()
+        #expect(store.learnings.isEmpty)
+        #expect(fake.pushed.isEmpty)
+    }
+
     @Test func unreadableStoreIsBackedUpNotFatal() throws {
         try withTempDir { dir in
             try Data("{ not json".utf8).write(to: dir.appendingPathComponent("memory.json"))
@@ -210,6 +263,32 @@ struct MemoryLogicTests {
         #expect(inA.contains("global"))
         #expect(inA.contains("repoA-only"))
         #expect(!inA.contains("repoB-only"))                  // other repo's learning excluded
+    }
+
+    // MARK: LearningMerge (cross-device, last-writer-wins)
+
+    @Test func mergeAdoptsRemoteOnlyAndPrefersNewer() {
+        let id = UUID()
+        let localEdit = Learning(id: id, kind: .pattern, title: "local",
+                                 source: .init(origin: .manual),
+                                 createdAt: Date(timeIntervalSinceReferenceDate: 0),
+                                 updatedAt: Date(timeIntervalSinceReferenceDate: 100))
+        let remoteNewer = Learning(id: id, kind: .pattern, title: "remote",
+                                   source: .init(origin: .manual),
+                                   updatedAt: Date(timeIntervalSinceReferenceDate: 200))
+        let remoteOnly = Learning(kind: .mistake, title: "only-remote", source: .init(origin: .manual))
+
+        let merged = LearningMerge.merge(local: [localEdit], remote: [remoteNewer, remoteOnly])
+        #expect(merged.count == 2)
+        #expect(merged.first { $0.id == id }?.title == "remote")   // newer remote wins
+        #expect(merged.contains { $0.title == "only-remote" })     // remote-only adopted
+
+        // When local is newer, it stays.
+        let localWins = LearningMerge.merge(
+            local: [localEdit],
+            remote: [Learning(id: id, kind: .pattern, title: "stale-remote", source: .init(origin: .manual),
+                              updatedAt: Date(timeIntervalSinceReferenceDate: 50))])
+        #expect(localWins.first { $0.id == id }?.title == "local")
     }
 
     // MARK: MemoryDigest

@@ -33,8 +33,15 @@ final class MemoryStore {
     /// any banner surface exists).
     var loadError: (key: String, detail: String)?
 
-    init(storeDirectory: URL = AppPaths.supportDirectory()) {
+    /// Cross-device sync backend. Defaults to LocalOnly (a no-op) so the base is
+    /// device-local until CloudKit is wired + verified; swap in CloudKitLearningSync to
+    /// enable roaming. Injectable for tests.
+    @ObservationIgnored var syncStore: LearningSyncStore = LocalOnlyLearningSync()
+
+    init(storeDirectory: URL = AppPaths.supportDirectory(),
+         syncStore: LearningSyncStore = LocalOnlyLearningSync()) {
         self.storeDirectory = storeDirectory
+        self.syncStore = syncStore
         load()
     }
 
@@ -50,6 +57,7 @@ final class MemoryStore {
             learnings[i].tags = Array(Set(learnings[i].tags + learning.tags)).sorted()
             learnings[i].pinned = learnings[i].pinned || learning.pinned
             learnings[i].timesApplied = max(learnings[i].timesApplied, learning.timesApplied)
+            learnings[i].updatedAt = learning.updatedAt          // touch so sync sees the merge
             save()
             return learnings[i].id
         }
@@ -60,7 +68,9 @@ final class MemoryStore {
 
     func update(_ learning: Learning) {
         guard let i = learnings.firstIndex(where: { $0.id == learning.id }) else { return }
-        learnings[i] = learning
+        var edited = learning
+        edited.updatedAt = Date()                                // stamp for last-writer-wins
+        learnings[i] = edited
         save()
     }
 
@@ -72,6 +82,7 @@ final class MemoryStore {
     func togglePinned(_ id: Learning.ID) {
         guard let i = learnings.firstIndex(where: { $0.id == id }) else { return }
         learnings[i].pinned.toggle()
+        learnings[i].updatedAt = Date()
         save()
     }
 
@@ -105,6 +116,23 @@ final class MemoryStore {
         let before = learnings.count
         for l in StateFileParser.learnings(fromStateMd: text, repo: repoURL.path) { add(l) }
         return learnings.count - before
+    }
+
+    // MARK: - Cross-device sync (opt-in; no-op until CloudKit is enabled)
+
+    /// Pull remote learnings, last-writer-wins merge them in, then push the reconciled
+    /// set back. Best-effort and a no-op when sync is unavailable (offline / signed-out /
+    /// LocalOnly). The merge is pure (LearningMerge) and unit-tested.
+    func syncNow() async {
+        guard await syncStore.isAvailable else { return }
+        do {
+            let remote = try await syncStore.pull()
+            let merged = LearningMerge.merge(local: learnings, remote: remote)
+            if merged != learnings { learnings = merged; save() }
+            try await syncStore.push(learnings)
+        } catch {
+            onError?("banner.memorySaveFailed", error.localizedDescription)
+        }
     }
 
     // MARK: - Persistence (JSON in Application Support)
