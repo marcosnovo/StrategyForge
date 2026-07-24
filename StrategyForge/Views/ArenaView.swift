@@ -41,14 +41,63 @@ final class ArenaModel {
         LiveProcesses.terminateAll()   // stop the in-flight CLIs
         isRunning = false
     }
+
+    // MARK: Teams mode (whole strategies race each other)
+
+    var teamOrder: [StrategyContestant] = []
+    var teamProgress: [String: StrategyRunProgress] = [:]
+    var teamWinnerID: String?
+    var isRunningTeams = false
+    /// Per-contestant start/end wall times, for the live elapsed timer on each card.
+    var teamStart: [String: Date] = [:]
+    var teamEnd: [String: Date] = [:]
+    @ObservationIgnored private var teamTask: Task<Void, Never>?
+
+    func runTeams(task: String, contestants: [StrategyContestant], cwd: String?, runner: OneShotRunner) {
+        guard !isRunningTeams, contestants.count >= 2 else { return }
+        isRunningTeams = true
+        teamOrder = contestants
+        teamProgress = Dictionary(uniqueKeysWithValues: contestants.map { ($0.id, StrategyRunProgress(state: .queued)) })
+        teamWinnerID = nil; teamStart = [:]; teamEnd = [:]
+        teamTask = Task { [weak self] in
+            let finals = await StrategyArenaEngine.run(
+                task: task, cwd: cwd, contestants: contestants, runner: runner
+            ) { id, prog in
+                // onUpdate fires from concurrent worker tasks — marshal to the main actor.
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if self.teamStart[id] == nil { self.teamStart[id] = Date() }
+                    if (prog.state == .done || prog.state == .failed), self.teamEnd[id] == nil {
+                        self.teamEnd[id] = Date()
+                    }
+                    self.teamProgress[id] = prog
+                }
+            }
+            guard let self, !Task.isCancelled else { return }
+            self.teamWinnerID = StrategyArenaEngine.suggestedWinner(finals)
+            self.isRunningTeams = false
+        }
+    }
+
+    func cancelTeams() {
+        teamTask?.cancel(); teamTask = nil
+        LiveProcesses.terminateAll()
+        isRunningTeams = false
+    }
 }
+
+enum ArenaMode: String, CaseIterable { case models, teams }
 
 struct ArenaView: View {
     @Environment(AppModel.self) private var model
     @State private var arena = ArenaModel()
+    @State private var mode: ArenaMode = .models
     @State private var selected: Set<AIProvider> = []
     @State private var modelChoice: [AIProvider: String] = [:]
     @State private var didSeed = false
+    // Teams mode
+    @State private var selectedTeams: Set<String> = []
+    @State private var showTeamCostConfirm = false
 
     private var connected: [AIProvider] { AIProvider.allCases.filter { model.isConnected($0) } }
 
@@ -65,8 +114,13 @@ struct ArenaView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.l) {
                     taskCard
-                    entrantsCard
-                    if !arena.outcomes.isEmpty || arena.isRunning { resultsSection }
+                    if mode == .models {
+                        entrantsCard
+                        if !arena.outcomes.isEmpty || arena.isRunning { resultsSection }
+                    } else {
+                        teamsCard
+                        if !arena.teamOrder.isEmpty { teamsResultsSection }
+                    }
                 }
                 .padding(Space.xl).frame(maxWidth: 900, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -78,15 +132,30 @@ struct ArenaView: View {
             await model.refreshConnectedProviders()
             if !didSeed { selected = Set(connected); didSeed = true }   // default: everyone in
         }
+        .confirmationDialog(model.t("arena.teams.cost.title"), isPresented: $showTeamCostConfirm, titleVisibility: .visible) {
+            Button(model.t("arena.teams.cost.run"), role: .destructive) {
+                arena.runTeams(task: arena.prompt, contestants: chosenTeams,
+                               cwd: nil, runner: model.oneShotRunner(readOnly: true))
+            }
+            Button(model.t("common.cancel"), role: .cancel) {}
+        } message: {
+            Text(model.t("arena.teams.cost.body", chosenTeams.count))
+        }
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: Space.m) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.t("arena.title")).font(.sfCardTitle)
-                Text(model.t("arena.subtitle")).font(.sfCaption2).foregroundStyle(.secondary)
+                Text(model.t(mode == .models ? "arena.subtitle" : "arena.teams.subtitle"))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
             }
             Spacer()
+            Picker("", selection: $mode) {
+                Text(model.t("arena.mode.models")).tag(ArenaMode.models)
+                Text(model.t("arena.mode.teams")).tag(ArenaMode.teams)
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
         .background(.bar)
@@ -276,6 +345,198 @@ struct ArenaView: View {
     private func sendToChat(_ outcome: ArenaOutcome) {
         model.addConfiguration(provider: outcome.entrant.provider)
         if let id = model.selectedConfigID { model.updateDraft(id, arena.prompt) }
+    }
+
+    // MARK: - Teams mode
+
+    private var availableTeams: [StrategyContestant] {
+        let saved = model.savedTeams.map {
+            StrategyContestant(id: "saved:\($0.id.uuidString)", name: $0.name, strategy: $0.strategy)
+        }
+        let curated = StrategyLibrary.all.map {
+            StrategyContestant(id: "lib:\($0.id)", name: $0.name, strategy: $0)
+        }
+        return saved + curated
+    }
+    private var chosenTeams: [StrategyContestant] { availableTeams.filter { selectedTeams.contains($0.id) } }
+
+    @ViewBuilder
+    private var teamsCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack {
+                Text(model.t("arena.teams.pick")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Spacer()
+                teamsRunButton
+            }
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(availableTeams) { c in teamRow(c) }
+                }
+            }
+            .frame(maxHeight: 240)
+            Text(model.t("arena.teams.hint")).font(.sfCaption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .card()
+    }
+
+    private func teamRow(_ c: StrategyContestant) -> some View {
+        let on = selectedTeams.contains(c.id)
+        let providers = Array(Set(c.strategy.roles.map(\.provider))).sorted { $0.rawValue < $1.rawValue }
+        return HStack(spacing: Space.s) {
+            Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(on ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.secondary))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(c.name).font(.sfBodyM.weight(.medium)).lineLimit(1)
+                Text(model.t("arena.teams.makeup", c.strategy.roles.count))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+            HStack(spacing: -5) { ForEach(providers) { p in ProviderAvatar(provider: p, size: 18) } }
+        }
+        .padding(.vertical, 5).padding(.horizontal, Space.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.rowCorner).fill(on ? Theme.accentSoft.opacity(0.5) : .clear))
+        .contentShape(Rectangle())
+        .onTapGesture { if on { selectedTeams.remove(c.id) } else { selectedTeams.insert(c.id) } }
+    }
+
+    private var teamsRunButton: some View {
+        Group {
+            if arena.isRunningTeams {
+                Button(role: .cancel) { arena.cancelTeams() } label: {
+                    HStack(spacing: Space.xs) { WorkingLogo(size: 13); Text(model.t("arena.cancel")) }
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+            } else {
+                Button { showTeamCostConfirm = true } label: {
+                    Label(model.t("arena.run"), systemImage: "flag.checkered")
+                }
+                .buttonStyle(.moon).controlSize(.small)
+                .disabled(arena.prompt.trimmingCharacters(in: .whitespaces).isEmpty || chosenTeams.count < 2)
+            }
+        }
+    }
+
+    private var teamsResultsSection: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text(model.t("arena.results")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+            // A 1s heartbeat keeps every card's elapsed timer ticking while running, so a
+            // slow team visibly progresses instead of looking frozen.
+            TimelineView(.periodic(from: Date(), by: 1)) { context in
+                let cols = [GridItem(.adaptive(minimum: 320, maximum: 440), spacing: Space.l, alignment: .top)]
+                LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
+                    ForEach(arena.teamOrder) { c in teamResultCard(c, now: context.date) }
+                }
+            }
+        }
+    }
+
+    private func teamResultCard(_ c: StrategyContestant, now: Date) -> some View {
+        let p = arena.teamProgress[c.id] ?? StrategyRunProgress()
+        let isWinner = arena.teamWinnerID == c.id
+        let elapsed = arena.teamStart[c.id].map { (arena.teamEnd[c.id] ?? now).timeIntervalSince($0) } ?? 0
+        let providers = Array(Set(c.strategy.roles.map(\.provider))).sorted { $0.rawValue < $1.rawValue }
+        return VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: Space.s) {
+                HStack(spacing: -5) { ForEach(providers) { pr in ProviderAvatar(provider: pr, size: 20, active: isWinner) } }
+                Text(c.name).font(.sfBodyM.weight(.medium)).lineLimit(1)
+                Spacer()
+                if p.state == .done {
+                    Button { arena.teamWinnerID = c.id } label: {
+                        Image(systemName: isWinner ? "trophy.fill" : "trophy")
+                            .foregroundStyle(isWinner ? Theme.accent : .secondary)
+                    }
+                    .buttonStyle(.plain).help(model.t("arena.pickWinner"))
+                }
+            }
+
+            liveStatus(p, elapsed: elapsed)
+
+            switch p.state {
+            case .done:
+                if let answer = p.answer {
+                    Text(answer).font(.sfBodyM).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxHeight: 240, alignment: .topLeading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: Space.s) {
+                        Button(model.t("arena.copy")) {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(answer, forType: .string)
+                            model.flashSuccess(model.t("arena.copied"))
+                        }
+                        .buttonStyle(.bordered).controlSize(.small)
+                    }
+                }
+            case .failed:
+                Label(p.error ?? model.t("arena.error"), systemImage: "exclamationmark.triangle.fill")
+                    .font(.sfCaption2).foregroundStyle(Theme.danger).fixedSize(horizontal: false, vertical: true)
+            case .queued, .running:
+                EmptyView()
+            }
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .fill(Theme.cardBg).elevation(isWinner ? .e3 : .e1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .strokeBorder(isWinner ? Theme.accent.opacity(0.4) : Theme.hairline, lineWidth: 1))
+    }
+
+    /// The transparency line: exactly what a team is doing right now + a ticking clock, so
+    /// a multi-minute run never reads as "stuck".
+    @ViewBuilder
+    private func liveStatus(_ p: StrategyRunProgress, elapsed: TimeInterval) -> some View {
+        HStack(spacing: Space.s) {
+            switch p.state {
+            case .queued:
+                Image(systemName: "clock").font(.sfCaption2).foregroundStyle(.secondary)
+                Text(model.t("arena.state.queued")).font(.sfCaption2).foregroundStyle(.secondary)
+            case .running:
+                WorkingLogo(size: 13)
+                Text(phaseLabel(p.phase)).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
+            case .done:
+                Image(systemName: "checkmark.circle.fill").font(.sfCaption2).foregroundStyle(Theme.success)
+                Text(model.t("arena.state.done")).font(.sfCaption2).foregroundStyle(Theme.success)
+            case .failed:
+                EmptyView()
+            }
+            Spacer()
+            // Live metrics — tokens/cost accumulate, elapsed ticks.
+            if p.tokens > 0 || elapsed > 0 {
+                Text(liveMetrics(p, elapsed: elapsed))
+                    .font(.sfCaption2.monospaced()).foregroundStyle(.secondary)
+            }
+        }
+        // Active agents right now — the "it's alive" signal.
+        if p.state == .running, !p.activeRoles.isEmpty {
+            FlowRow(spacing: 4) {
+                ForEach(p.activeRoles, id: \.self) { role in
+                    Text(role).font(.sfCaption2)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.accentSoft))
+                        .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.3), lineWidth: 1))
+                }
+            }
+        }
+    }
+
+    private func phaseLabel(_ phase: String) -> String {
+        switch phase {
+        case "plan": return model.t("arena.phase.plan")
+        case "delegate": return model.t("arena.phase.delegate")
+        case "synthesize": return model.t("arena.phase.synthesize")
+        default: return model.t("arena.state.running")
+        }
+    }
+
+    private func liveMetrics(_ p: StrategyRunProgress, elapsed: TimeInterval) -> String {
+        let tilde = p.estimated ? "~" : ""
+        let secs = Int(elapsed.rounded())
+        let time = secs < 60 ? "\(secs)s" : "\(secs / 60)m \(secs % 60)s"
+        let cost = p.costUSD > 0 ? String(format: " · %@$%.3f", tilde, p.costUSD) : ""
+        return "\(tilde)\(fmtTokens(p.tokens)) tok\(cost) · \(time)"
     }
 }
 
