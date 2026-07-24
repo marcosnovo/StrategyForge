@@ -54,6 +54,40 @@ struct DiffReviewerParsingTests {
         #expect(p.contains("+new"))
         #expect(p.contains("JSON array"))
     }
+
+    // MARK: - fixPrompt (closing the loop: findings → author agent)
+
+    @Test func fixPromptIsNilWhenNothingToFix() {
+        #expect(DiffReviewer.fixPrompt(findings: []) == nil)
+    }
+
+    @Test func fixPromptListsFindingsHighFirstWithLocation() {
+        let findings = [
+            ReviewFinding(severity: .low, title: "style nit", detail: "rename x", file: "a.swift", line: 3),
+            ReviewFinding(severity: .high, title: "nil crash", detail: "guard the unwrap", file: "b.swift", line: 42),
+            ReviewFinding(severity: .medium, title: "no location", detail: "", file: ""),
+        ]
+        let p = try! #require(DiffReviewer.fixPrompt(findings: findings))
+        // High-severity item is listed first (item 1), regardless of input order.
+        let highIdx = try! #require(p.range(of: "nil crash"))
+        let lowIdx = try! #require(p.range(of: "style nit"))
+        #expect(highIdx.lowerBound < lowIdx.lowerBound)
+        // Location is rendered file:line when present, and omitted cleanly when absent.
+        #expect(p.contains("[b.swift:42]"))
+        #expect(p.contains("[a.swift:3]"))
+        #expect(p.contains("no location"))
+        // It instructs the author to fix in place and to push back on false positives.
+        #expect(p.localizedCaseInsensitiveContains("false positive"))
+        #expect(p.contains("REVIEW FINDINGS:"))
+    }
+
+    @Test func fixPromptRendersFileWithoutLineAsBareFile() {
+        let p = try! #require(DiffReviewer.fixPrompt(findings: [
+            ReviewFinding(severity: .medium, title: "t", detail: "", file: "only/file.swift", line: nil)
+        ]))
+        #expect(p.contains("[only/file.swift]"))
+        #expect(!p.contains("only/file.swift:"))   // no dangling colon when line is nil
+    }
 }
 
 /// Returns a fixed reply regardless of input.

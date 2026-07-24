@@ -189,6 +189,10 @@ enum L10n {
         "report.imageFailed": ("Couldn't render the image — try again.", "No se pudo generar la imagen — inténtalo de nuevo."),
         "settings.privacy": ("Privacy", "Privacidad"),
         "settings.telemetry": ("Share anonymous usage locally", "Registrar uso anónimo en local"),
+        "settings.loopNotify": ("Loop notifications", "Notificaciones de loops"),
+        "settings.loopNotify.webhook": ("Webhook URL", "URL de webhook"),
+        "settings.loopNotify.caption": ("Optional. When a loop run finishes, Coral POSTs a small JSON message to this URL so it reaches you off the Mac — an ntfy.sh topic (pushes to your phone), a Slack or Discord incoming webhook, or any endpoint. Leave empty to use only the local notification. The URL stays on this Mac; nothing goes through a Coral server.",
+                                        "Opcional. Cuando termina una ejecución de un loop, Coral envía (POST) un pequeño mensaje JSON a esta URL para que te llegue fuera del Mac — un topic de ntfy.sh (te llega al móvil), un webhook entrante de Slack o Discord, o cualquier endpoint. Déjalo vacío para usar solo la notificación local. La URL se queda en este Mac; nada pasa por un servidor de Coral."),
         "settings.telemetry.caption": ("Records key events (runs, cost, shares) to a local file only — nothing is sent anywhere. Off by default.",
                                        "Registra eventos clave (ejecuciones, coste, compartidos) solo en un archivo local — no se envía nada a ningún sitio. Desactivado por defecto."),
         "banner.fix": ("Fix…", "Resolver…"),
@@ -1424,6 +1428,14 @@ enum L10n {
         "review.severity.high": ("high", "alta"),
         "review.severity.medium": ("medium", "media"),
         "review.severity.low": ("low", "baja"),
+        // Close the loop: hand the reviewer's findings back to the author team to fix.
+        "review.fix": ("Fix these", "Corregir todo"),
+        "review.fixHint": ("Send these findings back to your team to fix in place — the reviewer graded, the team fixes.",
+                           "Envía estos hallazgos a tu equipo para corregirlos — el revisor califica, el equipo corrige."),
+        "review.fixSent": ("Sent the findings to your team to fix.", "Hallazgos enviados a tu equipo para corregir."),
+        // Per-file authorship in the diff (which agent/model wrote each file).
+        "code.orchestrator": ("Orchestrator", "Orquestador"),
+        "code.writtenBy": ("Written by", "Escrito por"),
         // Evals (measure a team against a scenario suite before trusting it).
         "eval.title": ("Evals", "Evals"),
         "eval.subtitle": ("Test scenarios your team is scored against — measure it before you trust it.",

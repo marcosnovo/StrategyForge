@@ -257,6 +257,13 @@ struct ContentView: View {
                 // A system notification so a background loop tells you when it's done
                 // even if Coral isn't focused (suppressed by macOS while frontmost).
                 LoopNotifier.notify(title: d, body: message)
+                // And, if configured, a remote webhook so it reaches you OFF the Mac
+                // (ntfy → phone, Slack/Discord, or any endpoint). Best-effort, off by
+                // default; the local notification above still covers the at-the-Mac case.
+                if let hook = model.settings.loopWebhookURL, !hook.isEmpty {
+                    Task { await LoopWebhookNotifier.notify(urlString: hook, title: d,
+                                                            body: message, summary: summary) }
+                }
                 // In-app banner only for runs the user isn't already watching.
                 guard model.navSection != .loops || LoopStore.shared.selectedLoopID != id else { return }
                 if summary.pass == false { model.flashFailure(message) } else { model.flashSuccess(message) }
