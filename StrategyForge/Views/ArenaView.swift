@@ -167,27 +167,28 @@ final class ArenaModel {
     }
 }
 
-enum ArenaMode: String, CaseIterable { case models, teams, code }
+/// The arena's two orthogonal axes, made explicit so "models vs teams" is never
+/// confused with "answer vs code".
+enum ArenaWho: String, CaseIterable { case models, teams }        // who competes
+enum ArenaCompare: String, CaseIterable { case answers, code }    // what they produce
 
 struct ArenaView: View {
     @Environment(AppModel.self) private var model
     @State private var arena = ArenaModel()
-    @State private var mode: ArenaMode = .models
+    /// Axis 1 — WHO competes; Axis 2 — WHAT they compare on.
+    @State private var who: ArenaWho = .models
+    @State private var what: ArenaCompare = .answers
     @State private var selected: Set<AIProvider> = []
     @State private var modelChoice: [AIProvider: String] = [:]
-    @State private var didSeed = false
-    // Teams mode
     @State private var selectedTeams: Set<String> = []
+    @State private var didSeed = false
     @State private var showTeamCostConfirm = false
-    // Code mode
     @State private var showCodeConfirm = false
-    @State private var codeKind: CodeKind = .providers
-    enum CodeKind: String, CaseIterable { case providers, teams }
 
-    /// The contestants for the code arena — single providers or whole teams.
+    /// The code-arena contestants — providers or whole teams, per the WHO axis.
     private var codeContestants: [CodeContestant] {
-        switch codeKind {
-        case .providers:
+        switch who {
+        case .models:
             return connected.filter { selected.contains($0) }.map {
                 CodeContestant.provider($0, model: modelChoice[$0] ?? $0.models.first?.id ?? "")
             }
@@ -200,12 +201,9 @@ struct ArenaView: View {
 
     private var connected: [AIProvider] { AIProvider.allCases.filter { model.isConnected($0) } }
 
-    private var headerSubtitleKey: String {
-        switch mode {
-        case .models: return "arena.subtitle"
-        case .teams: return "arena.teams.subtitle"
-        case .code: return "arena.code.subtitle"
-        }
+    /// A one-line description of the current 2×2 combination.
+    private var comboSubtitle: String {
+        model.t("arena.combo.\(who.rawValue).\(what.rawValue)")
     }
 
     private var entrants: [ArenaEntrant] {
@@ -220,17 +218,16 @@ struct ArenaView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.l) {
+                    axesCard
                     taskCard
-                    switch mode {
-                    case .models:
-                        entrantsCard
-                        if !arena.outcomes.isEmpty || arena.isRunning { resultsSection }
-                    case .teams:
-                        teamsCard
-                        if !arena.teamOrder.isEmpty { teamsResultsSection }
-                    case .code:
-                        codeCard
+                    contestantsCard
+                    // Results depend on the 2×2: code → diffs; answers → text (models or teams).
+                    if what == .code {
                         if !arena.codeOrder.isEmpty { codeResultsSection }
+                    } else if who == .models {
+                        if !arena.outcomes.isEmpty || arena.isRunning { resultsSection }
+                    } else {
+                        if !arena.teamOrder.isEmpty { teamsResultsSection }
                     }
                 }
                 .padding(Space.xl).frame(maxWidth: 900, alignment: .leading)
@@ -272,20 +269,50 @@ struct ArenaView: View {
         HStack(spacing: Space.m) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.t("arena.title")).font(.sfCardTitle)
-                Text(model.t(headerSubtitleKey))
-                    .font(.sfCaption2).foregroundStyle(.secondary)
+                Text(comboSubtitle).font(.sfCaption2).foregroundStyle(.secondary)
             }
             Spacer()
-            Picker("", selection: $mode) {
-                Text(model.t("arena.mode.models")).tag(ArenaMode.models)
-                Text(model.t("arena.mode.teams")).tag(ArenaMode.teams)
-                Text(model.t("arena.mode.code")).tag(ArenaMode.code)
-            }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
         .background(.bar)
         .zoomWindowOnDoubleClick()
+    }
+
+    /// The two labeled axes — the fix for the models-vs-teams confusion: WHO competes and
+    /// WHAT they're compared on are now separate, explicit choices.
+    private var axesCard: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            axisRow(model.t("arena.axis.who"), picker: AnyView(
+                Picker("", selection: $who) {
+                    Text(model.t("arena.who.models")).tag(ArenaWho.models)
+                    Text(model.t("arena.who.teams")).tag(ArenaWho.teams)
+                }.pickerStyle(.segmented).labelsHidden().fixedSize()))
+            axisRow(model.t("arena.axis.compare"), picker: AnyView(
+                Picker("", selection: $what) {
+                    Text(model.t("arena.compare.answers")).tag(ArenaCompare.answers)
+                    Text(model.t("arena.compare.code")).tag(ArenaCompare.code)
+                }.pickerStyle(.segmented).labelsHidden().fixedSize()))
+            if what == .code { Divider(); codeRepoBar }
+        }
+        .card()
+    }
+
+    private func axisRow(_ label: String, picker: AnyView) -> some View {
+        HStack(spacing: Space.m) {
+            Text(label).font(.sfFieldLabel).foregroundStyle(.tertiary).frame(width: 96, alignment: .leading)
+            picker
+            Spacer()
+        }
+    }
+
+    private var codeRepoBar: some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: "folder").foregroundStyle(.secondary)
+            Text(arena.codeRepo.map { ($0 as NSString).lastPathComponent } ?? model.t("arena.code.noRepo"))
+                .font(.sfBodyM.weight(.medium)).lineLimit(1)
+            Spacer()
+            Button(model.t("arena.code.chooseRepo")) { chooseCodeRepo() }.controlSize(.small)
+        }
     }
 
     // MARK: Task + entrants
@@ -310,23 +337,76 @@ struct ArenaView: View {
     }
 
     @ViewBuilder
-    private var entrantsCard: some View {
+    /// One picker for WHO competes (providers or teams), a shared Run button that
+    /// dispatches by the WHAT axis, and (for code) the safety note.
+    private var contestantsCard: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack {
-                Text(model.t("arena.entrants")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Text(model.t(who == .models ? "arena.entrants" : "arena.teams.pick"))
+                    .font(.sfFieldLabel).foregroundStyle(.tertiary)
                 Spacer()
-                if entrants.count >= 2, !arena.isRunning { estimateChip(modelsEstimate) }
-                runButton
+                if currentCount >= 2, !isRunningCurrent { estimateChip(currentEstimate) }
+                arenaRunButton
             }
-            if connected.isEmpty {
-                Text(model.t("arena.noProviders")).font(.sfCaption2).foregroundStyle(.secondary)
-            } else {
-                FlowRow(spacing: Space.s) {
-                    ForEach(connected) { p in entrantChip(p) }
+            if who == .models {
+                if connected.isEmpty {
+                    Text(model.t("arena.noProviders")).font(.sfCaption2).foregroundStyle(.secondary)
+                } else {
+                    FlowRow(spacing: Space.s) { ForEach(connected) { p in entrantChip(p) } }
                 }
+            } else {
+                ScrollView { VStack(spacing: 0) { ForEach(availableTeams) { c in teamRow(c) } } }
+                    .frame(maxHeight: 220)
+                Text(model.t("arena.teams.hint")).font(.sfCaption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if what == .code {
+                Label(model.t("arena.code.safety"), systemImage: "lock.shield")
+                    .font(.sfCaption2).foregroundStyle(Theme.success).fixedSize(horizontal: false, vertical: true)
             }
         }
         .card()
+    }
+
+    // Current-combo helpers (the 2×2 dispatch).
+    private var currentCount: Int {
+        what == .code ? codeContestants.count : (who == .models ? entrants.count : chosenTeams.count)
+    }
+    private var currentEstimate: ArenaCostEstimator.Estimate {
+        what == .code ? codeEstimate : (who == .models ? modelsEstimate : teamsEstimate)
+    }
+    private var isRunningCurrent: Bool {
+        what == .code ? arena.isRunningCode : (who == .models ? arena.isRunning : arena.isRunningTeams)
+    }
+    private var runDisabled: Bool {
+        if arena.prompt.trimmingCharacters(in: .whitespaces).isEmpty { return true }
+        if currentCount < 2 { return true }
+        if what == .code, arena.codeRepo == nil { return true }
+        return false
+    }
+    private func runCurrent() {
+        if what == .code { showCodeConfirm = true; return }
+        if who == .teams { showTeamCostConfirm = true; return }
+        arena.run(entrants: entrants, cwd: nil, runner: model.oneShotRunner(readOnly: true))
+    }
+    private func cancelCurrent() {
+        if what == .code { arena.cancelCode() }
+        else if who == .teams { arena.cancelTeams() }
+        else { arena.cancel() }
+    }
+
+    private var arenaRunButton: some View {
+        Group {
+            if isRunningCurrent {
+                Button(role: .cancel) { cancelCurrent() } label: {
+                    HStack(spacing: Space.xs) { WorkingLogo(size: 13); Text(model.t("arena.cancel")) }
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+            } else {
+                Button { runCurrent() } label: { Label(model.t("arena.run"), systemImage: "flag.checkered") }
+                    .buttonStyle(.moon).controlSize(.small).disabled(runDisabled)
+            }
+        }
     }
 
     private func entrantChip(_ p: AIProvider) -> some View {
@@ -355,25 +435,6 @@ struct ArenaView: View {
 
     private func shortModel(_ id: String, _ p: AIProvider) -> String {
         p.models.first { $0.id == id }?.displayName ?? id
-    }
-
-    private var runButton: some View {
-        Group {
-            if arena.isRunning {
-                Button(role: .cancel) { arena.cancel() } label: {
-                    HStack(spacing: Space.xs) { WorkingLogo(size: 13); Text(model.t("arena.cancel")) }
-                }
-                .buttonStyle(.bordered).controlSize(.small)
-            } else {
-                Button {
-                    arena.run(entrants: entrants, cwd: nil, runner: model.oneShotRunner(readOnly: true))
-                } label: {
-                    Label(model.t("arena.run"), systemImage: "flag.checkered")
-                }
-                .buttonStyle(.moon).controlSize(.small)
-                .disabled(arena.prompt.trimmingCharacters(in: .whitespaces).isEmpty || entrants.count < 2)
-            }
-        }
     }
 
     // MARK: Results
@@ -490,27 +551,6 @@ struct ArenaView: View {
     }
     private var chosenTeams: [StrategyContestant] { availableTeams.filter { selectedTeams.contains($0.id) } }
 
-    @ViewBuilder
-    private var teamsCard: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            HStack {
-                Text(model.t("arena.teams.pick")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
-                Spacer()
-                if chosenTeams.count >= 2, !arena.isRunningTeams { estimateChip(teamsEstimate) }
-                teamsRunButton
-            }
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(availableTeams) { c in teamRow(c) }
-                }
-            }
-            .frame(maxHeight: 240)
-            Text(model.t("arena.teams.hint")).font(.sfCaption2).foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .card()
-    }
-
     private func teamRow(_ c: StrategyContestant) -> some View {
         let on = selectedTeams.contains(c.id)
         let providers = Array(Set(c.strategy.roles.map(\.provider))).sorted { $0.rawValue < $1.rawValue }
@@ -530,23 +570,6 @@ struct ArenaView: View {
         .background(RoundedRectangle(cornerRadius: Theme.rowCorner).fill(on ? Theme.accentSoft.opacity(0.5) : .clear))
         .contentShape(Rectangle())
         .onTapGesture { if on { selectedTeams.remove(c.id) } else { selectedTeams.insert(c.id) } }
-    }
-
-    private var teamsRunButton: some View {
-        Group {
-            if arena.isRunningTeams {
-                Button(role: .cancel) { arena.cancelTeams() } label: {
-                    HStack(spacing: Space.xs) { WorkingLogo(size: 13); Text(model.t("arena.cancel")) }
-                }
-                .buttonStyle(.bordered).controlSize(.small)
-            } else {
-                Button { showTeamCostConfirm = true } label: {
-                    Label(model.t("arena.run"), systemImage: "flag.checkered")
-                }
-                .buttonStyle(.moon).controlSize(.small)
-                .disabled(arena.prompt.trimmingCharacters(in: .whitespaces).isEmpty || chosenTeams.count < 2)
-            }
-        }
     }
 
     private var teamsResultsSection: some View {
@@ -677,65 +700,6 @@ struct ArenaView: View {
     }
 
     // MARK: - Code mode
-
-    @ViewBuilder
-    private var codeCard: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            // Repo bar.
-            HStack(spacing: Space.s) {
-                Image(systemName: "folder").foregroundStyle(.secondary)
-                Text(arena.codeRepo.map { ($0 as NSString).lastPathComponent } ?? model.t("arena.code.noRepo"))
-                    .font(.sfBodyM.weight(.medium)).lineLimit(1)
-                Spacer()
-                Button(model.t("arena.code.chooseRepo")) { chooseCodeRepo() }.controlSize(.small)
-            }
-            Divider()
-            HStack {
-                Picker("", selection: $codeKind) {
-                    Text(model.t("arena.code.kind.providers")).tag(CodeKind.providers)
-                    Text(model.t("arena.code.kind.teams")).tag(CodeKind.teams)
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
-                Spacer()
-                if codeContestants.count >= 2, !arena.isRunningCode { estimateChip(codeEstimate) }
-                codeRunButton
-            }
-            if codeKind == .providers {
-                if connected.isEmpty {
-                    Text(model.t("arena.noProviders")).font(.sfCaption2).foregroundStyle(.secondary)
-                } else {
-                    FlowRow(spacing: Space.s) { ForEach(connected) { p in entrantChip(p) } }
-                }
-            } else {
-                ScrollView {
-                    VStack(spacing: 0) { ForEach(availableTeams) { c in teamRow(c) } }
-                }
-                .frame(maxHeight: 200)
-            }
-            Label(model.t("arena.code.safety"), systemImage: "lock.shield")
-                .font(.sfCaption2).foregroundStyle(Theme.success).fixedSize(horizontal: false, vertical: true)
-        }
-        .card()
-    }
-
-    private var codeRunButton: some View {
-        Group {
-            if arena.isRunningCode {
-                Button(role: .cancel) { arena.cancelCode() } label: {
-                    HStack(spacing: Space.xs) { WorkingLogo(size: 13); Text(model.t("arena.cancel")) }
-                }
-                .buttonStyle(.bordered).controlSize(.small)
-            } else {
-                Button { showCodeConfirm = true } label: {
-                    Label(model.t("arena.run"), systemImage: "flag.checkered")
-                }
-                .buttonStyle(.moon).controlSize(.small)
-                .disabled(arena.codeRepo == nil
-                          || arena.prompt.trimmingCharacters(in: .whitespaces).isEmpty
-                          || codeContestants.count < 2)
-            }
-        }
-    }
 
     private var codeResultsSection: some View {
         VStack(alignment: .leading, spacing: Space.s) {
