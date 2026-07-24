@@ -40,7 +40,11 @@ struct NavRail: View {
                          running: !model.runningChatIDs.isEmpty || !model.attentionChatIDs.isEmpty) {
                         model.guardedLeave {
                             model.navSection = .chats
-                            toggleSidebar()          // the Chats icon reveals / hides the list
+                            // Rail = "where am I" (reveal the list); the chat HEADER's toggle is
+                            // the single place that hides it. (No blind toggle here — clicking
+                            // Chats while already there used to surprise-hide your list.)
+                            if reduceMotion { showSidebar = true }
+                            else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
                         }
                     }
 

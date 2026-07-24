@@ -18,6 +18,9 @@ private struct DiagramNode: Identifiable {
     let id = UUID()
     /// The team role this box represents, so a tap can select/edit it.
     var roleID: UUID?
+    /// The role KIND — drives the box's colour (the per-role spectrum) so the team reads as
+    /// a coloured crew, not a wall of identical outlines.
+    var roleKind: RoleKind
     var title: String
     var model: String
     var subtitle: String?
@@ -127,6 +130,7 @@ private enum DiagramSpecBuilder {
         let orchRole = strategy.orchestrator
         let orchestrator = DiagramNode(
             roleID: orchRole?.id,
+            roleKind: orchRole?.role ?? .orchestrator,
             title: titleCase(orchRole?.name ?? "orchestrator"),
             model: orchRole?.modelDisplayName ?? "—",
             subtitle: t(orchestratorSubtitleKey(strategy)),
@@ -171,6 +175,7 @@ private enum DiagramSpecBuilder {
             let subtitle: String? = subKey == nil ? nil : t(subKey!)
             let node = DiagramNode(
                 roleID: box.role.id,
+                roleKind: box.role.role,
                 title: box.title,
                 model: box.role.modelDisplayName,
                 subtitle: subtitle,
@@ -564,25 +569,27 @@ struct StrategyDiagramView: View {
             ctx.fill(shape, with: .color(green.opacity(0.14)))
             ctx.stroke(halo, with: .color(green.opacity(0.22 + 0.26 * pulse)), lineWidth: 5)
             ctx.stroke(shape, with: .color(green), lineWidth: 1.6)
-        } else if node.isAccent {
-            // Coral = the orchestrator (you-driven director); teal = a highlighted
-            // worker/subagent (the system's agents), so the two never read alike.
-            if node.isOrchestrator {
-                ctx.fill(shape, with: .color(Theme.accentSoft))
-                ctx.stroke(shape, with: .color(palette.accent.opacity(0.85)), lineWidth: 1.4)
-            } else {
-                ctx.fill(shape, with: .color(Theme.tealSoft))
-                ctx.stroke(shape, with: .color(Theme.teal.opacity(0.85)), lineWidth: 1.4)
-            }
         } else {
-            // A plain (non-accent) node: a raised white card. The soft drop shadow makes
-            // it read as a distinct box even on a same-colored (white) card surface —
-            // without it, white-on-white boxes were nearly invisible.
+            // Every box is a LIT card tinted by its ROLE (the per-role spectrum): the
+            // orchestrator full-strength coral to lead, a reviewer amber, a researcher green,
+            // an advisor violet… — so the team reads as a coloured crew, not a wall of
+            // identical coral/white outlines (the founder's "bland" complaint). A soft drop
+            // shadow + a top inner-light make each box a physical, lit object.
+            let tint = node.roleKind.tint
+            let isOrch = node.isOrchestrator
+            let fill = isOrch ? Theme.accentSoft : tint.opacity(0.13)
             ctx.drawLayer { layer in
-                layer.addFilter(.shadow(color: .black.opacity(0.16), radius: 3, x: 0, y: 1))
-                layer.fill(shape, with: .color(palette.surface))
+                layer.addFilter(.shadow(color: .black.opacity(0.14), radius: 3, x: 0, y: 1))
+                layer.fill(shape, with: .color(fill))
             }
-            ctx.stroke(shape, with: .color(palette.border), lineWidth: 1)
+            // Inner light along the top edge — the "lit object" cue (matches IconBadge).
+            var lit = ctx; lit.clip(to: shape)
+            lit.fill(shape, with: .linearGradient(
+                Gradient(colors: [.white.opacity(0.28), .clear]),
+                startPoint: CGPoint(x: rect.midX, y: rect.minY),
+                endPoint: CGPoint(x: rect.midX, y: rect.midY)))
+            ctx.stroke(shape, with: .color(tint.opacity(isOrch ? 0.85 : 0.5)),
+                       lineWidth: isOrch || node.isAccent ? 1.5 : 1.1)
         }
     }
 

@@ -117,25 +117,23 @@ struct ChatView: View {
     }
 
     var body: some View {
-        Group {
-            // Code Mode opens as the RIGHT-side panel inline (it's a workspace and earns real
-            // width; the chat stays on the left). The activity panel, by contrast, now floats
-            // as a right INSPECTOR over the conversation so it never squeezes the reading
-            // column — the conversation stays the dominant, centred protagonist.
+        // ONE right-side slot, owned by either Code Mode OR the activity panel (mutually
+        // exclusive) — both are INLINE columns that push the conversation, never overlay it.
+        // The conversation is never occluded; opening a panel reflows it. Header toggles
+        // (list on the left, activity on the right) are the single place to show/hide.
+        HStack(spacing: 0) {
+            chatColumn
             if codeMode {
-                HStack(spacing: 0) {
-                    chatColumn
-                    ResizableDivider(
-                        width: Binding(get: { CGFloat(codeW) }, set: { codeW = Double($0) }),
-                        range: 380...900, sign: -1)
-                    CodeModeView(vm: vm)
-                        .frame(width: CGFloat(codeW))
-                }
-            } else {
-                chatColumn
-                    .overlay(alignment: .trailing) {
-                        if showActivity { activityInspector }
-                    }
+                ResizableDivider(
+                    width: Binding(get: { CGFloat(codeW) }, set: { codeW = Double($0) }),
+                    range: 380...900, sign: -1)
+                CodeModeView(vm: vm)
+                    .frame(width: CGFloat(codeW))
+            } else if showActivity {
+                ResizableDivider(
+                    width: Binding(get: { CGFloat(activityW) }, set: { activityW = Double($0) }),
+                    range: 300...560, sign: -1)
+                activityColumn
             }
         }
         // NOTE: no implicit animation / transition here. These panels contain
@@ -246,24 +244,23 @@ struct ChatView: View {
         Task { await checkEngine() }
     }
 
-    /// The activity panel as a floating right INSPECTOR — an opaque, softly-shadowed card
-    /// pinned to the trailing edge, over the conversation, so opening it never subtracts
-    /// width from the centred reading column (ChatGPT-canvas behaviour).
-    private var activityInspector: some View {
-        HStack(spacing: 0) {
-            AgentActivityPanel(vm: vm, focus: $agentFocus,
-                               previewStrategy: advisorPreviewStrategy, previewLabel: advisorPreviewLabel,
-                               previewReason: advisorPreviewReason)
-                .frame(width: CGFloat(activityW))
+    /// The activity panel as an INLINE right column that pushes the conversation (never
+    /// overlays it) — a sibling of the chat list and Code Mode, on the same translucent
+    /// column surface. Its width is the `ResizableDivider`-driven `activityW`.
+    private var activityColumn: some View {
+        Group {
             if let focus = agentFocus {
+                // Drilling into one agent REPLACES the roster within the same column (a back
+                // button pops), so we never stack a third rightward column at narrow widths.
                 SubagentDetailPanel(vm: vm, focus: focus) { agentFocus = nil }
-                    .frame(width: 300)
+            } else {
+                AgentActivityPanel(vm: vm, focus: $agentFocus,
+                                   previewStrategy: advisorPreviewStrategy, previewLabel: advisorPreviewLabel,
+                                   previewReason: advisorPreviewReason)
             }
         }
-        .frame(maxHeight: .infinity)
-        .background(.regularMaterial)
+        .frame(width: CGFloat(activityW))
         .overlay(alignment: .leading) { Divider() }
-        .shadow(color: .black.opacity(0.14), radius: 20, x: -6, y: 0)
     }
 
     private var chatColumn: some View {
@@ -630,6 +627,19 @@ struct ChatView: View {
 
     private var header: some View {
         HStack(spacing: Space.m) {
+            // Show/hide the conversations list — the single, discoverable control for the
+            // left column (ChatGPT-style ⌘\). Coral when the list is open.
+            Button {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { showSidebar.toggle() }
+            } label: {
+                Image(systemName: "sidebar.leading").font(.system(size: 14))
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(showSidebar ? Theme.accent : .secondary)
+            .help(model.t("sidebar.toggle"))
+            .accessibilityLabel(model.t("sidebar.toggle"))
+            .keyboardShortcut("\\", modifiers: .command)
+
             VStack(alignment: .leading, spacing: 3) {
                 // The chat title — the H1, editable inline.
                 TextField(model.t("chat.untitled"), text: $editingTitle)
@@ -734,7 +744,10 @@ struct ChatView: View {
                 .accessibilityLabel(model.t("report.title"))
             }
             if codeModeEligible {
-                Button { codeMode.toggle() } label: {
+                Button {
+                    codeMode.toggle()
+                    if codeMode { showActivity = false }   // one right-side slot, mutually exclusive
+                } label: {
                     Image(systemName: "chevron.left.forwardslash.chevron.right")
                         .foregroundStyle(codeMode ? Theme.accent : .secondary)
                 }
@@ -744,7 +757,10 @@ struct ChatView: View {
             }
 
             Button {
-                showActivity.toggle()
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                    showActivity.toggle()
+                    if showActivity { codeMode = false }   // one right-side slot, mutually exclusive
+                }
                 if !showActivity { agentFocus = nil }
             } label: {
                 Image(systemName: "sidebar.trailing")
