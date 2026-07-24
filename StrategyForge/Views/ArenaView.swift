@@ -305,13 +305,39 @@ struct ArenaView: View {
         }
     }
 
+    /// Local git repos Coral already knows — the repos bound to your chats (which is where
+    /// a GitHub repo lands after Coral clones it). De-duplicated, newest first.
+    private var recentRepos: [String] {
+        var seen = Set<String>(); var out: [String] = []
+        for c in model.configurations {
+            guard let p = c.repoPath, !p.isEmpty, seen.insert(p).inserted else { continue }
+            out.append(p)
+        }
+        return out
+    }
+
     private var codeRepoBar: some View {
         HStack(spacing: Space.s) {
             Image(systemName: "folder").foregroundStyle(.secondary)
             Text(arena.codeRepo.map { ($0 as NSString).lastPathComponent } ?? model.t("arena.code.noRepo"))
                 .font(.sfBodyM.weight(.medium)).lineLimit(1)
             Spacer()
-            Button(model.t("arena.code.chooseRepo")) { chooseCodeRepo() }.controlSize(.small)
+            Menu(model.t("arena.code.chooseRepo")) {
+                if !recentRepos.isEmpty {
+                    Section(model.t("arena.code.recent")) {
+                        ForEach(recentRepos, id: \.self) { path in
+                            Button((path as NSString).lastPathComponent) { arena.codeRepo = path }
+                        }
+                    }
+                }
+                if GitHubCLI.isInstalled {
+                    Button(model.t("arena.code.fromGitHub"), systemImage: "arrow.down.circle") {
+                        model.navSection = .code   // Coral's repo "door": pick/clone a GitHub repo, then come back
+                    }
+                }
+                Button(model.t("arena.code.chooseFolder"), systemImage: "folder") { chooseCodeRepo() }
+            }
+            .menuStyle(.borderlessButton).fixedSize()
         }
     }
 
