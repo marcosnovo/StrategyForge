@@ -39,23 +39,22 @@ struct NavRail: View {
                     }
                 }
             }
-            groupLabel("rail.group.workspace")
-
-            item("chevron.left.forwardslash.chevron.right", "rail.code",
-                 active: model.navSection == .code) {
-                model.guardedLeave { model.navSection = .code }
-            }
-            item("person.3.sequence.fill", "rail.team",
-                 active: model.navSection == .team) {
-                model.navSection = .team
-            }
-
-            // Advanced: collapsed by default. Auto-expands when one of its sections is active
-            // (so the selected pill is always visible). Advisor left the rail — it's redundant
-            // with the inline advisor in chat.
-            let advancedActive = [.loops, .skills, .memory, .arena, .usage].contains(model.navSection)
+            // ChatGPT-calm: everything past Chats lives behind ONE "More" disclosure
+            // (collapsed by default) — Team, Code, and the advanced tools — so the resting
+            // rail is just New chat · Chats · More · Connected · Settings. Auto-expands when
+            // one of its sections is active so the selected pill is always visible.
+            let advancedActive: Bool = [.team, .code, .loops, .skills, .memory, .arena, .usage]
+                .contains(model.navSection)
             advancedHeader(expanded: showAdvanced || advancedActive)
             if showAdvanced || advancedActive {
+                item("person.3.sequence.fill", "rail.team",
+                     active: model.navSection == .team) {
+                    model.guardedLeave { model.navSection = .team }
+                }
+                item("chevron.left.forwardslash.chevron.right", "rail.code",
+                     active: model.navSection == .code) {
+                    model.guardedLeave { model.navSection = .code }
+                }
                 item("arrow.triangle.2.circlepath", "rail.loops",
                      active: model.navSection == .loops,
                      running: !LoopStore.shared.runningLoopIDs.isEmpty) {
@@ -81,12 +80,11 @@ struct NavRail: View {
                     }
                 }
             }
-            groupLabel("rail.group.account")
-
             item("point.3.connected.trianglepath.dotted", "rail.connected",
                  active: model.navSection == .services) {
                 model.guardedLeave { model.navSection = .services }
             }
+            .padding(.top, Space.xs)
 
             #if DEBUG
             // DEBUG-only: preview the dot/particle motion system (spinners + waits).
@@ -109,7 +107,8 @@ struct NavRail: View {
                         .accessibilityLabel(model.t("settings.updates.badge"))
                 }
             }
-            usageCard
+            // ChatGPT-calm: the persistent usage data-card is gone from the rail (it was the
+            // biggest resting data blob) — usage lives in the Usage section + the chat header.
             profileRow
         }
         .frame(width: 200)
@@ -215,17 +214,6 @@ struct NavRail: View {
         .accessibilityValue(expanded ? model.t("common.expanded") : model.t("common.collapsed"))
     }
 
-    private func groupLabel(_ key: String) -> some View {
-        Text(model.t(key).uppercased())
-            .font(.sfFieldLabel)
-            .tracking(0.8)
-            .foregroundStyle(Theme.secondaryOnMaterial)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Space.m)
-            .padding(.top, Space.m)
-            .padding(.bottom, 2)
-    }
-
     /// Shared row chrome (used by `item` and the DEBUG `devItem`).
     private func rowBody(icon: String, label: String, active: Bool, running: Bool) -> some View {
         HStack(spacing: Space.s) {
@@ -257,183 +245,6 @@ struct NavRail: View {
         .contentShape(Rectangle())   // whole row is tappable
     }
 
-    // MARK: Usage card (one row per connected provider)
-
-    /// A compact usage card with ONE row per connected provider — each a single-color
-    /// ring + bars. Claude publishes no token cap, so its ring is the 5-hour window's
-    /// time-to-reset and its two bars are this week's / this block's tokens; Codex
-    /// reports a real plan %, so its ring + bar show that exact percentage.
-    /// Opens the full Usage page (and fetches the exact rate-limit %).
-    private func openUsage() {
-        model.guardedLeave {
-            model.navSection = .usage
-            Task { await model.refreshUsage(includeExact: true) }
-        }
-    }
-
-    @ViewBuilder private var usageCard: some View {
-        let rows = usageProviders
-        if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: Space.m) {
-                ForEach(rows, id: \.self) { providerUsageRow($0) }
-                Button(action: openUsage) {
-                    Text(model.t("rail.usage.view")).font(.sfCaption2.weight(.medium))
-                        .foregroundStyle(.secondary)   // secondary nav link → neutral
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(Space.m)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // Neutral card ground + hairline — no colored gradient behind the numbers.
-            // Only the ring/bar strokes carry the coral accent, so the data reads clean.
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-                .fill(Theme.cardBg))
-            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-                .strokeBorder(Theme.hairline, lineWidth: 1))
-        } else {
-            // No usage loaded yet (signed out / not fetched) — keep a quiet, always-present
-            // Usage entry point at the rail bottom so it never "disappears". It upgrades to
-            // the live rings/bars above once data is available.
-            Button(action: openUsage) {
-                HStack(spacing: Space.s) {
-                    Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                        .font(.system(size: 13)).foregroundStyle(Theme.coral).frame(width: 22)
-                    Text(model.t("rail.usage")).font(.sfCaption2.weight(.medium))
-                        .foregroundStyle(Theme.secondaryOnMaterial)
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, Space.s).padding(.vertical, 7)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-                .fill(Theme.cardBg.opacity(0.5)))
-            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-                .strokeBorder(Theme.hairline.opacity(0.6), lineWidth: 1))
-        }
-    }
-
-    /// Connected providers that actually have usage to show, in catalog order.
-    private var usageProviders: [AIProvider] {
-        AIProvider.allCases.filter { p in
-            switch p {
-            case .claude: return model.claudeUsage?.hasData == true || model.claudeExact != nil
-            case .openai: return model.codexUsage?.hasData == true
-            case .gemini: return false   // Gemini exposes no reliable local usage
-            }
-        }
-    }
-
-    @ViewBuilder private func providerUsageRow(_ provider: AIProvider) -> some View {
-        HStack(alignment: .top, spacing: Space.s) {
-            switch provider {
-            case .claude:
-                if let e = model.claudeExact {
-                    // The REAL rate-limit % from Claude's endpoint (5-hour + week).
-                    miniRing(fraction: e.fiveHourPercent / 100,
-                             center: "\(Int(e.fiveHourPercent.rounded()))%", caption: model.t("rail.usage.5h"))
-                    VStack(alignment: .leading, spacing: 4) {
-                        providerLabel(provider, right: model.providerPlan(.claude))
-                        miniBar(model.t("rail.usage.wk"), fraction: e.weekPercent / 100,
-                                value: "\(Int(e.weekPercent.rounded()))%")
-                    }
-                } else if let u = model.claudeUsage {
-                    // Signed out / no exact data yet → ring = 5-hour time-to-reset, bars =
-                    // each model's share of the week (a real %).
-                    miniRing(fraction: blockFraction(u), center: resetLabel(u), caption: model.t("rail.usage.5h"))
-                    VStack(alignment: .leading, spacing: 4) {
-                        providerLabel(provider, right: model.providerPlan(.claude))
-                        let wk = max(u.weekTokens, 1)
-                        ForEach(Array(u.weekByModel.prefix(3))) { m in
-                            let f = Double(m.tokens) / Double(wk)
-                            miniBar(m.model, fraction: f, value: "\(Int((f * 100).rounded()))%")
-                        }
-                    }
-                }
-            case .openai:
-                if let c = model.codexUsage, let w = c.primary ?? c.secondary {
-                    // Codex reports the real plan % server-side.
-                    miniRing(fraction: w.usedPercent / 100, center: "\(Int(w.usedPercent.rounded()))%",
-                             caption: model.t("rail.usage.codexCaption"))
-                    VStack(alignment: .leading, spacing: 4) {
-                        providerLabel(provider, right: c.planType?.capitalized)
-                        miniBar(model.t(w.kindLabelKey), fraction: w.usedPercent / 100,
-                                value: "\(Int(w.usedPercent.rounded()))%")
-                    }
-                }
-            case .gemini:
-                EmptyView()
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    private func providerLabel(_ p: AIProvider, right: String?) -> some View {
-        HStack(spacing: 5) {
-            Text(p.displayName).font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
-            Spacer(minLength: 0)
-            if let right, !right.isEmpty {
-                Text(right).scaledFont(8, weight: .semibold).foregroundStyle(Theme.secondaryOnMaterial)
-            }
-        }
-    }
-
-    /// A single-color usage ring (no confusing two-tone gradient) with a centered label
-    /// and a small caption underneath so it's clear WHAT the ring measures.
-    private func miniRing(fraction: Double, center: String, caption: String) -> some View {
-        VStack(spacing: 2) {
-            ZStack {
-                Circle().stroke(Theme.hairline, lineWidth: 3.5)
-                Circle().trim(from: 0, to: max(0.02, min(fraction, 1)))
-                    .stroke(Theme.coral, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))   // your plan usage (data-viz) → bright coral
-                    .rotationEffect(.degrees(-90))
-                Text(center).scaledFont(9, weight: .semibold, design: .rounded).foregroundStyle(Theme.ink)
-            }
-            .frame(width: 34, height: 34)
-            Text(caption).scaledFont(7, weight: .semibold).tracking(0.4)
-                .foregroundStyle(Theme.secondaryOnMaterial)
-        }
-    }
-
-    private func miniBar(_ label: String, fraction: Double, value: String) -> some View {
-        VStack(spacing: 1) {
-            HStack(spacing: 4) {
-                Text(label).scaledFont(8, weight: .semibold).tracking(0.3)
-                    .foregroundStyle(Theme.secondaryOnMaterial)
-                Spacer(minLength: 0)
-                Text(value).scaledFont(8, weight: .medium).foregroundStyle(Theme.secondaryOnMaterial)
-            }
-            GeometryReader { geo in
-                Capsule().fill(Theme.hairline)
-                    .overlay(alignment: .leading) {
-                        Capsule().fill(Theme.coral)   // usage (data-viz) → bright coral
-                            .frame(width: max(3, geo.size.width * CGFloat(min(max(fraction, 0), 1))))
-                    }
-            }
-            .frame(height: 3)
-        }
-    }
-
-    /// The elapsed fraction of the current 5-hour block (0…1) for the ring.
-    private func blockFraction(_ u: UsageSummary) -> Double {
-        guard let s = u.blockStart, let r = u.blockResetAt, r > s else { return 0 }
-        return min(max(Date().timeIntervalSince(s) / r.timeIntervalSince(s), 0), 1)
-    }
-
-    /// Compact time-to-reset for the ring center ("2h" / "45m" / "—").
-    private func resetLabel(_ u: UsageSummary) -> String {
-        guard let r = u.blockResetAt else { return "—" }
-        let secs = Int(r.timeIntervalSince(Date()))
-        guard secs > 0 else { return "—" }
-        return secs >= 3600 ? "\(secs / 3600)h" : "\(max(1, secs / 60))m"
-    }
-
-    /// Compact token count ("24.5k", "310k", "980").
-    private func fmtTokens(_ n: Int) -> String {
-        if n >= 1000 { return String(format: "%.1fk", Double(n) / 1000) }
-        return "\(n)"
-    }
 
     // MARK: Profile row
 

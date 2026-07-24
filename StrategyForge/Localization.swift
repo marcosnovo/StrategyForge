@@ -242,7 +242,7 @@ enum L10n {
         "meta.narrate.delegate": ("Delegating to the team…", "Delegando al equipo…"),
         "meta.narrate.synthesize": ("Bringing it all together…", "Uniéndolo todo…"),
         "rail.group.workspace": ("Workspace", "Espacio"),
-        "rail.group.advanced": ("Advanced", "Avanzado"),
+        "rail.group.advanced": ("More", "Más"),
         "rail.group.account": ("Account", "Cuenta"),
         "common.expanded": ("expanded", "expandido"),
         "common.collapsed": ("collapsed", "colapsado"),
