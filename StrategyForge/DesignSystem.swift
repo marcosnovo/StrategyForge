@@ -17,6 +17,16 @@
 
 import SwiftUI
 
+/// A design LANGUAGE is more than a palette — it sets the background atmosphere, whether
+/// surfaces are glass or matte paper, and the hero's typographic voice.
+enum Backdrop: Sendable { case auroraCoral, caustic, paper, duotone }
+enum HeroVoice: Sendable {
+    case standard, rounded, serif
+    var design: Font.Design {
+        switch self { case .standard: return .default; case .rounded: return .rounded; case .serif: return .serif }
+    }
+}
+
 /// The root colours a design system provides; every `Theme` colour derives from these.
 struct Palette {
     var appBg, columnBg, cardBg, insetBg, railBg: Color
@@ -24,25 +34,30 @@ struct Palette {
     /// Brand coral (bright), the deep end of the CTA gradient (magenta in Ember), and the
     /// text/icon accent (light+dark, AA-safe where it carries text).
     var coral, coralDeep, accent: Color
-    /// Accent-glow opacity (Midnight leans on this).
+    /// Accent-glow opacity (Bioluminescence leans on this).
     var glow: Double
+    /// Background atmosphere, whether cards are glass vs matte paper, and the hero voice —
+    /// the things that make each system a distinct LANGUAGE, not a recolour.
+    var backdrop: Backdrop = .auroraCoral
+    var usesGlass: Bool = true
+    var hero: HeroVoice = .standard
 }
 
 enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
-    case classic, reefLight, midnight, ember
+    case classic, reefPaper, bioluminescence, ember
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .classic:   return "Classic"
-        case .reefLight: return "Reef Light"
-        case .midnight:  return "Midnight Reef"
-        case .ember:     return "Ember"
+        case .classic:         return "Classic"
+        case .reefPaper:       return "Reef Paper"
+        case .bioluminescence: return "Bioluminescence"
+        case .ember:           return "Ember"
         }
     }
 
-    /// Midnight is dark-first — force dark regardless of the system setting.
-    var forcedScheme: ColorScheme? { self == .midnight ? .dark : nil }
+    /// Bioluminescence is dark-first — force dark regardless of the system setting.
+    var forcedScheme: ColorScheme? { self == .bioluminescence ? .dark : nil }
 
     var palette: Palette {
         switch self {
@@ -54,25 +69,33 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
                 ink: hex("1A2426", "EAF3F1"), secondary: hex("5D6A67", "86A0A0"),
                 tertiary: hex("736A5F", "7E9A9A"), hairline: hex("EAE3D9", "1D2D32"),
                 coral: hex("FF6B54", "FF6B54"), coralDeep: hex("E24029", "E24029"),
-                accent: hex("C33A22", "FF6B54"), glow: 0.22)
-        case .reefLight:
+                accent: hex("C33A22", "FF6B54"), glow: 0.22,
+                backdrop: .auroraCoral, usesGlass: true, hero: .standard)
+
+        case .reefPaper:
+            // Editorial: warm porcelain, matte paper (no glass), serif hero, no glow.
             return Palette(
-                appBg: hex("FBFBFD", "0E1116"), columnBg: hex("F5F6F9", "141922"),
-                cardBg: hex("FFFFFF", "1A2029"), insetBg: hex("EEF0F5", "212936"),
-                railBg: hex("0A0D13", "0A0D13"),
-                ink: hex("111318", "EEF1F6"), secondary: hex("5A6070", "9AA3B4"),
-                tertiary: hex("7A8090", "7E8698"), hairline: hex("E6E8EE", "232B37"),
-                coral: hex("FF5A42", "FF6B54"), coralDeep: hex("F0442C", "FF6B54"),
-                accent: hex("D93A26", "FF6B54"), glow: 0.20)
-        case .midnight:
+                appBg: hex("F7F7F5", "0E1114"), columnBg: hex("F2F2EF", "141A1E"),
+                cardBg: hex("FFFFFF", "1A2227"), insetBg: hex("ECECE8", "10161A"),
+                railBg: hex("0C0E12", "080B0E"),
+                ink: hex("1C1D1F", "ECEFF1"), secondary: hex("63656A", "98A0A6"),
+                tertiary: hex("8A8C92", "6E767C"), hairline: hex("E4E3DE", "242E33"),
+                coral: hex("F5573C", "FF6E56"), coralDeep: hex("E0432B", "E8482E"),
+                accent: hex("C4402A", "FF7C64"), glow: 0.06,
+                backdrop: .paper, usesGlass: false, hero: .serif)
+
+        case .bioluminescence:
+            // Luminous reef: near-black void + caustic glow, glowing rounded hero, glass.
             return Palette(
-                appBg: hex("F8F9FB", "080A0F"), columnBg: hex("F1F3F7", "0C0F16"),
-                cardBg: hex("FFFFFF", "12161F"), insetBg: hex("EBEEF3", "0A0D13"),
-                railBg: hex("050609", "050609"),
-                ink: hex("12151C", "F2F5FA"), secondary: hex("5C6270", "8B94A6"),
-                tertiary: hex("7A8290", "6E7688"), hairline: hex("E4E7EE", "1B2130"),
-                coral: hex("FF6B54", "FF6B54"), coralDeep: hex("FF4D6D", "FF4D6D"),
-                accent: hex("D93A26", "FF7A63"), glow: 0.35)
+                appBg: hex("F4F7F8", "070C10"), columnBg: hex("EDF2F3", "0B1318"),
+                cardBg: hex("FFFFFF", "101A20"), insetBg: hex("E6EDEE", "0A1015"),
+                railBg: hex("05090C", "05090C"),
+                ink: hex("0E1618", "EAF4F2"), secondary: hex("4E5E60", "7FA0A0"),
+                tertiary: hex("6E7C7E", "6E8888"), hairline: hex("DEE7E8", "17242A"),
+                coral: hex("F04A30", "FF6E56"), coralDeep: hex("D8341C", "FF3D6B"),
+                accent: hex("C6381F", "FF7A63"), glow: 0.42,
+                backdrop: .caustic, usesGlass: true, hero: .rounded)
+
         case .ember:
             return Palette(
                 appBg: hex("FCFBFD", "0D0B12"), columnBg: hex("F6F5F9", "141221"),
@@ -81,7 +104,8 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
                 ink: hex("141118", "F0ECF4"), secondary: hex("615A6C", "A79FB4"),
                 tertiary: hex("7C7488", "8A8398"), hairline: hex("ECE8F0", "241F2E"),
                 coral: hex("FF6B54", "FF6B54"), coralDeep: hex("E5397E", "FF3D8A"),
-                accent: hex("D62D6E", "FF7A9C"), glow: 0.24)
+                accent: hex("D62D6E", "FF7A9C"), glow: 0.24,
+                backdrop: .duotone, usesGlass: true, hero: .standard)
         }
     }
 }
@@ -90,7 +114,7 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
 enum ThemeState {
     static let key = "coral.designSystem"
     nonisolated(unsafe) static var active: DesignSystem =
-        DesignSystem(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .reefLight
+        DesignSystem(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .reefPaper
 }
 
 /// Appearance override so the light palettes are actually visible even when macOS is in

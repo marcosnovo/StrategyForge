@@ -137,22 +137,27 @@ enum Theme {
     static let titlebarInset: CGFloat = 30
     // Corner radii — soft & modern (reference "Aetheris" glass aesthetic): generous
     // rounding on cards, pills and bubbles for an airy, friendly surface.
-    static let corner: CGFloat = 20
-    static let innerCorner: CGFloat = 16
+    // Tighter, native-macOS radii — the loose 20pt rounding read as a generic web card;
+    // 12/10/14/8 feels crafted (Things/Finder register). (Design-language baseline.)
+    static let corner: CGFloat = 12
+    static let innerCorner: CGFloat = 10
     /// Chat message bubble radius.
-    static let bubbleCorner: CGFloat = 18
+    static let bubbleCorner: CGFloat = 14
     /// Corner radius for the pill action buttons (`.moon` / `.reefOutline`).
-    static let buttonCorner: CGFloat = 14
+    static let buttonCorner: CGFloat = 9
     /// Tight radius for list/nav ROW selection highlights, so the coral "spotlight"
     /// hugs the row instead of floating as a loose lozenge.
-    static let rowCorner: CGFloat = 9
-    static let sectionSpacing: CGFloat = 20
+    static let rowCorner: CGFloat = 6
+    /// Rhythm: unrelated sections breathe (32); turns read as new paragraphs.
+    static let sectionSpacing: CGFloat = 32
     /// Vertical gap between chat messages (Claude/Superhuman-like breathing room).
-    static let messageSpacing: CGFloat = 18
+    static let messageSpacing: CGFloat = 20
     /// Extra gap added above a user message to separate conversation turns.
-    static let turnGap: CGFloat = 10
-    /// Extra line spacing for body copy so long replies read comfortably.
-    static let bodyLineSpacing: CGFloat = 3
+    static let turnGap: CGFloat = 16
+    /// Extra line spacing for body copy so long replies read comfortably (1.55-ish).
+    static let bodyLineSpacing: CGFloat = 5
+    /// The comfortable reading measure (~72 chars at body size) — narrower than before.
+    static let readingColumn: CGFloat = 680
 }
 
 // MARK: - Coral brand mark
@@ -353,9 +358,13 @@ extension Font {
     /// The ONE confident hero headline per screen (greetings, onboarding) — big + tight so
     /// it reads as a designed moment, not a section title. Apply `.tracking(-0.8)` (premium
     /// review). Fixed size on purpose; use only at the 2–4 hero sites.
-    static let sfHero = Font.system(size: 40, weight: .bold)
-    static let sfDisplay = Font.system(.largeTitle, design: .default).weight(.bold)      // ~26
-    static let sfCardTitle = Font.system(.title3).weight(.semibold)                     // ~15
+    /// Hero greeting — Semibold 34 (down from Bold 40; the shouty bold read cheap), in the
+    /// active language's voice (rounded for Bioluminescence, serif for Reef Paper).
+    static var sfHero: Font { .system(size: 34, weight: .semibold, design: Theme.P.hero.design) }
+    static let sfDisplay = Font.system(size: 24, weight: .semibold)                     // section landing
+    static let sfCardTitle = Font.system(size: 17, weight: .semibold)                   // confident title (was ~15)
+    /// A deck/subtitle under a title — regular, one step above body.
+    static let sfSubtitle = Font.system(size: 15, weight: .regular)
     static let sfBodyM = Font.system(.body)                                             // ~13
     static let sfCallout = Font.system(.callout)                                        // ~12
     static let sfCaption2 = Font.system(.subheadline)                                   // ~11
@@ -557,8 +566,8 @@ private struct TranslucentColumnModifier: ViewModifier {
     var tint: Double
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     func body(content: Content) -> some View {
-        if reduceTransparency {
-            content.background(Theme.columnBg)                       // solid, no material
+        if reduceTransparency || !Theme.P.usesGlass {
+            content.background(Theme.columnBg)                       // solid paper, no material
         } else {
             content.background(Theme.columnBg.opacity(tint)).background(.ultraThinMaterial)
         }
@@ -573,8 +582,11 @@ private struct TranslucentColumnModifier: ViewModifier {
 private struct RailColumnModifier: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     func body(content: Content) -> some View {
-        if reduceTransparency {
-            content.background(Theme.insetBg)   // a neutral step from the columns' columnBg, text-safe
+        if reduceTransparency || !Theme.P.usesGlass {
+            // Solid paper rail: `insetBg` (the darkest neutral) reads as a subtle darker paper
+            // strip distinct from the columns, while keeping ink text legible (railBg is near-
+            // black and would swallow the ink-colored rail labels).
+            content.background(Theme.insetBg)
         } else {
             content.background(Theme.columnBg.opacity(0.30)).background(.regularMaterial)
         }
@@ -587,8 +599,10 @@ private struct GlassPanelModifier: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        if reduceTransparency {
-            content.background(shape.fill(Theme.cardBg).elevation(.e2))
+        if reduceTransparency || !Theme.P.usesGlass {
+            // Reef Paper (or Reduce Transparency): a MATTE paper card — flat fill + hairline,
+            // no glass refraction. This is what makes the paper language read as ink-on-paper.
+            content.background(shape.fill(Theme.cardBg))
                 .overlay(shape.strokeBorder(Theme.hairline, lineWidth: 1))
                 .clipShape(shape)
         } else {

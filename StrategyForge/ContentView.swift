@@ -347,6 +347,7 @@ struct ContentView: View {
 /// stays calm and cheap; the living AuroraBackground still animates inside the chat.
 struct AppAuroraBackground: View {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Accessibility: when Reduce Transparency is on, drop the translucent haze + blooms
     /// for a solid, opaque base (the whole app's glass falls back to opaque too).
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -372,40 +373,78 @@ struct AppAuroraBackground: View {
         return AnyView(auroraBody)
     }
 
+    /// The active design language's background atmosphere.
+    private var backdrop: Backdrop { Theme.P.backdrop }
+
     private var auroraBody: some View {
         ZStack {
-            // A faint, TRANSLUCENT brand tint (was an opaque fill — which is exactly what
-            // hid the behind-window glass sitting below this view). At this opacity the
-            // desktop reads clearly through the frosted haze while text stays legible.
             base.opacity(tintOpacity)
-            // A whisper of directional LIGHT — brighter at the top, deeper at the bottom — so
-            // panels read as resting on a lit reef surface (their downward contact shadows land
-            // on something). Pure luminance, no hue, so it never warms/dirties the neutral (W2).
+            // A whisper of directional LIGHT — brighter top, deeper bottom — so panels read
+            // as resting on a lit surface.
             LinearGradient(
                 colors: scheme == .dark
-                    ? [.white.opacity(0.05), .clear, .black.opacity(0.08)]
+                    ? [.white.opacity(0.05), .clear, .black.opacity(0.10)]
                     : [.white.opacity(0.45), .clear, .black.opacity(0.03)],
                 startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
-            // ChatGPT-calm: the corner blooms are retired — the background is a flat neutral
-            // with only the faint top luminance above. A single whisper-thin coral bloom
-            // stays in the top-trailing corner so it's still recognizably "Coral", not a
-            // dual coral+teal wash.
             GeometryReader { geo in
-                let w = geo.size.width, h = geo.size.height
-                let d = max(w, h)
-                bloom(Theme.coral, at: CGPoint(x: w * 0.94, y: h * 0.02), size: d * 0.9)
-                    .blur(radius: 80)
-                    .opacity(0.6)
-                    .drawingGroup()
+                let w = geo.size.width, h = geo.size.height, d = max(w, h)
+                switch backdrop {
+                case .paper:      paperGrid(w: w, h: h)
+                case .caustic:    causticGlow(w: w, h: h, d: d)
+                case .duotone:    duotoneWash(w: w, h: h, d: d)
+                case .auroraCoral:
+                    bloom(Theme.coral, at: CGPoint(x: w * 0.94, y: h * 0.02), size: d * 0.9, opacity: bloomOpacity)
+                        .blur(radius: 80).opacity(0.6).drawingGroup()
+                }
             }
         }
         .ignoresSafeArea()
     }
 
-    private func bloom(_ color: Color, at center: CGPoint, size: CGFloat) -> some View {
+    // MARK: Backdrops
+
+    /// Reef Paper: matte paper with a faint magazine baseline grid — composed, not empty.
+    private func paperGrid(w: CGFloat, h: CGFloat) -> some View {
+        Canvas { ctx, size in
+            for i in 1...3 {
+                let x = size.width * CGFloat(i) / 4
+                var p = Path(); p.move(to: CGPoint(x: x, y: 0)); p.addLine(to: CGPoint(x: x, y: size.height))
+                ctx.stroke(p, with: .color(Theme.ink.opacity(0.025)), lineWidth: 1)
+            }
+        }
+    }
+
+    /// Bioluminescence: coral light pooling from below on a near-black void, drifting slowly
+    /// so it reads as living water, not a static gradient. The hero atmosphere.
+    private func causticGlow(w: CGFloat, h: CGFloat, d: CGFloat) -> some View {
+        let strong = Theme.P.glow                                   // 0.42 in dark
+        return TimelineView(.animation(minimumInterval: 1.0 / 20, paused: reduceMotion)) { tl in
+            let t = reduceMotion ? 0 : tl.date.timeIntervalSinceReferenceDate
+            ZStack {
+                bloom(Theme.coral, at: CGPoint(x: w * (0.30 + 0.06 * sin(t * 0.20)),
+                                               y: h * (0.84 + 0.03 * cos(t * 0.16))), size: d * 1.15, opacity: strong * 0.5)
+                bloom(Theme.coralDeep, at: CGPoint(x: w * (0.74 + 0.05 * cos(t * 0.18)),
+                                                   y: h * (0.70 + 0.04 * sin(t * 0.22))), size: d * 0.95, opacity: strong * 0.34)
+                bloom(Theme.coral, at: CGPoint(x: w * 0.52, y: h * 0.10), size: d * 0.6, opacity: strong * 0.14)
+            }
+            .blur(radius: 70)
+            .drawingGroup()
+        }
+    }
+
+    /// Ember: a coral→magenta duotone wash across the diagonal.
+    private func duotoneWash(w: CGFloat, h: CGFloat, d: CGFloat) -> some View {
+        ZStack {
+            bloom(Theme.coral, at: CGPoint(x: w * 0.90, y: h * 0.06), size: d * 0.95, opacity: 0.10)
+            bloom(Theme.coralDeep, at: CGPoint(x: w * 0.08, y: h * 0.96), size: d * 0.9, opacity: 0.10)
+        }
+        .blur(radius: 85).drawingGroup()
+    }
+
+    private func bloom(_ color: Color, at center: CGPoint, size: CGFloat, opacity: Double) -> some View {
         Circle()
-            .fill(RadialGradient(colors: [color.opacity(bloomOpacity), .clear],
+            .fill(RadialGradient(colors: [color.opacity(opacity), .clear],
                                  center: .center, startRadius: 0, endRadius: size / 2))
             .frame(width: size, height: size)
             .position(center)
