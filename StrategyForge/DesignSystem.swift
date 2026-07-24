@@ -116,9 +116,12 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
 
 /// Nonisolated snapshot the (static, actor-free) `Theme` tokens read.
 enum ThemeState {
-    static let key = "coral.designSystem"
+    // v2: bumped when the DEFAULT design system changed (→ classic, the spectacular light).
+    // A new key means every install starts fresh on the new default instead of being pinned
+    // to a stale persisted choice (and it sidesteps cfprefsd caching the old value).
+    static let key = "coral.designSystem.v2"
     nonisolated(unsafe) static var active: DesignSystem =
-        DesignSystem(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .bioluminescence
+        DesignSystem(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .classic
 }
 
 /// Appearance override so the light palettes are actually visible even when macOS is in
@@ -152,7 +155,7 @@ final class ThemeStore {
     /// else the user's appearance override.
     var resolvedScheme: ColorScheme? { active.forcedScheme ?? appearance.scheme }
 
-    static let appearanceKey = "coral.appearance"
+    static let appearanceKey = "coral.appearance.v2"
     private init() {
         active = ThemeState.active
         appearance = AppAppearance(rawValue: UserDefaults.standard.string(forKey: Self.appearanceKey) ?? "") ?? .auto

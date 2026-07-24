@@ -423,8 +423,7 @@ struct AppAuroraBackground: View {
                 case .caustic:    causticGlow(w: w, h: h, d: d)
                 case .duotone:    duotoneWash(w: w, h: h, d: d)
                 case .auroraCoral:
-                    bloom(Theme.coral, at: CGPoint(x: w * 0.94, y: h * 0.02), size: d * 0.9, opacity: bloomOpacity)
-                        .blur(radius: 80).opacity(0.6).drawingGroup()
+                    reefSunrise(w: w, h: h, d: d)
                 }
             }
         }
@@ -460,6 +459,24 @@ struct AppAuroraBackground: View {
             .blur(radius: 70)
             .drawingGroup()
         }
+    }
+
+    /// Classic (the flagship LIGHT): a warm coral "reef sunrise" — a soft coral wash in the
+    /// top-trailing corner and a fainter deep-coral echo bottom-leading, glowing through the
+    /// translucent panels so daylight has real atmosphere instead of dead white. Kept in the
+    /// corners so the reading areas stay clean; richer on light (where we want the sunrise),
+    /// subtle on dark. Uses the vivid brand coral (a blurred saturated GLOW reads as warm
+    /// light, not the desaturated "brick" that a coral SURFACE fill produced).
+    private func reefSunrise(w: CGFloat, h: CGFloat, d: CGFloat) -> some View {
+        let dark = scheme == .dark
+        return ZStack {
+            bloom(Theme.coral, at: CGPoint(x: w * 0.98, y: h * -0.02),
+                  size: d * 1.15, opacity: dark ? 0.10 : 0.17)
+            bloom(Theme.coralDeep, at: CGPoint(x: w * 0.02, y: h * 1.02),
+                  size: d * 0.85, opacity: dark ? 0.05 : 0.09)
+        }
+        .blur(radius: 100)
+        .drawingGroup()
     }
 
     /// Ember: a coral→magenta duotone wash across the diagonal.
