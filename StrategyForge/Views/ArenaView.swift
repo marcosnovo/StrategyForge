@@ -23,7 +23,7 @@ final class ArenaModel {
 
     func run(entrants: [ArenaEntrant], cwd: String?, runner: OneShotRunner) {
         guard !isRunning, !entrants.isEmpty else { return }
-        isRunning = true; outcomes = []; winnerID = nil; elapsed = 0
+        isRunning = true; outcomes = []; winnerID = nil; elapsed = 0; verdicts = [:]
         let prompt = self.prompt
         runTask = Task { [weak self] in
             let start = Date()
@@ -58,7 +58,7 @@ final class ArenaModel {
         isRunningTeams = true
         teamOrder = contestants
         teamProgress = Dictionary(uniqueKeysWithValues: contestants.map { ($0.id, StrategyRunProgress(state: .queued)) })
-        teamWinnerID = nil; teamStart = [:]; teamEnd = [:]
+        teamWinnerID = nil; teamStart = [:]; teamEnd = [:]; verdicts = [:]
         teamTask = Task { [weak self] in
             let finals = await StrategyArenaEngine.run(
                 task: task, cwd: cwd, contestants: contestants, runner: runner
@@ -83,6 +83,31 @@ final class ArenaModel {
         teamTask?.cancel(); teamTask = nil
         LiveProcesses.terminateAll()
         isRunningTeams = false
+    }
+
+    // MARK: Independent judge (opt-in, quality-based winner)
+
+    var verdicts: [String: ArenaVerdict] = [:]
+    var isJudging = false
+    @ObservationIgnored private var judgeTask: Task<Void, Never>?
+
+    /// Run one read-only judge pass over the candidates, then apply the quality winner via
+    /// `applyWinner` (so Models and Teams modes each set their own winner var).
+    func judge(task: String, candidates: [ArenaCandidate], provider: AIProvider, model: String,
+               runner: OneShotRunner, applyWinner: @escaping (String) -> Void) {
+        guard !isJudging, candidates.count >= 2 else { return }
+        isJudging = true; verdicts = [:]
+        let prompt = ArenaJudge.prompt(task: task, candidates: candidates)
+        judgeTask = Task { [weak self] in
+            let out = try? await runner.run(prompt: prompt, provider: provider, model: model, cwd: nil)
+            guard let self, !Task.isCancelled else { return }
+            if let out {
+                let vs = ArenaJudge.parse(out.text, candidates: candidates)
+                self.verdicts = Dictionary(uniqueKeysWithValues: vs.map { ($0.id, $0) })
+                if let w = ArenaJudge.winner(vs) { applyWinner(w) }
+            }
+            self.isJudging = false
+        }
     }
 }
 
@@ -256,6 +281,7 @@ struct ArenaView: View {
             HStack {
                 Text(model.t("arena.results")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
                 Spacer()
+                if !arena.isRunning { judgeButton(candidates: modelCandidates) { arena.winnerID = $0 } }
                 if arena.elapsed > 0 {
                     Text(String(format: "%.0fs", arena.elapsed)).font(.sfCaption2.monospaced()).foregroundStyle(.secondary)
                 }
@@ -282,6 +308,7 @@ struct ArenaView: View {
                         .font(.sfCaption2).foregroundStyle(.secondary)
                 }
                 Spacer()
+                verdictBadge(outcome.id)
                 Button { arena.winnerID = outcome.id } label: {
                     Image(systemName: isWinner ? "trophy.fill" : "trophy")
                         .foregroundStyle(isWinner ? Theme.accent : .secondary)
@@ -296,6 +323,7 @@ struct ArenaView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(maxHeight: 260, alignment: .topLeading)
                     .fixedSize(horizontal: false, vertical: true)
+                verdictReason(outcome.id)
                 metrics(result)
                 HStack(spacing: Space.s) {
                     Button(model.t("arena.copy")) {
@@ -420,7 +448,11 @@ struct ArenaView: View {
 
     private var teamsResultsSection: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            Text(model.t("arena.results")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+            HStack {
+                Text(model.t("arena.results")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Spacer()
+                if !arena.isRunningTeams { judgeButton(candidates: teamCandidates) { arena.teamWinnerID = $0 } }
+            }
             // A 1s heartbeat keeps every card's elapsed timer ticking while running, so a
             // slow team visibly progresses instead of looking frozen.
             TimelineView(.periodic(from: Date(), by: 1)) { context in
@@ -442,6 +474,7 @@ struct ArenaView: View {
                 HStack(spacing: -5) { ForEach(providers) { pr in ProviderAvatar(provider: pr, size: 20, active: isWinner) } }
                 Text(c.name).font(.sfBodyM.weight(.medium)).lineLimit(1)
                 Spacer()
+                verdictBadge(c.id)
                 if p.state == .done {
                     Button { arena.teamWinnerID = c.id } label: {
                         Image(systemName: isWinner ? "trophy.fill" : "trophy")
@@ -452,6 +485,7 @@ struct ArenaView: View {
             }
 
             liveStatus(p, elapsed: elapsed)
+            verdictReason(c.id)
 
             switch p.state {
             case .done:
@@ -538,6 +572,69 @@ struct ArenaView: View {
         let cost = p.costUSD > 0 ? String(format: " · %@$%.3f", tilde, p.costUSD) : ""
         return "\(tilde)\(fmtTokens(p.tokens)) tok\(cost) · \(time)"
     }
+
+    // MARK: - Independent judge (shared by both modes)
+
+    /// The strongest connected provider to act as the impartial judge (prefer Claude).
+    private var judgeSeat: (provider: AIProvider, model: String)? {
+        let pref: [AIProvider] = [.claude, .openai, .gemini]
+        guard let p = pref.first(where: { model.isConnected($0) }) ?? connected.first else { return nil }
+        return (p, p.models.first?.id ?? "")
+    }
+
+    private var modelCandidates: [ArenaCandidate] {
+        arena.outcomes.compactMap { o in
+            o.result.map { ArenaCandidate(id: o.id, label: o.entrant.provider.displayName, text: $0.text) }
+        }
+    }
+    private var teamCandidates: [ArenaCandidate] {
+        arena.teamOrder.compactMap { c in
+            guard let p = arena.teamProgress[c.id], p.state == .done, let a = p.answer, !a.isEmpty else { return nil }
+            return ArenaCandidate(id: c.id, label: c.name, text: a)
+        }
+    }
+
+    @ViewBuilder
+    private func judgeButton(candidates: [ArenaCandidate], applyWinner: @escaping (String) -> Void) -> some View {
+        if candidates.count >= 2, let seat = judgeSeat {
+            Button {
+                arena.judge(task: arena.prompt, candidates: candidates,
+                            provider: seat.provider, model: seat.model,
+                            runner: model.oneShotRunner(readOnly: true), applyWinner: applyWinner)
+            } label: {
+                if arena.isJudging {
+                    HStack(spacing: Space.xs) { WorkingLogo(size: 12); Text(model.t("arena.judging")) }
+                } else {
+                    Label(model.t("arena.judge"), systemImage: "scalemass")
+                }
+            }
+            .buttonStyle(.bordered).controlSize(.small).disabled(arena.isJudging)
+            .help(model.t("arena.judge.hint"))
+        }
+    }
+
+    @ViewBuilder
+    private func verdictBadge(_ id: String) -> some View {
+        if let v = arena.verdicts[id] {
+            Text("\(v.score)")
+                .font(.sfCaption2.weight(.bold)).monospacedDigit()
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Capsule().fill(scoreColor(v.score).opacity(0.18)))
+                .foregroundStyle(scoreColor(v.score))
+                .help(v.reason)
+        }
+    }
+
+    @ViewBuilder
+    private func verdictReason(_ id: String) -> some View {
+        if let v = arena.verdicts[id], !v.reason.isEmpty {
+            Label(v.reason, systemImage: "scalemass")
+                .font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func scoreColor(_ s: Int) -> Color { s >= 75 ? Theme.success : (s >= 45 ? Theme.warning : Theme.danger) }
 }
 
 /// A minimal wrapping row (chips flow to the next line). Local, dependency-free.

@@ -736,6 +736,11 @@ enum L10n {
         "arena.phase.plan": ("Planning", "Planificando"),
         "arena.phase.delegate": ("Delegating to agents", "Delegando a los agentes"),
         "arena.phase.synthesize": ("Synthesizing", "Sintetizando"),
+        // Arena — independent judge
+        "arena.judge": ("Judge", "Juzgar"),
+        "arena.judging": ("Judging…", "Juzgando…"),
+        "arena.judge.hint": ("An independent read-only judge scores every answer against the task and picks the best by quality (not just cost). Spends extra tokens.",
+                             "Un juez independiente de solo-lectura puntúa cada respuesta contra la tarea y elige la mejor por calidad (no solo por coste). Gasta tokens extra."),
         "banner.copied": ("Launch command copied.", "Comando de lanzamiento copiado."),
         "banner.terminalOK": ("Files written. Launch command copied — paste it in Terminal.",
                               "Archivos escritos. Comando copiado: pégalo en Terminal."),
