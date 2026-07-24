@@ -18,8 +18,11 @@ dato no estaba documentado públicamente se marca **(no confirmado)**.
 >    al terminar un run, además de la notificación local existente.
 > 4. **Memoria de conocimiento entre proyectos** — base global de learnings que se inyecta
 >    en `CLAUDE.md` y en el `LOOP.md` del loop, con captura (manual / STATE.md / Review) y
->    **reflexión post-run**. Sync CloudKit codificado pero dormido (Slice 7). Esto era un
->    item de *medio plazo*: se ha adelantado.
+>    **reflexión post-run**. Sync CloudKit codificado pero dormido (Slice 7). Item de *medio
+>    plazo* adelantado.
+> 5. **Modo "Arena"** — misma tarea a N proveedores a la vez, tarjeta por competidor con
+>    coste/tokens, ganador sugerido + "Seguir en un chat". Iguala la única feature en la que
+>    Parallel Code sacaba ventaja. Otro item de *medio plazo* adelantado.
 >
 > Único trabajo manual restante (no bloquea código): **captura visual light/dark** de las
 > features nuevas, y **verificar el sync CloudKit en dispositivo** (añadir el record type
@@ -168,7 +171,7 @@ Leyenda: ✅ Completo/producción · ⚠️ Limitado, parcial o no confirmado ·
 | Loop autónomo con verificador independiente | ✅ | ✅ | ❌ | ✅ | ❌ | ⚠️ |
 | **Auto-fix cerrado desde la revisión** (hallazgo → vuelve solo al autor) | ✅ (botón opt-in "Corregir todo") | ✅ | ❌ | ✅ | ❌ | ⚠️ (no confirmado auto-push) |
 | Aislamiento por git worktree | ✅ (en loops) | ❌ | ✅ (su feature central) | ⚠️ | ⚠️ | ✅ |
-| Ejecución competitiva multi-proveedor ("Arena") | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Ejecución competitiva multi-proveedor ("Arena") | ✅ (nuevo — modo Arena: misma tarea a N proveedores conectados a la vez, tarjeta por competidor con tokens/coste, ganador sugerido = más barato, "Seguir en un chat" con el que gane) | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Memoria/conocimiento persistente **entre proyectos** | ✅ (nuevo — base global de learnings patrón/decisión/error, `MemoryStore`; se inyecta en `CLAUDE.md` **y en el `LOOP.md` del loop**; captura manual / import de STATE.md / promote desde Review; **reflexión post-run** que cosecha el STATE.md a la base al terminar. Sync CloudKit codificado pero dormido hasta verificar en dispositivo) | ⚠️ (contexto compartido, alcance sin confirmar) | ❌ | ✅ (BEADS + base de conocimiento + reflexión) | ❌ | ❌ |
 | Sandboxing opcional (Docker) por tarea | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Sesiones remotas (SSH a otra máquina) | ❌ | ❌ | ⚠️ (solo ver progreso vía QR/Tailscale) | ❌ | ✅ | ❌ |
@@ -289,9 +292,12 @@ confianza:
    a la base al terminar (`LoopStore.harvestStateFile`). **Slice 7 hecho (dormido):** sync CloudKit
    codificado (`LearningSyncStore`/`LearningMerge` LWW), pendiente solo de añadir el record type
    "Learning" al esquema y verificar en dispositivo.
-2. **Modo "Arena" opcional** — correr la misma tarea contra varios proveedores y quedarte con el
-   mejor resultado, como alternativa a diseñar roles a mano. *Por qué:* abre la puerta a usuarios que
-   no confían en repartir roles ellos mismos; es un modo de uso distinto al actual, no un reemplazo.
+2. **Modo "Arena" opcional** — ✅ **HECHO.** Sección **Arena**: misma tarea a N proveedores conectados
+   a la vez (`ArenaEngine` sobre `OneShotRunner`, cada fallo aislado), tarjeta por competidor con la
+   respuesta + tokens/coste, ganador sugerido = el más barato con éxito (pista, decide el usuario), y
+   "Seguir en un chat" que abre un chat en el proveedor ganador con la tarea sembrada. Corre en modo
+   solo-lectura (una arena no edita el repo). *Resultado:* Coral iguala la única feature en la que
+   Parallel Code le sacaba ventaja, pero sobre tu propia suscripción y en la app nativa.
 3. **Sandboxing Docker opcional por loop.** *Por qué:* responde directamente a la objeción de
    confianza que el propio SECURITY.md ya reconoce (sandbox-off, ejecuta shell autónomamente), sin
    renunciar al modelo "tu propia máquina, tu propia suscripción".
@@ -328,7 +334,8 @@ confianza:
 
 **Siguiente foco (medio plazo, sin empezar):**
 
-- [ ] **Modo "Arena"** (competir proveedores en la misma tarea) — *en curso*
+- [x] ~~**Modo "Arena"** (competir proveedores en la misma tarea)~~ — hecho (`ArenaEngine` + sección
+      Arena; ganador sugerido = más barato, "Seguir en un chat" con el ganador)
 - [ ] **Procedencia por línea cross-proveedor** — el paso que le falta a la feature 2: workers
       editando en worktrees aislados que podamos diffear, para atribuir líneas a modelos de distintos
       proveedores (hoy es Claude-nativa). El modelo de datos ya está listo.
