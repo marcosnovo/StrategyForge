@@ -22,6 +22,8 @@ struct NavRail: View {
     /// Advanced destinations (Loops / Skills / Usage) collapse by default so a first-run
     /// rail is just Chats · Code · Team + account — power stays one disclosure away.
     @AppStorage("nav.showAdvanced") private var showAdvanced = false
+    /// Live design-system selection (the swatch picker below Lab).
+    @State private var theme = ThemeStore.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
@@ -93,6 +95,9 @@ struct NavRail: View {
             }
             #endif
 
+            // Design-system switcher — try each visual direction live.
+            themePicker
+
             Spacer(minLength: Space.m)
 
             item("gearshape.fill", "sidebar.settings", active: model.navSection == .settings) {
@@ -129,6 +134,38 @@ struct NavRail: View {
         // exact 5-hour / week rate-limit % (which needs the Keychain token) is fetched
         // only on deliberate intent — when the user opens the Usage section.
         .task { await model.refreshUsage() }
+    }
+
+    /// Live design-system switcher — a menu of the four visual directions, each with a
+    /// brand-coral swatch; picking one re-skins the whole app instantly.
+    private var themePicker: some View {
+        Menu {
+            ForEach(DesignSystem.allCases) { ds in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) { theme.active = ds }
+                } label: {
+                    if theme.active == ds { Label(ds.displayName, systemImage: "checkmark") }
+                    else { Text(ds.displayName) }
+                }
+            }
+        } label: {
+            HStack(spacing: Space.s) {
+                Image(systemName: "paintpalette").font(.system(size: 13)).frame(width: 22)
+                    .foregroundStyle(Theme.secondaryOnMaterial)
+                Text(theme.active.displayName).font(.sfCaption2.weight(.medium))
+                    .foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
+                Spacer(minLength: 0)
+                Circle().fill(theme.active.palette.coral).frame(width: 11, height: 11)
+                    .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 0.5))
+            }
+            .padding(.horizontal, Space.s).padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden)
+        .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+            .fill(Theme.cardBg.opacity(0.35)))
+        .accessibilityLabel(model.t("rail.theme"))
     }
 
     /// Brand row: the coral mark (matches the app icon, breathing slowly) + wordmark.

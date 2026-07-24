@@ -243,6 +243,7 @@ enum L10n {
         "meta.narrate.synthesize": ("Bringing it all together…", "Uniéndolo todo…"),
         "rail.group.workspace": ("Workspace", "Espacio"),
         "rail.group.advanced": ("More", "Más"),
+        "rail.theme": ("Theme", "Tema"),
         "rail.group.account": ("Account", "Cuenta"),
         "common.expanded": ("expanded", "expandido"),
         "common.collapsed": ("collapsed", "colapsado"),

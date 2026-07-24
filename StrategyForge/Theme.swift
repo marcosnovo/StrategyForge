@@ -28,32 +28,26 @@ enum Theme {
     // MARK: Coral brand accent + teal secondary
     /// The brand coral. Bright on dark; a touch deeper on light so small text/icons
     /// keep contrast. This is the app's action color and the orchestrator's hue.
-    static let coral      = Color(red: 1.000, green: 0.420, blue: 0.330)   // #FF6B54
-    static let coralDeep  = Color(red: 0.886, green: 0.251, blue: 0.165)   // #E24029 (fills/pressed)
-    /// TEAL RETIRED (ChatGPT-calm, single accent): the former "reef-water secondary" for
-    /// live/agent state now resolves to the coral accent, so the whole app runs on ONE
-    /// accent. These tokens are kept as aliases so the many call sites don't churn; the
-    /// team-spectrum hues (teamBlue…teamRose) still disambiguate nodes in the topology
-    /// diagram, which is the only place a second palette survives.
-    static let teal       = coral
-    static let tealDeep   = coralDeep
-    static let tealSoft   = accentSoft
-    static let tealEdge   = Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.30)
-    static let tealText   = accent
+    /// The active design system's palette — every brand/surface token derives from this,
+    /// so switching the design system live re-skins the whole app.
+    static var P: Palette { ThemeState.active.palette }
 
-    /// Accent = coral. Small text/icon tints resolve a hair deeper on light ground.
-    static let accent = Color(
-        light: Color(red: 0.765, green: 0.227, blue: 0.133),   // #C33A22 readable coral (AA 5.3:1 on white)
-        dark:  Color(red: 1.000, green: 0.420, blue: 0.330))   // #FF6B54
-    static let accentHover = Color(
-        light: Color(red: 0.784, green: 0.243, blue: 0.145),   // #C83E25
-        dark:  Color(red: 1.000, green: 0.541, blue: 0.451))   // #FF8A73
-    static let accentSoft = Color(
-        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.18),   // raised: a 12% wash on white was nearly invisible (color review)
-        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.16))
-    static let accentGlow = Color(
-        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.22),
-        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.30))
+    static var coral: Color { P.coral }          // #FF6B54-ish bright brand
+    static var coralDeep: Color { P.coralDeep }  // deep end of the CTA gradient (magenta in Ember)
+    /// TEAL RETIRED (single accent): the former secondary now aliases the coral accent.
+    /// Computed (not `let`) so they follow the active palette. The team-spectrum hues
+    /// (teamBlue…teamRose) still disambiguate nodes in the topology diagram.
+    static var teal: Color { coral }
+    static var tealDeep: Color { coralDeep }
+    static var tealSoft: Color { accentSoft }
+    static var tealEdge: Color { coral.opacity(0.30) }
+    static var tealText: Color { accent }
+
+    /// Accent = the palette's text/icon accent (AA-safe on light where it carries text).
+    static var accent: Color { P.accent }
+    static var accentHover: Color { coral }
+    static var accentSoft: Color { coral.opacity(0.16) }
+    static var accentGlow: Color { coral.opacity(P.glow) }
 
     // MARK: Selection & Focus
     /// Soft NEUTRAL wash for a selected list row / card — ChatGPT-calm: selection reads as
@@ -64,9 +58,9 @@ enum Theme {
     /// Selected rows no longer carry a border — the grey wash alone marks selection.
     static let selectionBorder = Color.clear
     /// Focus ring stroke for text fields / focusable controls (visible only when focused).
-    static let focusRing = Theme.accent.opacity(0.55)
+    static var focusRing: Color { accent.opacity(0.55) }
     /// Focus glow shadow color for focused inputs.
-    static let focusGlow = Theme.accent.opacity(0.18)
+    static var focusGlow: Color { accent.opacity(0.18) }
 
     /// Readable text/foreground to place ON a solid accent (coral) fill.
     /// Contrast rule (WCAG AA): any fill that carries `onAccent` (white) text — the coral
@@ -76,29 +70,19 @@ enum Theme {
     static let onAccent = Color.white
 
     /// Primary/body text — warm "ink" (identity), instead of cool system black/gray.
-    static let ink = Color(
-        light: Color(red: 0.102, green: 0.141, blue: 0.149),   // #1A2426
-        dark:  Color(red: 0.918, green: 0.953, blue: 0.945))   // #EAF3F1
-    static let inkDim = Color(
-        light: Color(red: 0.431, green: 0.482, blue: 0.471),   // #6E7B78
-        dark:  Color(red: 0.525, green: 0.627, blue: 0.627))   // #86A0A0
+    static var ink: Color { P.ink }
+    static var inkDim: Color { P.secondary }
 
-    /// Primary button fill — the identity CTA gradient, now the TRUE brand coral: bright
-    /// #FF6B54 into a controlled deep. White text legibility is guaranteed at the glyph via
-    /// `coralTextShadow` (a scrim on the text), NOT by browning the whole fill — so the CTA
-    /// finally reads as Coral, not rust (color review, hero-coral decision).
-    static let primaryFill = LinearGradient(
-        colors: [Color(red: 1.000, green: 0.420, blue: 0.330),   // #FF6B54 bright coral
-                 Color(red: 0.886, green: 0.251, blue: 0.165)],  // #E24029 coralDeep
-        startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// Primary button fill — the brand CTA gradient (bright coral → the palette's deep
+    /// end, which is magenta in Ember). Computed so it follows the active design system.
+    static var primaryFill: LinearGradient {
+        LinearGradient(colors: [coral, coralDeep], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
 
     /// Vivid coral gradient for the user's chat bubble — the founder's bright coral (#FF6B54)
     /// into coralDeep. White text rides on `coralTextShadow` so the top bright stop stays
     /// legible without darkening the fill to brick.
-    static let userBubbleFill = LinearGradient(
-        colors: [Color(red: 1.000, green: 0.420, blue: 0.330),   // #FF6B54 bright coral
-                 Color(red: 0.886, green: 0.251, blue: 0.165)],  // #E24029 coralDeep
-        startPoint: .topLeading, endPoint: .bottomTrailing)
+    static var userBubbleFill: LinearGradient { primaryFill }
 
     /// A soft dark scrim applied to white text/glyphs sitting on a bright coral fill (user
     /// bubble, `.moon` CTA, send button). Lets the fill stay vivid #FF6B54 while keeping the
@@ -109,38 +93,15 @@ enum Theme {
     // Clean COOL "reef" neutrals — Coral's own identity (teal-ink dark, crisp near-white
     // light), NOT warm greige. Depth reads from a real elevation staircase (bg < column <
     // card < inset) + the shadow ladder, keeping the tint neutral so it never looks dirty.
-    static let appBg = Color(
-        light: Color(red: 0.980, green: 0.978, blue: 0.973),   // #FAF9F6 soft white ground
-        dark:  Color(red: 0.047, green: 0.075, blue: 0.082))   // #0C1315 reef ink
-    static let cardBg = Color(
-        light: .white,                                          // #FFFFFF crisp card (lifts off the column)
-        dark:  Color(red: 0.086, green: 0.149, blue: 0.165))   // #16262A reef surface — a step above column
-    static let insetBg = Color(
-        light: Color(red: 0.957, green: 0.953, blue: 0.949),   // #F4F3F2 neutral well
-        dark:  Color(red: 0.106, green: 0.180, blue: 0.200))   // #1B2E33 deeper reef well
-    /// Near-black reef surface for the left navigation rail (the darkest anchor).
-    static let railBg = Color(
-        light: Color(red: 0.031, green: 0.055, blue: 0.063),   // #081014
-        dark:  Color(red: 0.031, green: 0.055, blue: 0.063))   // #081014
-    /// Panel surface for the chats + activity columns — sits BETWEEN ground and card.
-    static let columnBg = Color(
-        light: Color(red: 0.984, green: 0.984, blue: 0.980),   // #FBFBFA a neutral hair below the card
-        dark:  Color(red: 0.071, green: 0.118, blue: 0.129))   // #121E21
-
-    // MARK: Lines — warm hairline (identity --line)
-    // A hair quieter than the identity value so edges recede and material
-    // contrast carries separation (minimalist pass).
-    static let hairline = Color(
-        light: Color(red: 0.918, green: 0.890, blue: 0.851),   // #EAE3D9 (was #E7DED2)
-        dark:  Color(red: 0.114, green: 0.176, blue: 0.196))   // #1D2D32 (was #22343A)
-
-    // MARK: Text on materials — warm ink-dim / mono-dim (identity)
-    static let secondaryOnMaterial = Color(
-        light: Color(red: 0.365, green: 0.416, blue: 0.404),   // #5D6A67 ink-dim (AA 5.6:1 on white)
-        dark:  Color(red: 0.525, green: 0.627, blue: 0.627))   // #86A0A0
-    static let tertiaryOnMaterial = Color(
-        light: Color(red: 0.451, green: 0.416, blue: 0.373),   // #736A5F mono-dim (AA 5.3:1 on white)
-        dark:  Color(red: 0.494, green: 0.604, blue: 0.604))   // #7E9A9A (AA on inset)
+    // Surfaces + lines + on-material text now all derive from the active palette.
+    static var appBg: Color { P.appBg }
+    static var cardBg: Color { P.cardBg }
+    static var insetBg: Color { P.insetBg }
+    static var railBg: Color { P.railBg }
+    static var columnBg: Color { P.columnBg }
+    static var hairline: Color { P.hairline }
+    static var secondaryOnMaterial: Color { P.secondary }
+    static var tertiaryOnMaterial: Color { P.tertiary }
 
     // MARK: Status (aligned to the Coral identity)
     static let success = Color(
