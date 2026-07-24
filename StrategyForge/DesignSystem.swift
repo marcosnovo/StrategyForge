@@ -118,7 +118,7 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
 enum ThemeState {
     static let key = "coral.designSystem"
     nonisolated(unsafe) static var active: DesignSystem =
-        DesignSystem(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .reefPaper
+        DesignSystem(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .bioluminescence
 }
 
 /// Appearance override so the light palettes are actually visible even when macOS is in

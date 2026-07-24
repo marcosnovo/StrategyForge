@@ -360,7 +360,9 @@ extension Font {
     /// review). Fixed size on purpose; use only at the 2–4 hero sites.
     /// Hero greeting — Semibold 34 (down from Bold 40; the shouty bold read cheap), in the
     /// active language's voice (rounded for Bioluminescence, serif for Reef Paper).
-    static var sfHero: Font { .system(size: 34, weight: .semibold, design: Theme.P.hero.design) }
+    /// The ONE confident hero headline per screen. Big + tight so it dwarfs body copy (>3×)
+    /// and reads as a designed moment, not a card title. Apply `.tracking(-1.2)` at the site.
+    static var sfHero: Font { .system(size: 44, weight: .bold, design: Theme.P.hero.design) }
     static let sfDisplay = Font.system(size: 24, weight: .semibold)                     // section landing
     static let sfCardTitle = Font.system(size: 17, weight: .semibold)                   // confident title (was ~15)
     /// A deck/subtitle under a title — regular, one step above body.

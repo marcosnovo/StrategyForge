@@ -209,6 +209,9 @@ struct ContentView: View {
         .ignoresSafeArea()
         .background(AppAuroraBackground().ignoresSafeArea())
         .background(hazeBackground)
+        // A whisper of film GRAIN over the whole app — the single cheapest "this feels
+        // expensive" ingredient (kills the flat digital-vacuum read of pure fills).
+        .overlay(GrainOverlay().ignoresSafeArea())
         // ⌘K quick-switcher across chats + sections, floating above everything.
         .overlay {
             if model.showCommandPalette {
@@ -345,6 +348,32 @@ struct ContentView: View {
 /// gradient. It shows around the floating app pane (in the window margin) and glows
 /// faintly through any translucent panels layered above it. Static (no motion) so it
 /// stays calm and cheap; the living AuroraBackground still animates inside the chat.
+/// A static, deterministic film-grain overlay — a sparse stipple of faint dots drawn once
+/// (no TimelineView, so no per-frame cost). Deterministic xorshift seed → no flicker on the
+/// occasional redraw. Subtle enough to read as texture, not noise.
+struct GrainOverlay: View {
+    var body: some View {
+        Canvas { ctx, size in
+            var seed: UInt64 = 0x9E3779B97F4A7C15
+            func rnd() -> Double {
+                seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17
+                return Double(seed % 100_000) / 100_000
+            }
+            let count = Int(size.width * size.height / 420)
+            for _ in 0..<count {
+                let x = rnd() * size.width, y = rnd() * size.height
+                // Mostly bright specks (catch the light) with a few dark ones for tooth.
+                let bright = rnd() > 0.35
+                let a = rnd() * (bright ? 0.05 : 0.045)
+                ctx.fill(Path(CGRect(x: x, y: y, width: 1, height: 1)),
+                         with: .color((bright ? Color.white : Color.black).opacity(a)))
+            }
+        }
+        .allowsHitTesting(false)
+        .blendMode(.softLight)
+    }
+}
+
 struct AppAuroraBackground: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

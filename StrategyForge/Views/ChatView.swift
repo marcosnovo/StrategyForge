@@ -887,7 +887,11 @@ struct ChatView: View {
         return parts.joined(separator: " · ")
     }
 
+    @ViewBuilder
     private var messagesList: some View {
+        if vm.messages.isEmpty {
+            emptyState
+        } else {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: Theme.messageSpacing) {
@@ -938,6 +942,7 @@ struct ChatView: View {
             }
             // No aurora/gradient behind the chat: the conversation sits on the app's one
             // uniform translucent surface, so the chat matches every other panel.
+        }
         }
     }
 
@@ -1122,25 +1127,36 @@ struct ChatView: View {
         }
     }
 
+    /// Distinct glyphs per suggestion so the three cards read as different intents.
+    private let suggestionIcons = ["doc.text.magnifyingglass", "list.bullet.rectangle", "text.book.closed"]
+
     private var emptyState: some View {
         VStack(spacing: Space.l) {
-            // Airy, centered greeting (reference): a large iridescent presence orb,
-            // a casual time-of-day greeting, the welcome copy under it, then the team
-            // hook and glass suggestion pills.
-            CoralSphere(size: 88)
-                .restingShadow(diameter: 88)   // the hero object rests on the reef
+            Spacer(minLength: Space.xl)
+            // The hero coral mark, seated in its OWN glow so it reads as emitting light into
+            // the reef, not a thumbnail floating in a void — the app's "logo in motion".
+            CoralSphere(size: 112)
+                .background {
+                    Circle()
+                        .fill(RadialGradient(colors: [Theme.coral.opacity(0.22), .clear],
+                                             center: .center, startRadius: 0, endRadius: 140))
+                        .frame(width: 280, height: 280)
+                        .blur(radius: 14)
+                        .breathingGlow(color: Theme.coral)
+                }
+                .restingShadow(diameter: 112)
                 .staggeredAppear(index: 0)
-            // Hero greeting + a single coral accent-dot (the reference's signature gesture).
+            // Hero greeting — big + tight so it dwarfs the body copy (a designed moment).
             (Text(chatGreeting).foregroundStyle(Theme.ink)
                 + Text(".").foregroundStyle(Theme.coral))
                 .font(.sfHero)
-                .tracking(-0.8)
+                .tracking(-1.2)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 560)
+                .frame(maxWidth: 640)
                 .staggeredAppear(index: 1)
             Text(model.t("chat.empty"))
-                .font(.sfCardTitle)
+                .font(.sfSubtitle)
                 .foregroundStyle(Theme.secondaryOnMaterial)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1151,33 +1167,40 @@ struct ChatView: View {
             VStack(spacing: Space.s) {
                 ForEach(Array(["chat.suggest1", "chat.suggest2", "chat.suggest3"].enumerated()),
                         id: \.element) { index, key in
-                    Button { vm.input = model.t(key) } label: {
-                        HStack(spacing: Space.s) {
-                            Image(systemName: "arrow.up.forward.square").foregroundStyle(Theme.accent)
-                            Text(model.t(key)).font(.sfCallout).foregroundStyle(Theme.ink)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        // Tidy, high-contrast pills: a clean neutral card fill under a
-                        // hairline (readability over glass) — the label stays crisp ink
-                        // instead of a washed material tint.
-                        .background(
-                            RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
-                                .fill(Theme.cardBg))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Theme.buttonCorner, style: .continuous)
-                                .strokeBorder(Theme.hairline, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .hoverLift()
-                    .staggeredAppear(index: index + 4)
+                    suggestionCard(key: key, icon: suggestionIcons[index])
+                        .staggeredAppear(index: index + 4)
                 }
             }
             .frame(maxWidth: 520)
+            Spacer(minLength: Space.xl)
         }
-        .padding(.top, Space.xl)
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .padding(.horizontal, Space.l)
+    }
+
+    /// A crafted suggestion card: a coral IconBadge + the prompt + a quiet insert arrow, on
+    /// an elevated card — reads as an invitation, not a triplicated list row.
+    private func suggestionCard(key: String, icon: String) -> some View {
+        Button { vm.input = model.t(key) } label: {
+            HStack(spacing: Space.m) {
+                IconBadge(systemName: icon)
+                Text(model.t(key)).font(.sfCallout).foregroundStyle(Theme.ink)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: Space.s)
+                Image(systemName: "arrow.up").font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.tertiaryOnMaterial)
+            }
+            .padding(.horizontal, Space.m).padding(.vertical, Space.m)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                    .fill(Theme.cardBg).elevation(.e1))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                    .strokeBorder(Theme.hairline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .hoverLift()
     }
 
     /// A casual, time-of-day-aware greeting for this empty chat. Seeded by the chat's
