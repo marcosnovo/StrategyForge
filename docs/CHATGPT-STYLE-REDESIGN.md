@@ -124,3 +124,20 @@ coral plano.
       las filas con barras de progreso por agente) — el movimiento firma; es el cambio ciego más grande.
 - [ ] Fundir la lista de chats en el rail; simplificar el `if/else` de ramas de `ContentView`.
 - [ ] Consistencia de iconos (outline); densidad (subir un paso el ritmo de `CoralRow`).
+
+---
+
+## Sistemas de diseño conmutables (2026-07-24)
+
+El "ladrillo" NO era el coral — era el coral **desaturado del modo claro** (#C33A22) sobre **papel
+cálido**. Se implementaron **4 design systems intercambiables en caliente** con un **selector en el
+rail, debajo de Lab** (`DesignSystem.swift` + `ThemeStore`; tokens de `Theme` computados desde la
+paleta activa; `ContentView` re-renderiza con `.id(theme.active)`):
+
+- **Classic** — el coral cálido original (para comparar).
+- **Reef Light** *(por defecto, recomendado)* — coral más puro/brillante sobre porcelana FRÍA; mata el
+  ladrillo de raíz.
+- **Midnight Reef** — oscuro-primero (fuerza `.dark`); el coral BRILLA. El más espectacular.
+- **Ember** — duotono coral→magenta; el atrevido.
+
+Editar la paleta de cualquiera: sus hex en `DesignSystem.palette`.
