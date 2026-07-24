@@ -14,9 +14,13 @@ enum LoopFileGenerator {
     /// All files for a plan, as pure data, so the UI can preview exact contents
     /// before anything touches disk. loop.sh uses the placeholder binary `claude`;
     /// `LoopWriter` swaps in the user's configured binary when writing.
-    static func generate(for plan: LoopPlan) -> [GeneratedFile] {
+    /// `memory` is an optional, pre-rendered "Learnings from past runs" block
+    /// (MemoryDigest): when non-empty AND the plan uses memory, it's embedded in LOOP.md
+    /// so cross-project learnings feed the loop. Empty (the default) keeps every file
+    /// byte-identical to before, so existing loops and previews are unaffected.
+    static func generate(for plan: LoopPlan, memory: String = "") -> [GeneratedFile] {
         var files: [GeneratedFile] = [
-            GeneratedFile(relativePath: "LOOP.md", contents: loopMd(plan)),
+            GeneratedFile(relativePath: "LOOP.md", contents: loopMd(plan, memory: memory)),
         ]
         if plan.memoryEnabled {
             files.append(GeneratedFile(relativePath: "STATE.md", contents: stateMd()))
@@ -45,7 +49,7 @@ enum LoopFileGenerator {
 
     // MARK: - LOOP.md (the spec the loop re-reads every iteration)
 
-    private static func loopMd(_ plan: LoopPlan) -> String {
+    private static func loopMd(_ plan: LoopPlan, memory: String = "") -> String {
         let title = displayName(plan)
         let goal = plan.goal.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -96,6 +100,10 @@ enum LoopFileGenerator {
                 out += " When the verifier returns `VERDICT: FAIL`, write its reason into STATE.md as a rule to follow next round, so the same mistake isn't repeated."
             }
             out += "\n"
+            // Cross-project learnings (from Coral's knowledge base) — only when the plan
+            // uses memory and something applies; empty leaves LOOP.md unchanged.
+            let mem = memory.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !mem.isEmpty { out += "\n\(mem)\n" }
         }
         return out
     }
@@ -658,6 +666,8 @@ enum LoopFileGenerator {
 struct LoopWriter {
     let repoURL: URL
     var binary: String = "claude"
+    /// Pre-rendered learnings block injected into LOOP.md (empty = no change).
+    var memory: String = ""
 
     private var fm: FileManager { .default }
 
@@ -666,7 +676,7 @@ struct LoopWriter {
     @discardableResult
     func write(plan: LoopPlan) throws -> [String] {
         var written: [String] = []
-        for file in LoopFileGenerator.generate(for: plan) {
+        for file in LoopFileGenerator.generate(for: plan, memory: memory) {
             let url = repoURL.appendingPathComponent(file.relativePath)
 
             // STATE.md is the loop's memory — never clobber one that exists.

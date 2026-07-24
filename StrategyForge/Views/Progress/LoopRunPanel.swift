@@ -524,7 +524,13 @@ struct LoopRunPanel: View {
         // so make sure the loop files exist and are current before launching —
         // quietly, mirroring how chats write their strategy files before a run.
         do {
-            _ = try LoopWriter(repoURL: workURL, binary: binary).write(plan: plan)
+            // Feed the loop the relevant cross-project learnings (empty when memory is
+            // off or nothing applies → LOOP.md is unchanged).
+            let mem = plan.memoryEnabled
+                ? MemoryStore.shared.digest(repoPath: workURL.path,
+                                            task: plan.name.isEmpty ? plan.goal : plan.name)
+                : ""
+            _ = try LoopWriter(repoURL: workURL, binary: binary, memory: mem).write(plan: plan)
         } catch {
             // Don't start a run whose charter files couldn't be written.
             model.flashFailure(model.t("loop.editor.generateFailed", error.localizedDescription))

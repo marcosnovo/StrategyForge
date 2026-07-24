@@ -85,6 +85,28 @@ final class MemoryStore {
         save()
     }
 
+    // MARK: - Digest + reflection
+
+    /// The relevant-learnings markdown block for a run's context (repo + task), ready to
+    /// inject into a generated CLAUDE.md / LOOP.md. Empty when nothing applies.
+    func digest(repoPath: String?, task: String?, limit: Int = 6) -> String {
+        let picked = MemorySelector.topN(
+            learnings, context: MemoryContext(repoPath: repoPath, language: nil, taskText: task), limit: limit)
+        return MemoryDigest.render(picked)
+    }
+
+    /// Post-run reflection: harvest a loop's STATE.md into the global base. Honest — the
+    /// STATE.md is written by the loop and its independent verifier, not fabricated; dedupe
+    /// collapses repeats across runs. Returns the number of net-new learnings added.
+    @discardableResult
+    func harvestStateFile(at repoURL: URL) -> Int {
+        let url = repoURL.appendingPathComponent("STATE.md")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return 0 }
+        let before = learnings.count
+        for l in StateFileParser.learnings(fromStateMd: text, repo: repoURL.path) { add(l) }
+        return learnings.count - before
+    }
+
     // MARK: - Persistence (JSON in Application Support)
 
     /// Versioned wrapper with a tolerant decode, mirroring LoopStore.PersistedLoops.

@@ -83,6 +83,38 @@ struct MemoryStoreTests {
         }
     }
 
+    @Test func harvestStateFileImportsLearningsAndDedupesOnRepeat() throws {
+        try withTempDir { dir in
+            // A loop's STATE.md sitting in the working dir, as a run would leave it.
+            let stateMd = """
+            # STATE.md — loop memory
+
+            ## General rules
+            - Never regenerate fixtures
+
+            ## Lessons learned
+            - The auth token expires after 1h
+            """
+            try Data(stateMd.utf8).write(to: dir.appendingPathComponent("STATE.md"))
+            let store = MemoryStore(storeDirectory: dir)
+
+            let added = store.harvestStateFile(at: dir)
+            #expect(added == 2)
+            #expect(store.learnings.contains { $0.kind == .pattern && $0.title == "Never regenerate fixtures" })
+            #expect(store.learnings.contains { $0.kind == .mistake && $0.source.origin == .stateFile })
+
+            // Harvesting the same STATE.md again adds nothing (dedupe).
+            #expect(store.harvestStateFile(at: dir) == 0)
+            #expect(store.learnings.count == 2)
+        }
+    }
+
+    @Test func harvestMissingStateFileIsANoOp() throws {
+        try withTempDir { dir in
+            #expect(MemoryStore(storeDirectory: dir).harvestStateFile(at: dir) == 0)
+        }
+    }
+
     @Test func unreadableStoreIsBackedUpNotFatal() throws {
         try withTempDir { dir in
             try Data("{ not json".utf8).write(to: dir.appendingPathComponent("memory.json"))

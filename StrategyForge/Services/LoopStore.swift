@@ -104,6 +104,14 @@ final class LoopStore {
                 if summary.pass == true { self.loops[i].lifetimeAccepted += 1 }
                 self.loops[i].lifetimeCostUSD += max(0, summary.costUSD)
                 self.save()
+                // Post-run reflection: harvest what the loop + its verifier wrote into
+                // STATE.md into the global knowledge base, so lessons survive this loop
+                // and feed future teams. Honest (STATE.md is real, not fabricated) and
+                // deduped; only when the loop uses memory.
+                if self.loops[i].memoryEnabled {
+                    let repo = self.workingURL(for: self.loops[i])
+                    MemoryStore.shared.harvestStateFile(at: repo)
+                }
             }
             self.onRunFinished?(id, summary)
         }

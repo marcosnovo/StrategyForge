@@ -122,6 +122,30 @@ struct LoopFileGeneratorTests {
         #expect(!without.contains { $0.relativePath == "STATE.md" })
     }
 
+    // MARK: - Cross-project memory injection (Slice 6)
+
+    private func loopMd(_ files: [GeneratedFile]) -> String {
+        files.first { $0.relativePath == "LOOP.md" }!.contents
+    }
+
+    @Test func emptyMemoryLeavesLoopMdByteIdentical() {
+        // Regression guard: passing an empty digest must not change LOOP.md at all.
+        let plan = makePlan()
+        #expect(loopMd(LoopFileGenerator.generate(for: plan))
+                == loopMd(LoopFileGenerator.generate(for: plan, memory: "")))
+    }
+
+    @Test func nonEmptyMemoryIsInjectedOnlyWhenMemoryEnabled() {
+        let digest = "## Learnings from past runs\n\n- **Don't regenerate fixtures**\n"
+        // memoryEnabled → the block lands in LOOP.md.
+        let on = loopMd(LoopFileGenerator.generate(for: makePlan(memory: true), memory: digest))
+        #expect(on.contains("Learnings from past runs"))
+        #expect(on.contains("Don't regenerate fixtures"))
+        // memory OFF → even a passed digest is ignored (no STATE.md, no injection).
+        let off = loopMd(LoopFileGenerator.generate(for: makePlan(memory: false), memory: digest))
+        #expect(!off.contains("Learnings from past runs"))
+    }
+
     @Test func verifierFileRespectsToggleAndContract() {
         let files = LoopFileGenerator.generate(for: makePlan(verifier: true))
         let verifier = files.first { $0.relativePath == ".claude/agents/loop-verifier.md" }

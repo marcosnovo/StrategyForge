@@ -724,7 +724,10 @@ struct LoopEditorView: View {
         let didAccess = url.startAccessingSecurityScopedResource()
         defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
         do {
-            let written = try LoopWriter(repoURL: url, binary: model.settings.claudeBinary)
+            let mem = plan.memoryEnabled
+                ? MemoryStore.shared.digest(repoPath: url.path, task: plan.name.isEmpty ? plan.goal : plan.name)
+                : ""
+            let written = try LoopWriter(repoURL: url, binary: model.settings.claudeBinary, memory: mem)
                 .write(plan: plan)
             model.flashSuccess(model.t("loop.editor.generated", written.count, url.lastPathComponent))
             store.save()
@@ -754,7 +757,10 @@ private struct LoopFilePreviewSheet: View {
     @State private var selectedFile: String?
 
     var body: some View {
-        let files = LoopFileGenerator.generate(for: plan)
+        let mem = plan.memoryEnabled
+            ? MemoryStore.shared.digest(repoPath: plan.repoPath, task: plan.name.isEmpty ? plan.goal : plan.name)
+            : ""
+        let files = LoopFileGenerator.generate(for: plan, memory: mem)
         let ids = files.map(\.id)
         let effective = (selectedFile.flatMap { ids.contains($0) ? $0 : nil }) ?? files.first?.id
 
