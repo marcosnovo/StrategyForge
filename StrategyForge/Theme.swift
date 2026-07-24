@@ -57,15 +57,13 @@ enum Theme {
         dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.30))
 
     // MARK: Selection & Focus
-    /// Soft coral wash for a selected list row / card. Pale enough to read as a
-    /// background state, not a solid block. Pair with `selectionBorder` + the bar.
+    /// Soft NEUTRAL wash for a selected list row / card — ChatGPT-calm: selection reads as
+    /// a quiet grey background, not a coral block (coral stays for actions, not state).
     static let selectionFill = Color(
-        light: Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.22),   // raised so a selected row reads coral on white, not a peach ghost
-        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.20))
-    /// Hairline border for a selected row/card (1 pt).
-    static let selectionBorder = Color(
-        light: Color(red: 0.862, green: 0.290, blue: 0.180).opacity(0.40),
-        dark:  Color(red: 1.000, green: 0.420, blue: 0.330).opacity(0.44))
+        light: Color.black.opacity(0.055),
+        dark:  Color.white.opacity(0.085))
+    /// Selected rows no longer carry a border — the grey wash alone marks selection.
+    static let selectionBorder = Color.clear
     /// Focus ring stroke for text fields / focusable controls (visible only when focused).
     static let focusRing = Theme.accent.opacity(0.55)
     /// Focus glow shadow color for focused inputs.
@@ -517,9 +515,11 @@ private struct CardModifier: ViewModifier {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(Theme.cardBg)
-                    .elevation(.e2)   // floats above the reef with ambient + contact depth
-            )
+                    .fill(Theme.cardBg))
+            // ChatGPT-calm: flat surface separated by a hairline, not a shadow.
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                    .strokeBorder(Theme.hairline, lineWidth: 1))
     }
 }
 
@@ -537,9 +537,10 @@ extension View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(Theme.cardBg)
-                    .elevation(.e2)
-            )
+                    .fill(Theme.cardBg))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                    .strokeBorder(Theme.hairline, lineWidth: 1))
     }
 
     // MARK: Glass language (the three tiers — keep surfaces on the right one)
@@ -674,8 +675,8 @@ struct HoverTint: ViewModifier {
         content
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    // A faint CORAL hover (was a near-invisible 4.5% primary) — visible, on-brand.
-                    .fill(Theme.accent.opacity(hovering ? 0.09 : 0))
+                    // ChatGPT-calm: a quiet NEUTRAL hover, not coral — coral is for actions.
+                    .fill(Color.primary.opacity(hovering ? 0.05 : 0))
             )
             .animation(.easeOut(duration: 0.15), value: hovering)
             .onHover { hovering = $0 }
@@ -775,21 +776,11 @@ struct SelectedRow: ViewModifier {
     /// Base fill when unselected (e.g. Theme.cardBg for cards, .clear for list rows).
     var restingFill: Color = .clear
     func body(content: Content) -> some View {
+        // ChatGPT-calm: selection is a soft grey wash only — no border, no coral spine.
         content
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(isSelected ? Theme.selectionFill : restingFill))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(isSelected ? Theme.selectionBorder : .clear, lineWidth: 1))
-            .overlay(alignment: .leading) {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                        .fill(Theme.accent)
-                        .frame(width: 3)
-                        .padding(.vertical, 6)
-                }
-            }
     }
 }
 

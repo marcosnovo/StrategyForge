@@ -40,12 +40,9 @@ struct CoralRow<Leading: View, Trailing: View>: View {
         .frame(minHeight: subtitle == nil ? 40 : 50)
         .background(alignment: .leading) {
             if selected {
+                // ChatGPT-calm: a soft grey wash marks selection — no coral spine, no border.
                 RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
                     .fill(Theme.selectionFill)
-                    .overlay(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 1.5).fill(Theme.accent)
-                            .frame(width: 2.5).padding(.vertical, 7)
-                    }
             }
         }
         .contentShape(Rectangle())
