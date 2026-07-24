@@ -57,9 +57,9 @@ struct CodeArenaEngineTests {
         return out.split(separator: "\n").count
     }
 
-    private let entrants = [
-        ArenaEntrant(provider: .claude, model: "opus"),
-        ArenaEntrant(provider: .openai, model: "gpt-5"),
+    private let contestants = [
+        CodeContestant.provider(.claude, model: "opus"),
+        CodeContestant.provider(.openai, model: "gpt-5"),
     ]
 
     @Test func eachContestantEditsInIsolationAndTheUserTreeStaysClean() async throws {
@@ -68,13 +68,13 @@ struct CodeArenaEngineTests {
         defer { try? FileManager.default.removeItem(at: repo) }
 
         let finals = await CodeArenaEngine.run(
-            task: "add a file", repo: repo.path, entrants: entrants, runner: WritingRunner()) { _, _ in }
+            task: "add a file", repo: repo.path, contestants: contestants, runner: WritingRunner()) { _, _ in }
 
         #expect(finals.count == 2)
         #expect(finals.values.allSatisfy { $0.state == .done })
-        #expect(finals["claude:opus"]?.diff.contains("claude.txt") == true)
-        #expect(finals["openai:gpt-5"]?.diff.contains("openai.txt") == true)
-        #expect(finals["claude:opus"]?.producedChanges == true)
+        #expect(finals["p:claude:opus"]?.diff.contains("claude.txt") == true)
+        #expect(finals["p:openai:gpt-5"]?.diff.contains("openai.txt") == true)
+        #expect(finals["p:claude:opus"]?.producedChanges == true)
         // The user's working tree was never touched — still clean.
         #expect(try changedFileCount(in: repo) == 0)
 
@@ -87,8 +87,8 @@ struct CodeArenaEngineTests {
         defer { try? FileManager.default.removeItem(at: repo) }
 
         let finals = await CodeArenaEngine.run(
-            task: "add a file", repo: repo.path, entrants: entrants, runner: WritingRunner()) { _, _ in }
-        let winner = try #require(finals["openai:gpt-5"])
+            task: "add a file", repo: repo.path, contestants: contestants, runner: WritingRunner()) { _, _ in }
+        let winner = try #require(finals["p:openai:gpt-5"])
 
         let merge = await CodeArenaEngine.applyWinner(repo: repo.path, winner: winner, all: Array(finals.values))
         #expect(merge.ok)
@@ -104,11 +104,30 @@ struct CodeArenaEngineTests {
         let repo = try makeRepo()
         defer { try? FileManager.default.removeItem(at: repo) }
         let finals = await CodeArenaEngine.run(
-            task: "x", repo: repo.path, entrants: entrants,
+            task: "x", repo: repo.path, contestants: contestants,
             runner: WritingRunner(failing: [.openai])) { _, _ in }
-        #expect(finals["openai:gpt-5"]?.state == .failed)
-        #expect(finals["claude:opus"]?.state == .done)
+        #expect(finals["p:openai:gpt-5"]?.state == .failed)
+        #expect(finals["p:claude:opus"]?.state == .done)
         #expect(try changedFileCount(in: repo) == 0)   // still clean
+        await CodeArenaEngine.cleanup(repo: repo.path, all: Array(finals.values))
+    }
+
+    @Test func teamContestantsWriteScaffoldingButTheComparedDiffIsOnlyCodeWork() async throws {
+        guard CodeGit.isAvailable else { return }
+        let repo = try makeRepo()
+        defer { try? FileManager.default.removeItem(at: repo) }
+
+        // A team contestant materializes its .claude files + CLAUDE.md as a baseline commit,
+        // so the compared diff shows only the team's actual edit (claude.txt), not the setup.
+        let team = CodeContestant.team(id: "solo", name: "Solo", strategy: StrategyLibrary.solo())
+        let finals = await CodeArenaEngine.run(
+            task: "edit", repo: repo.path, contestants: [team], runner: WritingRunner()) { _, _ in }
+
+        let out = try #require(finals["t:solo"])
+        #expect(out.state == .done)
+        #expect(out.diff.contains("claude.txt"))          // the team's code work
+        #expect(!out.diff.contains("CLAUDE.md"))          // scaffolding was committed as baseline
+        #expect(try changedFileCount(in: repo) == 0)      // user tree still clean
         await CodeArenaEngine.cleanup(repo: repo.path, all: Array(finals.values))
     }
 }

@@ -87,7 +87,7 @@ final class ArenaModel {
 
     // MARK: Code mode (providers edit in isolated worktrees; compare diffs)
 
-    var codeOrder: [ArenaEntrant] = []
+    var codeOrder: [CodeContestant] = []
     var codeOutcomes: [String: CodeArenaOutcome] = [:]
     var codeWinnerID: String?
     var isRunningCode = false
@@ -96,13 +96,13 @@ final class ArenaModel {
     var codeEnd: [String: Date] = [:]
     @ObservationIgnored private var codeTask: Task<Void, Never>?
 
-    func runCode(task: String, repo: String, entrants: [ArenaEntrant], runner: OneShotRunner) {
-        guard !isRunningCode, entrants.count >= 2 else { return }
-        isRunningCode = true; codeRepo = repo; codeOrder = entrants
-        codeOutcomes = Dictionary(uniqueKeysWithValues: entrants.map { ($0.id, CodeArenaOutcome(entrant: $0, state: .queued)) })
+    func runCode(task: String, repo: String, contestants: [CodeContestant], binary: String, runner: OneShotRunner) {
+        guard !isRunningCode, contestants.count >= 2 else { return }
+        isRunningCode = true; codeRepo = repo; codeOrder = contestants
+        codeOutcomes = Dictionary(uniqueKeysWithValues: contestants.map { ($0.id, CodeArenaOutcome(contestant: $0, state: .queued)) })
         codeWinnerID = nil; codeStart = [:]; codeEnd = [:]; verdicts = [:]
         codeTask = Task { [weak self] in
-            let finals = await CodeArenaEngine.run(task: task, repo: repo, entrants: entrants, runner: runner) { id, o in
+            let finals = await CodeArenaEngine.run(task: task, repo: repo, contestants: contestants, binary: binary, runner: runner) { id, o in
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     if self.codeStart[id] == nil { self.codeStart[id] = Date() }
@@ -181,6 +181,22 @@ struct ArenaView: View {
     @State private var showTeamCostConfirm = false
     // Code mode
     @State private var showCodeConfirm = false
+    @State private var codeKind: CodeKind = .providers
+    enum CodeKind: String, CaseIterable { case providers, teams }
+
+    /// The contestants for the code arena — single providers or whole teams.
+    private var codeContestants: [CodeContestant] {
+        switch codeKind {
+        case .providers:
+            return connected.filter { selected.contains($0) }.map {
+                CodeContestant.provider($0, model: modelChoice[$0] ?? $0.models.first?.id ?? "")
+            }
+        case .teams:
+            return availableTeams.filter { selectedTeams.contains($0.id) }.map {
+                CodeContestant.team(id: $0.id, name: $0.name, strategy: $0.strategy)
+            }
+        }
+    }
 
     private var connected: [AIProvider] { AIProvider.allCases.filter { model.isConnected($0) } }
 
@@ -240,13 +256,13 @@ struct ArenaView: View {
         .confirmationDialog(model.t("arena.code.cost.title"), isPresented: $showCodeConfirm, titleVisibility: .visible) {
             Button(model.t("arena.code.cost.run"), role: .destructive) {
                 if let repo = arena.codeRepo {
-                    arena.runCode(task: arena.prompt, repo: repo, entrants: entrants,
-                                  runner: model.oneShotRunner(readOnly: false))
+                    arena.runCode(task: arena.prompt, repo: repo, contestants: codeContestants,
+                                  binary: model.settings.claudeBinary, runner: model.oneShotRunner(readOnly: false))
                 }
             }
             Button(model.t("common.cancel"), role: .cancel) {}
         } message: {
-            Text(model.t("arena.code.cost.body", entrants.count))
+            Text(model.t("arena.code.cost.body", codeContestants.count))
         }
     }
 
@@ -671,14 +687,25 @@ struct ArenaView: View {
             }
             Divider()
             HStack {
-                Text(model.t("arena.entrants")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                Picker("", selection: $codeKind) {
+                    Text(model.t("arena.code.kind.providers")).tag(CodeKind.providers)
+                    Text(model.t("arena.code.kind.teams")).tag(CodeKind.teams)
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
                 Spacer()
                 codeRunButton
             }
-            if connected.isEmpty {
-                Text(model.t("arena.noProviders")).font(.sfCaption2).foregroundStyle(.secondary)
+            if codeKind == .providers {
+                if connected.isEmpty {
+                    Text(model.t("arena.noProviders")).font(.sfCaption2).foregroundStyle(.secondary)
+                } else {
+                    FlowRow(spacing: Space.s) { ForEach(connected) { p in entrantChip(p) } }
+                }
             } else {
-                FlowRow(spacing: Space.s) { ForEach(connected) { p in entrantChip(p) } }
+                ScrollView {
+                    VStack(spacing: 0) { ForEach(availableTeams) { c in teamRow(c) } }
+                }
+                .frame(maxHeight: 200)
             }
             Label(model.t("arena.code.safety"), systemImage: "lock.shield")
                 .font(.sfCaption2).foregroundStyle(Theme.success).fixedSize(horizontal: false, vertical: true)
@@ -700,7 +727,7 @@ struct ArenaView: View {
                 .buttonStyle(.moon).controlSize(.small)
                 .disabled(arena.codeRepo == nil
                           || arena.prompt.trimmingCharacters(in: .whitespaces).isEmpty
-                          || entrants.count < 2)
+                          || codeContestants.count < 2)
             }
         }
     }
@@ -719,39 +746,40 @@ struct ArenaView: View {
             TimelineView(.periodic(from: Date(), by: 1)) { context in
                 let cols = [GridItem(.adaptive(minimum: 340, maximum: 460), spacing: Space.l, alignment: .top)]
                 LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
-                    ForEach(arena.codeOrder) { e in codeResultCard(e, now: context.date) }
+                    ForEach(arena.codeOrder) { c in codeResultCard(c, now: context.date) }
                 }
             }
         }
     }
 
-    private func codeResultCard(_ e: ArenaEntrant, now: Date) -> some View {
-        let o = arena.codeOutcomes[e.id] ?? CodeArenaOutcome(entrant: e)
-        let isWinner = arena.codeWinnerID == e.id
-        let elapsed = arena.codeStart[e.id].map { (arena.codeEnd[e.id] ?? now).timeIntervalSince($0) } ?? 0
+    private func codeResultCard(_ c: CodeContestant, now: Date) -> some View {
+        let o = arena.codeOutcomes[c.id] ?? CodeArenaOutcome(contestant: c)
+        let isWinner = arena.codeWinnerID == c.id
+        let elapsed = arena.codeStart[c.id].map { (arena.codeEnd[c.id] ?? now).timeIntervalSince($0) } ?? 0
         return VStack(alignment: .leading, spacing: Space.s) {
             HStack(spacing: Space.s) {
-                ProviderAvatar(provider: e.provider, size: 22, active: isWinner)
+                ProviderAvatar(provider: c.provider, size: 22, active: isWinner)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(e.provider.displayName).font(.sfBodyM.weight(.medium))
-                    Text(shortModel(e.model, e.provider)).font(.sfCaption2).foregroundStyle(.secondary)
+                    Text(c.label).font(.sfBodyM.weight(.medium)).lineLimit(1)
+                    Text(c.strategy != nil ? model.t("arena.code.teamRuntime") : shortModel(c.model, c.provider))
+                        .font(.sfCaption2).foregroundStyle(.secondary)
                 }
                 Spacer()
-                verdictBadge(e.id)
-                if o.state == .done, o.producedChanges { Button { arena.codeWinnerID = e.id } label: {
+                verdictBadge(c.id)
+                if o.state == .done, o.producedChanges { Button { arena.codeWinnerID = c.id } label: {
                     Image(systemName: isWinner ? "trophy.fill" : "trophy").foregroundStyle(isWinner ? Theme.accent : .secondary)
                 }.buttonStyle(.plain).help(model.t("arena.pickWinner")) }
             }
 
             codeLiveStatus(o, elapsed: elapsed)
-            verdictReason(e.id)
+            verdictReason(c.id)
 
             switch o.state {
             case .done:
                 if o.producedChanges {
                     Text(model.t("arena.code.changed", o.changedFiles)).font(.sfCaption2).foregroundStyle(.secondary)
                     diffView(o.diff)
-                    Button(model.t("arena.code.apply")) { applyCode(e.id) }
+                    Button(model.t("arena.code.apply")) { applyCode(c.id) }
                         .buttonStyle(.moon).controlSize(.small)
                 } else {
                     Text(model.t("arena.code.noChanges")).font(.sfCaption2).foregroundStyle(.secondary)
@@ -821,9 +849,9 @@ struct ArenaView: View {
     }
 
     private var codeCandidates: [ArenaCandidate] {
-        arena.codeOrder.compactMap { e in
-            guard let o = arena.codeOutcomes[e.id], o.state == .done, o.producedChanges else { return nil }
-            return ArenaCandidate(id: e.id, label: e.provider.displayName, text: o.diff)
+        arena.codeOrder.compactMap { c in
+            guard let o = arena.codeOutcomes[c.id], o.state == .done, o.producedChanges else { return nil }
+            return ArenaCandidate(id: c.id, label: c.label, text: o.diff)
         }
     }
 
