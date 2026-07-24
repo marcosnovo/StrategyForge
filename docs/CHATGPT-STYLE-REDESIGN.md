@@ -92,3 +92,28 @@ Estas tres son las **huellas** más distintivas de Coral; ir "ChatGPT-calm" del 
 ## Orden recomendado
 Empezar por **Fase 1** entera (sin riesgo de marca, máximo impacto de calma), validar en claro+oscuro,
 y decidir las 3 preguntas de marca antes de Fase 2.
+
+---
+
+## Progreso (2026-07-24)
+
+**Decisiones de marca — el usuario aprobó las 3 recomendadas:** teal retirado · eyebrows sans · bubble
+coral plano.
+
+**Hecho (commits en `main`, tests verdes, pendiente validación visual claro/oscuro):**
+- [x] Selección → gris (sin coral, sin borde, sin espina); hover neutro.
+- [x] `card()`/`equalCard()` aplanadas (hairline, sin sombra de elevación).
+- [x] **Teal retirado**: tokens `teal*` alias del acento coral (un solo acento en toda la app; team
+      spectrum solo en el diagrama).
+- [x] **Eyebrows sans** (`sfFieldLabel`); mono solo en `sfMono`/`sfCode`.
+- [x] **Bubble usuario coral plano** (sin glow ni gradiente).
+- [x] Columna de lectura del chat **centrada** (~760).
+- [x] Aurora reducida a un bloom coral tenue (fuera el teal + un wash).
+- [x] Panel de actividad: diagrama opt-in (`showDiagram` false); fuera el 2º punto parpadeante.
+
+**Pendiente (Fase 1 cola + Fase 2/3 — más intrusivo, validar visualmente primero):**
+- [ ] Rail: quitar la `usageCard` persistente + fundir grupos (≈11 destinos → ≈3 + "Más").
+- [ ] Panel de actividad: **fila de chips por agente** + pill "Paso N/M" + una narración gris (sustituir
+      las filas con barras de progreso por agente).
+- [ ] Fundir la lista de chats en el rail; simplificar el `if/else` de 11 ramas de `ContentView`.
+- [ ] Consistencia de iconos (outline); densidad (subir un paso el ritmo de `CoralRow`).
