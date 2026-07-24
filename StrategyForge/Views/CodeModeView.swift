@@ -444,6 +444,22 @@ struct CodeModeView: View {
     }
 
     /// The automated diff-review findings (independent read-only reviewer).
+    /// Promote review findings into the knowledge base as pitfalls-to-avoid. Global scope
+    /// (a real bug is worth avoiding everywhere), tagged with the repo so tag-overlap
+    /// surfaces them strongly on the same project. Honest source: `.review`.
+    private func promoteFindingsToMemory(_ findings: [ReviewFinding]) {
+        let repoTag = (vm.config.repoPath).flatMap { $0.isEmpty ? nil : ($0 as NSString).lastPathComponent.lowercased() }
+        for f in findings {
+            let where_ = f.file.isEmpty ? f.severity.rawValue
+                : "\((f.file as NSString).lastPathComponent) · \(f.severity.rawValue)"
+            MemoryStore.shared.add(Learning(
+                kind: .mistake, title: f.title, body: f.detail,
+                tags: [repoTag].compactMap { $0 },
+                source: LearningSource(origin: .review, detail: where_)))
+        }
+        model.flashSuccess(model.t("review.saveMemoryDone", findings.count))
+    }
+
     private func reviewPanel(_ review: DiffReview) -> some View {
         VStack(alignment: .leading, spacing: Space.xs) {
             Divider()
@@ -476,6 +492,15 @@ struct CodeModeView: View {
                     }
                     .buttonStyle(.bordered).controlSize(.small)
                     .help(model.t("review.fixHint"))
+                    // Distil the findings into the cross-project knowledge base, so the
+                    // same pitfalls get flagged in future teams' CLAUDE.md.
+                    Button {
+                        promoteFindingsToMemory(review.findings)
+                    } label: {
+                        Label(model.t("review.saveMemory"), systemImage: "brain")
+                    }
+                    .buttonStyle(.bordered).controlSize(.small)
+                    .help(model.t("review.saveMemoryHint"))
                 }
                 // No verifier seal on a failed run — nothing was verified.
                 if review.error == nil { IndependentVerifierSeal(style: .compact) }

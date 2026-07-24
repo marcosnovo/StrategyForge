@@ -91,7 +91,7 @@ struct ContentView: View {
                 Divider()
             } else if model.navSection == .usage || model.navSection == .advisor
                         || model.navSection == .particleLab || model.navSection == .code
-                        || model.navSection == .skills || model.navSection == .settings {
+                        || model.navSection == .skills || model.navSection == .memory || model.navSection == .settings {
                 // Single full-width surfaces — no second column (no chat list here).
                 EmptyView()
             } else if model.showSidebar || model.selectedConfiguration == nil {
@@ -166,6 +166,9 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .skills {
                 SkillsView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.navSection == .memory {
+                MemoryView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .settings {
                 SettingsView(embedded: true)
@@ -244,6 +247,14 @@ struct ContentView: View {
             if let err = LoopStore.shared.loadError {
                 model.flashFailure(model.t(err.key, err.detail))
                 LoopStore.shared.loadError = nil
+            }
+            // Same for the knowledge base store.
+            MemoryStore.shared.onError = { key, detail in
+                model.flashFailure(model.t(key, detail))
+            }
+            if let err = MemoryStore.shared.loadError {
+                model.flashFailure(model.t(err.key, err.detail))
+                MemoryStore.shared.loadError = nil
             }
             LoopStore.shared.onRunFinished = { id, summary in
                 let name = LoopStore.shared.loops.first(where: { $0.id == id })?.name ?? ""
