@@ -15,7 +15,6 @@
 //
 
 import Foundation
-import CryptoKit
 import Security
 
 enum ClaudeUsageAPI {
@@ -43,20 +42,41 @@ enum ClaudeUsageAPI {
             if let data = FileManager.default.contents(atPath: path),
                let token = freshToken(from: data) { return token }
         }
-        func service(for dir: String) -> String {
-            let hash = SHA256.hash(data: Data(dir.utf8)).map { String(format: "%02x", $0) }.joined()
-            return "Claude Code-credentials-\(hash.prefix(8))"
-        }
-        // Ordered, most-likely first, and STOP at the first fresh token — each Keychain
-        // item read triggers its own access prompt, so reading fewer = fewer prompts.
-        var services = [service(for: ClaudeRunner.resolveClaudeConfigDir() ?? "\(home)/.claude"),
-                        "Claude Code-credentials",
-                        service(for: "\(home)/.claude")]
-        var seen = Set<String>(); services = services.filter { seen.insert($0).inserted }
-        for svc in services {
+        // Keychain: Claude Code stores the OAuth keyed by CONFIG-DIR (service
+        // "Claude Code-credentials-<hash>"), and which item holds the currently-valid token
+        // depends on how the CLI was last launched (Coral spawns it with its own config dir),
+        // so guessing a hash misses it — the fresh token can sit under a hash we never compute.
+        // Enumerate EVERY "Claude Code-credentials"* item (attributes only → no prompt), try
+        // the most-recently-modified first (that's the live one), and stop at the first
+        // non-expired token. This is what fixes the "% never shows" bug when the guessed
+        // service names all point at stale/absent items.
+        for svc in claudeCredentialServices() {
             if let data = keychainData(service: svc), let token = freshToken(from: data) { return token }
         }
         return nil
+    }
+
+    /// Every `Claude Code-credentials`* generic-password service in the Keychain, freshest
+    /// (most-recently-modified) first. Reads ATTRIBUTES only (no secret data), so it does not
+    /// trigger a Keychain access prompt — the prompt happens only when we then read the data
+    /// of the first candidate.
+    private static func claudeCredentialServices() -> [String] {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+            kSecReturnAttributes as String: true,
+        ]
+        var out: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
+              let items = out as? [[String: Any]] else { return ["Claude Code-credentials"] }
+        return items
+            .compactMap { item -> (svc: String, mod: Date)? in
+                guard let svc = item[kSecAttrService as String] as? String,
+                      svc.hasPrefix("Claude Code-credentials") else { return nil }
+                return (svc, (item[kSecAttrModificationDate as String] as? Date) ?? .distantPast)
+            }
+            .sorted { $0.mod > $1.mod }   // the live token is in the most recently written item
+            .map(\.svc)
     }
 
     /// Parse a Claude Code credentials blob (`{"claudeAiOauth":{"accessToken","expiresAt"}}`)
