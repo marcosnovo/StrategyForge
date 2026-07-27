@@ -1,12 +1,24 @@
 # Release: tag → signed + notarized DMG → GitHub Release.
 #
-# ⚠️  UNTESTED end-to-end (written without the signing certs / a Mac runner to
-#     dry-run it). Wire the secrets below, then run once via workflow_dispatch on
-#     a throwaway tag before trusting it. The UpdateChecker in the app reads the
+# ⚠️  UNTESTED end-to-end until you've done one workflow_dispatch dry-run on a
+#     throwaway tag (see docs/RELEASE.md). The UpdateChecker in the app reads the
 #     latest GitHub Release, so the DMG asset name/tag must stay stable.
 #
 # Trigger: push a tag like `v1.2.3` (or run manually with a version input). The
 # tag drives MARKETING_VERSION so the built app and the release agree.
+#
+# Signing: the archive is signed with StrategyForge/StrategyForge-Direct.entitlements
+# (see CODE_SIGN_ENTITLEMENTS in the Archive step), a subset that DROPS the managed
+# capabilities (Sign in with Apple, iCloud, CloudKit). Those would each require a
+# hand-made Developer ID provisioning profile; dropping them means the DMG signs +
+# notarizes with just the 6 secrets below — no portal setup. Re-add them (and a
+# profile secret) when cross-device sync ships.
+#
+# Runner: defaults to the GitHub-hosted `macos-26` image (GA, Apple-Silicon only,
+# ships Xcode 26). To build on your own Mac instead — e.g. if the hosted image
+# lags the deployment target — register a self-hosted runner and set the repo
+# variable RELEASE_RUNNER to its label (Settings → Secrets and variables →
+# Actions → Variables). No file edit needed. See docs/RELEASE.md § self-hosted.
 #
 # Required repository secrets (Settings → Secrets and variables → Actions):
 #   DEVELOPER_ID_CERT_P12_BASE64  — `base64 -i DeveloperIDApplication.p12` of the
@@ -36,7 +48,9 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-26
+    # Hosted macos-26 by default; override with the RELEASE_RUNNER repo variable
+    # to point at a self-hosted Mac (e.g. 'self-hosted' or a custom label).
+    runs-on: ${{ vars.RELEASE_RUNNER || 'macos-26' }}
     timeout-minutes: 90
     env:
       SCHEME: StrategyForge
@@ -98,6 +112,7 @@ jobs:
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             CODE_SIGN_STYLE=Manual \
             "CODE_SIGN_IDENTITY=Developer ID Application" \
+            CODE_SIGN_ENTITLEMENTS=StrategyForge/StrategyForge-Direct.entitlements \
             | (command -v xcbeautify >/dev/null 2>&1 && xcbeautify || cat)
 
       - name: Export a Developer ID app

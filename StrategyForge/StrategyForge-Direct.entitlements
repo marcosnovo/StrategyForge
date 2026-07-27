@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Developer ID (non-App-Store) signing entitlements. This is a DELIBERATE
+	     subset of StrategyForge.entitlements: it DROPS the three "managed"
+	     capabilities — Sign in with Apple, iCloud container, CloudKit — because
+	     each one would force a hand-made Developer ID provisioning profile, and
+	     CloudKit sync is still pending anyway (it also conflicts with the
+	     sandbox being off, which the chat subprocess requires). The release
+	     workflow points CODE_SIGN_ENTITLEMENTS here so the DMG signs + notarizes
+	     with only the 6 CI secrets and no portal setup. Re-add the managed keys
+	     (and a Developer ID profile) here once cross-device sync ships. -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<!-- Apple Events: "Generate & open Terminal" and the provider sign-in flow
+	     script Terminal via osascript. Under the hardened runtime this entitlement
+	     (plus NSAppleEventsUsageDescription) is required, or TCC denies silently. -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+</dict>
+</plist>

@@ -71,10 +71,35 @@ repository secret**. Add exactly these names:
 - The in-app **UpdateChecker** reads the latest *published* Release, so users
   get the update prompt only once you publish (not on the draft).
 
+## Signing: what gets stripped (and why it's only 6 secrets)
+The archive is signed with `StrategyForge/StrategyForge-Direct.entitlements`, a
+deliberate subset of the app's `StrategyForge.entitlements`. It **drops the three
+"managed" capabilities** — Sign in with Apple, iCloud container, CloudKit —
+because each one would force a **hand-made Developer ID provisioning profile** in
+the portal (and a 7th secret), and Developer ID + Sign in with Apple is famously
+unreliable. CloudKit sync is pending anyway and conflicts with the sandbox being
+off (which the chat subprocess needs). So the DMG signs + notarizes with just the
+6 secrets above — no portal setup.
+
+When cross-device sync ships, re-add those keys to `StrategyForge-Direct.entitlements`,
+create a Developer ID provisioning profile that includes them, and add a step that
+installs it before the export.
+
+## Self-hosted runner (if the hosted image ever lags)
+`macos-26` is generally available on GitHub-hosted runners (Apple-Silicon only,
+ships Xcode 26), so the default just works. If the hosted image ever falls behind
+the deployment target (e.g. host OS older than a `.4`/`.5` the tests need), build
+on your own Mac instead — **no file edit required**:
+
+1. On the Mac: GitHub → repo **Settings → Actions → Runners → New self-hosted
+   runner** (macOS), and follow the register/`./run.sh` steps. Make sure Xcode 26
+   is installed and `sudo xcode-select -s` points at it.
+2. GitHub → **Settings → Secrets and variables → Actions → Variables** → New
+   variable **`RELEASE_RUNNER`** = your runner's label (e.g. `self-hosted`).
+3. Re-run the release. The workflow's `runs-on: ${{ vars.RELEASE_RUNNER || 'macos-26' }}`
+   now targets your Mac. Delete the variable to switch back to hosted.
+
 ## Notes / gotchas
-- The runner image is `macos-26` (the project's deployment target is macOS
-  26.5). If that image isn't available on your account, either lower the
-  deployment target or point `runs-on` at a self-hosted Mac.
 - The app ships **outside the Mac App Store** (App Sandbox is off — it spawns
   the provider CLIs), which is exactly why Developer ID + notarization is the
   distribution path.
