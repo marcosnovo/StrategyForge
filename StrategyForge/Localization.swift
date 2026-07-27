@@ -289,6 +289,8 @@ enum L10n {
         "rail.team": ("Team", "Equipo"),
         "rail.usage": ("Usage", "Uso"),
         "rail.code": ("Code", "Código"),
+        "rail.loops": ("Loops", "Bucles"),
+        "sidebar.newShort": ("New", "Nuevo"),
         "code.launcher.title": ("Code", "Código"),
         "code.launcher.subtitle": ("Connect a repo and work on it with Claude — as simple as Claude Code: clone or open a folder and start talking.",
                                    "Conecta un repo y trabaja en él con Claude — tan simple como Claude Code: clona o abre una carpeta y empieza a hablar."),

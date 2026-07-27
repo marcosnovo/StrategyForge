@@ -26,7 +26,7 @@ struct NavRail: View {
     /// Live design-system selection (the swatch picker below Lab).
     @State private var theme = ThemeStore.shared
 
-    private var railWidth: CGFloat { railExpanded ? 208 : 64 }
+    private var railWidth: CGFloat { railExpanded ? 208 : 76 }
 
     var body: some View {
         // ChatGPT-calm: a narrow ICON rail (64pt). Labels live in tooltips (.help), so the
@@ -210,18 +210,26 @@ struct NavRail: View {
                 model.addConfiguration()
             }
         } label: {
-            HStack(spacing: Space.s) {
-                Image(systemName: "square.and.pencil")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Theme.coral)
-                    .frame(width: 40, height: 34)
+            Group {
                 if railExpanded {
-                    Text(model.t("sidebar.new")).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink)
-                    Spacer(minLength: 0)
+                    HStack(spacing: Space.s) {
+                        Image(systemName: "square.and.pencil").font(.system(size: 16)).foregroundStyle(Theme.coral)
+                            .frame(width: 40, height: 34)
+                        Text(model.t("sidebar.new")).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.trailing, Space.s)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    VStack(spacing: 1) {
+                        Image(systemName: "square.and.pencil").font(.system(size: 16)).foregroundStyle(Theme.coral)
+                            .frame(width: 40, height: 30)
+                        Text(model.t("sidebar.newShort")).font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(Theme.coral).lineLimit(1).minimumScaleFactor(0.75)
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 3)
                 }
             }
-            .padding(.trailing, railExpanded ? Space.s : 0)
-            .frame(maxWidth: railExpanded ? .infinity : 40)
             .glassPanel(cornerRadius: Theme.buttonCorner)
             .contentShape(Rectangle())
         }
@@ -253,28 +261,40 @@ struct NavRail: View {
             .padding(.vertical, 2)
     }
 
-    /// Shared row chrome (used by `item` and the DEBUG `devItem`): a leading icon in a
-    /// square tap target + (when the rail is EXPANDED) its label, with a soft coral pill +
-    /// coral tint when active and a running pulse dot. Collapsed → icon only, label in tooltip.
+    /// Shared row chrome (used by `item` and the DEBUG `devItem`). EXPANDED → icon + label
+    /// in a row. COLLAPSED → icon with a small label BELOW it, so every destination is legible
+    /// at a glance (an icon-only rail left "what is this?" to a hover tooltip). Soft coral pill
+    /// + coral tint when active; a running pulse dot on the icon.
     private func rowBody(icon: String, label: String, active: Bool, running: Bool) -> some View {
-        HStack(spacing: Space.s) {
-            Image(systemName: icon)
-                .font(.system(size: 17))
-                .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
-                .frame(width: 40, height: 34)
-                .overlay(alignment: .topTrailing) {
-                    if running && !active { RunningPulseDot().offset(x: -3, y: 3) }
-                }
+        let tint = active ? Theme.coral : Theme.secondaryOnMaterial
+        let iconView = Image(systemName: icon)
+            .font(.system(size: 17))
+            .foregroundStyle(tint)
+            .frame(width: 40, height: 30)
+            .overlay(alignment: .topTrailing) {
+                if running && !active { RunningPulseDot().offset(x: -3, y: 3) }
+            }
+        return Group {
             if railExpanded {
-                Text(label)
-                    .font(.sfBodyM.weight(active ? .semibold : .regular))
-                    .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
+                HStack(spacing: Space.s) {
+                    iconView
+                    Text(label).font(.sfBodyM.weight(active ? .semibold : .regular))
+                        .foregroundStyle(tint).lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.trailing, Space.s)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                VStack(spacing: 1) {
+                    iconView
+                    Text(label).font(.system(size: 9, weight: active ? .semibold : .medium))
+                        .foregroundStyle(tint)
+                        .lineLimit(1).minimumScaleFactor(0.75)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 3)
             }
         }
-        .padding(.trailing, railExpanded ? Space.s : 0)
-        .frame(maxWidth: railExpanded ? .infinity : 40, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
             .fill(active ? Theme.accentSoft : .clear))
         .hoverTint(cornerRadius: Theme.rowCorner)
