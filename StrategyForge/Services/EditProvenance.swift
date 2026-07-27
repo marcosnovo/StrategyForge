@@ -70,8 +70,10 @@ enum LineAttributor {
 
     /// A quadratic-LCS guard: past this many line-pairs we skip alignment and credit the
     /// whole new file to `author` (coarse but bounded — huge generated files won't stall
-    /// the run). ~2M pairs ≈ a 1.4k×1.4k line diff.
-    static let maxPairs = 2_000_000
+    /// the run). Runs on the main actor per file-edit, so keep the worst-case DP matrix
+    /// small (~400k cells ≈ a 630×630 line diff, a few MB + <~10ms) — bigger files degrade
+    /// to file-level attribution instead of a multi-million-cell spike mid-turn.
+    static let maxPairs = 400_000
 
     static func attribute(old: [String], oldAuthors: [EditProvenance?],
                           new: [String], author: EditProvenance) -> [EditProvenance?] {

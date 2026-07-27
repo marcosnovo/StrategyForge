@@ -234,6 +234,11 @@ final class ChatViewModel {
     var lineProvenance: [String: [EditProvenance?]] = [:]
     /// The last content we saw for each edited file, to diff the next edit against.
     @ObservationIgnored private var fileSnapshots: [String: [String]] = [:]
+    /// MRU order of paths tracked in `fileSnapshots`/`lineProvenance`, so we can cap how many
+    /// full-file line snapshots stay resident (a big refactor touching 100s of files would
+    /// otherwise hold every file's line array in RAM for the chat's whole life).
+    @ObservationIgnored private var provenanceOrder: [String] = []
+    private static let maxProvenanceFiles = 40
     /// Agent Skills the model has pulled in across this chat (slugs, unique).
     var skillsUsed: [String] = []
     /// Skills used within the current turn only — snapshotted into TurnActivity.
@@ -532,6 +537,16 @@ final class ChatViewModel {
                                                new: newLines, author: author)
         lineProvenance[path] = authors
         fileSnapshots[path] = newLines
+        // Retain full line-snapshots for only the most-recently-edited files (memory cap).
+        // Evicted files fall back to file-level attribution on their next edit — the same
+        // behaviour as a first-seen file, so no correctness loss, just coarser tinting.
+        provenanceOrder.removeAll { $0 == path }
+        provenanceOrder.append(path)
+        while provenanceOrder.count > Self.maxProvenanceFiles {
+            let old = provenanceOrder.removeFirst()
+            lineProvenance[old] = nil
+            fileSnapshots[old] = nil
+        }
     }
 
     /// If the run is idle and messages are waiting, send the next one. Called at the end
