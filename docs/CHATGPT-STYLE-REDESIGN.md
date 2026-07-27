@@ -141,3 +141,49 @@ paleta activa; `ContentView` re-renderiza con `.id(theme.active)`):
 - **Ember** — duotono coral→magenta; el atrevido.
 
 Editar la paleta de cualquiera: sus hex en `DesignSystem.palette`.
+
+---
+
+## "Living Reef" + colapso de layout + firma multi-agente (2026-07-27)
+
+Tras dos rechazos ("todos oscuros/feos"; "limpio pero sin alma, lejos de espectacular"), un panel de
+3 agentes **sobre capturas reales** (+ refs Dribbble/Linear/Raycast/Vercel) fijó que el fallo era
+**estructural, no de paleta**. Enviado (todo en `main`, 430 tests verdes, verificado lanzando la app):
+
+**Fundación estética "Living Reef":**
+- `sfHero` 34→44/bold, saludo con tracking -1.2 (momento diseñado, no título de tarjeta).
+- **Grano de película** global (`GrainOverlay`, softLight) — la textura "cara" que mata el vacío plano.
+- Estado vacío recompuesto: esfera 112 en halo coral que respira; prompts como tarjetas crafted
+  (IconBadge coral + glifo por intención).
+- **Default `classic`** (claro espectacular): porcelana cálida + glass + **"reef sunrise"** (blooms coral
+  de esquina que brillan a través del glass). Clave de persistencia → **v2** (arranca fresco en el nuevo
+  default, sortea el caché de cfprefsd). Oscuro **bioluminescence** a un clic.
+
+**Profundidad / disciplina de color (correcciones del review):**
+- Escalera de valor real en las 4 paletas claras (porcelana bajo tarjetas blancas); `card()`/`equalCard()`
+  **recuperan** una sombra e1; hairlines más nítidos; burbuja de usuario neutralizada (chip tinta sobre
+  tinte coral, no bloque saturado); iconos de fila de Skills neutros (coral solo donde significa).
+
+**Colapso ChatGPT (nav) + paneles:**
+- Rail **de iconos 64pt** y ahora **expandible/colapsable** (persistente, chevron al pie; 64↔208 con label).
+- Lista de chats **oculta por defecto** (icono Chats la revela; header la conmuta).
+- Panel de actividad → **columna inline** que empuja (no overlay), un único hueco derecho compartido con
+  Code Mode (excluyentes). Composer centrado a la medida de lectura.
+- **Barra superior unificada**: header del chat y del panel a la **misma altura fija** (`headerContentHeight`)
+  → se lee como una sola barra aunque salga el panel. Acciones del header con **hover + tooltip** (`headerIcon`).
+  Separadores chat|panel y rail|contenido a hairline 0.5α (menos intrusivos).
+
+**Firma multi-agente (Equipos):**
+- `StrategyDiagramView.drawBox` **colorea cada caja por `RoleKind.tint`** (advisor violeta, reviewer ámbar,
+  worker/orq coral) + luz interior + sombra → equipo con color, no muro de cajas coral. Tarjetas-plantilla
+  elevadas (e1).
+- El grafo del panel dejó de ser un **recuadro oscuro que desentonaba** → ahora es el **mismo diagrama claro
+  coloreado por rol** (cohesivo con Equipos). El `LiveAgentGraph` oscuro queda solo en el Lab.
+- Panel EQUIPO **siempre visible, estilo Codex**: cada agente con su icono/color de rol + tarea en vivo +
+  estado — ligado por color al escenario.
+
+**Rendimiento (2 pases con agentes + supervisor, huella mínima):** ver `[[performance-hardening]]` en
+memoria — en reposo no anima nada; RAM acotada (evicción de ViewModels, provenance 40 rutas, stdout
+recortado); arranque en paralelo; lectura+diff de provenance y agregación del panel **fuera del hilo
+principal / en una pasada**; git con watchdog; scheduler sin beachball. Equipos multi-proveedor/agente
+verificados por las suites (Meta/Advisor/Arena/CrossProvider).

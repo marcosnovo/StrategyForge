@@ -6,6 +6,21 @@ públicos de cada competidor. Todas las afirmaciones citan fuente; donde la fuen
 dato no estaba documentado públicamente se marca **(no confirmado)**.
 **Audiencia:** producto/roadmap interno.
 
+> **Actualización 2026-07-27 — `main`, gate verde (430 tests).** Iteración de **diseño +
+> rendimiento** (no de features nuevas de competidores, así que el análisis de abajo sigue
+> vigente). Refuerza directamente el foso "**única app nativa macOS pulida y liviana**" frente
+> a los rivales Electron/web/CLI:
+> - **Diseño "Living Reef"**: default claro espectacular (porcelana + amanecer coral) con oscuro
+>   bioluminescente a un clic; grano de película; héroe editorial; disciplina de coral (un acento).
+> - **Layout ChatGPT-calm**: rail de iconos expandible/colapsable, lista de chats bajo demanda,
+>   panel de actividad inline, barra superior unificada, acciones con hover+tooltip.
+> - **Firma multi-agente cohesiva**: topología coloreada por rol (Equipos + panel), lista de agentes
+>   "quién hace qué" estilo Codex.
+> - **Huella mínima** (auditoría 3 agentes + supervisor, ×2): en reposo no anima nada; RAM acotada
+>   (evicción de ViewModels, provenance capada, stdout recortado); arranque en paralelo; trabajo pesado
+>   fuera del hilo principal; git con watchdog. Ver `docs/CHATGPT-STYLE-REDESIGN.md` §2026-07-27.
+> - **Equipos multi-proveedor/agente** re-verificados por las suites (Meta/Advisor/Arena/CrossProvider).
+>
 > **Estado a 2026-07-24 — en `main`, gate `xcodebuild test` verde (401 tests).** Todo lo
 > "Inmediato" y la **memoria entre proyectos** completa están mergeados y verdes; ya no es
 > una proyección. Cerrado desde que se escribió el análisis:
