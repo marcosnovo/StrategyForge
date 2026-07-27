@@ -202,8 +202,11 @@ struct SkillsView: View {
                     Text("\(rank)").font(.sfCaption2.weight(.bold).monospacedDigit())
                         .foregroundStyle(.tertiary).frame(width: 18, alignment: .trailing)
                 }
+                // Neutral (coral discipline): a coral icon on all 13 rows diluted the accent
+                // into wallpaper. The row's colour now comes only where it MEANS something —
+                // the teal verified seal + the green "installed" mark.
                 Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 13))
-                    .foregroundStyle(Theme.accent).frame(width: 22)
+                    .foregroundStyle(.secondary).frame(width: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 5) {
                         Text(c.name).font(.sfCallout.weight(.medium)).lineLimit(1)
