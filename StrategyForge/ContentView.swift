@@ -74,7 +74,7 @@ struct ContentView: View {
             // in full when there's no active chat (so New chat stays reachable).
             // Always-present dark navigation rail (brand + actions + settings).
             NavRail(showSidebar: $model.showSidebar)
-            Divider()
+            Rectangle().fill(Theme.hairline.opacity(0.5)).frame(width: 1)
 
             // Second column: the chat list, the services list, or (in Team) the
             // strategy picker so you can swap the whole team.
@@ -91,7 +91,7 @@ struct ContentView: View {
             } else if model.navSection == .loops {
                 // Loops section leads with the loop list (mirrors Team).
                 LoopSelectorColumn(store: LoopStore.shared)
-                Divider()
+                Rectangle().fill(Theme.hairline.opacity(0.5)).frame(width: 1)
             } else if model.navSection == .usage || model.navSection == .advisor
                         || model.navSection == .particleLab || model.navSection == .code
                         || model.navSection == .skills || model.navSection == .memory

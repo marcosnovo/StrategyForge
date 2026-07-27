@@ -86,6 +86,7 @@ struct AgentActivityPanel: View {
                         .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.success)
                 }
             }
+            .frame(height: Theme.headerContentHeight)   // same fixed height as the chat header → one bar
             .padding(.horizontal, Space.m).padding(.bottom, Space.m).padding(.top, model.titlebarTopInset)
             .background {
                 Rectangle().fill(.bar)

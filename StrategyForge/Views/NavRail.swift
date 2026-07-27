@@ -22,8 +22,12 @@ struct NavRail: View {
     /// Advanced destinations (Loops / Skills / Usage) collapse by default so a first-run
     /// rail is just Chats · Code · Team + account — power stays one disclosure away.
     @AppStorage("nav.showAdvanced") private var showAdvanced = false
+    /// The rail can EXPAND to a labeled sidebar or stay a minimal icon strip (persisted).
+    @AppStorage("nav.railExpanded") private var railExpanded = false
     /// Live design-system selection (the swatch picker below Lab).
     @State private var theme = ThemeStore.shared
+
+    private var railWidth: CGFloat { railExpanded ? 208 : 64 }
 
     var body: some View {
         // ChatGPT-calm: a narrow ICON rail (64pt). Labels live in tooltips (.help), so the
@@ -105,13 +109,15 @@ struct NavRail: View {
                         .accessibilityLabel(model.t("settings.updates.badge"))
                 }
             }
+            railToggle
             profileRow
         }
-        .frame(width: 64)
+        .frame(width: railWidth)
         .frame(maxHeight: .infinity)
         .padding(.horizontal, Space.s)
         .padding(.top, 34)          // clear the floating traffic lights (hidden titlebar)
         .padding(.bottom, Space.m)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: railExpanded)
         // The rail uses the native macOS `.sidebar` vibrancy so it reads as a true sidebar,
         // distinct from the content columns (chat list / activity panel), which stay on
         // `translucentColumn`. This is the "rail ≠ content" separation (design review D5).
@@ -152,19 +158,31 @@ struct NavRail: View {
                 }
             }
         } label: {
-            Image(systemName: "paintpalette")
-                .font(.system(size: 16))
-                .foregroundStyle(Theme.secondaryOnMaterial)
-                .frame(width: 40, height: 34)
-                .overlay(alignment: .bottomTrailing) {
-                    Circle().fill(theme.active.palette.coral).frame(width: 8, height: 8)
+            HStack(spacing: Space.s) {
+                Image(systemName: "paintpalette")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Theme.secondaryOnMaterial)
+                    .frame(width: 40, height: 34)
+                    .overlay(alignment: .bottomTrailing) {
+                        if !railExpanded {
+                            Circle().fill(theme.active.palette.coral).frame(width: 8, height: 8)
+                                .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 0.5))
+                                .offset(x: -6, y: -5)
+                        }
+                    }
+                if railExpanded {
+                    Text(theme.active.displayName).font(.sfCaption2.weight(.medium))
+                        .foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Circle().fill(theme.active.palette.coral).frame(width: 10, height: 10)
                         .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 0.5))
-                        .offset(x: -6, y: -5)
                 }
-                .contentShape(Rectangle())
+            }
+            .padding(.trailing, railExpanded ? Space.s : 0)
+            .frame(maxWidth: railExpanded ? .infinity : 40, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden)
-        .frame(width: 40)
         .help(model.t("rail.theme"))
         .accessibilityLabel(model.t("rail.theme"))
     }
@@ -172,9 +190,16 @@ struct NavRail: View {
     /// Brand mark: just the coral glyph (matches the app icon) — the wordmark is dropped
     /// on the narrow icon rail.
     private var brand: some View {
-        CoralMark(size: 26, color: Theme.coral)
-            .frame(width: 40, height: 36)
-            .padding(.bottom, Space.xs)
+        HStack(spacing: Space.s) {
+            CoralMark(size: 26, color: Theme.coral)
+                .frame(width: 40, height: 36)
+            if railExpanded {
+                Text("Coral").font(.sfMono).foregroundStyle(Theme.ink)
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(maxWidth: railExpanded ? .infinity : 40, alignment: .leading)
+        .padding(.bottom, Space.xs)
     }
 
     /// The "New chat" affordance: a friendly rounded glass pill with a coral icon and
@@ -186,12 +211,20 @@ struct NavRail: View {
                 model.addConfiguration()
             }
         } label: {
-            Image(systemName: "square.and.pencil")
-                .font(.system(size: 16))
-                .foregroundStyle(Theme.coral)
-                .frame(width: 40, height: 34)
-                .glassPanel(cornerRadius: Theme.buttonCorner)
-                .contentShape(Rectangle())
+            HStack(spacing: Space.s) {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Theme.coral)
+                    .frame(width: 40, height: 34)
+                if railExpanded {
+                    Text(model.t("sidebar.new")).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink)
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(.trailing, railExpanded ? Space.s : 0)
+            .frame(maxWidth: railExpanded ? .infinity : 40)
+            .glassPanel(cornerRadius: Theme.buttonCorner)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(model.t("sidebar.new"))
@@ -244,25 +277,63 @@ struct NavRail: View {
 
     /// A short hairline rule that groups the icon rail into sections.
     private var railDivider: some View {
-        Rectangle().fill(Theme.hairline).frame(width: 24, height: 1)
+        Rectangle().fill(Theme.hairline)
+            .frame(width: railExpanded ? nil : 24, height: 1)
+            .frame(maxWidth: railExpanded ? .infinity : 24)
             .padding(.vertical, 2)
     }
 
-    /// Shared row chrome (used by `item` and the DEBUG `devItem`): a centered icon in a
-    /// square tap target, with a soft coral pill + coral tint when active and a running
-    /// pulse dot in the corner. The label rides in the tooltip (`.help`), not on the rail.
+    /// Shared row chrome (used by `item` and the DEBUG `devItem`): a leading icon in a
+    /// square tap target + (when the rail is EXPANDED) its label, with a soft coral pill +
+    /// coral tint when active and a running pulse dot. Collapsed → icon only, label in tooltip.
     private func rowBody(icon: String, label: String, active: Bool, running: Bool) -> some View {
-        Image(systemName: icon)
-            .font(.system(size: 17))
-            .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
-            .frame(width: 40, height: 34)
-            .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
-                .fill(active ? Theme.accentSoft : .clear))
-            .overlay(alignment: .topTrailing) {
-                if running && !active { RunningPulseDot().offset(x: -3, y: 3) }
+        HStack(spacing: Space.s) {
+            Image(systemName: icon)
+                .font(.system(size: 17))
+                .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
+                .frame(width: 40, height: 34)
+                .overlay(alignment: .topTrailing) {
+                    if running && !active { RunningPulseDot().offset(x: -3, y: 3) }
+                }
+            if railExpanded {
+                Text(label)
+                    .font(.sfBodyM.weight(active ? .semibold : .regular))
+                    .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
             }
-            .hoverTint(cornerRadius: Theme.rowCorner)
+        }
+        .padding(.trailing, railExpanded ? Space.s : 0)
+        .frame(maxWidth: railExpanded ? .infinity : 40, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+            .fill(active ? Theme.accentSoft : .clear))
+        .hoverTint(cornerRadius: Theme.rowCorner)
+        .contentShape(Rectangle())
+    }
+
+    /// Expand / collapse the rail between a labeled sidebar and the icon strip.
+    private var railToggle: some View {
+        Button {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) { railExpanded.toggle() }
+        } label: {
+            HStack(spacing: Space.s) {
+                Image(systemName: railExpanded ? "chevron.left.2" : "chevron.right.2")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.secondaryOnMaterial)
+                    .frame(width: 40, height: 30)
+                if railExpanded {
+                    Text(model.t("rail.collapse")).font(.sfCaption2.weight(.medium))
+                        .foregroundStyle(Theme.secondaryOnMaterial)
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(maxWidth: railExpanded ? .infinity : 40, alignment: .leading)
             .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverTint(cornerRadius: Theme.rowCorner)
+        .help(model.t(railExpanded ? "rail.collapse" : "rail.expand"))
+        .accessibilityLabel(model.t(railExpanded ? "rail.collapse" : "rail.expand"))
     }
 
 
@@ -273,7 +344,7 @@ struct NavRail: View {
     @ViewBuilder private var profileRow: some View {
         if let acc = auth.account {
             Button { showAccountMenu.toggle() } label: {
-                avatarCircle(initials(acc.label))
+                profileLabel(avatar: avatarCircle(initials(acc.label)), title: acc.label)
             }
             .buttonStyle(.plain)
             .help(acc.label)
@@ -281,12 +352,25 @@ struct NavRail: View {
             .padding(.top, Space.xs)
         } else {
             Button { model.navSection = .settings } label: {
-                signInAvatar
+                profileLabel(avatar: signInAvatar, title: model.t("rail.profile.signin"))
             }
             .buttonStyle(.plain)
             .help(model.t("rail.profile.signin"))
             .padding(.top, Space.xs)
         }
+    }
+
+    /// Avatar alone (collapsed) or avatar + name (expanded).
+    private func profileLabel(avatar: some View, title: String) -> some View {
+        HStack(spacing: Space.s) {
+            avatar
+            if railExpanded {
+                Text(title).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(maxWidth: railExpanded ? .infinity : nil, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     /// The account dropdown, styled like the reference: a soft frosted card of icon

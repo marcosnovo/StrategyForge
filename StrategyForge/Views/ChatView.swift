@@ -260,7 +260,11 @@ struct ChatView: View {
             }
         }
         .frame(width: CGFloat(activityW))
-        .overlay(alignment: .leading) { Divider() }
+        // A whisper-thin hairline seam (not a hard Divider) so the panel reads as part of
+        // the same surface as the conversation, not a bolted-on column.
+        .overlay(alignment: .leading) {
+            Rectangle().fill(Theme.hairline.opacity(0.5)).frame(width: 1)
+        }
     }
 
     private var chatColumn: some View {
@@ -625,21 +629,31 @@ struct ChatView: View {
         }
     }
 
+    /// A header action button: a 28×28 icon with a subtle rounded HOVER highlight + a
+    /// tooltip, tinting coral when `active`. Gives every header control the same feedback.
+    private func headerIcon(_ system: String, help: String, accessibility: String? = nil,
+                            active: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: system).font(.system(size: 14))
+                .foregroundStyle(active ? Theme.accent : .secondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverTint(cornerRadius: Theme.rowCorner)
+        .help(help)
+        .accessibilityLabel(accessibility ?? help)
+    }
+
     private var header: some View {
         HStack(spacing: Space.m) {
             VStack(alignment: .leading, spacing: 3) {
                 // Title row: the conversations toggle sits WITH the H1 (aligned to it, not
                 // orphaned in the left margin). ⌘\; coral only when the list is open.
                 HStack(spacing: Space.s) {
-                    Button {
+                    headerIcon("sidebar.leading", help: model.t("sidebar.toggle"), active: showSidebar) {
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { showSidebar.toggle() }
-                    } label: {
-                        Image(systemName: "sidebar.leading").font(.system(size: 14))
                     }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(showSidebar ? Theme.accent : .secondary)
-                    .help(model.t("sidebar.toggle"))
-                    .accessibilityLabel(model.t("sidebar.toggle"))
                     .keyboardShortcut("\\", modifiers: .command)
 
                     // The chat title — the H1, editable inline.
@@ -740,54 +754,31 @@ struct ChatView: View {
             }
             // Mission report — the shareable summary of the finished run.
             if vm.hasFinishedActivity {
-                Button { showReport = true } label: {
-                    Image(systemName: "flag.checkered").font(.system(size: 14))
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .help(model.t("report.open"))
-                .accessibilityLabel(model.t("report.title"))
+                headerIcon("flag.checkered", help: model.t("report.open"),
+                           accessibility: model.t("report.title")) { showReport = true }
             }
             if codeModeEligible {
-                Button {
+                headerIcon("chevron.left.forwardslash.chevron.right", help: model.t("chat.codeMode.help"),
+                           accessibility: model.t("chat.codeMode"), active: codeMode) {
                     codeMode.toggle()
                     if codeMode { showActivity = false }   // one right-side slot, mutually exclusive
-                } label: {
-                    Image(systemName: "chevron.left.forwardslash.chevron.right")
-                        .font(.system(size: 14))
-                        .foregroundStyle(codeMode ? Theme.accent : .secondary)
                 }
-                .buttonStyle(.borderless)
-                .help(model.t("chat.codeMode.help"))
-                .accessibilityLabel(model.t("chat.codeMode"))
             }
-
-            Button {
+            headerIcon("sidebar.trailing", help: model.t("chat.activity.help"),
+                       accessibility: model.t("chat.activity"), active: showActivity) {
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
                     showActivity.toggle()
                     if showActivity { codeMode = false }   // one right-side slot, mutually exclusive
                 }
                 if !showActivity { agentFocus = nil }
-            } label: {
-                Image(systemName: "sidebar.trailing")
-                    .font(.system(size: 14))
-                    .foregroundStyle(showActivity ? Theme.accent : .secondary)
             }
-            .buttonStyle(.borderless)
-            .help(model.t("chat.activity.help"))
-            .accessibilityLabel(model.t("chat.activity"))
-
-            Button { showInspector = true } label: {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 14))
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .help(model.t("inspector.toggle"))
-            .accessibilityLabel(model.t("chat.settings"))
+            headerIcon("slider.horizontal.3", help: model.t("inspector.toggle"),
+                       accessibility: model.t("chat.settings")) { showInspector = true }
             }
             .fixedSize()
             .layoutPriority(1)
         }
+        .frame(height: Theme.headerContentHeight)   // one fixed top-bar height (unified)
         .padding(.horizontal, Space.m).padding(.bottom, Space.m).padding(.top, model.titlebarTopInset)
         .background {
             Rectangle().fill(.bar)

@@ -484,6 +484,8 @@ enum L10n {
         "sidebar.chats": ("Chats", "Chats"),
         "inspector.config": ("Setup", "Configuración"),
         "sidebar.toggle": ("Show/hide sidebar", "Mostrar/ocultar barra lateral"),
+        "rail.expand": ("Expand sidebar", "Expandir barra lateral"),
+        "rail.collapse": ("Collapse sidebar", "Colapsar barra lateral"),
         "inspector.toggle": ("Chat settings (team & files)", "Ajustes del chat (equipo y archivos)"),
         "sidebar.settings": ("Settings", "Ajustes"),
         "sidebar.delete": ("Delete", "Eliminar"),

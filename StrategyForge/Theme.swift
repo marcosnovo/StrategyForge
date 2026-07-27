@@ -135,6 +135,10 @@ enum Theme {
     /// lights / hidden titlebar (content fills to the window edge; this pushes the
     /// header text down to a comfortable toolbar height instead of the very edge).
     static let titlebarInset: CGFloat = 30
+    /// Fixed CONTENT height for the top bar (below the titlebar inset), shared by the chat
+    /// header and the activity-panel header so the top bar reads as ONE continuous strip of
+    /// the same height across both columns, even when the right panel opens.
+    static let headerContentHeight: CGFloat = 40
     // Corner radii — soft & modern (reference "Aetheris" glass aesthetic): generous
     // rounding on cards, pills and bubbles for an airy, friendly surface.
     // Tighter, native-macOS radii — the loose 20pt rounding read as a generic web card;
