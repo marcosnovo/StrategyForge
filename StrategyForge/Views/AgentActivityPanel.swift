@@ -502,7 +502,11 @@ struct AgentActivityPanel: View {
         // ALWAYS visible (Codex-style): "who's on the crew and what each is doing right now."
         // Each row is coloured by its ROLE (icon + hue matching the constellation stage), so
         // the panel reads at a glance as a live crew, not a collapsed list.
-        VStack(alignment: .leading, spacing: Space.xs) {
+        // PERF: aggregate per-agent tool/step stats in ONE pass over the timeline here,
+        // instead of each row re-scanning the whole timeline twice (O(agents×steps) → the
+        // timeline can be hundreds of steps mid-run and this body re-evals on every append).
+        let agg = aggregatedStats()
+        return VStack(alignment: .leading, spacing: Space.xs) {
             HStack(spacing: Space.s) {
                 Text(model.t("activity.team")).font(.sfFieldLabel)
                     .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.8)
@@ -515,14 +519,41 @@ struct AgentActivityPanel: View {
             }
             agentRow(name: orchestratorName, icon: RoleKind.orchestrator.icon,
                      tint: RoleKind.orchestrator.tint, target: .orchestrator,
-                     objective: orchestratorObjective, status: orchestratorStatus)
+                     objective: orchestratorObjective, status: orchestratorStatus, stats: agg.orch)
             ForEach(shownStrategy.subagentRoles) { role in
                 let name = titleCase(role.name)
+                let s = agg.subs[name] ?? (0, nil)
                 agentRow(name: name, icon: role.role.icon, tint: role.role.tint, target: .sub(name),
                          objective: objective(forSubagent: name, fallback: role.description),
-                         status: status(forSubagent: name))
+                         status: subagentStatus(name, hasWork: s.tools > 0), stats: s)
             }
         }
+    }
+
+    /// One pass over the timeline → per-agent (tool count, elapsed span). Buckets a step to
+    /// the orchestrator (agent == nil) or the matching subagent name, mirroring `agentSteps`.
+    private func aggregatedStats() -> (orch: (tools: Int, span: String?),
+                                       subs: [String: (tools: Int, span: String?)]) {
+        let names = shownStrategy.subagentRoles.map { titleCase($0.name) }
+        var orchN = 0; var orchFirst: Date?; var orchLast: Date?
+        var acc: [String: (n: Int, first: Date?, last: Date?)] = [:]
+        for step in vm.timeline where !step.isDelegation {
+            if step.agent == nil {
+                orchN += 1; if orchFirst == nil { orchFirst = step.at }; orchLast = step.at
+            } else if let agent = step.agent,
+                      let match = names.first(where: { AgentNameMatcher.titlesMatch(agent, $0) }) {
+                var e = acc[match] ?? (0, nil, nil)
+                e.n += 1; if e.first == nil { e.first = step.at }; e.last = step.at
+                acc[match] = e
+            }
+        }
+        func span(_ f: Date?, _ l: Date?) -> String? {
+            guard let f, let l, l.timeIntervalSince(f) >= 1 else { return nil }
+            return activityElapsed(from: f, to: l)
+        }
+        var subs: [String: (tools: Int, span: String?)] = [:]
+        for (k, v) in acc { subs[k] = (v.n, span(v.first, v.last)) }
+        return ((orchN, span(orchFirst, orchLast)), subs)
     }
 
     private var orchestratorObjective: String {
@@ -533,17 +564,16 @@ struct AgentActivityPanel: View {
         if vm.isRunning { return .active }
         return vm.hasFinishedActivity ? .done : .idle
     }
-    private func status(forSubagent name: String) -> AgentStatus {
-        // Prefer the per-role in-progress set (accurate when several workers run at once);
-        // fall back to the single activeSubagent only when it's empty (native path). This
-        // is what keeps the panel in lockstep with the chat — a finished worker no longer
-        // shows "working" here while the chat shows it done.
+    /// Live status for a subagent. `hasWork` is precomputed by `aggregatedStats` (one pass)
+    /// so this no longer re-scans the timeline per row. The active check is cheap (the small
+    /// rolesInProgress set) — preferred over the single activeSubagent so several concurrent
+    /// workers stay in lockstep with the chat.
+    private func subagentStatus(_ name: String, hasWork: Bool) -> AgentStatus {
         let active = vm.isRunning && (
             vm.rolesInProgress.contains { AgentNameMatcher.titlesMatch($0, name) }
             || (vm.rolesInProgress.isEmpty && AgentNameMatcher.titlesMatch(vm.activeSubagent ?? "", name))
         )
         if active { return .active }
-        let hasWork = vm.timeline.contains { AgentNameMatcher.titlesMatch($0.agent ?? "", name) }
         return hasWork ? .done : .idle
     }
 
@@ -848,7 +878,8 @@ struct AgentActivityPanel: View {
     }
 
     private func agentRow(name: String, icon: String, tint: Color, target: AgentFocus,
-                          objective: String, status: AgentStatus) -> some View {
+                          objective: String, status: AgentStatus,
+                          stats: (tools: Int, span: String?)) -> some View {
         let isOpen = focus == target
         return Button {
             focus = isOpen ? nil : target
@@ -877,7 +908,6 @@ struct AgentActivityPanel: View {
                         .lineLimit(1).truncationMode(.tail)
                         .padding(.leading, 16 + Space.s)
                 }
-                let stats = agentStats(target)
                 if stats.tools > 0 {
                     HStack(spacing: Space.s) {
                         Label("\(stats.tools)", systemImage: "wrench.and.screwdriver")
