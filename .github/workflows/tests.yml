@@ -17,9 +17,27 @@ name: tests
 on:
   # Re-enabled once the repo went public — GitHub Actions is free for public repos, so
   # the cost concern that paused this is gone. This suite is the CLAUDE.md gate.
+  #
+  # paths-ignore: docs/branding-only pushes don't need a macOS run — nothing the
+  # test suite compiles or reads lives there (~1 in 4 recent commits were
+  # docs-only, so this trims ~25% of runs). Assets.xcassets is NOT ignored: it
+  # ships in the app bundle the tests build.
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'Branding/**'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'Branding/**'
+      - 'LICENSE'
+      - '.gitignore'
   workflow_dispatch:
 
 concurrency:
@@ -29,7 +47,10 @@ concurrency:
 jobs:
   unit-tests:
     runs-on: macos-26
-    timeout-minutes: 60
+    # Healthy runs finish in ~2.5–4.5 min wall clock; 15 gives 3× headroom over
+    # the slowest observed run while capping a hung test at 15 macOS minutes
+    # instead of 60 (macOS bills at 10× the Linux rate on private plans).
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +65,9 @@ jobs:
           set -o pipefail
           FORMAT=cat
           command -v xcbeautify >/dev/null 2>&1 && FORMAT=xcbeautify
+          # COMPILER_INDEX_STORE_ENABLE=NO skips index-store generation (useless
+          # on a throwaway runner, shaves compile time). ONLY_ACTIVE_ARCH=YES
+          # builds just the runner's arch instead of a universal binary.
           xcodebuild test \
             -project StrategyForge.xcodeproj \
             -scheme StrategyForge \
@@ -52,6 +76,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY= \
             DEVELOPMENT_TEAM= \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            ONLY_ACTIVE_ARCH=YES \
             | "$FORMAT"
 
       - name: Upload result bundle on failure
@@ -61,3 +87,7 @@ jobs:
           name: TestResults.xcresult
           path: TestResults.xcresult
           if-no-files-found: ignore
+          # xcresult bundles are big and only useful while the failure is being
+          # debugged — 3 days instead of the 90-day default keeps Actions
+          # storage near zero.
+          retention-days: 3
