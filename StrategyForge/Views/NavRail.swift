@@ -28,6 +28,14 @@ struct NavRail: View {
 
     private var railWidth: CGFloat { railExpanded ? 208 : 76 }
 
+    /// The power-tools group under "More" is collapsed by default (persisted).
+    @AppStorage("nav.showMore") private var showMore = false
+    /// Sections that live under "More" — used to auto-open the group when one is active.
+    private var moreSectionActive: Bool {
+        [.loops, .memory, .skills, .usage, .services].contains(model.navSection)
+    }
+    private var moreShown: Bool { showMore || moreSectionActive }
+
     var body: some View {
         // ChatGPT-calm: a narrow ICON rail (64pt). Labels live in tooltips (.help), so the
         // rail stops being a second text column and the conversation becomes the protagonist.
@@ -38,14 +46,16 @@ struct NavRail: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: Space.xs) {
+                    // PRIMARY (daily): chat, and the surfaces you build/compare with. A UX/IA
+                    // panel found the flat 11-item rail mixed daily destinations with power
+                    // tools + setup at equal weight — so the power tools now live under "More".
                     item("bubble.left.and.bubble.right.fill", "sidebar.chats",
                          active: model.navSection == .chats,
                          running: !model.runningChatIDs.isEmpty || !model.attentionChatIDs.isEmpty) {
                         model.guardedLeave {
                             model.navSection = .chats
                             // Rail = "where am I" (reveal the list); the chat HEADER's toggle is
-                            // the single place that hides it. (No blind toggle here — clicking
-                            // Chats while already there used to surprise-hide your list.)
+                            // the single place that hides it.
                             if reduceMotion { showSidebar = true }
                             else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
                         }
@@ -62,28 +72,33 @@ struct NavRail: View {
                     item("flag.checkered", "rail.arena", active: model.navSection == .arena) {
                         model.guardedLeave { model.navSection = .arena }
                     }
-                    item("brain", "rail.memory", active: model.navSection == .memory) {
-                        model.guardedLeave { model.navSection = .memory }
-                    }
-                    item("arrow.triangle.2.circlepath", "rail.loops",
-                         active: model.navSection == .loops,
-                         running: !LoopStore.shared.runningLoopIDs.isEmpty) {
-                        model.guardedLeave { model.navSection = .loops }
-                    }
-                    item("puzzlepiece.extension.fill", "rail.skills", active: model.navSection == .skills) {
-                        model.guardedLeave { model.navSection = .skills }
-                    }
-                    item("gauge.with.dots.needle.bottom.50percent", "rail.usage", active: model.navSection == .usage) {
-                        model.guardedLeave {
-                            model.navSection = .usage
-                            Task { await model.refreshUsage(includeExact: true) }
-                        }
-                    }
 
                     railDivider
 
-                    item("point.3.connected.trianglepath.dotted", "rail.connected", active: model.navSection == .services) {
-                        model.guardedLeave { model.navSection = .services }
+                    // POWER TOOLS + setup, behind one disclosure so the resting rail stays
+                    // scannable. Auto-expands when one of its sections is active.
+                    moreTile
+                    if moreShown {
+                        item("arrow.triangle.2.circlepath", "rail.loops",
+                             active: model.navSection == .loops,
+                             running: !LoopStore.shared.runningLoopIDs.isEmpty) {
+                            model.guardedLeave { model.navSection = .loops }
+                        }
+                        item("brain", "rail.memory", active: model.navSection == .memory) {
+                            model.guardedLeave { model.navSection = .memory }
+                        }
+                        item("puzzlepiece.extension.fill", "rail.skills", active: model.navSection == .skills) {
+                            model.guardedLeave { model.navSection = .skills }
+                        }
+                        item("gauge.with.dots.needle.bottom.50percent", "rail.usage", active: model.navSection == .usage) {
+                            model.guardedLeave {
+                                model.navSection = .usage
+                                Task { await model.refreshUsage(includeExact: true) }
+                            }
+                        }
+                        item("point.3.connected.trianglepath.dotted", "rail.connected", active: model.navSection == .services) {
+                            model.guardedLeave { model.navSection = .services }
+                        }
                     }
 
                     #if DEBUG
@@ -299,6 +314,47 @@ struct NavRail: View {
             .fill(active ? Theme.accentSoft : .clear))
         .hoverTint(cornerRadius: Theme.rowCorner)
         .contentShape(Rectangle())
+    }
+
+    /// The "More" disclosure tile: reveals the power-tools group (Loops / Memory / Skills /
+    /// Usage / Connections). Mirrors an `item` row; a running pulse rides the collapsed tile
+    /// when a hidden loop is live (so a background run's signal is never buried).
+    private var moreTile: some View {
+        let hiddenRunning = !moreShown && !LoopStore.shared.runningLoopIDs.isEmpty
+        let icon = moreShown ? "chevron.up" : "ellipsis"
+        return Button {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { showMore.toggle() }
+        } label: {
+            let iconView = Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Theme.secondaryOnMaterial)
+                .frame(width: 40, height: 30)
+                .overlay(alignment: .topTrailing) { if hiddenRunning { RunningPulseDot().offset(x: -3, y: 3) } }
+            Group {
+                if railExpanded {
+                    HStack(spacing: Space.s) {
+                        iconView
+                        Text(model.t("rail.more")).font(.sfBodyM).foregroundStyle(Theme.secondaryOnMaterial)
+                        Spacer(minLength: 0)
+                        Image(systemName: moreShown ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+                    }
+                    .padding(.trailing, Space.s).frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    VStack(spacing: 1) {
+                        iconView
+                        Text(model.t("rail.more")).font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1).minimumScaleFactor(0.75)
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 3)
+                }
+            }
+            .hoverTint(cornerRadius: Theme.rowCorner)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(model.t("rail.more"))
+        .accessibilityLabel(model.t("rail.more"))
     }
 
     /// Expand / collapse the rail between a labeled sidebar and the icon strip.
