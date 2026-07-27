@@ -265,6 +265,10 @@ struct StrategyPickerColumn: View {
             .frame(maxWidth: .infinity, minHeight: 312, maxHeight: 312, alignment: .topLeading)
             .contentShape(Rectangle())
             .selectedRow(selected, cornerRadius: Theme.innerCorner, restingFill: Theme.cardBg)
+            // A soft contact shadow so each template reads as a LIFTED card on the warm
+            // ground (it was a flat hairline rectangle — the chat suggestion cards already
+            // do this; the picker should match).
+            .elevation(.e1)
             // Keep the resting card hairline when unselected; selection draws its own.
             .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
                 .strokeBorder(selected ? .clear : Theme.hairline, lineWidth: 1))
