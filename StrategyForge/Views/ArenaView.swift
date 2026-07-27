@@ -605,14 +605,21 @@ struct ArenaView: View {
                 Spacer()
                 if !arena.isRunningTeams { judgeButton(candidates: teamCandidates) { arena.teamWinnerID = $0 } }
             }
-            // A 1s heartbeat keeps every card's elapsed timer ticking while running, so a
-            // slow team visibly progresses instead of looking frozen.
-            TimelineView(.periodic(from: Date(), by: 1)) { context in
-                let cols = [GridItem(.adaptive(minimum: 320, maximum: 440), spacing: Space.l, alignment: .top)]
-                LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
-                    ForEach(arena.teamOrder) { c in teamResultCard(c, now: context.date) }
-                }
+            // A 1s heartbeat keeps every card's elapsed timer ticking WHILE RUNNING. Once the
+            // arena finishes we render the grid statically (no TimelineView) so it stops
+            // re-evaluating every card every second forever (PERF: idle CPU).
+            if arena.isRunningTeams {
+                TimelineView(.periodic(from: Date(), by: 1)) { context in teamResultsGrid(now: context.date) }
+            } else {
+                teamResultsGrid(now: Date())
             }
+        }
+    }
+
+    private func teamResultsGrid(now: Date) -> some View {
+        let cols = [GridItem(.adaptive(minimum: 320, maximum: 440), spacing: Space.l, alignment: .top)]
+        return LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
+            ForEach(arena.teamOrder) { c in teamResultCard(c, now: now) }
         }
     }
 
@@ -738,12 +745,18 @@ struct ArenaView: View {
                         .buttonStyle(.bordered).controlSize(.small)
                 }
             }
-            TimelineView(.periodic(from: Date(), by: 1)) { context in
-                let cols = [GridItem(.adaptive(minimum: 340, maximum: 460), spacing: Space.l, alignment: .top)]
-                LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
-                    ForEach(arena.codeOrder) { c in codeResultCard(c, now: context.date) }
-                }
+            if arena.isRunningCode {
+                TimelineView(.periodic(from: Date(), by: 1)) { context in codeResultsGrid(now: context.date) }
+            } else {
+                codeResultsGrid(now: Date())
             }
+        }
+    }
+
+    private func codeResultsGrid(now: Date) -> some View {
+        let cols = [GridItem(.adaptive(minimum: 340, maximum: 460), spacing: Space.l, alignment: .top)]
+        return LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
+            ForEach(arena.codeOrder) { c in codeResultCard(c, now: now) }
         }
     }
 

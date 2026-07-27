@@ -267,28 +267,30 @@ struct LoopRunPanel: View {
     private func setSchedule(_ on: Bool) {
         if on {
             guard let repoURL else { return }
-            Task {
+            Task {   // main actor (touches model + @State); only the blocking call is detached
                 let didAccess = repoURL.startAccessingSecurityScopedResource()
                 defer { if didAccess { repoURL.stopAccessingSecurityScopedResource() } }
-                // resolveBinary + launchctl run off the main actor (login shell is slow).
-                let err = LoopScheduler.enable(plan: plan, repoURL: repoURL,
-                                               binary: binary, intervalMinutes: plan.intervalMinutes)
-                await MainActor.run {
-                    if let err { model.flashFailure(err); scheduled = false }
-                    else {
-                        scheduled = true
-                        lastScheduleError = nil
-                        model.flashSuccess(model.t("loop.schedule.enabled", plan.intervalMinutes))
-                    }
+                // PERF: `enable` does a login-shell resolveBinary + launchctl spawns — all
+                // SYNCHRONOUS. Running it on the main actor beach-balls the UI for ~0.5-1s on
+                // the Schedule toggle. Hop it to a detached task; the security-scoped access is
+                // URL/process-scoped, so it still spans the enable across the await.
+                let p = plan, url = repoURL, b = binary, interval = plan.intervalMinutes
+                let err = await Task.detached {
+                    LoopScheduler.enable(plan: p, repoURL: url, binary: b, intervalMinutes: interval)
+                }.value
+                if let err { model.flashFailure(err); scheduled = false }
+                else {
+                    scheduled = true
+                    lastScheduleError = nil
+                    model.flashSuccess(model.t("loop.schedule.enabled", plan.intervalMinutes))
                 }
             }
         } else {
             Task {
-                LoopScheduler.disable(plan.id)
-                await MainActor.run {
-                    scheduled = false
-                    model.flashSuccess(model.t("loop.schedule.disabled"))
-                }
+                let id = plan.id
+                await Task.detached { LoopScheduler.disable(id) }.value   // launchctl spawn, off main
+                scheduled = false
+                model.flashSuccess(model.t("loop.schedule.disabled"))
             }
         }
     }

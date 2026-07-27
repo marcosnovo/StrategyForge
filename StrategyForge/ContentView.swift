@@ -377,6 +377,9 @@ struct GrainOverlay: View {
 struct AppAuroraBackground: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Pause the animated (caustic) backdrop when the app isn't frontmost — no sense burning
+    /// 20fps of blurred gradient while the user is in another app.
+    @Environment(\.scenePhase) private var scenePhase
     /// Accessibility: when Reduce Transparency is on, drop the translucent haze + blooms
     /// for a solid, opaque base (the whole app's glass falls back to opaque too).
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -447,8 +450,9 @@ struct AppAuroraBackground: View {
     /// so it reads as living water, not a static gradient. The hero atmosphere.
     private func causticGlow(w: CGFloat, h: CGFloat, d: CGFloat) -> some View {
         let strong = Theme.P.glow                                   // 0.42 in dark
-        return TimelineView(.animation(minimumInterval: 1.0 / 20, paused: reduceMotion)) { tl in
-            let t = reduceMotion ? 0 : tl.date.timeIntervalSinceReferenceDate
+        let frozen = reduceMotion || scenePhase != .active
+        return TimelineView(.animation(minimumInterval: 1.0 / 20, paused: frozen)) { tl in
+            let t = frozen ? 0 : tl.date.timeIntervalSinceReferenceDate
             ZStack {
                 bloom(Theme.coral, at: CGPoint(x: w * (0.30 + 0.06 * sin(t * 0.20)),
                                                y: h * (0.84 + 0.03 * cos(t * 0.16))), size: d * 1.15, opacity: strong * 0.5)

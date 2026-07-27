@@ -107,9 +107,22 @@ enum CodeGit {
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = args
         let out = Pipe(); p.standardOutput = out; p.standardError = out
+        // Never let git block on an interactive prompt (a repo needing credentials/askpass
+        // would hang readToEnd forever): no stdin, and disable any terminal/askpass prompts.
+        p.standardInput = FileHandle.nullDevice
+        var env = ProcessInfo.processInfo.environment
+        env["GIT_TERMINAL_PROMPT"] = "0"; env["GIT_ASKPASS"] = "/usr/bin/true"; env["GCM_INTERACTIVE"] = "never"
+        p.environment = env
         do { try p.run() } catch { return (-1, "git \(args.joined(separator: " ")) failed") }
+        // Stability: register for kill-on-quit + a watchdog so a wedged git (huge diff, stalled
+        // FS, credential hang) can't hang the task or survive as an orphan process.
+        LiveProcesses.register(p)
+        let watchdog = DispatchWorkItem { if p.isRunning { p.terminate() } }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 20, execute: watchdog)
         let data = out.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
+        watchdog.cancel()
+        LiveProcesses.deregister(p)
         return (p.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
 
