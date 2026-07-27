@@ -383,6 +383,7 @@ enum L10n {
         "usage.sevenDay": ("Last 7 days", "Últimos 7 días"),
         "usage.week": ("Last 7 days", "Últimos 7 días"),
         "usage.resetsIn": ("Resets in %@", "Se reinicia en %@"),
+        "usage.pill.a11y": ("Claude: %d%% of the 5-hour limit used — tap for details", "Claude: %d%% del límite de 5 horas usado — toca para ver detalles"),
         "usage.noActiveWindow": ("No activity in the current window", "Sin actividad en la ventana actual"),
         "usage.codex.window.5h": ("5-hour limit", "Límite 5 h"),
         "usage.codex.window.day": ("Daily limit", "Límite diario"),

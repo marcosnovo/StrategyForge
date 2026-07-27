@@ -752,6 +752,10 @@ struct ChatView: View {
                         .help(vm.costEstimated ? model.t("usage.estimated.help") : "")
                 }
             }
+            // Plan headroom: your live Claude 5-hour rate-limit %, always visible while you
+            // work (chat AND Code Mode share this header) — calm until you near the cap, then
+            // amber/red. Tap → the Usage section. Renders nothing until the % is available.
+            ClaudeUsagePill(style: .chip)
             // Mission report — the shareable summary of the finished run.
             if vm.hasFinishedActivity {
                 headerIcon("flag.checkered", help: model.t("report.open"),

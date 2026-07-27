@@ -110,6 +110,11 @@ struct NavRail: View {
                 .padding(.vertical, Space.xs)
             }
 
+            // Ambient Claude rate-limit % at the rail foot ("como antes"): glanceable while
+            // you work anywhere in the app, cache-backed (no Keychain touch here — the rail's
+            // .task refreshes local/cached only), tap → Usage. Hidden until the % is known.
+            ClaudeUsagePill(style: .tile)
+
             themePicker
 
             item("gearshape.fill", "sidebar.settings", active: model.navSection == .settings) {

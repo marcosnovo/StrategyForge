@@ -102,49 +102,56 @@ struct UsageView: View {
         }
     }
 
+    /// The local 7-day token breakdown per model (shown as an EXTRA under the % when the
+    /// ~/.claude logs exist on this Mac; absent on a fresh machine — the % still shows).
+    @ViewBuilder private func claudeLocalBreakdown(_ u: UsageSummary) -> some View {
+        Divider()
+        HStack {
+            Text(model.t("usage.sevenDay")).font(.sfFieldLabel).foregroundStyle(.secondary).tracking(0.6)
+            Spacer()
+            Text(formatTokens(u.weekTokens)).font(.sfMono).foregroundStyle(.secondary)
+        }
+        if u.weekByModel.isEmpty {
+            Text(model.t("usage.noWeek")).font(.sfCaption2).foregroundStyle(.secondary)
+        } else {
+            ForEach(Array(u.weekByModel.prefix(4).enumerated()), id: \.element.id) { i, m in
+                modelBar(m, total: u.weekTokens, index: i)
+            }
+        }
+    }
+
     private var claudeUsageCard: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             providerCardHeader(.claude, last: model.claudeUsage?.lastActivity)
-            if let u = model.claudeUsage, u.hasData {
-                if let e = model.claudeExact {
-                    // Real rate-limit % from Claude's own endpoint (the exact numbers).
-                    UsageRing(fraction: e.fiveHourPercent / 100,
-                              label: "\(Int(e.fiveHourPercent.rounded()))%",
-                              caption: model.t("usage.fiveHour"))
-                        .frame(width: 96, height: 96).frame(maxWidth: .infinity)
-                    if let r = e.fiveHourResetsAt {
-                        TimelineView(.periodic(from: .now, by: 30)) { ctx in
-                            Text(model.t("usage.resetsIn", countdown(to: r, now: ctx.date)))
-                                .font(.sfCaption2).foregroundStyle(.secondary).frame(maxWidth: .infinity)
-                        }
-                    }
-                    modelPctBar(model.t("usage.sevenDay"), percent: e.weekPercent)
-                } else {
-                    // No exact data yet (signed out / not fetched) — 5h time-to-reset ring
-                    // + a sign-in that unlocks the exact percentages.
-                    UsageRing(fraction: blockFraction(u), label: fiveHourLabel(u),
-                              caption: model.t("usage.fiveHour"))
-                        .frame(width: 96, height: 96).frame(maxWidth: .infinity)
-                    Button { reconnectingClaude = true } label: {
-                        Label(model.t("usage.claude.exact"), systemImage: "arrow.up.forward.app")
-                            .font(.sfCaption2)
-                    }
-                    .buttonStyle(.plain).foregroundStyle(Theme.accent)   // CTA → coral (the one accent)
-                    .frame(maxWidth: .infinity)
-                }
-                Divider()
-                HStack {
-                    Text(model.t("usage.sevenDay")).font(.sfFieldLabel).foregroundStyle(.secondary).tracking(0.6)
-                    Spacer()
-                    Text(formatTokens(u.weekTokens)).font(.sfMono).foregroundStyle(.secondary)
-                }
-                if u.weekByModel.isEmpty {
-                    Text(model.t("usage.noWeek")).font(.sfCaption2).foregroundStyle(.secondary)
-                } else {
-                    ForEach(Array(u.weekByModel.prefix(4).enumerated()), id: \.element.id) { i, m in
-                        modelBar(m, total: u.weekTokens, index: i)
+            if let e = model.claudeExact {
+                // The authoritative rate-limit % — the HERO — shown whenever we have it, even
+                // with NO local token logs on this Mac. (The old code nested this inside the
+                // local-logs check, so a fresh Mac saw "nothing to show" and the % was hidden.)
+                UsageRing(fraction: e.fiveHourPercent / 100,
+                          label: "\(Int(e.fiveHourPercent.rounded()))%",
+                          caption: model.t("usage.fiveHour"))
+                    .frame(width: 96, height: 96).frame(maxWidth: .infinity)
+                if let r = e.fiveHourResetsAt {
+                    TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                        Text(model.t("usage.resetsIn", countdown(to: r, now: ctx.date)))
+                            .font(.sfCaption2).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                     }
                 }
+                modelPctBar(model.t("usage.sevenDay"), percent: e.weekPercent)
+                if let u = model.claudeUsage, u.hasData { claudeLocalBreakdown(u) }
+            } else if let u = model.claudeUsage, u.hasData {
+                // No exact % yet (not fetched / signed out) — 5h time-to-reset ring + a
+                // sign-in that unlocks the exact percentages.
+                UsageRing(fraction: blockFraction(u), label: fiveHourLabel(u),
+                          caption: model.t("usage.fiveHour"))
+                    .frame(width: 96, height: 96).frame(maxWidth: .infinity)
+                Button { reconnectingClaude = true } label: {
+                    Label(model.t("usage.claude.exact"), systemImage: "arrow.up.forward.app")
+                        .font(.sfCaption2)
+                }
+                .buttonStyle(.plain).foregroundStyle(Theme.accent)   // CTA → coral (the one accent)
+                .frame(maxWidth: .infinity)
+                claudeLocalBreakdown(u)
             } else if model.isRefreshingUsage { loadingCard } else { emptyCard }
             Spacer(minLength: 0)
         }
