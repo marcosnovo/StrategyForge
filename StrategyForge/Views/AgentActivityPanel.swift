@@ -586,27 +586,6 @@ struct AgentActivityPanel: View {
         return fallback
     }
 
-    /// The tool steps attributed to one agent (Claude-Code-style per-agent metrics
-    /// derived from the live timeline — the orchestrator owns the un-delegated steps).
-    private func agentSteps(_ target: AgentFocus) -> [ActivityStep] {
-        vm.timeline.filter { step in
-            guard !step.isDelegation else { return false }
-            switch target {
-            case .orchestrator: return step.agent == nil
-            case .sub(let n): return AgentNameMatcher.titlesMatch(step.agent ?? "", n)
-            case .allSteps: return true
-            }
-        }
-    }
-
-    /// (tools used, elapsed span) for one agent, or nil span when it hasn't spanned time.
-    private func agentStats(_ target: AgentFocus) -> (tools: Int, span: String?) {
-        let steps = agentSteps(target)
-        guard let first = steps.first?.at, let last = steps.last?.at else { return (0, nil) }
-        let span = last.timeIntervalSince(first) >= 1 ? activityElapsed(from: first, to: last) : nil
-        return (steps.count, span)
-    }
-
     // MARK: Steps (recent + "see all" on the right)
 
     // MARK: Persistent agent history (#7)

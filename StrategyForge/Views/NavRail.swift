@@ -21,7 +21,6 @@ struct NavRail: View {
     @State private var showAccountMenu = false
     /// Advanced destinations (Loops / Skills / Usage) collapse by default so a first-run
     /// rail is just Chats · Code · Team + account — power stays one disclosure away.
-    @AppStorage("nav.showAdvanced") private var showAdvanced = false
     /// The rail can EXPAND to a labeled sidebar or stay a minimal icon strip (persisted).
     @AppStorage("nav.railExpanded") private var railExpanded = false
     /// Live design-system selection (the swatch picker below Lab).
@@ -246,35 +245,6 @@ struct NavRail: View {
         .accessibilityLabel(model.t(labelKey))
     }
 
-    /// A muted uppercase group divider label (reference-style nav grouping).
-    /// A tappable group header that expands/collapses the Advanced section.
-    private func advancedHeader(expanded: Bool) -> some View {
-        Button {
-            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { showAdvanced.toggle() }
-        } label: {
-            HStack(spacing: Space.xs) {
-                Text(model.t("rail.group.advanced").uppercased())
-                    .font(.sfFieldLabel).tracking(0.8)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 8, weight: .semibold))
-                    .rotationEffect(.degrees(expanded ? 90 : 0))
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(Theme.secondaryOnMaterial)
-            .padding(.horizontal, Space.m).padding(.top, Space.m).padding(.bottom, 2)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(model.t("rail.group.advanced"))
-        .accessibilityValue(expanded ? model.t("common.expanded") : model.t("common.collapsed"))
-    }
-
-    /// Toggle the chat-list column open/closed (the Chats icon is now the reveal gesture).
-    private func toggleSidebar() {
-        if reduceMotion { showSidebar.toggle() }
-        else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar.toggle() } }
-    }
-
     /// A short hairline rule that groups the icon rail into sections.
     private var railDivider: some View {
         Rectangle().fill(Theme.hairline)
@@ -414,43 +384,6 @@ struct NavRail: View {
         }
         .buttonStyle(.plain)
         .hoverTint(cornerRadius: Theme.rowCorner)
-    }
-
-    /// A distinct profile card (reference "Sophia · Pro Plan" style): a solid, softly
-    /// elevated light card — avatar + name + plan/email + a chevron — so it reads
-    /// clearly as its own element at the foot of the translucent rail (a faint frosted
-    /// patch got lost against the glass).
-    private func profileCard(avatar: some View, title: String, sub: String?,
-                             trailingIcon: String?) -> some View {
-        HStack(spacing: Space.s) {
-            avatar
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.sfBodyM.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
-                if let sub, !sub.isEmpty {
-                    Text(sub).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 0)
-            if let trailingIcon {
-                Image(systemName: trailingIcon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.secondaryOnMaterial)
-            }
-        }
-        .padding(.horizontal, Space.m)
-        .padding(.vertical, 10)
-        // A solid, elevated card — clearly defined against the frosted rail.
-        .background(
-            RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-                .fill(Theme.cardBg)
-                .shadow(color: .black.opacity(0.10), radius: 8, x: 0, y: 3)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
-                .strokeBorder(Theme.hairline, lineWidth: 1)
-        )
-        .padding(.top, Space.xs)
-        .contentShape(Rectangle())
     }
 
     /// Solid coral avatar with white initials — a clear, high-contrast identity chip
