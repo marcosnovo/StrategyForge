@@ -67,7 +67,23 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            ConnectedServicesSection()
+            // De-duplicated: provider connection lives in ONE canonical place — the
+            // Connections surface (reached from chat, onboarding, banners…). Settings links
+            // there instead of embedding a second, parallel connect/test UI.
+            Section(model.t("settings.connected")) {
+                Button { model.navSection = .services } label: {
+                    HStack {
+                        Label(model.t("settings.connected.manage"), systemImage: "point.3.connected.trianglepath.dotted")
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                Text(model.t("settings.connected.caption"))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Section(model.t("settings.privacy")) {
                 Toggle(isOn: Binding(

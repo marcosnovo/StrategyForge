@@ -274,7 +274,7 @@ enum L10n {
                                "Describe tu tarea abajo — elegiré los compañeros que encajen. Siempre puedes cambiar el equipo después."),
         "chat.loop.create": ("Create a loop from this chat", "Crear un loop desde este chat"),
         "chat.loop.created": ("Loop created from this chat", "Loop creado desde este chat"),
-        "rail.connected": ("Connections", "Conexiones"),
+        "rail.connected": ("Providers", "Proveedores"),
         "topic.research": ("Research", "Investigación"),
         "topic.review": ("Review", "Revisión"),
         "topic.design": ("Design", "Diseño"),
@@ -680,8 +680,8 @@ enum L10n {
         "banner.memoryCorrupt": ("Your knowledge base couldn’t be read. A backup was kept as “%@” in Application Support/Coral.",
                                  "No se pudo leer tu base de conocimiento. Se conservó una copia como «%@» en Application Support/Coral."),
         // Memory (cross-project knowledge base)
-        "rail.memory": ("Memory", "Memoria"),
-        "memory.title": ("Memory", "Memoria"),
+        "rail.memory": ("Learnings", "Aprendizajes"),
+        "memory.title": ("Learnings", "Aprendizajes"),
         "memory.add": ("Add a learning", "Añadir aprendizaje"),
         "memory.import": ("Import from a STATE.md", "Importar de un STATE.md"),
         "memory.untitled": ("Untitled learning", "Aprendizaje sin título"),
@@ -709,8 +709,8 @@ enum L10n {
                                   "Destila estos hallazgos en la base de conocimiento, para que futuros equipos eviten los mismos errores."),
         "review.saveMemoryDone": ("Saved %d learnings to memory.", "Guardados %d aprendizajes en la memoria."),
         // Arena (compete providers on one task)
-        "rail.arena": ("Arena", "Arena"),
-        "arena.title": ("Arena", "Arena"),
+        "rail.arena": ("Compare", "Comparar"),
+        "arena.title": ("Compare", "Comparar"),
         "arena.subtitle": ("Run one task against several providers at once, then keep the best answer.",
                            "Corre una tarea contra varios proveedores a la vez y quédate con la mejor respuesta."),
         "arena.task": ("Task", "Tarea"),
@@ -821,6 +821,7 @@ enum L10n {
 
         // MARK: Connected services (multi-provider)
         "settings.connected": ("Connected services", "Servicios conectados"),
+        "settings.connected.manage": ("Manage providers", "Gestionar proveedores"),
         "settings.connected.caption": ("Run your chats on different providers using your own subscription logins — no API keys. Install each provider's command-line app (CLI) and sign in there; Coral detects it automatically.",
                                        "Ejecuta tus chats en distintos proveedores con tus propios inicios de sesión — sin claves API. Instala la app de línea de comandos (CLI) de cada proveedor e inicia sesión ahí; Coral la detecta automáticamente."),
         "provider.checking": ("Checking…", "Comprobando…"),

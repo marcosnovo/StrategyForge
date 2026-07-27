@@ -35,32 +35,6 @@ struct ContentView: View {
         showTaskGen = true
     }
 
-    /// Advisor → chat: new chat with the recommended team applied and the task
-    /// text seeded as the draft, no team saved.
-    private func useAdviceInChat(_ advice: AdvisorEngine.Advice, task: String) {
-        model.addConfiguration()
-        if let id = model.selectedConfigID {
-            model.applyTemplate(advice.strategy, to: id)
-            model.updateDraft(id, task)
-        }
-        model.navSection = .chats
-        model.flashSuccess(model.t("advisor.usedInChat"))
-    }
-
-    /// Advisor → loop: a new loop pre-filled with a name inferred from the task,
-    /// plus the recommended kind, goal and worker model, opened in the Loop Builder.
-    private func createLoop(from advice: AdvisorEngine.Advice, task: String) {
-        let inferred = AppModel.inferredTitle(from: task)
-        let name = inferred.isEmpty ? String(task.prefix(48)) : inferred
-        let prefill = LoopPlan(name: name,
-                               kind: advice.loopKind,
-                               goal: advice.goalSuggestion,
-                               effort: advice.effort,
-                               workerModel: advice.model)
-        LoopStore.shared.addLoop(prefill: prefill)
-        model.navSection = .loops
-        model.flashSuccess(model.t("loop.createdFromAdvice"))
-    }
 
     var body: some View {
         @Bindable var model = model
@@ -92,7 +66,7 @@ struct ContentView: View {
                 // Loops section leads with the loop list (mirrors Team).
                 LoopSelectorColumn(store: LoopStore.shared)
                 Rectangle().fill(Theme.hairline.opacity(0.5)).frame(width: 1)
-            } else if model.navSection == .usage || model.navSection == .advisor
+            } else if model.navSection == .usage
                         || model.navSection == .particleLab || model.navSection == .code
                         || model.navSection == .skills || model.navSection == .memory
                         || model.navSection == .arena || model.navSection == .settings {
@@ -158,10 +132,6 @@ struct ContentView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-            } else if model.navSection == .advisor {
-                AdvisorView(onUseInChat: { advice, task in useAdviceInChat(advice, task: task) },
-                            onCreateLoop: { advice, task in createLoop(from: advice, task: task) })
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .particleLab {
                 ParticleLabView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
