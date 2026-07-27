@@ -627,26 +627,28 @@ struct ChatView: View {
 
     private var header: some View {
         HStack(spacing: Space.m) {
-            // Show/hide the conversations list — the single, discoverable control for the
-            // left column (ChatGPT-style ⌘\). Coral when the list is open.
-            Button {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { showSidebar.toggle() }
-            } label: {
-                Image(systemName: "sidebar.leading").font(.system(size: 14))
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(showSidebar ? Theme.accent : .secondary)
-            .help(model.t("sidebar.toggle"))
-            .accessibilityLabel(model.t("sidebar.toggle"))
-            .keyboardShortcut("\\", modifiers: .command)
-
             VStack(alignment: .leading, spacing: 3) {
-                // The chat title — the H1, editable inline.
-                TextField(model.t("chat.untitled"), text: $editingTitle)
-                    .textFieldStyle(.plain)
-                    .font(.sfCardTitle)
-                    .lineLimit(1)
-                    .onSubmit { rename(editingTitle) }
+                // Title row: the conversations toggle sits WITH the H1 (aligned to it, not
+                // orphaned in the left margin). ⌘\; coral only when the list is open.
+                HStack(spacing: Space.s) {
+                    Button {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { showSidebar.toggle() }
+                    } label: {
+                        Image(systemName: "sidebar.leading").font(.system(size: 14))
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(showSidebar ? Theme.accent : .secondary)
+                    .help(model.t("sidebar.toggle"))
+                    .accessibilityLabel(model.t("sidebar.toggle"))
+                    .keyboardShortcut("\\", modifiers: .command)
+
+                    // The chat title — the H1, editable inline.
+                    TextField(model.t("chat.untitled"), text: $editingTitle)
+                        .textFieldStyle(.plain)
+                        .font(.sfCardTitle)
+                        .lineLimit(1)
+                        .onSubmit { rename(editingTitle) }
+                }
 
                 HStack(spacing: Space.s) {
                     providerStack
@@ -700,7 +702,9 @@ struct ChatView: View {
                             Label(model.t("chat.connectRepo"), systemImage: "folder.badge.plus")
                                 .font(.sfCaption2)
                         }
-                        .buttonStyle(.plain).foregroundStyle(Theme.accent)   // CTA → coral (the one accent)
+                        // Secondary (neutral): the coral-tinted "team" chip beside it is the one
+                        // accent in this row — two coral links competing read as noise.
+                        .buttonStyle(.plain).foregroundStyle(.secondary)
                         .help(model.t("chat.connectRepo.help"))
                     }
                 }
