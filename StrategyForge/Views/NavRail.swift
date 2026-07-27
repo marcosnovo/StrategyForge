@@ -233,16 +233,16 @@ struct NavRail: View {
             Group {
                 if railExpanded {
                     HStack(spacing: Space.s) {
-                        Image(systemName: "square.and.pencil").font(.system(size: 16)).foregroundStyle(Theme.coral)
+                        Image(systemName: "square.and.pencil").font(.system(size: 16, weight: .medium)).foregroundStyle(Theme.coral)
                             .frame(width: 40, height: 34)
-                        Text(model.t("sidebar.new")).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink)
+                        Text(model.t("sidebar.new")).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.coral)
                         Spacer(minLength: 0)
                     }
                     .padding(.trailing, Space.s)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     VStack(spacing: 1) {
-                        Image(systemName: "square.and.pencil").font(.system(size: 16)).foregroundStyle(Theme.coral)
+                        Image(systemName: "square.and.pencil").font(.system(size: 16, weight: .medium)).foregroundStyle(Theme.coral)
                             .frame(width: 40, height: 30)
                         Text(model.t("sidebar.newShort")).font(.system(size: 9, weight: .medium))
                             .foregroundStyle(Theme.coral).lineLimit(1).minimumScaleFactor(0.75)
@@ -250,7 +250,9 @@ struct NavRail: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 3)
                 }
             }
-            .glassPanel(cornerRadius: Theme.buttonCorner)
+            // No raised glass pill — "Nuevo" is a flat, coral create action (marked by colour,
+            // not a white floating block that stacked as a second heavy slab above Chats).
+            .hoverTint(cornerRadius: Theme.rowCorner)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -286,10 +288,15 @@ struct NavRail: View {
     /// at a glance (an icon-only rail left "what is this?" to a hover tooltip). Soft coral pill
     /// + coral tint when active; a running pulse dot on the icon.
     private func rowBody(icon: String, label: String, active: Bool, running: Bool) -> some View {
-        let tint = active ? Theme.coral : Theme.secondaryOnMaterial
+        // Active is marked calmly (Apple/Raycast/Linear): the ICON carries the coral accent,
+        // the label stays NEUTRAL (just darker), the background is a WHISPER of coral (not the
+        // old saturated slab), and a crisp coral leading bar says "you are here" in the row
+        // layout. One accent carrier, not three — the founder's "Chats too highlighted" fix.
+        let iconTint = active ? Theme.coral : Theme.secondaryOnMaterial
+        let labelTint = active ? Theme.ink : Theme.secondaryOnMaterial
         let iconView = Image(systemName: icon)
             .font(.system(size: 17))
-            .foregroundStyle(tint)
+            .foregroundStyle(iconTint)
             .frame(width: 40, height: 30)
             .overlay(alignment: .topTrailing) {
                 if running && !active { RunningPulseDot().offset(x: -3, y: 3) }
@@ -298,8 +305,8 @@ struct NavRail: View {
             if railExpanded {
                 HStack(spacing: Space.s) {
                     iconView
-                    Text(label).font(.sfBodyM.weight(active ? .semibold : .regular))
-                        .foregroundStyle(tint).lineLimit(1)
+                    Text(label).font(.sfBodyM.weight(active ? .medium : .regular))
+                        .foregroundStyle(labelTint).lineLimit(1)
                     Spacer(minLength: 0)
                 }
                 .padding(.trailing, Space.s)
@@ -307,8 +314,8 @@ struct NavRail: View {
             } else {
                 VStack(spacing: 1) {
                     iconView
-                    Text(label).font(.system(size: 9, weight: active ? .semibold : .medium))
-                        .foregroundStyle(tint)
+                    Text(label).font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(labelTint)
                         .lineLimit(1).minimumScaleFactor(0.75)
                 }
                 .frame(maxWidth: .infinity)
@@ -316,7 +323,12 @@ struct NavRail: View {
             }
         }
         .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
-            .fill(active ? Theme.accentSoft : .clear))
+            .fill(active ? Theme.coral.opacity(0.09) : .clear))
+        .overlay(alignment: .leading) {
+            if active && railExpanded {
+                Capsule().fill(Theme.coral).frame(width: 3, height: 18).padding(.leading, 1)
+            }
+        }
         .hoverTint(cornerRadius: Theme.rowCorner)
         .contentShape(Rectangle())
     }
