@@ -24,12 +24,16 @@ final class ProviderRegistry {
     /// Re-detect which provider CLIs resolve, off the main thread. `binaryFor` yields the
     /// configured binary name/path per provider (from AppSettings).
     func refresh(binaryFor: @escaping (AIProvider) -> String) async {
-        var found: Set<AIProvider> = []
-        for p in AIProvider.allCases {
-            let name = binaryFor(p)
-            if await Task.detached(operation: { ClaudeRunner.resolveBinary(name) }).value != nil {
-                found.insert(p)
+        // PERF: resolve every provider CONCURRENTLY (each is a login-shell spawn). Serial
+        // awaits made the pickers take ~1-2s to settle at launch on a cold binary cache.
+        let names = AIProvider.allCases.map { ($0, binaryFor($0)) }
+        let found = await withTaskGroup(of: AIProvider?.self) { group -> Set<AIProvider> in
+            for (p, name) in names {
+                group.addTask { ClaudeRunner.resolveBinary(name) != nil ? p : nil }
             }
+            var set: Set<AIProvider> = []
+            for await r in group { if let r { set.insert(r) } }
+            return set
         }
         connected = found
     }

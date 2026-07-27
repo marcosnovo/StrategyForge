@@ -141,7 +141,8 @@ struct AgentActivityPanel: View {
         StrategyDiagramView(strategy: shownStrategy,
                             activeAgent: vm.activeSubagent,
                             isLive: vm.isRunning,
-                            compact: true)
+                            compact: true,
+                            ambient: false)   // PERF: static at rest — only animate during a live run
             .frame(height: 236)
             .padding(Space.m)
     }

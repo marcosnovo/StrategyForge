@@ -508,6 +508,16 @@ final class ChatViewModel {
         return true
     }
 
+    /// Cap a command's stdout to a readable head+tail (~12KB) so long build/test logs don't
+    /// sit in memory verbatim across the whole history of every resident chat.
+    static func trimmed(_ s: String, limit: Int = 12_000) -> String {
+        guard s.count > limit else { return s }
+        let head = s.prefix(limit * 2 / 3)
+        let tail = s.suffix(limit / 3)
+        let elided = s.count - head.count - tail.count
+        return "\(head)\n… [\(elided) chars elided] …\n\(tail)"
+    }
+
     /// Update per-line authorship for `path` after an edit: snapshot the file and diff it
     /// against the previous snapshot, crediting the lines this edit changed to `author`.
     /// Best-effort and size-capped so a huge file never blocks the run; on any read
@@ -843,7 +853,10 @@ final class ChatViewModel {
             case .commandOutput(let id, let output):
                 // Only surface output for commands we tracked (Bash), not every tool.
                 if let cmd = pendingCommands[id] {
-                    commandLog.append(CommandRun(command: cmd, output: output, at: Date()))
+                    // PERF/memory: a build/test can emit hundreds of KB; kept verbatim ×50
+                    // turns ×every resident chat that adds up fast. Keep head+tail (~12KB),
+                    // enough to read the gist, and elide the middle.
+                    commandLog.append(CommandRun(command: cmd, output: Self.trimmed(output), at: Date()))
                     pendingCommands[id] = nil
                 }
             case .todos(let items):

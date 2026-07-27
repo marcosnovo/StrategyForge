@@ -352,6 +352,14 @@ final class AppModel {
     /// through `chatViewModel(for:)`, and lazily filling this cache from a view
     /// body must not mutate observed state mid-render.
     @ObservationIgnored private var chatVMs: [Configuration.ID: ChatViewModel] = [:]
+    /// MRU ring of recently-opened chats, so eviction keeps the last few resident (instant
+    /// re-open) and releases the rest. Not observed; updated only from selection actions.
+    @ObservationIgnored private var recentChatIDs: [Configuration.ID] = []
+
+    #if DEBUG
+    /// Test hook: which chats currently hold a resident ViewModel (for eviction tests).
+    var _cachedChatVMIDs: Set<Configuration.ID> { Set(chatVMs.keys) }
+    #endif
     /// Chats with a turn in flight (observed — drives global running indicators).
     /// Mutated only from `onRunningChanged` callbacks (action context), never
     /// from view-body paths.
@@ -1858,6 +1866,25 @@ final class AppModel {
         runningChatIDs.remove(id)
     }
 
+    /// Keep memory light: release the ChatViewModels of chats that are neither RUNNING nor
+    /// among the few most-recently-used (so their transcript/history/provenance stop being
+    /// resident). Without this, every chat opened in a session stayed fully in RAM forever —
+    /// the classic "slowly eats memory" profile. Called from selection actions ONLY (never a
+    /// view body): `invalidateChatVM` mutates the cache + tears the VM down safely.
+    func evictIdleChatVMs(keepingRecent keep: Int = 3) {
+        if let sel = selectedConfigID {
+            recentChatIDs.removeAll { $0 == sel }
+            recentChatIDs.insert(sel, at: 0)
+            if recentChatIDs.count > keep { recentChatIDs.removeLast(recentChatIDs.count - keep) }
+        }
+        // Never evict a chat with a live turn, the current selection, or an MRU chat.
+        var survivors = Set(recentChatIDs).union(runningChatIDs)
+        if let sel = selectedConfigID { survivors.insert(sel) }
+        for id in chatVMs.keys where !survivors.contains(id) {
+            invalidateChatVM(id)
+        }
+    }
+
     // MARK: - Code section (repo-first, single-agent Claude)
 
     /// Create a single-agent (solo Claude) chat bound to `repoURL` and open it in
@@ -2502,6 +2529,8 @@ final class AppModel {
         settings.lastSelectedConfigID = id
         settings.lastSelectedTeamID = teamID
         save(stamp: false)
+        // The selection just moved — release the now-idle chats' ViewModels.
+        evictIdleChatVMs()
     }
 
     // MARK: - Sync merge

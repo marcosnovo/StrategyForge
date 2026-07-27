@@ -304,6 +304,35 @@ struct AppModelPersistenceTests {
         }
     }
 
+    @Test func idleChatViewModelsAreEvictedWhenSelectionMovesOn() throws {
+        try withTempDir { dir in
+            // Memory: opening many chats must NOT keep every ViewModel resident forever.
+            // As the selection moves on, idle (non-running, non-recent) VMs are released.
+            let model = AppModel(storeDirectory: dir)
+            var ids: [Configuration.ID] = []
+            for i in 0..<6 {
+                let c = Configuration(name: "C\(i)", strategy: StrategyLibrary.solo())
+                model.configurations.append(c)
+                ids.append(c.id)
+            }
+
+            // Open each chat in turn — the real usage pattern: select it, its VM is built,
+            // and moving on fires eviction of the now-idle older chats.
+            for id in ids {
+                model.selectedConfigID = id
+                _ = model.chatViewModel(for: id)   // builds + caches this chat's VM
+                model.rememberSelection()          // selection moved → evict idle VMs
+            }
+
+            // Only the MRU set survives (keepingRecent = 3): the oldest idle chats are gone,
+            // the current selection is kept.
+            let cached = model._cachedChatVMIDs
+            #expect(cached.count <= 3)
+            #expect(cached.contains(ids.last!))       // current selection stays resident
+            #expect(!cached.contains(ids.first!))     // the oldest idle VM was released
+        }
+    }
+
     @Test func deletingAnUnhydratedChatStillRestoresItsTranscriptOnUndo() throws {
         try withTempDir { dir in
             // The undo copy is snapshotted in memory at delete time — a chat the
