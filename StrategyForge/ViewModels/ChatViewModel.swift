@@ -239,6 +239,9 @@ final class ChatViewModel {
     /// otherwise hold every file's line array in RAM for the chat's whole life).
     @ObservationIgnored private var provenanceOrder: [String] = []
     private static let maxProvenanceFiles = 40
+    /// Per-path serial chain so a path's edits are attributed in ORDER even though the read
+    /// + diff run off-main (a later edit awaits the earlier one's write before it snapshots).
+    @ObservationIgnored private var provenanceChain: [String: Task<Void, Never>] = [:]
     /// Agent Skills the model has pulled in across this chat (slugs, unique).
     var skillsUsed: [String] = []
     /// Skills used within the current turn only — snapshotted into TurnActivity.
@@ -525,27 +528,52 @@ final class ChatViewModel {
 
     /// Update per-line authorship for `path` after an edit: snapshot the file and diff it
     /// against the previous snapshot, crediting the lines this edit changed to `author`.
-    /// Best-effort and size-capped so a huge file never blocks the run; on any read
-    /// failure we keep just the file-level attribution.
+    ///
+    /// The file read + the (quadratic) line diff run OFF the main actor so a large-file edit
+    /// never stutters the UI mid-turn. Correctness is preserved by a per-PATH serial chain:
+    /// each edit for a path awaits the previous edit's write before it reads the prior
+    /// snapshot, so authorship can't be computed against stale/out-of-order state (different
+    /// paths still run concurrently). Best-effort: any read failure just keeps file-level
+    /// attribution; if the VM is evicted mid-flight, `weak self` makes it a no-op.
     private func recordLineProvenance(path: String, author: EditProvenance) {
-        guard let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int,
-              size <= 512_000,
-              let text = try? String(contentsOfFile: path, encoding: .utf8) else { return }
-        let newLines = text.components(separatedBy: "\n")
-        let authors = LineAttributor.attribute(old: fileSnapshots[path] ?? [],
-                                               oldAuthors: lineProvenance[path] ?? [],
-                                               new: newLines, author: author)
-        lineProvenance[path] = authors
-        fileSnapshots[path] = newLines
-        // Retain full line-snapshots for only the most-recently-edited files (memory cap).
-        // Evicted files fall back to file-level attribution on their next edit — the same
-        // behaviour as a first-seen file, so no correctness loss, just coarser tinting.
+        let previous = provenanceChain[path]
+        let task = Task { [weak self] in
+            _ = await previous?.value                    // preserve per-path order
+            guard let self, !Task.isCancelled else { return }
+            // Read the prior snapshot on the main actor, AFTER the previous edit for this
+            // path has landed (the await above) — so `old` is never stale/out of order.
+            let old = self.fileSnapshots[path] ?? []
+            let oldAuthors = self.lineProvenance[path] ?? []
+            // Heavy work (read + components + LCS) on a background executor.
+            let computed: (authors: [EditProvenance?], lines: [String])? =
+                await Task.detached(priority: .utility) {
+                    guard let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int,
+                          size <= 512_000,
+                          let text = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+                    let newLines = text.components(separatedBy: "\n")
+                    let authors = LineAttributor.attribute(old: old, oldAuthors: oldAuthors,
+                                                           new: newLines, author: author)
+                    return (authors, newLines)
+                }.value
+            guard let computed, !Task.isCancelled else { return }
+            self.lineProvenance[path] = computed.authors
+            self.fileSnapshots[path] = computed.lines
+            self.bumpProvenance(path)
+        }
+        provenanceChain[path] = task
+    }
+
+    /// Mark `path` most-recently-used and cap the number of files whose full line-snapshots
+    /// stay resident (memory). Evicted files fall back to file-level attribution on their
+    /// next edit — the same behaviour as a first-seen file, so no correctness loss.
+    private func bumpProvenance(_ path: String) {
         provenanceOrder.removeAll { $0 == path }
         provenanceOrder.append(path)
         while provenanceOrder.count > Self.maxProvenanceFiles {
             let old = provenanceOrder.removeFirst()
             lineProvenance[old] = nil
             fileSnapshots[old] = nil
+            provenanceChain[old] = nil
         }
     }
 
