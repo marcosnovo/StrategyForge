@@ -69,6 +69,9 @@ struct NavRail: View {
                     item("chevron.left.forwardslash.chevron.right", "rail.code", active: model.navSection == .code) {
                         model.guardedLeave { model.navSection = .code }
                     }
+                    item("circle.hexagongrid.fill", "rail.map", active: model.navSection == .map) {
+                        model.guardedLeave { model.navSection = .map }
+                    }
                     item("flag.checkered", "rail.arena", active: model.navSection == .arena) {
                         model.guardedLeave { model.navSection = .arena }
                     }

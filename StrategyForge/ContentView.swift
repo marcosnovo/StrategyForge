@@ -68,6 +68,7 @@ struct ContentView: View {
                 Rectangle().fill(Theme.hairline.opacity(0.5)).frame(width: 1)
             } else if model.navSection == .usage
                         || model.navSection == .particleLab || model.navSection == .code
+                        || model.navSection == .map
                         || model.navSection == .skills || model.navSection == .memory
                         || model.navSection == .arena || model.navSection == .settings {
                 // Single full-width surfaces — no second column (no chat list here).
@@ -137,6 +138,9 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .code {
                 CodeLauncherView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.navSection == .map {
+                CodeMapView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .skills {
                 SkillsView()
