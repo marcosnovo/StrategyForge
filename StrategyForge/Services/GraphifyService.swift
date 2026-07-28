@@ -126,6 +126,72 @@ final class CodeMapStore {
         }
     }
 
+    // MARK: - Graph queries (graphify's own `explain` / `path`) + live watch
+
+    /// Plain-language explanation of a node and its neighbours (graphify `explain`).
+    /// Returns the CLI text, or an error string — never throws so the UI can just show it.
+    func explain(_ nodeLabel: String) async -> String {
+        guard let bin = Self.managedGraphify(), let repo = repoURL else { return "" }
+        let r = await Self.launch(bin: bin, args: ["explain", nodeLabel], cwd: repo.path, timeout: 120)
+        let out = r.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !out.isEmpty { return out }
+        let err = r.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        return err.isEmpty ? "No explanation available for “\(nodeLabel)”." : err
+    }
+
+    /// Shortest path between two nodes in the graph (graphify `path "A" "B"`).
+    func shortestPath(from: String, to: String) async -> String {
+        guard let bin = Self.managedGraphify(), let repo = repoURL else { return "" }
+        let r = await Self.launch(bin: bin, args: ["path", from, to], cwd: repo.path, timeout: 120)
+        let out = r.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !out.isEmpty { return out }
+        let err = r.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        return err.isEmpty ? "No path found between “\(from)” and “\(to)”." : err
+    }
+
+    /// Live watch: graphify rebuilds graph.json when the code changes; we poll its mtime and
+    /// hot-reload the parsed graph so the Map stays current while you edit.
+    private(set) var isWatching = false
+    private var watchProcess: Process?
+    private var watchPoll: Task<Void, Never>?
+
+    func toggleWatch() { isWatching ? stopWatch() : startWatch() }
+
+    func startWatch() {
+        guard !isWatching, let bin = Self.managedGraphify(), let repo = repoURL else { return }
+        isWatching = true
+        watchProcess = Self.launchDetached(bin: bin, args: ["watch", repo.path], cwd: repo.path)
+        let jsonPath = repo.appendingPathComponent("graphify-out/graph.json").path
+        watchPoll = Task { [weak self] in
+            var last = Self.mtime(jsonPath)
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                let now = Self.mtime(jsonPath)
+                if let now, now != last { last = now; await self?.reloadGraph() }
+            }
+        }
+    }
+
+    func stopWatch() {
+        isWatching = false
+        watchPoll?.cancel(); watchPoll = nil
+        if let p = watchProcess { if p.isRunning { p.terminate() }; LiveProcesses.deregister(p) }
+        watchProcess = nil
+    }
+
+    /// Re-parse graph.json in place (after a watch rebuild) without re-running the build.
+    func reloadGraph() {
+        guard let repo = repoURL else { return }
+        let jsonURL = repo.appendingPathComponent("graphify-out/graph.json")
+        if let data = try? Data(contentsOf: jsonURL), let g = CodeGraph.parse(data), !g.isEmpty {
+            graph = g
+        }
+    }
+
+    private static func mtime(_ path: String) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate]) as? Date
+    }
+
     /// True when a GitHub clone can be started.
     var canClone: Bool {
         !gitHubInput.trimmingCharacters(in: .whitespaces).isEmpty
@@ -260,6 +326,32 @@ final class CodeMapStore {
     // MARK: - Process
 
     private struct RunResult { var stdout: String; var stderr: String; var status: Int32 }
+
+    /// PATH + Claude config the CLIs need, shared by both launchers.
+    private nonisolated static func childEnv(bin: String) -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let binDir = (bin as NSString).deletingLastPathComponent
+        env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+        if let dir = ClaudeRunner.resolveClaudeConfigDir() { env["CLAUDE_CONFIG_DIR"] = dir }
+        return env
+    }
+
+    /// Start a long-running process (graphify watch) without waiting for it; returns the
+    /// handle so it can be terminated. Registered so kill-on-quit reaps it.
+    private nonisolated static func launchDetached(bin: String, args: [String], cwd: String?) -> Process? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: bin)
+        p.arguments = args
+        if let cwd { p.currentDirectoryURL = URL(fileURLWithPath: cwd) }
+        p.environment = childEnv(bin: bin)
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        p.standardInput = FileHandle.nullDevice
+        do { try p.run() } catch { return nil }
+        LiveProcesses.register(p)
+        return p
+    }
 
     /// Launch a CLI headlessly and collect its output. Nonisolated: the blocking process
     /// work runs off the main actor; the caller (MainActor) just awaits the result.

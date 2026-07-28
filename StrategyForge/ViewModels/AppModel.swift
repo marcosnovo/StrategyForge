@@ -670,13 +670,15 @@ final class AppModel {
     }
 
     /// Start a new chat already bound to `repoURL` and jump to it — used by the Map's
-    /// "Open in chat", so the code-map digest auto-injects on the first turn of that session.
-    func addConfiguration(repoURL: URL) {
+    /// "Open in chat"/"Ask about this node", so the code-map digest auto-injects on the first
+    /// turn of that session. An optional `draft` seeds the composer (e.g. a question about a node).
+    func addConfiguration(repoURL: URL, draft: String = "") {
         var config = Configuration(
             name: repoURL.lastPathComponent,
             strategy: StrategyLibrary.executorAdvisor(),
             lastActiveAt: Date(),
-            strategyIsAuto: true
+            strategyIsAuto: true,
+            draft: draft
         )
         config.repoPath = repoURL.path
         config.repoBookmark = try? repoURL.bookmarkData(options: [.withSecurityScope],
