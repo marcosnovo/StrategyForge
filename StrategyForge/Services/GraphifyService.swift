@@ -51,7 +51,11 @@ final class CodeMapStore {
         mapSubtitle = url.path
     }
 
-    /// Reopen a saved map from its cached graph — instant, no graphify run, no tokens.
+    /// True while a background freshness refresh is running (cached graph stays on screen).
+    private(set) var isRefreshing = false
+
+    /// Reopen a saved map from its cached graph — instant, no graphify run, no tokens — then
+    /// quietly bring it up to date in the background if the repo still exists.
     func openSaved(_ map: SavedMap) {
         mapKind = map.kind
         mapSubtitle = map.subtitle
@@ -60,8 +64,34 @@ final class CodeMapStore {
             graph = g
             htmlURL = MapStore.shared.cachedHTMLURL(map)
             phase = .done
+            if repoURL != nil { Task { await refreshInBackground() } }
         } else {
             phase = .failed("Couldn't read the saved map.")
+        }
+    }
+
+    /// Bring the shown map up to date without disrupting it: pull (GitHub) + `graphify update`
+    /// (cheap — graphify caches by content hash), and swap the graph ONLY if it changed. This
+    /// is the auto-update: reopening shows the cache instantly, then reflects any repo/chat
+    /// edits a moment later. Never flips to the blocking .running spinner.
+    func refreshInBackground() async {
+        guard phase == .done, !isRefreshing, let repo = repoURL,
+              FileManager.default.fileExists(atPath: repo.path),
+              let bin = Self.managedGraphify() else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        if mapKind == .github, let git = ClaudeRunner.resolveBinary("git") {
+            _ = await Self.launch(bin: git, args: ["-C", repo.path, "pull", "--ff-only"], cwd: nil, timeout: 300)
+        }
+        _ = await Self.launch(bin: bin, args: ["update", repo.path], cwd: repo.path)
+        let jsonURL = repo.appendingPathComponent("graphify-out/graph.json")
+        guard let data = try? Data(contentsOf: jsonURL), let g = CodeGraph.parse(data), !g.isEmpty else { return }
+        if g != graph {
+            graph = g
+            let h = repo.appendingPathComponent("graphify-out/graph.html")
+            if FileManager.default.fileExists(atPath: h.path) { htmlURL = h }
+            MapStore.shared.record(repoURL: repo, graph: g, kind: mapKind,
+                                   subtitle: mapSubtitle.isEmpty ? repo.path : mapSubtitle)
         }
     }
 

@@ -26,6 +26,7 @@ struct CodeMapView: View {
     // GitHub repo picker
     @State private var githubRepos: [GitHubCLI.RepoRef] = []
     @State private var loadingRepos = false
+    @State private var repoQuery = ""
 
     // Search / filter
     @State private var query = ""
@@ -57,6 +58,12 @@ struct CodeMapView: View {
                let cfg = model.selectedConfiguration,
                let url = model.repoURL(for: cfg) {
                 store.setLocalRepo(url)
+                // If this repo already has a saved map, open it (cached → instant) and let it
+                // refresh in the background — so returning from a chat shows an up-to-date map.
+                let key = MapStore.key(kind: .local, subtitle: url.path)
+                if let saved = MapStore.shared.maps.first(where: { $0.id == key }) {
+                    store.openSaved(saved)
+                }
             }
         }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.folder]) { result in
@@ -87,6 +94,14 @@ struct CodeMapView: View {
             recentMenu
 
             Spacer()
+
+            if store.isRefreshing {
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.mini).scaleEffect(0.7)
+                    Text(model.t("map.refreshing")).font(.sfCaption2)
+                }
+                .foregroundStyle(.secondary)
+            }
 
             if store.graph != nil {
                 HStack(spacing: 5) {
@@ -166,54 +181,78 @@ struct CodeMapView: View {
         }
         .buttonStyle(.plain)
         .help(model.t("map.github.title"))
-        .popover(isPresented: $showGitHub, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: Space.s) {
-                Text(model.t("map.github.title")).font(.sfBodyM.weight(.semibold))
-                HStack(spacing: Space.s) {
-                    TextField(model.t("map.github.placeholder"), text: $store.gitHubInput)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { startClone() }
-                    Button(model.t("map.github.map")) { startClone() }
-                        .buttonStyle(.moon).controlSize(.small).disabled(!store.canClone)
+        .popover(isPresented: $showGitHub, arrowEdge: .bottom) { githubPicker }
+    }
+
+    private var filteredRepos: [GitHubCLI.RepoRef] {
+        let q = repoQuery.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return githubRepos }
+        return githubRepos.filter { $0.nameWithOwner.localizedCaseInsensitiveContains(q) }
+    }
+
+    private var githubPicker: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text(model.t("map.github.title")).font(.sfCardTitle)
+            HStack(spacing: Space.s) {
+                TextField(model.t("map.github.placeholder"), text: $store.gitHubInput)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { startClone() }
+                Button(model.t("map.github.map")) { startClone() }
+                    .buttonStyle(.moon).controlSize(.small).disabled(!store.canClone)
+            }
+            Divider()
+            if GitHubCLI.isInstalled {
+                HStack {
+                    Text(model.t("map.github.mine")).font(.sfCaption2.weight(.semibold)).foregroundStyle(.secondary)
+                    if !githubRepos.isEmpty { Text("\(githubRepos.count)").font(.sfCaption2).foregroundStyle(.tertiary) }
+                    Spacer()
+                    if !githubRepos.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "magnifyingglass").font(.system(size: 10)).foregroundStyle(.tertiary)
+                            TextField(model.t("map.search"), text: $repoQuery).textFieldStyle(.plain).font(.sfCaption2).frame(width: 130)
+                        }
+                    }
                 }
-                Divider()
-                if GitHubCLI.isInstalled {
-                    Text(model.t("map.github.mine")).font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
-                    if loadingRepos {
-                        HStack { ProgressView().controlSize(.small); Text(model.t("map.github.loading")).font(.sfCaption2).foregroundStyle(.secondary) }
-                    } else if githubRepos.isEmpty {
-                        Text(model.t("map.github.none")).font(.sfCaption2).foregroundStyle(.tertiary)
-                    } else {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 0) {
-                                ForEach(githubRepos) { r in
-                                    Button {
-                                        store.gitHubInput = r.nameWithOwner
-                                        startClone()
-                                    } label: {
-                                        HStack(spacing: 6) {
-                                            Image(systemName: r.isPrivate ? "lock.fill" : "book.closed")
-                                                .font(.system(size: 10)).foregroundStyle(.secondary)
-                                            Text(r.name).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.ink)
+                if loadingRepos {
+                    HStack { ProgressView().controlSize(.small); Text(model.t("map.github.loading")).font(.sfCaption2).foregroundStyle(.secondary) }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if githubRepos.isEmpty {
+                    Text(model.t("map.github.none")).font(.sfCaption2).foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(filteredRepos) { r in
+                                Button {
+                                    store.gitHubInput = r.nameWithOwner
+                                    startClone()
+                                } label: {
+                                    HStack(spacing: 7) {
+                                        Image(systemName: r.isPrivate ? "lock.fill" : "book.closed")
+                                            .font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 14)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(r.name).font(.sfBodyM.weight(.medium)).foregroundStyle(Theme.ink).lineLimit(1)
                                             Text(r.nameWithOwner).font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
-                                            Spacer()
                                         }
-                                        .padding(.vertical, 3).padding(.horizontal, 4).contentShape(Rectangle())
+                                        Spacer()
                                     }
-                                    .buttonStyle(.plain)
-                                    .hoverTint(cornerRadius: Theme.rowCorner)
+                                    .padding(.vertical, 5).padding(.horizontal, 6).contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
+                                .hoverTint(cornerRadius: Theme.rowCorner)
                             }
                         }
-                        .frame(maxHeight: 240)
                     }
-                } else {
-                    Text(model.t("map.github.needGh")).font(.sfCaption2).foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+            } else {
+                Text(model.t("map.github.needGh")).font(.sfCaption2).foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(Space.m).frame(width: 400)
-            .task { await loadRepos() }
         }
+        .padding(Space.m)
+        .frame(width: 460, height: 460)
+        .task { await loadRepos() }
     }
 
     /// Recently mapped repos, cached — reopening is instant and free (no re-run, no tokens).

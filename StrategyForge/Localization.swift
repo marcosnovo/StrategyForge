@@ -335,6 +335,7 @@ enum L10n {
         "map.card.stats": ("%d nodes · %d clusters", "%d nodos · %d clústeres"),
         "map.delete": ("Delete map", "Eliminar mapa"),
         "map.cloning": ("Cloning the repo…", "Clonando el repo…"),
+        "map.refreshing": ("Updating…", "Actualizando…"),
         "map.empty.title": ("Map your codebase", "Mapea tu código"),
         "map.empty.desc": ("Turn a repository into a queryable knowledge graph — clusters, symbols and the seams where modules connect.",
                            "Convierte un repositorio en un grafo de conocimiento consultable — clústeres, símbolos y las costuras donde se conectan los módulos."),
