@@ -20,6 +20,7 @@ struct CodeMapView: View {
     @State private var selectedNodeID: String?
     @State private var showImporter = false
     @State private var showHTML = false
+    @State private var showGitHub = false
 
     /// Mirrors CodeMapGraphView's node cap — used only for the "showing N of M" note.
     private let renderCap = 240
@@ -59,6 +60,7 @@ struct CodeMapView: View {
             Text(model.t("map.title")).font(.sfCardTitle)
 
             repoChip
+            githubButton
 
             Spacer()
 
@@ -109,6 +111,42 @@ struct CodeMapView: View {
         .help(store.repoURL?.path ?? model.t("map.pick.repo"))
     }
 
+    /// Map a repo straight from GitHub — no local checkout needed. Coral shallow-clones it
+    /// into a managed folder, then maps it.
+    private var githubButton: some View {
+        Button { showGitHub.toggle() } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "cloud").font(.system(size: 11))
+                Text(model.t("map.github")).font(.sfCaption2.weight(.medium)).lineLimit(1)
+            }
+            .foregroundStyle(Theme.secondaryOnMaterial)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(Theme.insetBg))
+        }
+        .buttonStyle(.plain)
+        .help(model.t("map.github.title"))
+        .popover(isPresented: $showGitHub, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: Space.s) {
+                Text(model.t("map.github.title")).font(.sfBodyM.weight(.semibold))
+                TextField(model.t("map.github.placeholder"), text: $store.gitHubInput)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { startClone() }
+                HStack {
+                    Spacer()
+                    Button(model.t("map.github.map")) { startClone() }
+                        .buttonStyle(.moon).controlSize(.small).disabled(!store.canClone)
+                }
+            }
+            .padding(Space.m).frame(width: 360)
+        }
+    }
+
+    private func startClone() {
+        showGitHub = false
+        selectedNodeID = nil
+        Task { await store.cloneAndMap() }
+    }
+
     // MARK: Content states
 
     @ViewBuilder
@@ -118,6 +156,8 @@ struct CodeMapView: View {
             needsPythonState
         case .preparing:
             busyState(model.t("map.preparing"))
+        case .cloning:
+            busyState(model.t("map.cloning"))
         case .running:
             busyState(model.t("map.running"))
         case .failed(let msg):
@@ -185,10 +225,16 @@ struct CodeMapView: View {
         } description: {
             Text(model.t("map.empty.desc"))
         } actions: {
-            Button { showImporter = true } label: {
-                Label(model.t("map.pick.repo"), systemImage: "folder").frame(maxWidth: 320)
+            HStack(spacing: Space.s) {
+                Button { showImporter = true } label: {
+                    Label(model.t("map.pick.repo"), systemImage: "folder")
+                }
+                .buttonStyle(.moon).controlSize(.large)
+                Button { showGitHub = true } label: {
+                    Label(model.t("map.github"), systemImage: "cloud")
+                }
+                .controlSize(.large)
             }
-            .buttonStyle(.moon).controlSize(.large)
         }
     }
 

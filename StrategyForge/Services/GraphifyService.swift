@@ -27,6 +27,7 @@ enum GraphifyPhase: Equatable {
     case idle          // ready (or not yet run) — a build can be kicked off
     case needsPython   // no system python3 (Command Line Tools) to build the env with
     case preparing     // one-time: creating the venv + pip-installing graphify
+    case cloning       // shallow-cloning a GitHub repo before mapping it
     case running       // building the graph
     case done          // graph parsed and ready
     case failed(String)
@@ -35,8 +36,10 @@ enum GraphifyPhase: Equatable {
 @MainActor
 @Observable
 final class CodeMapStore {
-    /// The repo to map. Set from the picker or pre-filled from the active chat's repo.
+    /// The repo to map. Set from the picker, a GitHub clone, or the active chat's repo.
     var repoURL: URL?
+    /// Bound to the "from GitHub" field — a URL or `owner/repo` shorthand.
+    var gitHubInput = ""
 
     private(set) var phase: GraphifyPhase = .idle
     private(set) var graph: CodeGraph?
@@ -52,7 +55,7 @@ final class CodeMapStore {
 
     /// True when a build can be kicked off right now.
     var canRun: Bool {
-        repoURL != nil && phase != .running && phase != .preparing
+        repoURL != nil && phase != .running && phase != .preparing && phase != .cloning
     }
 
     /// Whether Coral's managed graphify is already installed (no work, no network).
@@ -121,6 +124,71 @@ final class CodeMapStore {
         } else {
             phase = .failed("graphify finished but wrote no readable graph.json.")
         }
+    }
+
+    /// True when a GitHub clone can be started.
+    var canClone: Bool {
+        !gitHubInput.trimmingCharacters(in: .whitespaces).isEmpty
+            && phase != .running && phase != .preparing && phase != .cloning
+    }
+
+    /// Clone a GitHub repo (shallow, into a Coral-managed folder) and map it — so you can
+    /// map any repo without having it checked out locally. Accepts a full URL or `owner/repo`.
+    /// Private repos rely on the user's existing git credentials/SSH.
+    func cloneAndMap() async {
+        let raw = gitHubInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return }
+        guard let (owner, repo) = Self.parseOwnerRepo(raw) else {
+            phase = .failed("That doesn't look like a GitHub repo (use a URL or owner/repo)."); return
+        }
+        guard await ensureReady() else { return }   // managed graphify must exist to map afterwards
+        guard let git = ClaudeRunner.resolveBinary("git") else {
+            phase = .failed("git isn't available — install Apple's Command Line Tools."); return
+        }
+        let dest = Self.reposRoot().appendingPathComponent("\(owner)-\(repo)", isDirectory: true)
+        let fm = FileManager.default
+        phase = .cloning
+
+        if fm.fileExists(atPath: dest.appendingPathComponent(".git").path) {
+            // Already cloned once — fast-forward it, best-effort, then re-map.
+            _ = await Self.launch(bin: git, args: ["-C", dest.path, "pull", "--ff-only"], cwd: nil, timeout: 300)
+        } else {
+            try? fm.createDirectory(at: Self.reposRoot(), withIntermediateDirectories: true)
+            let url = Self.normalizedCloneURL(raw, owner: owner, repo: repo)
+            let clone = await Self.launch(bin: git, args: ["clone", "--depth", "1", url, dest.path],
+                                          cwd: nil, timeout: 600)
+            guard clone.status == 0, fm.fileExists(atPath: dest.path) else {
+                let msg = clone.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                phase = .failed(msg.isEmpty ? "git clone failed." : String(msg.suffix(500)))
+                return
+            }
+        }
+        repoURL = dest
+        await run()
+    }
+
+    /// Extract (owner, repo) from a GitHub URL or `owner/repo` shorthand; nil if it doesn't fit.
+    static func parseOwnerRepo(_ s: String) -> (String, String)? {
+        var t = s.trimmingCharacters(in: .whitespaces)
+        t = t.replacingOccurrences(of: "git@github.com:", with: "")
+        if let r = t.range(of: "github.com/") { t = String(t[r.upperBound...]) }
+        if t.hasSuffix(".git") { t = String(t.dropLast(4)) }
+        let parts = t.split(separator: "/").filter { !$0.isEmpty }
+        guard parts.count >= 2 else { return nil }
+        return (String(parts[0]), String(parts[1]))
+    }
+
+    private static func normalizedCloneURL(_ raw: String, owner: String, repo: String) -> String {
+        (raw.contains("github.com") || raw.hasPrefix("git@")) ? raw
+            : "https://github.com/\(owner)/\(repo).git"
+    }
+
+    /// Coral-managed home for cloned repos: Application Support/Coral/repos.
+    private static func reposRoot() -> URL {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                 in: .userDomainMask, appropriateFor: nil, create: true))
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+        return base.appendingPathComponent("Coral/repos", isDirectory: true)
     }
 
     // MARK: - Managed environment (bootstrap)
