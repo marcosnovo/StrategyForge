@@ -33,7 +33,7 @@ struct CodeMapView: View {
         }
         .background(Theme.appBg)
         .onAppear {
-            store.refreshInstalled()
+            store.refreshReadiness()
             if store.repoURL == nil,
                let cfg = model.selectedConfiguration,
                let url = model.repoURL(for: cfg) {
@@ -61,13 +61,6 @@ struct CodeMapView: View {
             repoChip
 
             Spacer()
-
-            Toggle(isOn: $store.deep) {
-                Text(model.t("map.deep"))
-            }
-            .toggleStyle(.switch).tint(Theme.coral).controlSize(.small)
-            .help(model.t("map.deep.help"))
-            .disabled(store.phase == .running || store.phase == .installing)
 
             if store.htmlURL != nil {
                 Button { showHTML = true } label: {
@@ -110,10 +103,10 @@ struct CodeMapView: View {
     @ViewBuilder
     private var content: some View {
         switch store.phase {
-        case .notInstalled:
-            notInstalledState
-        case .installing:
-            busyState(model.t("map.installing"))
+        case .needsPython:
+            needsPythonState
+        case .preparing:
+            busyState(model.t("map.preparing"))
         case .running:
             busyState(model.t("map.running"))
         case .failed(let msg):
@@ -201,22 +194,24 @@ struct CodeMapView: View {
         }
     }
 
-    private var notInstalledState: some View {
+    /// Coral installs graphify itself; the only thing it can't provide is Apple's
+    /// Command Line Tools (python3). Shown only when that base is missing.
+    private var needsPythonState: some View {
         ContentUnavailableView {
-            Label(model.t("map.notInstalled.title"), systemImage: "shippingbox")
+            Label(model.t("map.needsPython.title"), systemImage: "wrench.and.screwdriver")
         } description: {
             VStack(spacing: Space.s) {
-                Text(model.t("map.notInstalled.desc"))
-                Text(store.installHint).font(.sfCode).foregroundStyle(Theme.secondaryOnMaterial)
+                Text(model.t("map.needsPython.desc"))
+                Text("xcode-select --install").font(.sfCode).foregroundStyle(Theme.secondaryOnMaterial)
                     .textSelection(.enabled)
             }
         } actions: {
             HStack {
-                Button { Task { await store.install() } } label: {
-                    Label(model.t("map.install"), systemImage: "arrow.down.circle").frame(maxWidth: 240)
+                Button { store.installCommandLineTools() } label: {
+                    Label(model.t("map.installCLT"), systemImage: "arrow.down.circle").frame(maxWidth: 260)
                 }
                 .buttonStyle(.moon).controlSize(.large)
-                CopyButton(text: "pipx install graphifyy", help: model.t("chat.copy"), flashKey: "banner.copied")
+                CopyButton(text: "xcode-select --install", help: model.t("chat.copy"), flashKey: "banner.copied")
             }
         }
     }

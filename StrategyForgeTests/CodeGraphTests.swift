@@ -105,6 +105,34 @@ struct CodeGraphTests {
         #expect(g?.edges.count == 1)
     }
 
+    // MARK: - Real graphify schema (captured from `graphify update` 0.9.29)
+
+    @Test func parsesRealGraphifyNodeLinkSchema() {
+        // Shape verified against a live `graphify update` run: NetworkX node-link with a
+        // `graph` metadata sibling, community as Int, `source_location` "L12", `file_type`,
+        // and `relation` on links.
+        let g = parse("""
+        { "directed": false, "multigraph": false, "graph": {},
+          "nodes": [
+            {"id":"main","label":"main.py","file_type":"code","source_file":"main.py","source_location":"L1","community":0},
+            {"id":"main_run","label":"run","file_type":"code","source_file":"main.py","source_location":"L2","community":0},
+            {"id":"util","label":"util.py","file_type":"code","source_file":"util.py","source_location":"L1","community":1}
+          ],
+          "links": [
+            {"source":"main","target":"main_run","relation":"contains"},
+            {"source":"main_run","target":"util","relation":"calls"}
+          ] }
+        """)
+        #expect(g?.nodes.count == 3)
+        #expect(g?.communityCount == 2)
+        let run = g?.nodes.first { $0.id == "main_run" }
+        #expect(run?.label == "run")
+        #expect(run?.kind == "code")           // from file_type
+        #expect(run?.file == "main.py")        // from source_file
+        #expect(run?.line == 2)                // parsed from "L2"
+        #expect(g?.edges.first?.label == "contains")   // from relation
+    }
+
     // MARK: - Failure
 
     @Test func returnsNilOnJunkOrEmpty() {

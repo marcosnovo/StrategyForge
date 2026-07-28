@@ -86,9 +86,18 @@ struct CodeGraph: Equatable {
                 ?? (n["name"] as? String)
                 ?? (n["title"] as? String)
                 ?? id
-            let kind = (n["type"] as? String) ?? (n["kind"] as? String) ?? (n["category"] as? String)
+            // graphify tags code entities with `file_type` ("code") + `_origin` ("ast");
+            // keep the generic aliases first for other producers.
+            let kind = (n["type"] as? String) ?? (n["kind"] as? String)
+                ?? (n["category"] as? String) ?? (n["file_type"] as? String)
             let file = (n["file"] as? String) ?? (n["path"] as? String) ?? (n["source_file"] as? String)
-            let line = (n["line"] as? Int) ?? (n["lineno"] as? Int) ?? (n["start_line"] as? Int)
+            // Line number: a plain Int under several keys, OR graphify's `source_location`
+            // string like "L12" / "L12-L18" → take the first run of digits.
+            var line = (n["line"] as? Int) ?? (n["lineno"] as? Int) ?? (n["start_line"] as? Int)
+            if line == nil, let loc = (n["source_location"] as? String) ?? (n["location"] as? String) {
+                let digits = loc.drop(while: { !$0.isNumber }).prefix(while: { $0.isNumber })
+                line = Int(digits)
+            }
             // Community may be int or string under several keys; keep the raw token and
             // normalise to a dense 0-based index after we've seen them all.
             let commAny = n["community"] ?? n["group"] ?? n["cluster"] ?? n["module"] ?? n["partition"]
@@ -125,7 +134,8 @@ struct CodeGraph: Equatable {
             guard let s = resolve(e["source"] ?? e["from"]),
                   let t = resolve(e["target"] ?? e["to"]),
                   s != t else { continue }
-            let label = (e["label"] as? String) ?? (e["type"] as? String) ?? (e["rel"] as? String)
+            let label = (e["label"] as? String) ?? (e["type"] as? String)
+                ?? (e["rel"] as? String) ?? (e["relation"] as? String)
             edges.append(Edge(source: s, target: t, label: label))
             degree[s, default: 0] += 1
             degree[t, default: 0] += 1
