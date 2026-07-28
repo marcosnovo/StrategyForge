@@ -59,8 +59,11 @@ struct CodeMapGraphView: View {
         let neighbors = Self.neighborIDs(of: focus, in: edges)
 
         ZStack {
-            if focus != nil && !reduceMotion {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { tl in
+            // The map is ALIVE (a coral-shaped graph): nodes breathe and drift, cluster
+            // glows pulse, and faint coral particles flow along the veins between modules —
+            // continuously, not just on selection. Calm 24fps; static under Reduce Motion.
+            if !reduceMotion {
+                TimelineView(.animation(minimumInterval: 1.0 / 24.0)) { tl in
                     graphCanvas(time: tl.date.timeIntervalSinceReferenceDate,
                                 nodes: nodes, byID: byID, edges: edges, norm: liveNorm,
                                 labelIDs: labelIDs, focus: focus, neighbors: neighbors)
@@ -103,16 +106,39 @@ struct CodeMapGraphView: View {
                              focus: String?, neighbors: Set<String>) -> some View {
         Canvas { ctx, size in
             let base = Self.fit(norm, in: size)
-            let frames = base.mapValues { transform($0, in: size) }
+            // Living drift: each node sways on its own gentle sine, so the whole graph
+            // undulates like coral in a current. Small amplitude so it reads as "alive",
+            // not chaotic (and tap targets, which use the un-swayed layout, still line up).
+            let sway: CGFloat = time == 0 ? 0 : 3.0
+            var frames: [String: CGPoint] = [:]
+            frames.reserveCapacity(nodes.count)
+            for (i, node) in nodes.enumerated() {
+                guard let bp = base[node.id] else { continue }
+                let p = transform(bp, in: size)
+                let ph = Double(i)
+                frames[node.id] = CGPoint(x: p.x + CGFloat(sin(time * 0.55 + ph * 1.3)) * sway,
+                                          y: p.y + CGFloat(cos(time * 0.5 + ph * 0.9)) * sway)
+            }
             let dimming = focus != nil || matchIDs != nil
+            let glowPulse = time == 0 ? 1.0 : (0.82 + 0.18 * sin(time * 0.5))
 
-            drawClusterGlows(nodes: nodes, frames: frames, dimmed: dimming, ctx: &ctx)
+            drawClusterGlows(nodes: nodes, frames: frames, dimmed: dimming, pulse: glowPulse, ctx: &ctx)
 
             if focus == nil {
                 for e in edges {
                     let cross = byID[e.source]?.community != byID[e.target]?.community
                     let col = cross ? Theme.coral.opacity(0.10) : color(byID[e.source]?.community ?? 0).opacity(0.09)
                     curve(e, frames: frames, color: col, width: cross ? 0.7 : 0.6, ctx: &ctx)
+                }
+                // Ambient bioluminescence: a few coral motes always drifting along the veins
+                // between clusters — the "alive" signal, capped so it stays cheap.
+                if time > 0 {
+                    var count = 0
+                    for e in edges where byID[e.source]?.community != byID[e.target]?.community {
+                        drawParticles(e, frames: frames, time: time, ctx: &ctx, faint: true)
+                        count += 1
+                        if count >= 40 { break }
+                    }
                 }
             } else {
                 for e in edges where e.source != focus && e.target != focus {
@@ -124,9 +150,13 @@ struct CodeMapGraphView: View {
                 }
             }
 
-            for node in nodes {
+            for (i, node) in nodes.enumerated() {
                 guard let p = frames[node.id] else { continue }
-                drawNode(node, at: p, selected: node.id == focus, dim: isDim(node, focus: focus, neighbors: neighbors), ctx: &ctx)
+                // Breathing: each node's radius pulses on its own phase, like a polyp.
+                let breathe = time == 0 ? 1.0 : (1.0 + 0.06 * sin(time * 1.1 + Double(i) * 0.7))
+                drawNode(node, at: p, selected: node.id == focus,
+                         dim: isDim(node, focus: focus, neighbors: neighbors),
+                         breathe: breathe, ctx: &ctx)
             }
 
             for node in nodes {
@@ -157,14 +187,14 @@ struct CodeMapGraphView: View {
 
     // MARK: Drawing
 
-    private func drawClusterGlows(nodes: [CodeGraph.Node], frames: [String: CGPoint], dimmed: Bool, ctx: inout GraphicsContext) {
+    private func drawClusterGlows(nodes: [CodeGraph.Node], frames: [String: CGPoint], dimmed: Bool, pulse: Double, ctx: inout GraphicsContext) {
         var sum: [Int: (x: CGFloat, y: CGFloat, n: CGFloat)] = [:]
         for node in nodes {
             guard let p = frames[node.id] else { continue }
             let cur = sum[node.community] ?? (0, 0, 0)
             sum[node.community] = (cur.x + p.x, cur.y + p.y, cur.n + 1)
         }
-        let alpha = dimmed ? 0.05 : 0.12
+        let alpha = (dimmed ? 0.05 : 0.13) * pulse   // the reef breathes
         for (community, s) in sum where s.n > 0 {
             let c = CGPoint(x: s.x / s.n, y: s.y / s.n)
             let r = max(50, 26 * sqrt(s.n)) * scale
@@ -185,18 +215,20 @@ struct CodeMapGraphView: View {
 
     /// Coral particles drifting along a lit edge (only shown for the selection's edges, so
     /// the count is tiny and cheap). Phase-staggered so they ripple outward.
-    private func drawParticles(_ e: CodeGraph.Edge, frames: [String: CGPoint], time: Double, ctx: inout GraphicsContext) {
+    private func drawParticles(_ e: CodeGraph.Edge, frames: [String: CGPoint], time: Double, ctx: inout GraphicsContext, faint: Bool = false) {
         guard let a = frames[e.source], let b = frames[e.target] else { return }
         let c = Self.controlPoint(a, b)
-        for d in 0..<3 {
-            let phase = Double(d) / 3.0
-            let u = (time * 0.5 + phase).truncatingRemainder(dividingBy: 1.0)
+        let dots = faint ? 2 : 3
+        for d in 0..<dots {
+            let phase = Double(d) / Double(dots)
+            let u = (time * (faint ? 0.28 : 0.5) + phase).truncatingRemainder(dividingBy: 1.0)
             let fade = sin(u * .pi)
             guard fade > 0.03 else { continue }
             let p = Self.pointOnQuad(a, c, b, CGFloat(u))
-            let r: CGFloat = 2.4
+            let r: CGFloat = faint ? 1.7 : 2.4
+            let base = faint ? 0.08 : 0.35, span = faint ? 0.28 : 0.55
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)),
-                     with: .color(Theme.coral.opacity(0.35 + 0.55 * fade)))
+                     with: .color(Theme.coral.opacity(base + span * fade)))
         }
     }
 
@@ -214,12 +246,21 @@ struct CodeMapGraphView: View {
                        y: v * v * p0.y + 2 * v * t * p1.y + t * t * p2.y)
     }
 
-    private func drawNode(_ node: CodeGraph.Node, at p: CGPoint, selected: Bool, dim: Bool, ctx: inout GraphicsContext) {
-        let r = radius(node.degree) * scale
+    private func drawNode(_ node: CodeGraph.Node, at p: CGPoint, selected: Bool, dim: Bool, breathe: Double, ctx: inout GraphicsContext) {
+        let r = radius(node.degree) * scale * CGFloat(breathe)
         let tint = color(node.community)
         let rect = CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)
         let fillA = dim ? 0.18 : 0.92
         let ringA = dim ? 0.2 : 0.75
+        // Bioluminescent halo: a soft tinted glow around the HUBS (degree ≥ 2) that swells
+        // with the breath — the coral's living light. Skipped on leaves and when dimmed, so
+        // it reads as glowing polyps, not a uniform blur.
+        if !dim && node.degree >= 2 {
+            let hr = r + 3 + 3 * CGFloat(breathe)
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - hr, y: p.y - hr, width: 2 * hr, height: 2 * hr)),
+                     with: .radialGradient(Gradient(colors: [tint.opacity(0.22), .clear]),
+                                           center: p, startRadius: r * 0.6, endRadius: hr))
+        }
         ctx.drawLayer { layer in
             if !dim { layer.addFilter(.shadow(color: .black.opacity(0.18), radius: 2, x: 0, y: 1)) }
             layer.fill(Path(ellipseIn: rect), with: .color(tint.opacity(fillA)))

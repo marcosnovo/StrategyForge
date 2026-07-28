@@ -17,7 +17,7 @@ import UniformTypeIdentifiers
 
 struct CodeMapView: View {
     @Environment(AppModel.self) private var model
-    @State private var store = CodeMapStore()
+    @State private var store = CodeMapStore.shared
     @State private var selectedNodeID: String?
     @State private var showImporter = false
     @State private var showHTML = false

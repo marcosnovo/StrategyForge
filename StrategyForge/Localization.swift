@@ -332,6 +332,8 @@ enum L10n {
         "map.github.needGh": ("Sign in with the GitHub CLI (gh auth login) to pick from your repos.",
                               "Inicia sesión con la CLI de GitHub (gh auth login) para elegir de tus repos."),
         "map.recent": ("Recent", "Recientes"),
+        "map.column.title": ("Maps", "Mapas"),
+        "map.column.empty": ("No maps yet.\nAdd a repo to generate one.", "Aún no hay mapas.\nAñade un repo para generar uno."),
         "map.card.stats": ("%d nodes · %d clusters", "%d nodos · %d clústeres"),
         "map.delete": ("Delete map", "Eliminar mapa"),
         "map.cloning": ("Cloning the repo…", "Clonando el repo…"),

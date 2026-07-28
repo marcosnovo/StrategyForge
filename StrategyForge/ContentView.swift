@@ -66,9 +66,12 @@ struct ContentView: View {
                 // Loops section leads with the loop list (mirrors Team).
                 LoopSelectorColumn(store: LoopStore.shared)
                 Rectangle().fill(Theme.hairline.opacity(0.5)).frame(width: 1)
+            } else if model.navSection == .map {
+                // Map section leads with the list of generated maps.
+                MapSelectorColumn()
+                Rectangle().fill(Theme.hairline.opacity(0.5)).frame(width: 1)
             } else if model.navSection == .usage
                         || model.navSection == .particleLab || model.navSection == .code
-                        || model.navSection == .map
                         || model.navSection == .skills || model.navSection == .memory
                         || model.navSection == .arena || model.navSection == .settings {
                 // Single full-width surfaces — no second column (no chat list here).

@@ -36,6 +36,13 @@ enum GraphifyPhase: Equatable {
 @MainActor
 @Observable
 final class CodeMapStore {
+    /// Shared so the Map's left column (selector) and the main view drive the SAME state —
+    /// and so the open graph survives navigating away and back.
+    static let shared = CodeMapStore()
+
+    /// The saved map currently open (its MapStore key), for highlighting it in the column.
+    private(set) var currentMapID: String?
+
     /// The repo to map. Set from the picker, a GitHub clone, or the active chat's repo.
     var repoURL: URL?
     /// Bound to the "from GitHub" field — a URL or `owner/repo` shorthand.
@@ -63,6 +70,7 @@ final class CodeMapStore {
         if let g = MapStore.shared.loadGraph(map) {
             graph = g
             htmlURL = MapStore.shared.cachedHTMLURL(map)
+            currentMapID = map.id
             phase = .done
             if repoURL != nil { Task { await refreshInBackground() } }
         } else {
@@ -159,8 +167,9 @@ final class CodeMapStore {
             graph = parsed
             lastBuiltRepo = repo.path
             // Persist the map so it survives leaving the section — cached graph, not the repo.
-            MapStore.shared.record(repoURL: repo, graph: parsed, kind: mapKind,
-                                   subtitle: mapSubtitle.isEmpty ? repo.path : mapSubtitle)
+            let subtitle = mapSubtitle.isEmpty ? repo.path : mapSubtitle
+            MapStore.shared.record(repoURL: repo, graph: parsed, kind: mapKind, subtitle: subtitle)
+            currentMapID = MapStore.key(kind: mapKind, subtitle: subtitle)
             phase = .done
             return
         }
