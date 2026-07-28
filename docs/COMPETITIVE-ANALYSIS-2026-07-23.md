@@ -6,6 +6,33 @@ públicos de cada competidor. Todas las afirmaciones citan fuente; donde la fuen
 dato no estaba documentado públicamente se marca **(no confirmado)**.
 **Audiencia:** producto/roadmap interno.
 
+> **Actualización 2026-07-28 — `main`, gate verde (447 tests).** Nueva feature con foso propio:
+> **Mapa de código (grafo de conocimiento)**. Es el mayor diferenciador desde el análisis:
+> - **Qué es:** convierte cualquier repo en un grafo de conocimiento consultable (integra la CLI
+>   open-source **graphify**, Apache-2.0; AST determinista con tree-sitter + clustering Leiden).
+>   Coral la **gestiona sola** (venv Python aislado, pinneado, bootstrap en el primer uso) — no
+>   bundlea Python en el `.app`. Render **nativo en Canvas** (lóbulos por clúster, foco por selección
+>   con partículas, zoom/pan, búsqueda/filtro) + el `graph.html` interactivo de graphify.
+> - **Mapea sin copia local:** acepta URL de GitHub o **elige de tus repos** (`gh repo list`), clona
+>   en shallow a una carpeta gestionada, y **cachea solo el grafo** (no el repo) → reabrir es
+>   instantáneo y **sin gastar tokens** (`MapStore` persistente).
+> - **El diferenciador real (orquestación):** el mapa se **inyecta en el contexto del agente** en el
+>   primer turno (persiste vía session-resume) para que arranque con la estructura en vez de releer
+>   archivos; **ahorro de tokens estimado** mostrado junto al % de uso. Acciones nodo↔código↔chat:
+>   Abrir archivo, Explicar (`graphify explain`), Ruta (`graphify path`), Preguntar (abre chat atado
+>   al repo con el mapa inyectado), y Watch (rebuild en caliente).
+> - **Posición:** **ningún** rival tiene un grafo de código **nativo + inyectado a los agentes + con
+>   ahorro medible**. Cursor/Windsurf indexan para su propio chat (no exportan a tu CLI ni orquestan
+>   equipos); graphify suelto es un skill sin app. Refuerza el foso "orquestador nativo".
+> - **Huecos recién detectados (honesto):** (1) **cola de "ship it"/deploy** — investigado shipper.now:
+>   sin API pública, así que sería nativo (Vercel/Cloudflare/Supabase CLIs); **no construido**. (2)
+>   **MCP multi-proveedor** — hoy Coral solo escribe `.mcp.json` (Claude); Codex (`config.toml`) y
+>   Gemini (`settings.json`) también soportan MCP pero con otros formatos: pendiente generar sus
+>   configs. (3) UI/UX del Mapa e **IA del rail** a pulir (en curso).
+> - **Nota interna orientativa:** Coral ~**8.5/10** en su nicho (orquestación nativa multi-proveedor +
+>   loop verificador + memoria + mapa); pierde puntos por lo aún-manual (notarización/release sin
+>   estrenar, sync CloudKit dormido, deploy inexistente) y por pulido de UX en las secciones nuevas.
+>
 > **Actualización 2026-07-27 — `main`, gate verde (430 tests).** Iteración de **diseño +
 > rendimiento** (no de features nuevas de competidores, así que el análisis de abajo sigue
 > vigente). Refuerza directamente el foso "**única app nativa macOS pulida y liviana**" frente

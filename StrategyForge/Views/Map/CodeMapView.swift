@@ -23,6 +23,10 @@ struct CodeMapView: View {
     @State private var showHTML = false
     @State private var showGitHub = false
 
+    // GitHub repo picker
+    @State private var githubRepos: [GitHubCLI.RepoRef] = []
+    @State private var loadingRepos = false
+
     // Search / filter
     @State private var query = ""
     @State private var filterCommunity: Int?
@@ -52,12 +56,12 @@ struct CodeMapView: View {
             if store.repoURL == nil,
                let cfg = model.selectedConfiguration,
                let url = model.repoURL(for: cfg) {
-                store.repoURL = url
+                store.setLocalRepo(url)
             }
         }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {
-                store.repoURL = url
+                store.setLocalRepo(url)
                 selectedNodeID = nil
             }
         }
@@ -80,6 +84,7 @@ struct CodeMapView: View {
 
             repoChip
             githubButton
+            recentMenu
 
             Spacer()
 
@@ -164,17 +169,85 @@ struct CodeMapView: View {
         .popover(isPresented: $showGitHub, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: Space.s) {
                 Text(model.t("map.github.title")).font(.sfBodyM.weight(.semibold))
-                TextField(model.t("map.github.placeholder"), text: $store.gitHubInput)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { startClone() }
-                HStack {
-                    Spacer()
+                HStack(spacing: Space.s) {
+                    TextField(model.t("map.github.placeholder"), text: $store.gitHubInput)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { startClone() }
                     Button(model.t("map.github.map")) { startClone() }
                         .buttonStyle(.moon).controlSize(.small).disabled(!store.canClone)
                 }
+                Divider()
+                if GitHubCLI.isInstalled {
+                    Text(model.t("map.github.mine")).font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
+                    if loadingRepos {
+                        HStack { ProgressView().controlSize(.small); Text(model.t("map.github.loading")).font(.sfCaption2).foregroundStyle(.secondary) }
+                    } else if githubRepos.isEmpty {
+                        Text(model.t("map.github.none")).font(.sfCaption2).foregroundStyle(.tertiary)
+                    } else {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(githubRepos) { r in
+                                    Button {
+                                        store.gitHubInput = r.nameWithOwner
+                                        startClone()
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: r.isPrivate ? "lock.fill" : "book.closed")
+                                                .font(.system(size: 10)).foregroundStyle(.secondary)
+                                            Text(r.name).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.ink)
+                                            Text(r.nameWithOwner).font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
+                                            Spacer()
+                                        }
+                                        .padding(.vertical, 3).padding(.horizontal, 4).contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .hoverTint(cornerRadius: Theme.rowCorner)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 240)
+                    }
+                } else {
+                    Text(model.t("map.github.needGh")).font(.sfCaption2).foregroundStyle(.tertiary)
+                }
             }
-            .padding(Space.m).frame(width: 360)
+            .padding(Space.m).frame(width: 400)
+            .task { await loadRepos() }
         }
+    }
+
+    /// Recently mapped repos, cached — reopening is instant and free (no re-run, no tokens).
+    @ViewBuilder
+    private var recentMenu: some View {
+        if !MapStore.shared.maps.isEmpty {
+            Menu {
+                ForEach(MapStore.shared.maps) { m in
+                    Button {
+                        selectedNodeID = nil
+                        store.openSaved(m)
+                    } label: {
+                        Text("\(m.name) · \(m.nodeCount) · \(m.communityCount)")
+                    }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "clock.arrow.circlepath").font(.system(size: 11))
+                    Text(model.t("map.recent")).font(.sfCaption2.weight(.medium)).lineLimit(1)
+                }
+                .foregroundStyle(Theme.secondaryOnMaterial)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(Theme.insetBg))
+            }
+            .menuStyle(.borderlessButton).fixedSize()
+            .help(model.t("map.recent"))
+        }
+    }
+
+    private func loadRepos() async {
+        guard GitHubCLI.isInstalled, githubRepos.isEmpty, !loadingRepos else { return }
+        loadingRepos = true
+        githubRepos = await GitHubCLI.listRepos(limit: 100)
+        loadingRepos = false
     }
 
     private func startClone() {

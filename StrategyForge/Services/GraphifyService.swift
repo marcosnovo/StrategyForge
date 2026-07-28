@@ -40,6 +40,30 @@ final class CodeMapStore {
     var repoURL: URL?
     /// Bound to the "from GitHub" field — a URL or `owner/repo` shorthand.
     var gitHubInput = ""
+    /// How the current repo was obtained — drives how the built map is saved/keyed.
+    private(set) var mapKind: SavedMap.Kind = .local
+    private(set) var mapSubtitle = ""
+
+    /// Point at a local folder (from the picker or the active chat's repo).
+    func setLocalRepo(_ url: URL) {
+        repoURL = url
+        mapKind = .local
+        mapSubtitle = url.path
+    }
+
+    /// Reopen a saved map from its cached graph — instant, no graphify run, no tokens.
+    func openSaved(_ map: SavedMap) {
+        mapKind = map.kind
+        mapSubtitle = map.subtitle
+        repoURL = map.repoPath.map { URL(fileURLWithPath: $0) }
+        if let g = MapStore.shared.loadGraph(map) {
+            graph = g
+            htmlURL = MapStore.shared.cachedHTMLURL(map)
+            phase = .done
+        } else {
+            phase = .failed("Couldn't read the saved map.")
+        }
+    }
 
     private(set) var phase: GraphifyPhase = .idle
     private(set) var graph: CodeGraph?
@@ -104,6 +128,9 @@ final class CodeMapStore {
         if let data = try? Data(contentsOf: jsonURL), let parsed = CodeGraph.parse(data) {
             graph = parsed
             lastBuiltRepo = repo.path
+            // Persist the map so it survives leaving the section — cached graph, not the repo.
+            MapStore.shared.record(repoURL: repo, graph: parsed, kind: mapKind,
+                                   subtitle: mapSubtitle.isEmpty ? repo.path : mapSubtitle)
             phase = .done
             return
         }
@@ -212,6 +239,8 @@ final class CodeMapStore {
             phase = .failed("git isn't available — install Apple's Command Line Tools."); return
         }
         let dest = Self.reposRoot().appendingPathComponent("\(owner)-\(repo)", isDirectory: true)
+        mapKind = .github
+        mapSubtitle = "\(owner)/\(repo)"
         let fm = FileManager.default
         phase = .cloning
 
