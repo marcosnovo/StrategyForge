@@ -62,4 +62,57 @@ enum McpConfigGenerator {
             withJSONObject: root, options: [.prettyPrinted, .sortedKeys]) else { return nil }
         return String(data: data, encoding: .utf8)
     }
+
+    // MARK: - Gemini CLI
+
+    /// Gemini CLI reads MCP servers from `.gemini/settings.json`, using the SAME
+    /// `mcpServers` shape as Claude's `.mcp.json`, so we can reuse the merge logic — it
+    /// preserves the user's other settings keys and only adds/overrides our servers.
+    static let geminiFileName = ".gemini/settings.json"
+    static func geminiSettingsJSON(existing: String?, for servers: [McpServer]) -> String? {
+        mergedJSON(existing: existing, for: servers)
+    }
+
+    // MARK: - Codex CLI
+
+    /// Codex reads MCP servers from a TOML config as `[mcp_servers.NAME]` blocks. We emit a
+    /// project-scoped `.codex/config.toml` as a portable artifact (Codex may also read the
+    /// global `~/.codex/config.toml`). No merge — TOML has no stdlib parser here — so the
+    /// caller writes this only when no file exists, to never clobber a hand-authored one.
+    static let codexFileName = ".codex/config.toml"
+    static func codexTOML(for servers: [McpServer]) -> String? {
+        let usable = servers.filter {
+            !$0.name.trimmingCharacters(in: .whitespaces).isEmpty
+                && !$0.command.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+        guard !usable.isEmpty else { return nil }
+        var out = ""
+        for s in usable.sorted(by: { $0.name < $1.name }) {
+            let key = tomlKey(s.name)
+            out += "[mcp_servers.\(key)]\n"
+            out += "command = \(tomlString(s.command))\n"
+            if !s.args.isEmpty {
+                out += "args = [\(s.args.map(tomlString).joined(separator: ", "))]\n"
+            }
+            if !s.env.isEmpty {
+                out += "\n[mcp_servers.\(key).env]\n"
+                for (k, v) in s.env.sorted(by: { $0.key < $1.key }) {
+                    out += "\(tomlKey(k)) = \(tomlString(v))\n"
+                }
+            }
+            out += "\n"
+        }
+        return out
+    }
+
+    /// A TOML basic string (double-quoted, backslash/quote escaped).
+    private static func tomlString(_ s: String) -> String {
+        "\"" + s.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+    }
+    /// A bare TOML key when it's [A-Za-z0-9_-], else a quoted key.
+    private static func tomlKey(_ s: String) -> String {
+        let bare = !s.isEmpty && s.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
+        return bare ? s : tomlString(s)
+    }
 }

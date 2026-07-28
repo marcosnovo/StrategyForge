@@ -217,6 +217,30 @@ struct StrategyWriter {
             written.append(McpConfigGenerator.fileName)
         }
 
+        // 3b. Per-provider MCP config for the OTHER CLIs on the team — MCP is a shared
+        // standard but each CLI reads a different file/format. Only emit a provider's config
+        // when that provider is actually on the team, so a Claude-only repo stays clean.
+        let providers = Set(strategy.roles.map { $0.provider })
+        if providers.contains(.gemini) {
+            let gemURL = repoURL.appendingPathComponent(McpConfigGenerator.geminiFileName)
+            let existingGem = try? String(contentsOf: gemURL, encoding: .utf8)
+            if let gem = McpConfigGenerator.geminiSettingsJSON(existing: existingGem, for: strategy.mcpServers) {
+                try? fm.createDirectory(at: gemURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try gem.write(to: gemURL, atomically: true, encoding: .utf8)
+                written.append(McpConfigGenerator.geminiFileName)
+            }
+        }
+        if providers.contains(.openai) {
+            let codexURL = repoURL.appendingPathComponent(McpConfigGenerator.codexFileName)
+            // No TOML merge — only write when absent so a hand-authored config.toml is safe.
+            if !fm.fileExists(atPath: codexURL.path),
+               let toml = McpConfigGenerator.codexTOML(for: strategy.mcpServers) {
+                try? fm.createDirectory(at: codexURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try toml.write(to: codexURL, atomically: true, encoding: .utf8)
+                written.append(McpConfigGenerator.codexFileName)
+            }
+        }
+
         return written
     }
 
