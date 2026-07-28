@@ -62,6 +62,17 @@ struct CodeMapView: View {
 
             Spacer()
 
+            if store.graph != nil {
+                HStack(spacing: 5) {
+                    Image(systemName: "sparkles").font(.system(size: 10))
+                    Text(model.t("map.injected")).font(.sfCaption2.weight(.medium))
+                }
+                .foregroundStyle(Theme.coral)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(Theme.coral.opacity(0.10)))
+                .help(model.t("map.injected.help"))
+            }
+
             if store.htmlURL != nil {
                 Button { showHTML = true } label: {
                     Label(model.t("map.open.html"), systemImage: "safari")

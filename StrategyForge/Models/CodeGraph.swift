@@ -25,6 +25,8 @@ struct CodeGraph: Equatable {
         var kind: String?
         /// Normalised community index (0..<communityCount) for colouring clusters.
         var community: Int
+        /// Human-readable cluster name graphify assigns (`community_name`), when present.
+        var communityName: String?
         /// Source location, when the graph carries it — powers the "jump to file:line" cue.
         var file: String?
         var line: Int?
@@ -104,7 +106,9 @@ struct CodeGraph: Equatable {
             if let token = idString(commAny) ?? (commAny as? String) {
                 rawCommunities[id] = token
             }
-            nodes.append(Node(id: id, label: label, kind: kind, community: 0, file: file, line: line))
+            let communityName = n["community_name"] as? String
+            nodes.append(Node(id: id, label: label, kind: kind, community: 0,
+                              communityName: communityName, file: file, line: line))
         }
 
         // Normalise community tokens → 0..<N (stable order of first appearance).

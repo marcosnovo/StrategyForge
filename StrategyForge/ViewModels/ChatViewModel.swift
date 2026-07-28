@@ -710,7 +710,15 @@ final class ChatViewModel {
             : text + "\n\nAttached files to review:\n" + atts.map { "- \($0.name): \($0.url.path)" }.joined(separator: "\n")
         // Steer reasoning depth by appending the effort directive to the REAL prompt
         // only (never the display text the user sees in the transcript).
-        let promptText = promptBody + effort.promptDirective
+        var promptText = promptBody + effort.promptDirective
+        // On the FIRST turn of a session, inject the repo's code map (when graphify has
+        // built one) so the agent opens with structure instead of spending its window
+        // re-reading files to rebuild the same map. It persists via session resume, so
+        // later turns don't re-send it. No graph for this repo → nothing injected, no cost.
+        if messages.isEmpty, let inj = CodeMapContext.shared.injection(forRepo: repo) {
+            promptText = inj.preamble + "\n\n---\n\n" + promptText
+            CodeMapContext.shared.record(inj, repoName: URL(fileURLWithPath: repo).lastPathComponent)
+        }
         lastPromptText = promptText   // real prompt for allow-and-retry
         let displayText: String = atts.isEmpty ? text
             : text + "\n\n📎 " + atts.map { $0.name }.joined(separator: ", ")

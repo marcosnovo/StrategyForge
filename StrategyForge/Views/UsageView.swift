@@ -20,6 +20,11 @@ struct UsageView: View {
             VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
                 header
                 providerUsageGrid
+                // Sits right under the usage % it relates to: the estimated tokens the
+                // code-map injection saved the agents this app session.
+                if CodeMapContext.shared.sessionInjections > 0 {
+                    codeMapSavingsCard
+                }
                 // The cross-provider spend roll-up sits BELOW the per-provider detail.
                 spendByProviderCard
                 if model.configurations.contains(where: { $0.totalTokens > 0 }) {
@@ -45,6 +50,41 @@ struct UsageView: View {
     /// Honest disclosure of WHERE the numbers come from — the Claude % is read from the
     /// Claude Code login token via an endpoint Anthropic doesn't document, so it can
     /// change or stop. Transparency for the privacy policy / ToS posture.
+    /// Estimated saving from injecting the code map into agent sessions this app run.
+    /// Honest framing: an estimate (cold-read of the mapped files minus the digest),
+    /// placed next to the usage % so the two read together. Never billed.
+    private var codeMapSavingsCard: some View {
+        let ctx = CodeMapContext.shared
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: Space.s) {
+                Image(systemName: "circle.hexagongrid.fill").font(.system(size: 13)).foregroundStyle(Theme.coral)
+                Text(model.t("usage.map.title")).font(.sfCardTitle)
+                Spacer()
+                Button(model.t("rail.map")) { model.navSection = .map }
+                    .buttonStyle(.plain).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.coral)
+            }
+            Text(model.t("usage.map.saved", Self.tokensShort(ctx.sessionSavedTokens)))
+                .font(.sfBodyM).foregroundStyle(Theme.ink)
+            Text(model.t("usage.map.detail", ctx.sessionInjections, Self.usdShort(ctx.sessionSavedUSD)))
+                .font(.sfCaption2).foregroundStyle(.secondary)
+        }
+        .padding(Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.cardBg))
+    }
+
+    /// Compact token count: 1_234 → "1.2k", 2_500_000 → "2.5M".
+    private static func tokensShort(_ n: Int) -> String {
+        switch n {
+        case 1_000_000...: return String(format: "%.1fM", Double(n) / 1_000_000)
+        case 1_000...:     return String(format: "%.1fk", Double(n) / 1_000)
+        default:           return "\(n)"
+        }
+    }
+    private static func usdShort(_ v: Double) -> String {
+        v < 0.01 ? "<$0.01" : String(format: "$%.2f", v)
+    }
+
     private var sourceDisclosure: some View {
         HStack(alignment: .top, spacing: Space.s) {
             Image(systemName: "info.circle").font(.system(size: 11)).foregroundStyle(.tertiary)
