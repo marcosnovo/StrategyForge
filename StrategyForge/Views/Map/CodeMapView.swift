@@ -288,6 +288,7 @@ struct CodeMapView: View {
             Divider().opacity(0.3)
             CodeMapGraphView(graph: graph, selectedNodeID: $selectedNodeID, matchIDs: matchIDs(graph))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay(alignment: .topTrailing) { clusterLegend(graph) }
                 .padding(Space.m)
             statsBar(graph)
         }
@@ -340,6 +341,30 @@ struct CodeMapView: View {
             (q.isEmpty || n.label.localizedCaseInsensitiveContains(q))
                 && (filterCommunity == nil || n.community == filterCommunity)
         }.map { $0.id })
+    }
+
+    /// Floating legend of the top clusters (colour + name). Clicking one filters to it —
+    /// the legend doubles as the cluster filter and a colour key for the graph.
+    private func clusterLegend(_ graph: CodeGraph) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(clusterOptions(graph).prefix(8), id: \.0) { (c, name) in
+                Button { filterCommunity = (filterCommunity == c ? nil : c) } label: {
+                    HStack(spacing: 5) {
+                        Circle().fill(CodeMapGraphView.clusterColor(c)).frame(width: 8, height: 8)
+                        Text(name).font(.sfCaption2)
+                            .foregroundStyle(filterCommunity == c ? Theme.ink : Theme.secondaryOnMaterial)
+                            .lineLimit(1)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 0.5))
+        .padding(Space.m)
+        .frame(maxWidth: 200, alignment: .trailing)
     }
 
     /// (community index, display name) for the top clusters, for the filter menu.
@@ -472,21 +497,79 @@ struct CodeMapView: View {
 
     // MARK: Empty / status states
 
+    @ViewBuilder
     private var pickRepoState: some View {
-        ContentUnavailableView {
-            Label(model.t("map.empty.title"), systemImage: "circle.hexagongrid")
-        } description: {
-            Text(model.t("map.empty.desc"))
-        } actions: {
-            HStack(spacing: Space.s) {
-                Button { showImporter = true } label: {
-                    Label(model.t("map.pick.repo"), systemImage: "folder")
+        if MapStore.shared.maps.isEmpty {
+            ContentUnavailableView {
+                Label(model.t("map.empty.title"), systemImage: "circle.hexagongrid")
+            } description: {
+                Text(model.t("map.empty.desc"))
+            } actions: { sourceButtons }
+        } else {
+            recentsState
+        }
+    }
+
+    private var sourceButtons: some View {
+        HStack(spacing: Space.s) {
+            Button { showImporter = true } label: {
+                Label(model.t("map.pick.repo"), systemImage: "folder")
+            }
+            .buttonStyle(.moon).controlSize(.large)
+            Button { showGitHub = true } label: {
+                Label(model.t("map.github"), systemImage: "cloud")
+            }
+            .controlSize(.large)
+        }
+    }
+
+    /// When there are saved maps, the empty state becomes a grid of recents (reopen free)
+    /// plus the source buttons — a far more useful landing than a bare prompt.
+    private var recentsState: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.l) {
+                HStack {
+                    Text(model.t("map.recent")).font(.sfDisplay)
+                    Spacer()
+                    sourceButtons
                 }
-                .buttonStyle(.moon).controlSize(.large)
-                Button { showGitHub = true } label: {
-                    Label(model.t("map.github"), systemImage: "cloud")
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: Space.m)], spacing: Space.m) {
+                    ForEach(MapStore.shared.maps) { m in recentCard(m) }
                 }
-                .controlSize(.large)
+            }
+            .padding(Space.xl)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func recentCard(_ m: SavedMap) -> some View {
+        Button {
+            selectedNodeID = nil
+            store.openSaved(m)
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: m.kind == .github ? "cloud" : "folder")
+                        .font(.system(size: 12)).foregroundStyle(Theme.coral)
+                    Text(m.name).font(.sfBodyM.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
+                    Spacer()
+                }
+                Text(m.subtitle).font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
+                Spacer(minLength: 0)
+                Text(model.t("map.card.stats", m.nodeCount, m.communityCount))
+                    .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+            }
+            .padding(Space.m)
+            .frame(height: 96, alignment: .topLeading)
+            .frame(maxWidth: .infinity)
+            .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.cardBg))
+            .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 0.5))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) { MapStore.shared.delete(m) } label: {
+                Label(model.t("map.delete"), systemImage: "trash")
             }
         }
     }

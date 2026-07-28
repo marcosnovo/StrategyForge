@@ -37,8 +37,11 @@ struct CodeMapGraphView: View {
         Theme.coral, Theme.teal, .purple, .orange, .green,
         .blue, .pink, .indigo, .mint, .brown, .cyan, .yellow
     ]
-    private func color(_ community: Int) -> Color {
-        Self.clusterColors[((community % Self.clusterColors.count) + Self.clusterColors.count) % Self.clusterColors.count]
+    private func color(_ community: Int) -> Color { Self.clusterColor(community) }
+
+    /// Shared so the cluster legend uses the exact same colours as the graph.
+    static func clusterColor(_ community: Int) -> Color {
+        clusterColors[((community % clusterColors.count) + clusterColors.count) % clusterColors.count]
     }
 
     private var rendered: [CodeGraph.Node] {

@@ -32,7 +32,7 @@ struct NavRail: View {
     @AppStorage("nav.showMore") private var showMore = false
     /// Sections that live under "More" — used to auto-open the group when one is active.
     private var moreSectionActive: Bool {
-        [.loops, .memory, .skills, .usage, .services].contains(model.navSection)
+        [.team, .loops, .memory, .skills, .usage, .services].contains(model.navSection)
     }
     private var moreShown: Bool { showMore || moreSectionActive }
 
@@ -46,9 +46,11 @@ struct NavRail: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: Space.xs) {
-                    // PRIMARY (daily): chat, and the surfaces you build/compare with. A UX/IA
-                    // panel found the flat 11-item rail mixed daily destinations with power
-                    // tools + setup at equal weight — so the power tools now live under "More".
+                    // IA (grouped by intent, per the founder's rail redesign): WORK (where you
+                    // do the work), COMPARE (pit teams/models), and MORE (power tools + setup,
+                    // behind a disclosure). Section headers show only when the rail is expanded;
+                    // collapsed, a hairline divider separates the groups.
+                    railSection("rail.section.work")
                     item("bubble.left.and.bubble.right.fill", "sidebar.chats",
                          active: model.navSection == .chats,
                          running: !model.runningChatIDs.isEmpty || !model.attentionChatIDs.isEmpty) {
@@ -60,18 +62,14 @@ struct NavRail: View {
                             else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
                         }
                     }
-
-                    railDivider
-
-                    item("person.3.sequence.fill", "rail.team", active: model.navSection == .team) {
-                        model.guardedLeave { model.navSection = .team }
-                    }
                     item("chevron.left.forwardslash.chevron.right", "rail.code", active: model.navSection == .code) {
                         model.guardedLeave { model.navSection = .code }
                     }
                     item("circle.hexagongrid.fill", "rail.map", active: model.navSection == .map) {
                         model.guardedLeave { model.navSection = .map }
                     }
+
+                    railSection("rail.section.compare")
                     item("flag.checkered", "rail.arena", active: model.navSection == .arena) {
                         model.guardedLeave { model.navSection = .arena }
                     }
@@ -82,6 +80,9 @@ struct NavRail: View {
                     // scannable. Auto-expands when one of its sections is active.
                     moreTile
                     if moreShown {
+                        item("person.3.sequence.fill", "rail.team", active: model.navSection == .team) {
+                            model.guardedLeave { model.navSection = .team }
+                        }
                         item("arrow.triangle.2.circlepath", "rail.loops",
                              active: model.navSection == .loops,
                              running: !LoopStore.shared.runningLoopIDs.isEmpty) {
@@ -276,6 +277,22 @@ struct NavRail: View {
         .buttonStyle(.plain)
         .help(model.t(labelKey))
         .accessibilityLabel(model.t(labelKey))
+    }
+
+    /// A group header: an uppercase caption when the rail is expanded, a hairline when it's
+    /// the narrow icon strip (headers would just be noise there).
+    @ViewBuilder
+    private func railSection(_ key: String) -> some View {
+        if railExpanded {
+            Text(model.t(key))
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .textCase(.uppercase)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, Space.s).padding(.top, Space.xs).padding(.bottom, 1)
+        } else {
+            railDivider
+        }
     }
 
     /// A short hairline rule that groups the icon rail into sections.
