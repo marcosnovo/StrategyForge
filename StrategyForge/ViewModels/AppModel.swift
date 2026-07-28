@@ -669,6 +669,24 @@ final class AppModel {
         save()
     }
 
+    /// Start a new chat already bound to `repoURL` and jump to it — used by the Map's
+    /// "Open in chat", so the code-map digest auto-injects on the first turn of that session.
+    func addConfiguration(repoURL: URL) {
+        var config = Configuration(
+            name: repoURL.lastPathComponent,
+            strategy: StrategyLibrary.executorAdvisor(),
+            lastActiveAt: Date(),
+            strategyIsAuto: true
+        )
+        config.repoPath = repoURL.path
+        config.repoBookmark = try? repoURL.bookmarkData(options: [.withSecurityScope],
+                                                        includingResourceValuesForKeys: nil, relativeTo: nil)
+        configurations.append(config)
+        selectedConfigID = config.id
+        navSection = .chats
+        save()
+    }
+
     /// Token Saver: start a fresh chat that keeps a chat's team, provider and
     /// repo binding but drops the transcript (the token furnace). An optional
     /// summary is seeded as the draft so context carries forward for a few

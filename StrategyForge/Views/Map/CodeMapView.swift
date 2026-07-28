@@ -75,6 +75,14 @@ struct CodeMapView: View {
                 .help(model.t("map.injected.help"))
             }
 
+            if let repo = store.repoURL, store.graph != nil {
+                Button { model.addConfiguration(repoURL: repo) } label: {
+                    Label(model.t("map.chat"), systemImage: "bubble.left.and.bubble.right")
+                }
+                .controlSize(.small)
+                .help(model.t("map.chat.help"))
+            }
+
             if store.htmlURL != nil {
                 Button { showHTML = true } label: {
                     Label(model.t("map.open.html"), systemImage: "safari")
@@ -206,6 +214,7 @@ struct CodeMapView: View {
                     Text(model.t("map.showing", renderCap, graph.nodes.count))
                         .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
                 }
+                Text(model.t("map.tapHint")).font(.sfCaption2).foregroundStyle(.tertiary)
             }
             Spacer()
         }

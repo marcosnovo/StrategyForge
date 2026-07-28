@@ -44,41 +44,73 @@ struct CodeMapGraphView: View {
         let nodes = rendered
         let ids = Set(nodes.map { $0.id })
         let byID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
-        let edges = graph.edges.filter { ids.contains($0.source) && ids.contains($0.target) }.prefix(maxEdges)
+        let edges = Array(graph.edges.filter { ids.contains($0.source) && ids.contains($0.target) }.prefix(maxEdges))
         let norm = Self.layout(nodes: nodes)                     // normalised positions
         let labelIDs = Set(nodes.sorted { $0.degree > $1.degree }.prefix(maxLabels).map { $0.id })
 
+        // Selection focus: when a node is tapped, only it + its direct neighbours stay lit;
+        // everything else dims. This is what turns the cross-cluster hairball into a legible
+        // "who does this touch?" view — the single biggest readability win.
+        let focus = selectedNodeID
+        let neighbors = Self.neighborIDs(of: focus, in: edges)
+
         Canvas { ctx, size in
             let frames = Self.fit(norm, in: size)
-            drawClusterGlows(nodes: nodes, frames: frames, ctx: &ctx)
-            // Intra-cluster wires first (faint), cross-cluster coral seams on top.
-            for e in edges where byID[e.source]?.community == byID[e.target]?.community {
-                stroke(e, frames: frames, color: color(byID[e.source]?.community ?? 0).opacity(0.16), width: 0.7, ctx: &ctx)
+            drawClusterGlows(nodes: nodes, frames: frames, dimmed: focus != nil, ctx: &ctx)
+
+            // Edges. At rest they're a whisper (the topology is implied, not shouted); with a
+            // selection, only the incident edges light up in coral and ride on top.
+            if focus == nil {
+                for e in edges {
+                    let cross = byID[e.source]?.community != byID[e.target]?.community
+                    let col = cross ? Theme.coral.opacity(0.10) : color(byID[e.source]?.community ?? 0).opacity(0.09)
+                    stroke(e, frames: frames, color: col, width: cross ? 0.7 : 0.6, ctx: &ctx)
+                }
+            } else {
+                for e in edges where e.source != focus && e.target != focus {
+                    stroke(e, frames: frames, color: Color.gray.opacity(0.05), width: 0.5, ctx: &ctx)
+                }
+                for e in edges where e.source == focus || e.target == focus {
+                    stroke(e, frames: frames, color: Theme.coral.opacity(0.8), width: 1.5, ctx: &ctx)
+                }
             }
-            for e in edges where byID[e.source]?.community != byID[e.target]?.community {
-                stroke(e, frames: frames, color: Theme.coral.opacity(0.22), width: 0.8, ctx: &ctx)
-            }
+
             for node in nodes {
                 guard let p = frames[node.id] else { continue }
-                drawNode(node, at: p, selected: node.id == selectedNodeID, ctx: &ctx)
+                let dim = focus != nil && node.id != focus && !neighbors.contains(node.id)
+                drawNode(node, at: p, selected: node.id == focus, dim: dim, ctx: &ctx)
             }
-            // Labels for the hubs (+ the selection), clipped so long symbol names don't bleed.
-            for node in nodes where labelIDs.contains(node.id) || node.id == selectedNodeID {
-                guard let p = frames[node.id] else { continue }
+
+            // Labels: hubs at rest; with a selection, the focus + its neighbours instead.
+            for node in nodes {
+                let show = focus == nil ? labelIDs.contains(node.id)
+                                        : (node.id == focus || neighbors.contains(node.id))
+                guard show, let p = frames[node.id] else { continue }
                 let r = radius(node.degree)
                 let text = Text(String(node.label.prefix(24))).font(.system(size: 9.5, weight: .medium))
                 var tctx = ctx
                 drawText(&tctx, text, at: CGPoint(x: p.x, y: p.y + r + 7),
-                         color: node.id == selectedNodeID ? Theme.ink : Theme.secondaryOnMaterial)
+                         color: node.id == focus ? Theme.ink : Theme.secondaryOnMaterial)
             }
         }
         .overlay { tapTargets(nodes: nodes, norm: norm) }
         .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous))
     }
 
+    /// Ids directly connected to `focus` (both directions), for the selection-focus dim.
+    private static func neighborIDs(of focus: String?, in edges: [CodeGraph.Edge]) -> Set<String> {
+        guard let f = focus else { return [] }
+        var n = Set<String>()
+        for e in edges {
+            if e.source == f { n.insert(e.target) }
+            if e.target == f { n.insert(e.source) }
+        }
+        return n
+    }
+
     // MARK: Drawing
 
-    private func drawClusterGlows(nodes: [CodeGraph.Node], frames: [String: CGPoint], ctx: inout GraphicsContext) {
+    private func drawClusterGlows(nodes: [CodeGraph.Node], frames: [String: CGPoint], dimmed: Bool, ctx: inout GraphicsContext) {
         // One soft radial wash behind each community's centroid — gives the map depth and
         // makes clusters read as places, not a uniform hairball. Cheap: one fill per cluster.
         var sum: [Int: (x: CGFloat, y: CGFloat, n: CGFloat)] = [:]
@@ -87,11 +119,12 @@ struct CodeMapGraphView: View {
             let cur = sum[node.community] ?? (0, 0, 0)
             sum[node.community] = (cur.x + p.x, cur.y + p.y, cur.n + 1)
         }
+        let alpha = dimmed ? 0.05 : 0.12
         for (community, s) in sum where s.n > 0 {
             let c = CGPoint(x: s.x / s.n, y: s.y / s.n)
             let r = max(50, 26 * sqrt(s.n))
             ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)),
-                     with: .radialGradient(Gradient(colors: [color(community).opacity(0.10), .clear]),
+                     with: .radialGradient(Gradient(colors: [color(community).opacity(alpha), .clear]),
                                            center: c, startRadius: 0, endRadius: r))
         }
     }
@@ -104,18 +137,23 @@ struct CodeMapGraphView: View {
         ctx.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: width, lineCap: .round))
     }
 
-    private func drawNode(_ node: CodeGraph.Node, at p: CGPoint, selected: Bool, ctx: inout GraphicsContext) {
+    private func drawNode(_ node: CodeGraph.Node, at p: CGPoint, selected: Bool, dim: Bool, ctx: inout GraphicsContext) {
         let r = radius(node.degree)
         let tint = color(node.community)
         let rect = CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)
+        let fillA = dim ? 0.18 : 0.92
+        let ringA = dim ? 0.2 : 0.75
         // Lit dot: soft drop shadow, tint fill, a top inner-light highlight, thin white ring.
+        // A dimmed node (not near the selection) fades back so the focus reads clearly.
         ctx.drawLayer { layer in
-            layer.addFilter(.shadow(color: .black.opacity(0.18), radius: 2, x: 0, y: 1))
-            layer.fill(Path(ellipseIn: rect), with: .color(tint.opacity(0.92)))
+            if !dim { layer.addFilter(.shadow(color: .black.opacity(0.18), radius: 2, x: 0, y: 1)) }
+            layer.fill(Path(ellipseIn: rect), with: .color(tint.opacity(fillA)))
         }
-        ctx.fill(Path(ellipseIn: CGRect(x: p.x - r * 0.5, y: p.y - r * 0.7, width: r, height: r)),
-                 with: .color(.white.opacity(0.25)))
-        ctx.stroke(Path(ellipseIn: rect), with: .color(.white.opacity(0.75)), lineWidth: 0.6)
+        if !dim {
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - r * 0.5, y: p.y - r * 0.7, width: r, height: r)),
+                     with: .color(.white.opacity(0.25)))
+        }
+        ctx.stroke(Path(ellipseIn: rect), with: .color(.white.opacity(ringA)), lineWidth: 0.6)
         if selected {
             let ring = rect.insetBy(dx: -3.5, dy: -3.5)
             ctx.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2)
@@ -162,30 +200,59 @@ struct CodeMapGraphView: View {
     private static func layout(nodes: [CodeGraph.Node]) -> [String: CGPoint] {
         var groups: [Int: [CodeGraph.Node]] = [:]
         for n in nodes { groups[n.community, default: []].append(n) }
-        let communities = groups.keys.sorted()
-        let C = max(communities.count, 1)
+        // Biggest clusters first — they get the roomier inner positions.
+        let communities = groups.keys.sorted { (groups[$0]?.count ?? 0) > (groups[$1]?.count ?? 0) }
+        let C = communities.count
         let golden = 2.399963229728653   // radians — the sunflower angle
+        if C == 0 { return [:] }
 
-        var pos: [String: CGPoint] = [:]
-        for (ci, community) in communities.enumerated() {
-            // Cluster centroid on a big ring (single cluster → centre).
-            let centroid: CGPoint
-            if C == 1 {
-                centroid = .zero
-            } else {
-                let a = 2 * Double.pi * Double(ci) / Double(C)
-                centroid = CGPoint(x: cos(a), y: sin(a))
-            }
-            let members = groups[community]!.sorted { $0.degree > $1.degree }
-            let spread = 0.16 + 0.5 / Double(C)   // tighter clusters when there are many
-            for (k, node) in members.enumerated() {
-                if k == 0 {
-                    pos[node.id] = centroid   // the hub sits at the cluster centre
-                    continue
+        // Per-cluster blob radius (bigger membership → bigger blob).
+        let radius = communities.map { 0.6 + 0.5 * sqrt(Double(groups[$0]!.count)) }
+
+        // Seed centroids on a golden-angle spiral so they start spread across 2D (NOT on a
+        // ring — the ring was the hairball). Then relax to remove overlaps: a cheap
+        // repulsion on the centroids only (deterministic; nodes are placed afterwards).
+        var cx = [Double](repeating: 0, count: C)
+        var cy = [Double](repeating: 0, count: C)
+        let seed = 1.8 * (radius.reduce(0, +) / Double(C))
+        for i in 0..<C {
+            let rr = seed * sqrt(Double(i) + 0.5)
+            cx[i] = rr * cos(Double(i) * golden)
+            cy[i] = rr * sin(Double(i) * golden)
+        }
+        if C > 1 {
+            let iters = C > 60 ? 40 : 160   // guard: keep it cheap even with many clusters
+            for _ in 0..<iters {
+                var dx = [Double](repeating: 0, count: C)
+                var dy = [Double](repeating: 0, count: C)
+                for a in 0..<C {
+                    for b in (a + 1)..<C {
+                        var ex = cx[a] - cx[b], ey = cy[a] - cy[b]
+                        var dist = (ex * ex + ey * ey).squareRoot()
+                        if dist < 0.0001 { ex = Double(a - b); ey = Double(a + 1); dist = (ex * ex + ey * ey).squareRoot() }
+                        let target = radius[a] + radius[b] + 0.4   // desired gap between blobs
+                        if dist < target {
+                            let push = (target - dist) / dist * 0.5
+                            dx[a] += ex * push; dy[a] += ey * push
+                            dx[b] -= ex * push; dy[b] -= ey * push
+                        }
+                    }
                 }
-                let rr = spread * sqrt(Double(k))
+                for i in 0..<C { cx[i] += dx[i]; cy[i] += dy[i] }
+            }
+        }
+
+        // Place nodes: the hub at the centroid, the rest on a sunflower within the blob.
+        var pos: [String: CGPoint] = [:]
+        for i in 0..<C {
+            let members = groups[communities[i]]!.sorted { $0.degree > $1.degree }
+            let n = members.count
+            let blob = radius[i]
+            for (k, node) in members.enumerated() {
+                if k == 0 { pos[node.id] = CGPoint(x: cx[i], y: cy[i]); continue }
+                let rr = blob * sqrt(Double(k) / Double(max(n - 1, 1)))
                 let th = Double(k) * golden
-                pos[node.id] = CGPoint(x: centroid.x + rr * cos(th), y: centroid.y + rr * sin(th))
+                pos[node.id] = CGPoint(x: cx[i] + rr * cos(th), y: cy[i] + rr * sin(th))
             }
         }
         return pos
