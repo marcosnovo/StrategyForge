@@ -437,6 +437,54 @@ final class ChatViewModel {
         return await CodeGit.fullDiff(repo: iso.path)
     }
 
+    // MARK: Independent verification (Bet 3 — "autonomous but accountable")
+
+    /// The result of independently verifying the isolated diff before merge.
+    private(set) var isolationFindings: [ReviewFinding] = []
+    private(set) var isolationVerifiedBy: AIProvider?
+    private(set) var isolationVerifyError: String?
+
+    /// Run an INDEPENDENT read-only review of the isolated diff (reviewer ≠ author — ideally a
+    /// DIFFERENT provider family), so autonomous changes are gated by a separate judge before you
+    /// merge them. This welds Coral's verifier + isolation + provenance into one accountable step.
+    func verifyIsolation() async {
+        guard let iso = isolation, !isolationBusy else { return }
+        isolationBusy = true
+        defer { isolationBusy = false }
+        isolationVerifyError = nil
+        guard let diff = await CodeGit.fullDiff(repo: iso.path),
+              !diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            isolationFindings = []; isolationVerifiedBy = nil
+            isolationVerifyError = "No changes to verify yet."
+            return
+        }
+        let reviewer = independentReviewer()
+        var bins = providerBinaries; bins[.claude] = binary
+        let runner = CLIOneShotRunner(binaries: bins, apiKeys: providerAPIKeys,
+                                      reasoningEffort: codexReasoningEffort, readOnly: true)
+        do {
+            let r = try await runner.run(prompt: DiffReviewer.reviewPrompt(diff: diff),
+                                         provider: reviewer, model: "", cwd: iso.path)
+            isolationFindings = DiffReviewer.parseFindings(r.text)
+            isolationVerifiedBy = reviewer
+        } catch {
+            isolationVerifyError = (error as? OneShotError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// A reviewer of a DIFFERENT family than the chat's provider, if one is connected — an
+    /// independent second opinion. Falls back to the same provider (still read-only, reviewer≠author).
+    private func independentReviewer() -> AIProvider {
+        for p in [AIProvider.openai, .gemini, .claude] where p != config.provider {
+            if CLIOneShotRunner.resolveBinary(providerBinaries[p] ?? "", provider: p) != nil { return p }
+        }
+        return config.provider
+    }
+
+    private func clearVerification() {
+        isolationFindings = []; isolationVerifiedBy = nil; isolationVerifyError = nil
+    }
+
     /// Commit the worktree's changes and merge them (no-ff) into the live tree, then tear down.
     func mergeIsolation() async {
         guard let iso = isolation, let repo = config.repoPath, !isolationBusy else { return }
@@ -464,6 +512,7 @@ final class ChatViewModel {
         if await CodeGit.hasUncommittedChanges(repo: iso.path) == false { await teardownWorktree() }
     }
     private func teardownWorktree() async {
+        clearVerification()
         guard let iso = isolation, let repo = config.repoPath else { isolation = nil; return }
         await CodeGit.removeWorktree(repo: repo, path: iso.path)
         await CodeGit.deleteBranch(repo: repo, name: iso.branch)

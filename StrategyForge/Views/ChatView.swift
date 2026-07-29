@@ -1976,7 +1976,10 @@ struct ChatView: View {
             HStack(spacing: Space.s) {
                 Image(systemName: "shield.lefthalf.filled").foregroundStyle(Theme.coral).font(.system(size: 11))
                 Text(model.t("isolate.banner")).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+                isolationVerdict
                 Spacer()
+                Button(model.t("isolate.verify")) { Task { await vm.verifyIsolation() } }
+                    .controlSize(.small).disabled(vm.isolationBusy)
                 Button(model.t("isolate.review")) {
                     Task { isolationDiffText = await vm.isolationDiff() ?? "—"; showIsolationDiff = true }
                 }
@@ -1989,6 +1992,26 @@ struct ChatView: View {
             .padding(.horizontal, Space.m).padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous).fill(Theme.accentSoft))
             .padding(.top, 4)
+        }
+    }
+
+    /// The independent-verifier verdict on the isolated diff: a green seal when a different-family
+    /// reviewer approves, an amber flag with the issue count otherwise.
+    @ViewBuilder private var isolationVerdict: some View {
+        if vm.isolationVerifyError != nil {
+            Label(model.t("isolate.verify.fail"), systemImage: "exclamationmark.triangle")
+                .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+        } else if let by = vm.isolationVerifiedBy {
+            let n = vm.isolationFindings.count
+            let high = vm.isolationFindings.filter { $0.severity == .high }.count
+            if n == 0 {
+                Label(model.t("isolate.verified", by.displayName), systemImage: "checkmark.seal.fill")
+                    .font(.sfCaption2).foregroundStyle(Theme.success).lineLimit(1)
+            } else {
+                Label(model.t("isolate.issues", n) + (high > 0 ? " ⚑\(high)" : ""), systemImage: "exclamationmark.triangle.fill")
+                    .font(.sfCaption2).foregroundStyle(Theme.warning).lineLimit(1)
+                    .help(vm.isolationFindings.prefix(6).map { "• [\($0.severity.rawValue)] \($0.title)" }.joined(separator: "\n"))
+            }
         }
     }
 
