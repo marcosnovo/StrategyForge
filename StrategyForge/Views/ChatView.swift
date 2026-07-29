@@ -1890,6 +1890,7 @@ struct ChatView: View {
                 HStack(spacing: Space.s) {
                     modeMenu
                     grillToggle
+                    approachesToggle
                     if config.repoPath?.isEmpty == false { isolateToggle }
                     Spacer(minLength: Space.s)
                     ContextWindowChip(breakdown: ContextBreakdown.estimate(
@@ -1930,6 +1931,24 @@ struct ChatView: View {
         .buttonStyle(.plain)
         .help(model.t("grill.help"))
         .accessibilityLabel(model.t("grill.label"))
+    }
+
+    /// "Approaches" — the agent proposes N distinct approaches to compare before implementing.
+    private var approachesToggle: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) { vm.proposeApproaches.toggle() }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "square.grid.2x2").font(.system(size: 10))
+                Text(model.t("approaches.label")).font(.sfCaption2.weight(.medium))
+            }
+            .foregroundStyle(vm.proposeApproaches ? Theme.coral : .secondary)
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .background(Capsule().fill(vm.proposeApproaches ? Theme.accentSoft : .clear))
+        }
+        .buttonStyle(.plain)
+        .help(model.t("approaches.help"))
+        .accessibilityLabel(model.t("approaches.label"))
     }
 
     /// "Aislar" — run in a git worktree so autonomous edits don't touch the live tree until

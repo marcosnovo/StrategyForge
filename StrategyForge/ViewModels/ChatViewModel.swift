@@ -382,6 +382,15 @@ final class ChatViewModel {
     /// work (the article's /grill-me idea) — front-loading the questions the verifier would
     /// otherwise catch late. Injected as a prompt directive, like effort.
     var grillMe = false
+    /// "Propose approaches first" (the article's prototype-first idea): before implementing,
+    /// the agent lays out N distinct approaches to compare so you pick before it builds.
+    var proposeApproaches = false
+    static let approachesDirective = """
+        \n\nBEFORE writing any code, propose 3 DISTINCT approaches to this task. For each, give:
+        a short name + one-line summary, its main tradeoffs (effort, risk, simplicity,
+        extensibility), and when it's the right pick. Present them as a compact side-by-side
+        comparison, recommend one with a reason, and WAIT for me to choose before implementing.
+        """
     /// The adversarial-planning directive appended when `grillMe` is on.
     static let grillDirective = """
         \n\nBEFORE writing any code or making any changes, STOP and interrogate me. Ask the 3–7
@@ -797,6 +806,7 @@ final class ChatViewModel {
         // only (never the display text the user sees in the transcript).
         var promptText = promptBody + effort.promptDirective
         if grillMe { promptText += Self.grillDirective }   // interrogate me before implementing
+        if proposeApproaches { promptText += Self.approachesDirective }   // N approaches, I pick
         // On the FIRST turn of a session, inject the repo's code map (when graphify has
         // built one) so the agent opens with structure instead of spending its window
         // re-reading files to rebuild the same map. It persists via session resume, so
