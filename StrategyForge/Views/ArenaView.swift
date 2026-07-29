@@ -479,12 +479,41 @@ struct ArenaView: View {
                 HStack(spacing: Space.s) { WorkingLogo(size: 16); Text(model.t("arena.running")).font(.sfCaption2).foregroundStyle(.secondary) }
                     .padding(.vertical, Space.m)
             }
+            recommendationBanner()
             let cols = [GridItem(.adaptive(minimum: 300, maximum: 420), spacing: Space.l, alignment: .top)]
             LazyVGrid(columns: cols, alignment: .leading, spacing: Space.l) {
                 ForEach(arena.outcomes) { outcome in resultCard(outcome) }
             }
         }
     }
+
+    /// The recommender: turns the arena into "which model should I use for this task?" — the
+    /// current winner (judge's quality pick when a judge ran, else the cheapest) plus a
+    /// cheaper-alternative callout. Coral's signature over web leaderboards: native + independent judge.
+    @ViewBuilder private func recommendationBanner() -> some View {
+        let succeeded = arena.outcomes.filter { $0.succeeded }
+        if !arena.isRunning, succeeded.count >= 2, let winID = arena.winnerID,
+           let win = arena.outcomes.first(where: { $0.id == winID }) {
+            let judged = !arena.verdicts.isEmpty
+            let cheapest = succeeded.min { ($0.result?.costUSD ?? 0) < ($1.result?.costUSD ?? 0) }
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles").font(.system(size: 11)).foregroundStyle(Theme.coral)
+                Text(model.t("arena.recommend")).font(.sfCaption2).foregroundStyle(.secondary)
+                Text("\(win.entrant.provider.displayName) · \(shortModel(win.entrant.model, win.entrant.provider))")
+                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.ink)
+                Text("· " + model.t(judged ? "arena.recommend.quality" : "arena.recommend.cheapest"))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                Spacer()
+                if let c = cheapest, c.id != win.id, let r = c.result {
+                    Text(model.t("arena.recommend.cheaper", c.entrant.provider.displayName, Self.usd(r.costUSD)))
+                        .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
+                }
+            }
+            .padding(.horizontal, Space.m).padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous).fill(Theme.accentSoft))
+        }
+    }
+    private static func usd(_ v: Double) -> String { v < 0.01 ? "<$0.01" : String(format: "$%.2f", v) }
 
     private func resultCard(_ outcome: ArenaOutcome) -> some View {
         let isWinner = arena.winnerID == outcome.id
