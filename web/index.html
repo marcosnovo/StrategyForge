@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Coral — multi-agent AI teams on your own plans, on your Mac</title>
+<meta name="description" content="The native macOS app that orchestrates a multi-agent AI team with an independent verifier and per-line provenance — running on the CLI subscriptions you already pay for. No metering, no account, open source (MIT)." />
+<meta property="og:title" content="Coral — yours, not rented" />
+<meta property="og:description" content="Design and run multi-agent AI teams on your own AI plans, locally. No per-token metering, no account, no server. Native macOS, open source." />
+<meta property="og:type" content="website" />
+<style>
+  :root{
+    --bg:#0b0f14; --bg2:#0e141b; --panel:#121a23; --panel2:#16202b;
+    --ink:#eef4f8; --muted:#9fb2c0; --faint:#6f8496;
+    --coral:#ff6f5e; --coral2:#ff9a72; --reef:#3fd0c9; --line:rgba(255,255,255,.08);
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:
+      radial-gradient(1100px 600px at 78% -10%, rgba(255,111,94,.14), transparent 60%),
+      radial-gradient(900px 520px at 10% 8%, rgba(63,208,201,.10), transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font:16px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  header{display:flex;align-items:center;justify-content:space-between;padding:22px 0}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
+  .dot{width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,var(--coral),var(--coral2));box-shadow:0 4px 18px rgba(255,111,94,.5)}
+  nav a{color:var(--muted);text-decoration:none;margin-left:22px;font-size:14px}
+  nav a:hover{color:var(--ink)}
+  .btn{display:inline-flex;align-items:center;gap:9px;border-radius:12px;padding:12px 18px;font-weight:600;text-decoration:none;border:1px solid transparent;transition:.15s}
+  .btn.pri{background:linear-gradient(135deg,var(--coral),var(--coral2));color:#231008;box-shadow:0 10px 30px rgba(255,111,94,.35)}
+  .btn.pri:hover{transform:translateY(-1px)}
+  .btn.ghost{border-color:var(--line);color:var(--ink);background:rgba(255,255,255,.02)}
+  .btn.ghost:hover{border-color:rgba(255,255,255,.22)}
+
+  .hero{padding:64px 0 26px;text-align:center}
+  .badge{display:inline-block;font-size:13px;color:var(--reef);border:1px solid rgba(63,208,201,.35);background:rgba(63,208,201,.08);padding:6px 13px;border-radius:999px;margin-bottom:22px}
+  h1{font-size:clamp(34px,6vw,60px);line-height:1.03;margin:0 0 18px;letter-spacing:-.02em;font-weight:800}
+  h1 .grad{background:linear-gradient(120deg,var(--coral),var(--coral2) 55%,var(--reef));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{max-width:720px;margin:0 auto 30px;color:var(--muted);font-size:clamp(16px,2.4vw,20px)}
+  .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .fineprint{margin-top:16px;color:var(--faint);font-size:13px}
+
+  section{padding:52px 0}
+  h2{font-size:clamp(24px,3.6vw,34px);letter-spacing:-.01em;margin:0 0 8px;text-align:center}
+  .lede{color:var(--muted);text-align:center;max-width:660px;margin:0 auto 34px}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .card h3{margin:2px 0 8px;font-size:18px}
+  .card p{margin:0;color:var(--muted);font-size:14.5px}
+  .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:19px;background:rgba(255,111,94,.12);border:1px solid rgba(255,111,94,.25);margin-bottom:12px}
+
+  .compare{max-width:820px;margin:0 auto;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .compare .row{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:0}
+  .compare .row>div{padding:14px 18px;border-bottom:1px solid var(--line);font-size:14.5px}
+  .compare .row.head>div{background:rgba(255,255,255,.03);font-weight:700;color:var(--ink)}
+  .compare .row>div:first-child{color:var(--muted)}
+  .yes{color:var(--reef);font-weight:600}
+  .no{color:var(--faint)}
+  @media(max-width:620px){.compare .row{grid-template-columns:1fr}.compare .row>div:first-child{font-weight:700;color:var(--ink)}}
+
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media(max-width:860px){.steps{grid-template-columns:1fr}}
+  .step .n{font-size:13px;color:var(--coral);font-weight:700;letter-spacing:.08em}
+
+  .final{text-align:center;background:linear-gradient(180deg,rgba(255,111,94,.10),rgba(63,208,201,.06));border:1px solid var(--line);border-radius:24px;padding:48px 24px;margin:20px 0 8px}
+  footer{color:var(--faint);font-size:13px;padding:34px 0 60px;border-top:1px solid var(--line);margin-top:24px}
+  footer a{color:var(--muted);text-decoration:none}
+  footer a:hover{color:var(--ink)}
+  .trust{max-width:720px;margin:0 auto 14px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="dot"></span> Coral</div>
+    <nav>
+      <a href="#why">Why it's different</a>
+      <a href="#how">How it works</a>
+      <a href="#compare">vs. rented agents</a>
+      <a href="https://github.com/marcosnovo/StrategyForge">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <span class="badge">Your subscription · No API keys · No backend</span>
+    <h1>Multi-agent AI teams —<br><span class="grad">yours, not rented.</span></h1>
+    <p class="sub">Coral is a native macOS app that designs <em>and</em> runs a team of AI agents — an orchestrator plus specialists — driving the CLIs you already pay for (Claude Code, Codex, Gemini) headlessly on your own machine. No per-token bill on top. No account. Nothing leaves your Mac.</p>
+    <div class="cta">
+      <a class="btn pri" href="https://github.com/marcosnovo/StrategyForge/releases/latest">↓ Download for macOS</a>
+      <a class="btn ghost" href="https://github.com/marcosnovo/StrategyForge">View source (MIT)</a>
+    </div>
+    <div class="fineprint">macOS 14+ · Developer ID signed &amp; notarized · free &amp; open source</div>
+  </div>
+</div>
+
+<section id="why">
+  <div class="wrap">
+    <h2>What makes Coral different</h2>
+    <p class="lede">Everyone can call a model. Almost no one does <strong>all</strong> of this at once — and no one does it as a native Mac app on your own plans.</p>
+    <div class="grid">
+      <div class="card"><div class="ic">⚡︎</div><h3>No metering</h3><p>Runs on the AI plans you already pay for. No per-token bill on top, no markup — your cost is your provider's cost.</p></div>
+      <div class="card"><div class="ic">🔒</div><h3>Your keys, your Mac</h3><p>No account, no server, no prompt routing. Your code and logins never leave this machine. Telemetry is off by default and local.</p></div>
+      <div class="card"><div class="ic">🧩</div><h3>Mix providers per role</h3><p>Plan with Claude, build with Codex, review with Gemini — one orchestrated run. No single-vendor CLI does cross-provider delegation.</p></div>
+      <div class="card"><div class="ic">🛡️</div><h3>Reviewer ≠ author</h3><p>An independent verifier — ideally a different provider family — gates autonomous loops and reviews an isolated worktree diff before you merge.</p></div>
+      <div class="card"><div class="ic">🧬</div><h3>Per-line provenance</h3><p>Every line is attributed to the model that wrote it, even across providers. Autonomous, but accountable by construction.</p></div>
+      <div class="card"><div class="ic">🗺️</div><h3>Understands your code</h3><p>The Map turns a repo into an interactive, agent-injected knowledge graph with estimated token savings — visual and portable, not a hosted vector index.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="lede">From a prompt to a running team in three steps — no setup ritual first.</p>
+    <div class="steps">
+      <div class="card step"><div class="n">STEP 1</div><h3>Ask anything</h3><p>Type your task like any chat, and optionally point it at a folder of code. Coral picks the right team — one agent or a specialized squad.</p></div>
+      <div class="card step"><div class="n">STEP 2</div><h3>Watch the team work</h3><p>The orchestrator plans, delegates to subagents and synthesizes — live, with tokens and cost per turn. No monthly surprise.</p></div>
+      <div class="card step"><div class="n">STEP 3</div><h3>Ship it, verified</h3><p>Run isolated in a git worktree, verify the diff with an independent reviewer, then merge — or deploy with a CLI you already have.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="compare">
+  <div class="wrap">
+    <h2>Coral vs. rented cloud agents</h2>
+    <p class="lede">The honest table. Enterprise agent platforms are powerful — but they meter your tokens, gate you behind an account, and run in a browser shell.</p>
+    <div class="compare">
+      <div class="row head"><div>&nbsp;</div><div>Coral</div><div>Metered cloud agent</div></div>
+      <div class="row"><div>Billing</div><div class="yes">Your plan, no markup</div><div class="no">Seat + per-token metering</div></div>
+      <div class="row"><div>Subscription login (Claude Max / ChatGPT / Gemini)</div><div class="yes">Native</div><div class="no">API-key only</div></div>
+      <div class="row"><div>Account required</div><div class="yes">None</div><div class="no">Yes, login-gated</div></div>
+      <div class="row"><div>App</div><div class="yes">Native SwiftUI</div><div class="no">Browser / Electron shell</div></div>
+      <div class="row"><div>Cross-provider mixing in one run</div><div class="yes">Yes</div><div class="no">Sequential / single-vendor</div></div>
+      <div class="row"><div>Per-line provenance</div><div class="yes">Yes</div><div class="no">Not exposed</div></div>
+      <div class="row"><div>Source</div><div class="yes">Open (MIT)</div><div class="no">Closed binary</div></div>
+    </div>
+    <p class="lede" style="margin-top:22px;font-size:14px">Where Coral doesn't win: it's a pro-dev tool on your repo — there's no hosted deploy pipeline (it drives your own deploy CLIs instead), and it ships outside the Mac App Store, so first launch uses the normal Gatekeeper allow.</p>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="final">
+    <h2 style="margin-bottom:12px">Autonomous, but accountable — on your terms.</h2>
+    <p class="sub" style="margin-bottom:24px">Free, open source, and running on the plans you already own.</p>
+    <div class="cta">
+      <a class="btn pri" href="https://github.com/marcosnovo/StrategyForge/releases/latest">↓ Download for macOS</a>
+      <a class="btn ghost" href="https://github.com/marcosnovo/StrategyForge">Star on GitHub</a>
+    </div>
+  </div>
+
+  <footer>
+    <p class="trust">Coral runs the CLIs you already pay for (Claude Code, Codex, Gemini) on your Mac. Your keys and code never leave it. No token reselling, no analytics backend.</p>
+    <div style="text-align:center">
+      <a href="https://github.com/marcosnovo/StrategyForge">Source</a> ·
+      <a href="https://github.com/marcosnovo/StrategyForge/blob/main/SECURITY.md">Trust model</a> ·
+      <a href="https://github.com/marcosnovo/StrategyForge/blob/main/LICENSE">MIT License</a>
+      <div style="margin-top:10px">© 2026 Marcos Novo. “Coral” and its logo are trademarks.</div>
+    </div>
+  </footer>
+</div>
+</body>
+</html>
