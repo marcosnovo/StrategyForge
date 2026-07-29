@@ -76,6 +76,13 @@ struct ChatView: View {
     /// Isolation ("Aislar") review-diff sheet.
     @State private var showIsolationDiff = false
     @State private var isolationDiffText = ""
+    /// "Ship" (Bet 4): detected deploy CLIs + a confirmed deploy + its result.
+    @State private var shipTools: [ShipTool] = []
+    @State private var shipTool: ShipTool?
+    @State private var showShipConfirm = false
+    @State private var showShipResult = false
+    @State private var shipping = false
+    @State private var shipResult: ShipResult?
     /// Working-branch context bar: the branch + its ±diff, and any open PR.
     @State private var branchStat: CodeGit.BranchStat?
     @State private var prInfo: GitHubCLI.PRInfo?
@@ -719,6 +726,17 @@ struct ChatView: View {
                             }
                             .buttonStyle(.plain)
                             .help(model.t("map.injected.help"))
+                        }
+                        if !shipTools.isEmpty {
+                            Menu {
+                                ForEach(shipTools) { tool in
+                                    Button(model.t("ship.via", tool.displayName)) { shipTool = tool; showShipConfirm = true }
+                                }
+                            } label: {
+                                Image(systemName: "paperplane").font(.system(size: 11)).foregroundStyle(.secondary)
+                            }
+                            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                            .help(model.t("ship.help"))
                         }
                     } else {
                         // No repo yet → a one-tap "connect a folder" right in the chat,
@@ -1590,6 +1608,17 @@ struct ChatView: View {
             .frame(minWidth: 640, idealWidth: 820, minHeight: 400, idealHeight: 600)
             .background(Theme.appBg)
         }
+        .task(id: config.repoPath) { shipTools = ShipService.available() }
+        .confirmationDialog(model.t("ship.confirm.title", shipTool?.displayName ?? ""),
+                            isPresented: $showShipConfirm, titleVisibility: .visible) {
+            Button(model.t("ship.confirm.deploy"), role: .destructive) {
+                guard let tool = shipTool, let repo = config.repoPath else { return }
+                shipping = true; shipResult = nil; showShipResult = true
+                Task { let r = await ShipService.deploy(tool, repo: repo); shipResult = r; shipping = false }
+            }
+            Button(model.t("ship.cancel"), role: .cancel) {}
+        } message: { Text(model.t("ship.confirm.body")) }
+        .sheet(isPresented: $showShipResult) { shipResultSheet }
         // Live per-tool permission gate ("Ask" mode) — the run waits on the answer.
         .sheet(isPresented: Binding(get: { vm.pendingPermission != nil },
                                     set: { if !$0 { vm.pendingPermission = nil } })) {
@@ -2013,6 +2042,41 @@ struct ChatView: View {
                     .help(vm.isolationFindings.prefix(6).map { "• [\($0.severity.rawValue)] \($0.title)" }.joined(separator: "\n"))
             }
         }
+    }
+
+    /// Bet 4 — the thin "ship" result: progress while the deploy CLI runs, then the live
+    /// URL (one-tap Open) and the full log. Never a PaaS — just the CLI's own output.
+    @ViewBuilder private var shipResultSheet: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Label(shipping ? model.t("ship.deploying", shipTool?.displayName ?? "")
+                                : (shipResult?.ok == true ? model.t("ship.done") : model.t("ship.failed")),
+                      systemImage: shipping ? "paperplane"
+                                : (shipResult?.ok == true ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"))
+                    .font(.sfCardTitle)
+                    .foregroundStyle(shipping ? Theme.accent : (shipResult?.ok == true ? Theme.success : Theme.warning))
+                Spacer()
+                if let url = shipResult?.url, let u = URL(string: url) {
+                    Button {
+                        NSWorkspace.shared.open(u)
+                    } label: { Label(model.t("ship.open"), systemImage: "arrow.up.right.square") }
+                }
+                Button(model.t("common.done")) { showShipResult = false }.keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(.bar)
+            if shipping {
+                HStack(spacing: Space.s) { ProgressView().controlSize(.small); Text(model.t("ship.deploying", shipTool?.displayName ?? "")).font(.sfBodyM).foregroundStyle(.secondary) }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    Text(shipResult?.log.isEmpty == false ? shipResult!.log : "—")
+                        .font(.sfCode).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(Space.l)
+                }
+            }
+        }
+        .frame(minWidth: 620, idealWidth: 760, minHeight: 360, idealHeight: 520)
+        .background(Theme.appBg)
     }
 
     /// Aceptar ediciones / Plan / Automático — the CLI permission mode, switchable
