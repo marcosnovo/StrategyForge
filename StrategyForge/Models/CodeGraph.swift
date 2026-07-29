@@ -46,6 +46,20 @@ struct CodeGraph: Equatable {
 
     var isEmpty: Bool { nodes.isEmpty }
 
+    /// Map each community id → its SIZE RANK (0 = biggest). Colouring by rank (not the raw,
+    /// first-appearance community index) guarantees the dominant lobes always get the most
+    /// distinct palette colours, and only the tiny long tail falls back to grey — which is
+    /// what fixes a repo with hundreds of micro-communities looking washed-out grey.
+    func communityRank() -> [Int: Int] {
+        var count: [Int: Int] = [:]
+        for n in nodes { count[n.community, default: 0] += 1 }
+        var rank: [Int: Int] = [:]
+        for (i, kv) in count.sorted(by: { $0.value > $1.value || ($0.value == $1.value && $0.key < $1.key) }).enumerated() {
+            rank[kv.key] = i
+        }
+        return rank
+    }
+
     // MARK: - Tolerant parse
 
     /// Parse graphify's `graph.json`. Accepts the NetworkX node-link shape and common

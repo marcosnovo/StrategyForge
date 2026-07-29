@@ -425,6 +425,7 @@ struct CodeMapView: View {
 
     private func nodeInfo(_ node: CodeGraph.Node, _ graph: CodeGraph) -> some View {
         let neighbors = neighborsOf(node.id, in: graph)
+        let rank = graph.communityRank()
         return VStack(alignment: .leading, spacing: Space.s) {
             HStack {
                 Text(model.t("map.node.title")).font(.sfCaption2.weight(.semibold))
@@ -435,7 +436,7 @@ struct CodeMapView: View {
             }
             Text(node.label).font(.sfCardTitle).foregroundStyle(Theme.ink).lineLimit(3).textSelection(.enabled)
             HStack(spacing: 6) {
-                Circle().fill(CodeMapGraphView.clusterColor(node.community)).frame(width: 8, height: 8)
+                Circle().fill(CodeMapGraphView.clusterColor(rank: rank[node.community] ?? 999)).frame(width: 8, height: 8)
                 Text(node.communityName ?? "Cluster \(node.community)")
                     .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
             }
@@ -460,7 +461,7 @@ struct CodeMapView: View {
                 ForEach(neighbors.prefix(40)) { nb in
                     Button { selectedNodeID = nb.id } label: {
                         HStack(spacing: 6) {
-                            Circle().fill(CodeMapGraphView.clusterColor(nb.community)).frame(width: 6, height: 6)
+                            Circle().fill(CodeMapGraphView.clusterColor(rank: rank[nb.community] ?? 999)).frame(width: 6, height: 6)
                             Text(nb.label).font(.sfCaption2).foregroundStyle(Theme.ink).lineLimit(1)
                             Spacer()
                         }
@@ -488,13 +489,14 @@ struct CodeMapView: View {
 
     /// Cluster list (colour + name), click to filter — graphify's "COMMUNITIES" panel, native.
     private func communitiesPanel(_ graph: CodeGraph) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let rank = graph.communityRank()
+        return VStack(alignment: .leading, spacing: 4) {
             Text(model.t("map.communities")).font(.sfCaption2.weight(.semibold))
                 .foregroundStyle(.secondary).textCase(.uppercase)
             ForEach(clusterOptions(graph), id: \.0) { (c, name) in
                 Button { filterCommunity = (filterCommunity == c ? nil : c) } label: {
                     HStack(spacing: 6) {
-                        Circle().fill(CodeMapGraphView.clusterColor(c)).frame(width: 9, height: 9)
+                        Circle().fill(CodeMapGraphView.clusterColor(rank: rank[c] ?? 999)).frame(width: 9, height: 9)
                         Text(name).font(.sfCaption2)
                             .foregroundStyle(filterCommunity == c ? Theme.ink : Theme.secondaryOnMaterial).lineLimit(1)
                         Spacer()

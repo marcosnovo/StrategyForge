@@ -72,15 +72,21 @@ struct CodeMapGraphView: View {
     @State private var rotY: Double = 0
     @State private var lastRotX: Double = 0.5
     @State private var lastRotY: Double = 0
+    @State private var darkCanvas = true
     // Memoised layouts so pan/zoom/rotate (which re-evaluate the body) don't recompute them.
     @State private var norm: [String: CGPoint] = [:]
     @State private var sphere3D: [String: V3] = [:]
+    /// community id → size rank (0 = biggest), so colouring uses the DOMINANT clusters.
+    @State private var rankOf: [Int: Int] = [:]
 
     private let maxNodes = 240
     private let maxEdges = 650
     private let maxLabels = 26
 
-    private func color(_ community: Int) -> Color { Self.clusterColor(community) }
+    private func color(_ community: Int) -> Color { Self.clusterColor(rank: rankOf[community] ?? 999) }
+    /// Neutral (edges/labels) + the colour far nodes fade toward — flip with the canvas theme.
+    private var neutral: Color { darkCanvas ? .white : .black }
+    private var fogTarget: Color { darkCanvas ? Self.darkBg : Theme.appBg }
 
     /// The deep backdrop the graph sits on (fixed, both themes) so the glows read as light —
     /// and the target colour that far nodes fade toward (depth haze).
@@ -106,9 +112,11 @@ struct CodeMapGraphView: View {
         Color(hue: 0.83, saturation: 0.40, brightness: 0.82),    // 10 orchid
         Color(hue: 0.07, saturation: 0.55, brightness: 0.88),    // 11 apricot
     ]
-    static func clusterColor(_ community: Int) -> Color {
-        if community <= 0 { return Theme.coral }
-        if community < clusterAnchors.count { return clusterAnchors[community] }
+    /// Colour for a cluster by its SIZE RANK (0 = biggest → coral). Anchors for the top ~12
+    /// clusters; the long tail collapses to grey (the eye can't track more than that anyway).
+    static func clusterColor(rank: Int) -> Color {
+        if rank <= 0 { return Theme.coral }
+        if rank < clusterAnchors.count { return clusterAnchors[rank] }
         return Color(hue: 0.5, saturation: 0.05, brightness: 0.6)   // "other" — the long tail
     }
 
@@ -129,10 +137,13 @@ struct CodeMapGraphView: View {
         let neighbors = Self.neighborIDs(of: focus, in: edges)
 
         ZStack {
-            // A deep backdrop (both themes) — bloom only reads as light against darkness. This
-            // is also what made graphify's own interactive view feel alive.
-            RadialGradient(colors: [Color(red: 0.06, green: 0.10, blue: 0.12), Self.darkBg],
-                           center: .center, startRadius: 0, endRadius: 620)
+            // Backdrop: a deep radial (glows read as light) or the app surface (light canvas).
+            if darkCanvas {
+                RadialGradient(colors: [Color(red: 0.06, green: 0.10, blue: 0.12), Self.darkBg],
+                               center: .center, startRadius: 0, endRadius: 620)
+            } else {
+                Theme.appBg
+            }
             if !reduceMotion {
                 TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { tl in
                     graphCanvas(time: tl.date.timeIntervalSinceReferenceDate,
@@ -145,7 +156,9 @@ struct CodeMapGraphView: View {
             }
             tapTargets(nodes: nodes)
         }
-        .overlay(alignment: .topLeading) { modeToggle }
+        .overlay(alignment: .topLeading) {
+            VStack(spacing: 6) { modeToggle; canvasToggle }.padding(Space.m)
+        }
         .overlay(alignment: .bottomTrailing) { zoomControls }
         .background(ScrollZoomInstaller { factor in setZoom(scale * factor) })
         .contentShape(Rectangle())
@@ -172,22 +185,32 @@ struct CodeMapGraphView: View {
         .task(id: graph.nodes.count &* 1000 &+ graph.edges.count) {
             norm = Self.layout(nodes: nodes)
             sphere3D = Self.layout3D(nodes: nodes)
+            rankOf = graph.communityRank()
         }
     }
 
     /// Sphere ⇄ flat toggle, tucked in the corner.
     private var modeToggle: some View {
-        Button { withAnimation(.easeInOut(duration: 0.25)) { sphere.toggle() } } label: {
-            Image(systemName: sphere ? "globe" : "square.grid.2x2")
+        cornerButton(sphere ? "globe" : "square.grid.2x2", help: sphere ? "Flat" : "Sphere") {
+            withAnimation(.easeInOut(duration: 0.25)) { sphere.toggle() }
+        }
+    }
+    /// Dark ⇄ light canvas background.
+    private var canvasToggle: some View {
+        cornerButton(darkCanvas ? "sun.max" : "moon", help: darkCanvas ? "Light canvas" : "Dark canvas") {
+            withAnimation(.easeInOut(duration: 0.2)) { darkCanvas.toggle() }
+        }
+    }
+    private func cornerButton(_ icon: String, help: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.secondaryOnMaterial)
                 .frame(width: 26, height: 26)
                 .background(Circle().fill(.regularMaterial))
                 .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 0.5))
         }
-        .buttonStyle(.plain)
-        .padding(Space.m)
-        .help(sphere ? "Flat" : "Sphere")
+        .buttonStyle(.plain).help(help)
     }
 
     private func resetView() {
@@ -284,7 +307,7 @@ struct CodeMapGraphView: View {
                     guard cross || hubIDs.contains(e.source) || hubIDs.contains(e.target) else { continue }
                     // Cross-cluster = the interesting lines → neutral white, brighter/thicker
                     // (coral now belongs to cluster 0, so coral edges would read as membership).
-                    let col = cross ? Color.white.opacity(edgeAlpha(e, 0.16))
+                    let col = cross ? neutral.opacity(edgeAlpha(e, 0.16))
                                     : color(cs ?? 0).opacity(edgeAlpha(e, 0.10))
                     curve(e, frames: pos, color: col, width: cross ? 0.9 : 0.55, ctx: &ctx)
                 }
@@ -299,7 +322,7 @@ struct CodeMapGraphView: View {
                 }
             } else {
                 for e in edges where e.source != focus && e.target != focus {
-                    curve(e, frames: pos, color: Color.white.opacity(0.03), width: 0.5, ctx: &ctx)
+                    curve(e, frames: pos, color: neutral.opacity(0.04), width: 0.5, ctx: &ctx)
                 }
                 for e in edges where e.source == focus || e.target == focus {
                     curve(e, frames: pos, color: Theme.coral.opacity(0.9), width: 1.6, ctx: &ctx)
@@ -352,7 +375,7 @@ struct CodeMapGraphView: View {
                 var tctx = ctx
                 drawText(&tctx, Text(String(node.label.prefix(24))).font(.system(size: 9.5, weight: .medium)),
                          at: CGPoint(x: p.x, y: p.y + r + 7),
-                         color: node.id == focus ? .white : Color.white.opacity(0.72))
+                         color: node.id == focus ? neutral : neutral.opacity(0.72))
             }
         }
     }
@@ -420,7 +443,7 @@ struct CodeMapGraphView: View {
         let r = radius(node.degree) * scale * CGFloat(breathe) * sizeMul
         // Depth haze: far nodes fade TOWARD the dark backdrop (submerged), not just alpha.
         var tint = color(node.community)
-        if sphere { tint = tint.mix(with: Self.darkBg, by: (1 - depth) * 0.5) }
+        if sphere { tint = tint.mix(with: fogTarget, by: (1 - depth) * 0.5) }
         let rect = CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)
         let a = alphaMul
 

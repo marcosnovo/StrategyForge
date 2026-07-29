@@ -342,6 +342,7 @@ enum L10n {
         "map.recent": ("Recent", "Recientes"),
         "map.column.title": ("Maps", "Mapas"),
         "map.updated": ("Updated %@", "Actualizado %@"),
+        "map.rebuild": ("Rebuild now", "Actualizar ahora"),
         "map.column.empty": ("No maps yet.\nAdd a repo to generate one.", "Aún no hay mapas.\nAñade un repo para generar uno."),
         "map.card.stats": ("%d nodes · %d clusters", "%d nodos · %d clústeres"),
         "map.delete": ("Delete map", "Eliminar mapa"),

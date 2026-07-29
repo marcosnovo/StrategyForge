@@ -74,32 +74,43 @@ struct MapSelectorColumn: View {
 
     private func row(_ m: SavedMap) -> some View {
         let active = store.currentMapID == m.id
-        return Button {
-            store.openSaved(m)
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: m.kind == .github ? "cloud" : "folder")
-                    .font(.system(size: 12)).foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
-                    .frame(width: 16)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(m.name).font(.sfBodyM.weight(active ? .semibold : .medium))
-                        .foregroundStyle(Theme.ink).lineLimit(1)
-                    Text(model.t("map.card.stats", m.nodeCount, m.communityCount))
-                        .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
-                    Text(model.t("map.updated", Self.relative(m.updatedAt)))
-                        .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
+        let onDisk = m.repoPath.map { FileManager.default.fileExists(atPath: $0) } ?? false
+        return HStack(spacing: 8) {
+            Image(systemName: m.kind == .github ? "cloud" : "folder")
+                .font(.system(size: 12)).foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(m.name).font(.sfBodyM.weight(active ? .semibold : .medium))
+                    .foregroundStyle(Theme.ink).lineLimit(1)
+                Text(model.t("map.card.stats", m.nodeCount, m.communityCount))
+                    .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
+                Text(model.t("map.updated", Self.relative(m.updatedAt)))
+                    .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            // Rebuild this map on demand (needs the repo on disk).
+            if onDisk {
+                Button {
+                    store.openSaved(m)
+                    Task { await store.run() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
                 }
-                Spacer(minLength: 0)
+                .buttonStyle(.plain)
+                .disabled(store.phase == .running || store.phase == .preparing)
+                .help(model.t("map.rebuild"))
             }
-            .padding(.horizontal, Space.s).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
-                .fill(active ? Theme.coral.opacity(0.09) : .clear))
-            .overlay(alignment: .leading) {
-                if active { Capsule().fill(Theme.coral).frame(width: 3, height: 20).padding(.leading, 1) }
-            }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, Space.s).padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+            .fill(active ? Theme.coral.opacity(0.09) : .clear))
+        .overlay(alignment: .leading) {
+            if active { Capsule().fill(Theme.coral).frame(width: 3, height: 20).padding(.leading, 1) }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { store.openSaved(m) }
         .hoverTint(cornerRadius: Theme.rowCorner)
         .help(m.subtitle)
         .contextMenu {
