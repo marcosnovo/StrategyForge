@@ -14,9 +14,46 @@
 //
 
 import SwiftUI
+import AppKit
 
 /// A tiny 3D point for the sphere layout (kept local so the Map doesn't couple to the spinner).
 private struct V3 { var x: Double; var y: Double; var z: Double }
+
+/// Installs a scoped scroll-wheel monitor so the mouse wheel / two-finger scroll zooms the
+/// graph when the cursor is over it — without stealing SwiftUI's tap/drag gestures (a
+/// transparent overlay would swallow clicks; a local NSEvent monitor doesn't).
+private struct ScrollZoomInstaller: NSViewRepresentable {
+    let onZoom: (CGFloat) -> Void
+    func makeNSView(context: Context) -> NSView {
+        let v = NSView()
+        context.coordinator.host = v
+        context.coordinator.onZoom = onZoom
+        context.coordinator.install()
+        return v
+    }
+    func updateNSView(_ nsView: NSView, context: Context) { context.coordinator.onZoom = onZoom }
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) { coordinator.remove() }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator {
+        weak var host: NSView?
+        var onZoom: ((CGFloat) -> Void)?
+        private var monitor: Any?
+        func install() {
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                guard let self, let host = self.host, let window = host.window, event.window === window
+                else { return event }
+                let p = host.convert(event.locationInWindow, from: nil)
+                guard host.bounds.contains(p) else { return event }
+                let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY
+                if abs(delta) < 0.001 { return event }
+                self.onZoom?(CGFloat(1 + delta * 0.006))
+                return nil   // consume — don't scroll anything behind
+            }
+        }
+        func remove() { if let m = monitor { NSEvent.removeMonitor(m) }; monitor = nil }
+    }
+}
 
 struct CodeMapGraphView: View {
     let graph: CodeGraph
@@ -68,24 +105,28 @@ struct CodeMapGraphView: View {
         let byID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
         let edges = Array(graph.edges.filter { ids.contains($0.source) && ids.contains($0.target) }.prefix(maxEdges))
         let labelIDs = Set(nodes.sorted { $0.degree > $1.degree }.prefix(maxLabels).map { $0.id })
+        // Only the most-connected nodes ("congestion hubs") get the expensive glowing halo —
+        // that both marks high-connectivity nodes AND keeps the frame cheap.
+        let hubIDs = Set(nodes.filter { $0.degree >= 2 }.sorted { $0.degree > $1.degree }.prefix(40).map { $0.id })
         let focus = selectedNodeID
         let neighbors = Self.neighborIDs(of: focus, in: edges)
 
         ZStack {
             if !reduceMotion {
-                TimelineView(.animation(minimumInterval: 1.0 / 24.0)) { tl in
+                TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { tl in
                     graphCanvas(time: tl.date.timeIntervalSinceReferenceDate,
                                 nodes: nodes, byID: byID, edges: edges,
-                                labelIDs: labelIDs, focus: focus, neighbors: neighbors)
+                                labelIDs: labelIDs, hubIDs: hubIDs, focus: focus, neighbors: neighbors)
                 }
             } else {
                 graphCanvas(time: 0, nodes: nodes, byID: byID, edges: edges,
-                            labelIDs: labelIDs, focus: focus, neighbors: neighbors)
+                            labelIDs: labelIDs, hubIDs: hubIDs, focus: focus, neighbors: neighbors)
             }
             tapTargets(nodes: nodes)
         }
         .overlay(alignment: .topLeading) { modeToggle }
         .overlay(alignment: .bottomTrailing) { zoomControls }
+        .background(ScrollZoomInstaller { factor in setZoom(scale * factor) })
         .contentShape(Rectangle())
         .gesture(
             DragGesture()
@@ -138,8 +179,8 @@ struct CodeMapGraphView: View {
     /// Zoom in/out buttons (for a mouse — pinch also works on a trackpad).
     private var zoomControls: some View {
         VStack(spacing: 6) {
-            zoomButton("plus") { setZoom(scale * 1.3) }
-            zoomButton("minus") { setZoom(scale / 1.3) }
+            zoomButton("plus") { setZoom(scale * 1.3, animated: true) }
+            zoomButton("minus") { setZoom(scale / 1.3, animated: true) }
         }
         .padding(Space.m)
     }
@@ -154,9 +195,12 @@ struct CodeMapGraphView: View {
         }
         .buttonStyle(.plain)
     }
-    private func setZoom(_ s: CGFloat) {
-        withAnimation(.easeOut(duration: 0.15)) {
-            scale = min(max(s, 0.4), 6); lastScale = scale
+    private func setZoom(_ s: CGFloat, animated: Bool = false) {
+        let clamped = min(max(s, 0.4), 6)
+        if animated {
+            withAnimation(.easeOut(duration: 0.15)) { scale = clamped; lastScale = clamped }
+        } else {
+            scale = clamped; lastScale = clamped   // scroll: immediate, no animation stacking
         }
     }
 
@@ -196,7 +240,7 @@ struct CodeMapGraphView: View {
     // MARK: One frame
 
     private func graphCanvas(time: Double, nodes: [CodeGraph.Node], byID: [String: CodeGraph.Node],
-                             edges: [CodeGraph.Edge], labelIDs: Set<String>,
+                             edges: [CodeGraph.Edge], labelIDs: Set<String>, hubIDs: Set<String>,
                              focus: String?, neighbors: Set<String>) -> some View {
         Canvas { ctx, size in
             let (pos, depth) = frames(nodes: nodes, in: size, time: time)
@@ -221,7 +265,7 @@ struct CodeMapGraphView: View {
                     for e in edges where byID[e.source]?.community != byID[e.target]?.community {
                         drawParticles(e, frames: pos, time: time, ctx: &ctx, faint: true)
                         count += 1
-                        if count >= 40 { break }
+                        if count >= 22 { break }
                     }
                 }
             } else {
@@ -240,10 +284,12 @@ struct CodeMapGraphView: View {
                 guard let p = pos[node.id] else { continue }
                 let breathe = time == 0 ? 1.0 : (1.0 + 0.06 * sin(time * 1.1 + Double(i) * 0.7))
                 let d = depth[node.id] ?? 1
-                let sizeMul: CGFloat = sphere ? CGFloat(0.55 + 0.75 * d) : 1
-                let alphaMul = sphere ? (0.4 + 0.6 * d) : 1
+                // Size encodes DEGREE (connections). Depth only nudges it a little on the
+                // sphere (front slightly bigger) — it must not out-shout the degree signal.
+                let sizeMul: CGFloat = sphere ? CGFloat(0.78 + 0.35 * d) : 1
+                let alphaMul = sphere ? (0.45 + 0.55 * d) : 1
                 drawNode(node, at: p, selected: node.id == focus,
-                         dim: isDim(node, focus: focus, neighbors: neighbors),
+                         dim: isDim(node, focus: focus, neighbors: neighbors), hub: hubIDs.contains(node.id),
                          breathe: breathe, sizeMul: sizeMul, alphaMul: alphaMul, ctx: &ctx)
             }
 
@@ -333,26 +379,27 @@ struct CodeMapGraphView: View {
                        y: v * v * p0.y + 2 * v * t * p1.y + t * t * p2.y)
     }
 
-    private func drawNode(_ node: CodeGraph.Node, at p: CGPoint, selected: Bool, dim: Bool,
+    private func drawNode(_ node: CodeGraph.Node, at p: CGPoint, selected: Bool, dim: Bool, hub: Bool,
                           breathe: Double, sizeMul: CGFloat, alphaMul: Double, ctx: inout GraphicsContext) {
         let r = radius(node.degree) * scale * CGFloat(breathe) * sizeMul
         let tint = color(node.community)
         let rect = CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)
         let fillA = (dim ? 0.18 : 0.92) * alphaMul
         let ringA = (dim ? 0.2 : 0.75) * alphaMul
-        if !dim && node.degree >= 2 {
+        // Congestion glow: ONLY the top hubs (most connections) get the bioluminescent halo —
+        // it doubles as the "high-connectivity" marker and (being capped) keeps the frame cheap.
+        if hub && !dim {
             let hr = r + 3 + 3 * CGFloat(breathe)
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - hr, y: p.y - hr, width: 2 * hr, height: 2 * hr)),
-                     with: .radialGradient(Gradient(colors: [tint.opacity(0.22 * alphaMul), .clear]),
+                     with: .radialGradient(Gradient(colors: [tint.opacity(0.24 * alphaMul), .clear]),
                                            center: p, startRadius: r * 0.6, endRadius: hr))
         }
-        ctx.drawLayer { layer in
-            if !dim { layer.addFilter(.shadow(color: .black.opacity(0.18), radius: 2, x: 0, y: 1)) }
-            layer.fill(Path(ellipseIn: rect), with: .color(tint.opacity(fillA)))
-        }
+        // No per-node drop shadow — a drawLayer+shadow filter per node per frame was the main
+        // cost. A cheap white inner-light + thin ring reads as a lit object at a fraction of it.
+        ctx.fill(Path(ellipseIn: rect), with: .color(tint.opacity(fillA)))
         if !dim {
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - r * 0.5, y: p.y - r * 0.7, width: r, height: r)),
-                     with: .color(.white.opacity(0.25 * alphaMul)))
+                     with: .color(.white.opacity(0.22 * alphaMul)))
         }
         ctx.stroke(Path(ellipseIn: rect), with: .color(.white.opacity(ringA)), lineWidth: 0.6)
         if selected {
@@ -361,8 +408,10 @@ struct CodeMapGraphView: View {
         }
     }
 
+    /// Node radius encodes DEGREE (number of connections) — leaves are small, hubs large,
+    /// gently compressed so a super-hub doesn't dominate. This is the "congestion" signal.
     private func radius(_ degree: Int) -> CGFloat {
-        min(max(2.6 + sqrt(Double(degree)) * 1.7, 2.6), 15)
+        min(max(2.2 + sqrt(Double(degree)) * 2.0, 2.2), 16)
     }
 
     private func drawText(_ ctx: inout GraphicsContext, _ text: Text, at point: CGPoint, color: Color) {

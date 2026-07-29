@@ -11,7 +11,6 @@
 //
 
 import SwiftUI
-import WebKit
 import AppKit
 import UniformTypeIdentifiers
 
@@ -20,7 +19,6 @@ struct CodeMapView: View {
     @State private var store = CodeMapStore.shared
     @State private var selectedNodeID: String?
     @State private var showImporter = false
-    @State private var showHTML = false
     @State private var showGitHub = false
 
     // GitHub repo picker
@@ -71,9 +69,6 @@ struct CodeMapView: View {
                 store.setLocalRepo(url)
                 selectedNodeID = nil
             }
-        }
-        .sheet(isPresented: $showHTML) {
-            if let html = store.htmlURL { MapHTMLSheet(url: html) }
         }
         .onDisappear { store.stopWatch() }
         .sheet(isPresented: Binding(get: { explainText != nil }, set: { if !$0 { explainText = nil } })) {
@@ -129,13 +124,6 @@ struct CodeMapView: View {
                 .controlSize(.small)
                 .tint(store.isWatching ? Theme.coral : nil)
                 .help(model.t("map.watch.help"))
-            }
-
-            if store.htmlURL != nil {
-                Button { showHTML = true } label: {
-                    Label(model.t("map.open.html"), systemImage: "safari")
-                }
-                .controlSize(.small)
             }
 
             Button {
@@ -325,11 +313,16 @@ struct CodeMapView: View {
         VStack(spacing: 0) {
             mapToolbar(graph)
             Divider().opacity(0.3)
-            CodeMapGraphView(graph: graph, selectedNodeID: $selectedNodeID, matchIDs: matchIDs(graph))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .topTrailing) { clusterLegend(graph) }
-                .padding(Space.m)
-            statsBar(graph)
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    CodeMapGraphView(graph: graph, selectedNodeID: $selectedNodeID, matchIDs: matchIDs(graph))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(Space.m)
+                    bottomBar(graph)
+                }
+                Divider().opacity(0.3)
+                inspectorPanel(graph)
+            }
         }
     }
 
@@ -382,28 +375,21 @@ struct CodeMapView: View {
         }.map { $0.id })
     }
 
-    /// Floating legend of the top clusters (colour + name). Clicking one filters to it —
-    /// the legend doubles as the cluster filter and a colour key for the graph.
-    private func clusterLegend(_ graph: CodeGraph) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            ForEach(clusterOptions(graph).prefix(8), id: \.0) { (c, name) in
-                Button { filterCommunity = (filterCommunity == c ? nil : c) } label: {
-                    HStack(spacing: 5) {
-                        Circle().fill(CodeMapGraphView.clusterColor(c)).frame(width: 8, height: 8)
-                        Text(name).font(.sfCaption2)
-                            .foregroundStyle(filterCommunity == c ? Theme.ink : Theme.secondaryOnMaterial)
-                            .lineLimit(1)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+    /// A slim bar under the graph: cluster/node/edge counts + the cap note.
+    private func bottomBar(_ graph: CodeGraph) -> some View {
+        HStack(spacing: Space.m) {
+            statChip(model.t("map.stat.clusters", graph.communityCount))
+            statChip(model.t("map.stat.nodes", graph.nodes.count))
+            statChip(model.t("map.stat.edges", graph.edges.count))
+            if graph.nodes.count > renderCap {
+                Text(model.t("map.showing", renderCap, graph.nodes.count))
+                    .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
             }
+            Spacer()
+            Text(model.t("map.zoomHint")).font(.sfCaption2).foregroundStyle(.tertiary)
         }
-        .padding(8)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(.regularMaterial))
-        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner).strokeBorder(Theme.hairline, lineWidth: 0.5))
-        .padding(Space.m)
-        .frame(maxWidth: 200, alignment: .trailing)
+        .padding(.horizontal, Space.l).padding(.vertical, Space.s)
+        .background(.bar)
     }
 
     /// (community index, display name) for the top clusters, for the filter menu.
@@ -418,58 +404,113 @@ struct CodeMapView: View {
         graph.nodes.first { $0.community == c }?.communityName ?? "Cluster \(c)"
     }
 
-    /// Bottom bar: cluster/node/edge counts, the "showing N of M" cap note, and the
-    /// selected node's file:line when one is tapped.
+    /// Right inspector — the native version of graphify's interactive "NODE INFO" panel:
+    /// the selected node's identity, location, connection count, actions, and its neighbours;
+    /// or the cluster list when nothing is selected.
     @ViewBuilder
-    private func statsBar(_ graph: CodeGraph) -> some View {
-        if let sel = selectedNodeID, let node = graph.nodes.first(where: { $0.id == sel }) {
-            selectionBar(node)
-        } else {
-            HStack(spacing: Space.m) {
-                statChip(model.t("map.stat.clusters", graph.communityCount))
-                statChip(model.t("map.stat.nodes", graph.nodes.count))
-                statChip(model.t("map.stat.edges", graph.edges.count))
-                if graph.nodes.count > renderCap {
-                    Text(model.t("map.showing", renderCap, graph.nodes.count))
-                        .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+    private func inspectorPanel(_ graph: CodeGraph) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.m) {
+                if let sel = selectedNodeID, let node = graph.nodes.first(where: { $0.id == sel }) {
+                    nodeInfo(node, graph)
+                } else {
+                    communitiesPanel(graph)
                 }
-                Text(model.t("map.tapHint")).font(.sfCaption2).foregroundStyle(.tertiary)
-                Spacer()
             }
-            .padding(.horizontal, Space.l).padding(.vertical, Space.s)
-            .background(.bar)
+            .padding(Space.l).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(width: 280)
+        .background(Theme.columnBg)
+    }
+
+    private func nodeInfo(_ node: CodeGraph.Node, _ graph: CodeGraph) -> some View {
+        let neighbors = neighborsOf(node.id, in: graph)
+        return VStack(alignment: .leading, spacing: Space.s) {
+            HStack {
+                Text(model.t("map.node.title")).font(.sfCaption2.weight(.semibold))
+                    .foregroundStyle(.secondary).textCase(.uppercase)
+                Spacer()
+                Button { selectedNodeID = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+                    .buttonStyle(.plain)
+            }
+            Text(node.label).font(.sfCardTitle).foregroundStyle(Theme.ink).lineLimit(3).textSelection(.enabled)
+            HStack(spacing: 6) {
+                Circle().fill(CodeMapGraphView.clusterColor(node.community)).frame(width: 8, height: 8)
+                Text(node.communityName ?? "Cluster \(node.community)")
+                    .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
+            }
+            if let kind = node.kind { infoRow("tag", kind) }
+            if let file = node.file { infoRow("doc.text", node.line.map { "\(file):\($0)" } ?? file) }
+            infoRow("point.3.connected.trianglepath.dotted", model.t("map.node.connections", node.degree))
+
+            VStack(spacing: 5) {
+                if node.file != nil { panelButton("map.node.open", "doc.text") { openFile(node) } }
+                panelButton(explaining ? "map.explaining" : "map.node.explain", "text.bubble") { explainNode(node) }
+                    .disabled(explaining)
+                panelButton("map.node.ask", "bubble.left.and.bubble.right") { askAbout(node) }
+                panelButton("map.node.path", "arrow.triangle.branch") {
+                    pathA = node.label; pathB = ""; pathText = nil; showPath = true
+                }
+            }
+            .padding(.top, 4)
+
+            if !neighbors.isEmpty {
+                Text(model.t("map.node.neighbors", neighbors.count))
+                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 6)
+                ForEach(neighbors.prefix(40)) { nb in
+                    Button { selectedNodeID = nb.id } label: {
+                        HStack(spacing: 6) {
+                            Circle().fill(CodeMapGraphView.clusterColor(nb.community)).frame(width: 6, height: 6)
+                            Text(nb.label).font(.sfCaption2).foregroundStyle(Theme.ink).lineLimit(1)
+                            Spacer()
+                        }
+                        .padding(.vertical, 2).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).hoverTint(cornerRadius: Theme.rowCorner)
+                }
+            }
         }
     }
 
-    /// The selected node's identity + actions: open the file, ask an agent, explain it,
-    /// or trace a path from it. This is the Map↔code↔chat loop.
-    private func selectionBar(_ node: CodeGraph.Node) -> some View {
-        HStack(spacing: Space.s) {
-            Circle().fill(Theme.coral).frame(width: 7, height: 7)
-            Text(node.label).font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
-            if let file = node.file {
-                Text(node.line.map { "\(file):\($0)" } ?? file)
-                    .font(.sfCode).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
-            }
-            Spacer()
-            if node.file != nil {
-                Button { openFile(node) } label: { Label(model.t("map.node.open"), systemImage: "doc.text") }
-                    .controlSize(.small)
-            }
-            Button { explainNode(node) } label: {
-                if explaining { ProgressView().controlSize(.mini) }
-                else { Label(model.t("map.node.explain"), systemImage: "text.bubble") }
-            }
-            .controlSize(.small).disabled(explaining)
-            Button { askAbout(node) } label: { Label(model.t("map.node.ask"), systemImage: "bubble.left.and.bubble.right") }
-                .controlSize(.small)
-            Button { pathA = node.label; pathB = ""; pathText = nil; showPath = true } label: {
-                Label(model.t("map.node.path"), systemImage: "arrow.triangle.branch")
-            }
-            .controlSize(.small)
+    private func infoRow(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).font(.system(size: 10)).foregroundStyle(.tertiary).frame(width: 14)
+            Text(text).font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1).textSelection(.enabled)
         }
-        .padding(.horizontal, Space.l).padding(.vertical, Space.s)
-        .background(.bar)
+    }
+    private func panelButton(_ key: String, _ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(model.t(key), systemImage: icon).font(.sfCaption2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .controlSize(.small)
+    }
+
+    /// Cluster list (colour + name), click to filter — graphify's "COMMUNITIES" panel, native.
+    private func communitiesPanel(_ graph: CodeGraph) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(model.t("map.communities")).font(.sfCaption2.weight(.semibold))
+                .foregroundStyle(.secondary).textCase(.uppercase)
+            ForEach(clusterOptions(graph), id: \.0) { (c, name) in
+                Button { filterCommunity = (filterCommunity == c ? nil : c) } label: {
+                    HStack(spacing: 6) {
+                        Circle().fill(CodeMapGraphView.clusterColor(c)).frame(width: 9, height: 9)
+                        Text(name).font(.sfCaption2)
+                            .foregroundStyle(filterCommunity == c ? Theme.ink : Theme.secondaryOnMaterial).lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.vertical, 2).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).hoverTint(cornerRadius: Theme.rowCorner)
+            }
+            Text(model.t("map.tapHint")).font(.sfCaption2).foregroundStyle(.tertiary).padding(.top, 6)
+        }
+    }
+
+    private func neighborsOf(_ id: String, in graph: CodeGraph) -> [CodeGraph.Node] {
+        var s = Set<String>()
+        for e in graph.edges { if e.source == id { s.insert(e.target) }; if e.target == id { s.insert(e.source) } }
+        return graph.nodes.filter { s.contains($0.id) }.sorted { $0.degree > $1.degree }
     }
 
     // MARK: Node actions
@@ -674,37 +715,6 @@ struct CodeMapView: View {
             }
             .buttonStyle(.moon).controlSize(.large).disabled(!store.canRun)
         }
-    }
-}
-
-/// graphify's interactive `graph.html` in a sheet — full pan/zoom/search, loaded from
-/// the on-disk file so its bundled assets resolve.
-private struct MapHTMLSheet: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    let url: URL
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(model.t("map.html.title")).font(.sfCardTitle)
-                Spacer()
-                Button(model.t("common.done")) { dismiss() }.keyboardShortcut(.defaultAction)
-            }
-            .padding(.horizontal, Space.l).padding(.vertical, Space.m)
-            .background(.bar)
-            MapFileWebView(url: url)
-        }
-        .frame(minWidth: 760, idealWidth: 1000, minHeight: 520, idealHeight: 720)
-        .background(Theme.appBg)
-    }
-}
-
-private struct MapFileWebView: NSViewRepresentable {
-    let url: URL
-    func makeNSView(context: Context) -> WKWebView { WKWebView() }
-    func updateNSView(_ view: WKWebView, context: Context) {
-        view.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
     }
 }
 
