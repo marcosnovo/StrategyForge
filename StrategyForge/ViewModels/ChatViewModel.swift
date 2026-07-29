@@ -390,6 +390,77 @@ final class ChatViewModel {
         modes, and any assumption that would be expensive to get wrong. Number them and WAIT for
         my answers. Do not implement anything until I respond.
         """
+
+    // MARK: - Isolation ("Permissive ⇒ isolate")
+
+    /// A git worktree the run is confined to, so autonomous edits don't touch the live tree
+    /// until you review + merge. Reuses the same machinery Arena uses.
+    struct IsolationSession: Equatable { let path: String; let branch: String }
+    private(set) var isolation: IsolationSession?
+    /// A worktree create/merge/teardown is in flight (drives the toggle/banner busy state).
+    private(set) var isolationBusy = false
+
+    /// Composer toggle: OFF→ON creates a worktree; ON→(clean) tears it down (a dirty worktree
+    /// must be merged or discarded from the banner so work is never silently lost).
+    func requestIsolation() {
+        guard !isolationBusy else { return }
+        if isolation != nil { Task { await self.discardIfClean() }; return }
+        guard let repo = config.repoPath, !repo.isEmpty else { return }
+        isolationBusy = true
+        Task {
+            self.isolation = await Self.makeWorktree(repo: repo)
+            self.isolationBusy = false
+        }
+    }
+
+    private static func makeWorktree(repo: String) async -> IsolationSession? {
+        let id = UUID().uuidString.prefix(8)
+        let branch = "coral/isolated-\(id)"
+        let path = AppPaths.supportDirectory()
+            .appendingPathComponent("worktrees/\(CodeGit.repoName(from: repo))-\(id)", isDirectory: true).path
+        let r = await CodeGit.addWorktree(repo: repo, path: path, branch: branch)
+        return r.ok ? IsolationSession(path: path, branch: branch) : nil
+    }
+
+    /// The full diff of the isolated work (for the review sheet).
+    func isolationDiff() async -> String? {
+        guard let iso = isolation else { return nil }
+        return await CodeGit.fullDiff(repo: iso.path)
+    }
+
+    /// Commit the worktree's changes and merge them (no-ff) into the live tree, then tear down.
+    func mergeIsolation() async {
+        guard let iso = isolation, let repo = config.repoPath, !isolationBusy else { return }
+        isolationBusy = true
+        _ = await CodeGit.commitAll(dir: iso.path, message: "Coral: isolated changes")
+        let r = await CodeGit.mergeNoFF(repo: repo, branch: iso.branch, message: "Merge Coral isolated run")
+        if !r.ok {
+            await CodeGit.abortMerge(repo: repo)
+            errorText = "Couldn't merge the isolated changes (conflicts). Resolve manually.\n" + r.out
+        }
+        await teardownWorktree()
+        isolationBusy = false
+    }
+
+    /// Throw the worktree away without merging.
+    func discardIsolation() async {
+        guard !isolationBusy else { return }
+        isolationBusy = true
+        await teardownWorktree()
+        isolationBusy = false
+    }
+
+    private func discardIfClean() async {
+        guard let iso = isolation else { return }
+        if await CodeGit.hasUncommittedChanges(repo: iso.path) == false { await teardownWorktree() }
+    }
+    private func teardownWorktree() async {
+        guard let iso = isolation, let repo = config.repoPath else { isolation = nil; return }
+        await CodeGit.removeWorktree(repo: repo, path: iso.path)
+        await CodeGit.deleteBranch(repo: repo, name: iso.branch)
+        isolation = nil
+    }
+
     /// Persists cumulative usage (tokens, cost).
     @ObservationIgnored private let persistUsage: (Int, Double) -> Void
     /// Appends one finished turn's activity to the per-chat device-local history.
@@ -602,6 +673,8 @@ final class ChatViewModel {
     /// The folder Claude runs in: the chosen repo, or a per-chat scratch folder so
     /// questions / document reviews work without picking a project.
     private func workingDirectory() -> String {
+        // When isolation is armed, the run happens in the git worktree, not the live tree.
+        if let iso = isolation { return iso.path }
         if let repo = config.repoPath, !repo.isEmpty { return repo }
         let dir = AppPaths.supportDirectory()
             .appendingPathComponent("sessions/\(config.id.uuidString)", isDirectory: true)

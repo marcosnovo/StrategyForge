@@ -73,6 +73,9 @@ struct ChatView: View {
     @State private var mentionMatches: [String] = []
     /// Effort popover (Faster ↔ Smarter) visibility.
     @State private var showEffort = false
+    /// Isolation ("Aislar") review-diff sheet.
+    @State private var showIsolationDiff = false
+    @State private var isolationDiffText = ""
     /// Working-branch context bar: the branch + its ±diff, and any open PR.
     @State private var branchStat: CodeGit.BranchStat?
     @State private var prInfo: GitHubCLI.PRInfo?
@@ -1546,6 +1549,7 @@ struct ChatView: View {
             )
             .shadow(color: inputFocused ? Theme.focusGlow : .clear, radius: 8)
             .animation(.easeOut(duration: 0.18), value: inputFocused)
+            isolationBar
             composerFooter
         }
         // Center the composer on the SAME reading measure as the messages, so the whole
@@ -1568,6 +1572,23 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showArtifacts) {
             ArtifactSheet(artifacts: shownArtifacts).environment(model)
+        }
+        .sheet(isPresented: $showIsolationDiff) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text(model.t("isolate.review")).font(.sfCardTitle)
+                    Spacer()
+                    Button(model.t("common.done")) { showIsolationDiff = false }.keyboardShortcut(.defaultAction)
+                }
+                .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(.bar)
+                ScrollView {
+                    Text(isolationDiffText.isEmpty ? "—" : isolationDiffText)
+                        .font(.sfCode).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(Space.l)
+                }
+            }
+            .frame(minWidth: 640, idealWidth: 820, minHeight: 400, idealHeight: 600)
+            .background(Theme.appBg)
         }
         // Live per-tool permission gate ("Ask" mode) — the run waits on the answer.
         .sheet(isPresented: Binding(get: { vm.pendingPermission != nil },
@@ -1869,6 +1890,7 @@ struct ChatView: View {
                 HStack(spacing: Space.s) {
                     modeMenu
                     grillToggle
+                    if config.repoPath?.isEmpty == false { isolateToggle }
                     Spacer(minLength: Space.s)
                     ContextWindowChip(breakdown: ContextBreakdown.estimate(
                         transcript: vm.messages, strategy: config.strategy))
@@ -1908,6 +1930,47 @@ struct ChatView: View {
         .buttonStyle(.plain)
         .help(model.t("grill.help"))
         .accessibilityLabel(model.t("grill.label"))
+    }
+
+    /// "Aislar" — run in a git worktree so autonomous edits don't touch the live tree until
+    /// you review + merge. Coral when armed.
+    private var isolateToggle: some View {
+        Button { vm.requestIsolation() } label: {
+            HStack(spacing: 4) {
+                if vm.isolationBusy { ProgressView().controlSize(.mini).scaleEffect(0.7) }
+                else { Image(systemName: vm.isolation != nil ? "shield.lefthalf.filled" : "shield").font(.system(size: 10)) }
+                Text(model.t("isolate.label")).font(.sfCaption2.weight(.medium))
+            }
+            .foregroundStyle(vm.isolation != nil ? Theme.coral : .secondary)
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .background(Capsule().fill(vm.isolation != nil ? Theme.accentSoft : .clear))
+        }
+        .buttonStyle(.plain)
+        .help(model.t("isolate.help"))
+        .accessibilityLabel(model.t("isolate.label"))
+    }
+
+    /// The banner shown while a run is isolated: review the diff, merge it into the working
+    /// tree, or discard it.
+    @ViewBuilder private var isolationBar: some View {
+        if vm.isolation != nil {
+            HStack(spacing: Space.s) {
+                Image(systemName: "shield.lefthalf.filled").foregroundStyle(Theme.coral).font(.system(size: 11))
+                Text(model.t("isolate.banner")).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+                Spacer()
+                Button(model.t("isolate.review")) {
+                    Task { isolationDiffText = await vm.isolationDiff() ?? "—"; showIsolationDiff = true }
+                }
+                .controlSize(.small).disabled(vm.isolationBusy)
+                Button(model.t("isolate.merge")) { Task { await vm.mergeIsolation() } }
+                    .buttonStyle(.moon).controlSize(.small).disabled(vm.isolationBusy)
+                Button(model.t("isolate.discard"), role: .destructive) { Task { await vm.discardIsolation() } }
+                    .controlSize(.small).disabled(vm.isolationBusy)
+            }
+            .padding(.horizontal, Space.m).padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous).fill(Theme.accentSoft))
+            .padding(.top, 4)
+        }
     }
 
     /// Aceptar ediciones / Plan / Automático — the CLI permission mode, switchable
