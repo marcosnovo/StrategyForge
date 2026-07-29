@@ -13,6 +13,33 @@ agents run against your own subscriptions on your own hardware.
 > are still named `StrategyForge` (a cosmetic rename left for later). The bundle id is
 > unchanged so existing installs and iCloud data keep working.
 
+## Why Coral is different
+
+**One line:** the only **native macOS** app that orchestrates a **multi-agent team** with an
+**independent verifier** — and **per-line, per-model provenance** — running entirely on **your own
+CLI subscriptions**. No competitor combines all of these (verified across the 2026 landscape).
+
+- **Native, not Electron.** Real SwiftUI — even the AI labs ship Electron shells for this workflow.
+  Lower memory, instant launch, a Mac app that actually feels like a Mac app.
+- **Your spend stays flat (BYO).** Coral drives the CLIs you already pay for — **Claude Code, Codex,
+  and Gemini/`agy`** — headlessly. It never resells tokens, holds your keys, or routes prompts
+  through a server: your bill is your provider's bill, with no markup.
+- **Reviewer ≠ author.** An **independent verifier** gates autonomous loops, and can review an
+  isolated worktree diff before you merge — ideally via a *different* provider family. It's the
+  "leash" for agents: autonomous, but accountable.
+- **Accountable by construction.** **Per-line provenance** attributes each line to the model that
+  wrote it, even across providers.
+- **Understands your code.** The **Map** turns a repo into an *interactive, agent-injected* code
+  knowledge graph with estimated token savings — visual and portable to your own CLI, not a hosted
+  vector index.
+- **Compare & choose.** The **Arena** pits models/teams head-to-head with an independent judge and
+  recommends one for the task — natively, on your CLIs.
+- **MIT, open, free.**
+
+Honest gaps: there's no built-in deploy/host pipeline (by design — it's a pro-dev tool on your repo),
+and Coral ships outside the Mac App Store (Developer ID + notarization), so first launch uses the
+normal Gatekeeper allow.
+
 ## What it does
 
 - **Chat with a team.** Pick a *strategy* (a team topology) or let the on-device Advisor
