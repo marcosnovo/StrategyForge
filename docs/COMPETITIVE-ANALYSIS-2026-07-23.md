@@ -80,6 +80,54 @@ dato no estaba documentado públicamente se marca **(no confirmado)**.
 > **Próximo hueco a vigilar:** distribución/pulido web (donde ganan Cursor/Lovable) sigue siendo el eje
 > más débil; el foso técnico (verificador+BYO+nativo+Mapa) está reforzado, pero el foso de *adopción* no.
 
+> **Actualización 2026-07-29 (noche) — deep-dive Factory.ai + primer ataque al eje de adopción.**
+>
+> **Factory.ai (Droids) — amenaza #1, radiografiada.** Unicornio enterprise: ~**$220M** levantados,
+> **Serie C $150M @ $1.5B** (abr-2026, Khosla/Keith Rabois), clientes NVIDIA/EY/Adobe/Palo Alto/bancos
+> (sesgo fin-serv fuerte, oficina en NYC). Producto **maduro y agent-native multi-superficie**: CLI
+> `droid` (buque insignia), app desktop (framework **no revelado** — probable Electron-class), web+móvil,
+> extensiones IDE, Slack; ejecución **local o remota** ("Droid Computers" + registro de tu máquina).
+> - **Donde son iguales o MEJORES que nosotros (no subestimar):** verificadores separados reales
+>   (**Scrutiny** revisa cada worker + **User-testing** black-box; **no arreglan lo que juzgan**);
+>   memoria de dos niveles **User+Org**; comprensión de código **"HyperCode"** (grafo **+** embeddings +
+>   retrieval "ByteRank") + "Deferred Context Engine" (~50% menos tokens); **Terminal-Bench #1 (63.1%)**
+>   por diseño de agente. Regla: **NO** afirmar que a Factory le falta memoria, grafo o verificador.
+> - **Grietas estructurales que Coral ataca (nuestras cuñas verificadas):**
+>   1. **BYOK solo API-key** — Claude Max / ChatGPT-Codex / Gemini-CLI por *suscripción* **no soportados**
+>      (la gente usa proxies no oficiales). Coral conduce esas suscripciones nativamente → **$0 incremental**.
+>      *Es la cuña más afilada.*
+>   2. **Cobran por tokens** sobre asiento de $20–200/mes con rate-limits rodantes → su queja #1 (HN,
+>      reviews) es **facturación impredecible**. Coral no mete capa de medición.
+>   3. **Binario cerrado con login obligatorio** + config propietaria + repo público vacío → Coral MIT,
+>      sin cuenta, portable, sin lock-in.
+>   4. **"Native" desktop de framework opaco**; reviews 2025 citaron lentitud "brutal" y "reporta tests
+>      como pasados sin ejecutarlos" → SwiftUI real gana en ligereza/confianza.
+>   5. **Enterprise-first explícito** ("la productividad del ingeniero individual ya no basta") → el dev
+>      individual / equipo pequeño en **Mac** es el hueco que desprecian y nuestra diana.
+>   6. **Paralelismo multi-modelo a nivel Mission = "pregunta de investigación abierta"** (van secuencial)
+>      → nuestra mezcla cross-provider en una tirada ya enviada.
+>   7. **Sin procedencia por línea.** Coral sí.
+>   Fuentes: factory.ai/pricing · /news/missions-architecture · /news/series-c · docs.factory.ai/cli/byok/overview ·
+>   techcrunch.com/2026/04/16 (Serie C) · news.ycombinator.com/item?id=45379834 · hyperdev.matsuoka.com (review).
+>
+> **Diagnóstico confirmado: perdemos en ADOPCIÓN, no en tecnología.** Auditado el onboarding: cuellos =
+> (1) Node.js ausente = callejón sin salida, (2) OAuth abre navegador en silencio, (3) sin web/Homebrew,
+> (4) onboarding solo hablaba de Claude, (5) la copy no decía la cuña anti-Factory.
+>
+> **Primer ataque enviado a `main` (gate verde, 451 tests) — 4 slices:**
+> 1. **Onboarding "yours, not rented"** — tira de 3 insignias en el primer arranque (sin medición · tus
+>    llaves, tu Mac · mezcla proveedores) + línea open-source. Clava la cuña anti-Factory en la primera
+>    impresión y surfacea los 3 proveedores como first-class.
+> 2. **Fin del callejón Node** — estado dedicado con "Instalar Node con Homebrew" de un toque (reinicia el
+>    connect solo) o enlace a nodejs.org; + aviso prominente "mira tu navegador" en el sign-in.
+> 3. **Landing page real** (`web/index.html`, estática, sin build) con la cuña + tabla honesta Coral-vs-
+>    agente-cloud-medido; **se come su propia comida** (desplegable con la feature Ship).
+> 4. **Cask de Homebrew** (`Casks/coral.rb` + `docs/HOMEBREW.md`) → `brew install --cask coral` (publicar
+>    el tap es paso manual único).
+>
+> **Sigue pendiente en adopción:** publicar la web + el tap (hosting/repo, manual del founder); vídeo demo
+> de 60s; medir "time-to-first-run". El foso técnico está completo; el de adopción es ahora el trabajo.
+
 > **Actualización 2026-07-28 — `main`, gate verde (447 tests).** Nueva feature con foso propio:
 > **Mapa de código (grafo de conocimiento)**. Es el mayor diferenciador desde el análisis:
 > - **Qué es:** convierte cualquier repo en un grafo de conocimiento consultable (integra la CLI
