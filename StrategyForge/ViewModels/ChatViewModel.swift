@@ -378,6 +378,18 @@ final class ChatViewModel {
     /// appending a "think"/"ultrathink" directive to the real prompt (Claude Code
     /// honors these keywords). User-picked in the composer's effort control.
     var effort: Effort = .high
+    /// "Grill me first": when on, the agent interrogates you about edge cases BEFORE doing any
+    /// work (the article's /grill-me idea) — front-loading the questions the verifier would
+    /// otherwise catch late. Injected as a prompt directive, like effort.
+    var grillMe = false
+    /// The adversarial-planning directive appended when `grillMe` is on.
+    static let grillDirective = """
+        \n\nBEFORE writing any code or making any changes, STOP and interrogate me. Ask the 3–7
+        sharpest clarifying and edge-case questions this task needs answered — inputs and their
+        shapes, empty/error/loading states, scope boundaries and explicit non-goals, failure
+        modes, and any assumption that would be expensive to get wrong. Number them and WAIT for
+        my answers. Do not implement anything until I respond.
+        """
     /// Persists cumulative usage (tokens, cost).
     @ObservationIgnored private let persistUsage: (Int, Double) -> Void
     /// Appends one finished turn's activity to the per-chat device-local history.
@@ -711,6 +723,7 @@ final class ChatViewModel {
         // Steer reasoning depth by appending the effort directive to the REAL prompt
         // only (never the display text the user sees in the transcript).
         var promptText = promptBody + effort.promptDirective
+        if grillMe { promptText += Self.grillDirective }   // interrogate me before implementing
         // On the FIRST turn of a session, inject the repo's code map (when graphify has
         // built one) so the agent opens with structure instead of spending its window
         // re-reading files to rebuild the same map. It persists via session resume, so

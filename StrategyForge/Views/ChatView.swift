@@ -1868,6 +1868,7 @@ struct ChatView: View {
             if !vm.messages.isEmpty || showComposerControls {
                 HStack(spacing: Space.s) {
                     modeMenu
+                    grillToggle
                     Spacer(minLength: Space.s)
                     ContextWindowChip(breakdown: ContextBreakdown.estimate(
                         transcript: vm.messages, strategy: config.strategy))
@@ -1888,6 +1889,25 @@ struct ChatView: View {
         .padding(.horizontal, 2)
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: vm.effort)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: vm.permissionMode)
+    }
+
+    /// "Grill me first" — the agent interrogates you on edge cases before implementing.
+    /// A calm toggle: coral when armed, neutral otherwise.
+    private var grillToggle: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) { vm.grillMe.toggle() }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "checklist").font(.system(size: 10))
+                Text(model.t("grill.label")).font(.sfCaption2.weight(.medium))
+            }
+            .foregroundStyle(vm.grillMe ? Theme.coral : .secondary)
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .background(Capsule().fill(vm.grillMe ? Theme.accentSoft : .clear))
+        }
+        .buttonStyle(.plain)
+        .help(model.t("grill.help"))
+        .accessibilityLabel(model.t("grill.label"))
     }
 
     /// Aceptar ediciones / Plan / Automático — the CLI permission mode, switchable
