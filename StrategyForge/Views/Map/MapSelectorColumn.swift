@@ -86,6 +86,8 @@ struct MapSelectorColumn: View {
                         .foregroundStyle(Theme.ink).lineLimit(1)
                     Text(model.t("map.card.stats", m.nodeCount, m.communityCount))
                         .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
+                    Text(model.t("map.updated", Self.relative(m.updatedAt)))
+                        .font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
@@ -105,6 +107,13 @@ struct MapSelectorColumn: View {
                 MapStore.shared.delete(m)
             } label: { Label(model.t("map.delete"), systemImage: "trash") }
         }
+    }
+
+    /// Short relative time, e.g. "2h", "3d" — for the map's last update.
+    static func relative(_ d: Date) -> String {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .short
+        return f.localizedString(for: d, relativeTo: Date())
     }
 
     private var emptyState: some View {

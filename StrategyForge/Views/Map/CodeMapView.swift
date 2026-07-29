@@ -595,8 +595,13 @@ struct CodeMapView: View {
                 }
                 Text(m.subtitle).font(.sfCaption2).foregroundStyle(.tertiary).lineLimit(1)
                 Spacer(minLength: 0)
-                Text(model.t("map.card.stats", m.nodeCount, m.communityCount))
-                    .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+                HStack {
+                    Text(model.t("map.card.stats", m.nodeCount, m.communityCount))
+                        .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+                    Spacer()
+                    Text(MapSelectorColumn.relative(m.updatedAt))
+                        .font(.sfCaption2).foregroundStyle(.tertiary)
+                }
             }
             .padding(Space.m)
             .frame(height: 96, alignment: .topLeading)

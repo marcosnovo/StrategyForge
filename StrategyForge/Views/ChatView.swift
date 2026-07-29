@@ -709,6 +709,14 @@ struct ChatView: View {
                     if let path = config.repoPath, !path.isEmpty {
                         Text(model.t("chat.subtitle", (path as NSString).lastPathComponent))
                             .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+                        if MapStore.shared.maps.contains(where: { $0.repoPath == path }) {
+                            Button { model.navSection = .map } label: {
+                                Image(systemName: "circle.hexagongrid.fill")
+                                    .font(.system(size: 11)).foregroundStyle(Theme.coral)
+                            }
+                            .buttonStyle(.plain)
+                            .help(model.t("map.injected.help"))
+                        }
                     } else {
                         // No repo yet → a one-tap "connect a folder" right in the chat,
                         // so code work is reachable without hunting for it.

@@ -43,9 +43,13 @@ struct CodeMapGraphView: View {
     private let maxEdges = 900
     private let maxLabels = 26
 
+    /// "Living Reef" cluster palette — the app's own curated hues, not a system rainbow.
+    /// Coral leads (the biggest cluster, the hero); the rest are the desaturated team
+    /// spectrum + deep coral + muted status tones, all tuned to stay subordinate to coral
+    /// so the map reads as premium and clearly belongs to Coral.
     private static let clusterColors: [Color] = [
-        Theme.coral, Theme.teal, .purple, .orange, .green,
-        .blue, .pink, .indigo, .mint, .brown, .cyan, .yellow
+        Theme.coral, Theme.teamBlue, Theme.teamViolet, Theme.teamGreen, Theme.teamAmber,
+        Theme.teamRose, Theme.coralDeep, Theme.success, Theme.warning
     ]
     private func color(_ community: Int) -> Color { Self.clusterColor(community) }
 
@@ -81,6 +85,7 @@ struct CodeMapGraphView: View {
             tapTargets(nodes: nodes)
         }
         .overlay(alignment: .topLeading) { modeToggle }
+        .overlay(alignment: .bottomTrailing) { zoomControls }
         .contentShape(Rectangle())
         .gesture(
             DragGesture()
@@ -127,6 +132,31 @@ struct CodeMapGraphView: View {
         withAnimation(.easeOut(duration: 0.2)) {
             scale = 1; lastScale = 1; offset = .zero; lastOffset = .zero
             rotX = 0.5; lastRotX = 0.5; rotY = 0; lastRotY = 0
+        }
+    }
+
+    /// Zoom in/out buttons (for a mouse — pinch also works on a trackpad).
+    private var zoomControls: some View {
+        VStack(spacing: 6) {
+            zoomButton("plus") { setZoom(scale * 1.3) }
+            zoomButton("minus") { setZoom(scale / 1.3) }
+        }
+        .padding(Space.m)
+    }
+    private func zoomButton(_ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.secondaryOnMaterial)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(.regularMaterial))
+                .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+    }
+    private func setZoom(_ s: CGFloat) {
+        withAnimation(.easeOut(duration: 0.15)) {
+            scale = min(max(s, 0.4), 6); lastScale = scale
         }
     }
 

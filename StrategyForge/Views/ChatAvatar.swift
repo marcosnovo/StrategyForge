@@ -26,23 +26,50 @@ struct ChatAvatar: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(AppModel.self) private var model
 
+    /// Whether a code map exists for this chat's repo — surfaces a small badge so you can
+    /// see, at a glance in the list, which chats have a Map.
+    private var hasMap: Bool {
+        guard let p = config.repoPath, !p.isEmpty else { return false }
+        return MapStore.shared.maps.contains { $0.repoPath == p }
+    }
+
     var body: some View {
         // State restyle — coral (needs you) outranks teal (running) outranks rest.
         let glyphColor: Color = attention ? Theme.accent : (running ? Theme.teal : Theme.secondaryOnMaterial)
         let stroke: Color = attention ? Theme.selectionBorder : (running ? Theme.tealEdge : Theme.hairline)
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(Theme.insetBg)
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        // A premium "lit object" tile: the neutral inset surface + a soft top inner-light and
+        // a subtle drop shadow, so it reads as a physical chip rather than a flat square.
+        shape.fill(Theme.insetBg)
+            .overlay {
+                shape.fill(LinearGradient(colors: [.white.opacity(0.16), .clear],
+                                          startPoint: .top, endPoint: .center))
+            }
             .overlay {
                 Image(systemName: Self.strategyGlyph(config.strategy))
                     .font(.system(size: size * 0.44, weight: .medium))
                     .foregroundStyle(glyphColor)
             }
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(stroke, lineWidth: 1))
+            .overlay(shape.strokeBorder(stroke, lineWidth: 1))
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.12), radius: 1.5, x: 0, y: 1)
             .overlay(alignment: .bottomTrailing) { if showProvider { providerDot } }
+            .overlay(alignment: .topLeading) { if hasMap { mapBadge } }
             .frame(width: size, height: size)
             .help(config.name.isEmpty ? model.strategyDisplayName(config.strategy) : config.name)
             .accessibilityLabel(config.name.isEmpty ? model.strategyDisplayName(config.strategy) : config.name)
+    }
+
+    /// A small coral hexagon pip marking "this chat has a code map".
+    private var mapBadge: some View {
+        Image(systemName: "circle.hexagongrid.fill")
+            .font(.system(size: size * 0.24, weight: .semibold))
+            .foregroundStyle(Theme.coral)
+            .padding(1)
+            .background(Circle().fill(Theme.insetBg))
+            .overlay(Circle().strokeBorder(Theme.insetBg, lineWidth: 1))
+            .offset(x: -2, y: -2)
+            .help(model.t("map.injected"))
     }
 
     /// Provider identity as a small solid dot (not a glyph badge — an 8pt dot is more
