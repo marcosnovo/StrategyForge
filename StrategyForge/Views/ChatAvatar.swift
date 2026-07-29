@@ -30,7 +30,7 @@ struct ChatAvatar: View {
     /// see, at a glance in the list, which chats have a Map.
     private var hasMap: Bool {
         guard let p = config.repoPath, !p.isEmpty else { return false }
-        return MapStore.shared.maps.contains { $0.repoPath == p }
+        return MapStore.shared.mappedRepoPaths.contains(p)   // O(1), cached set
     }
 
     var body: some View {

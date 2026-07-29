@@ -35,7 +35,12 @@ struct SavedMap: Codable, Identifiable, Equatable {
 final class MapStore {
     static let shared = MapStore()
 
-    private(set) var maps: [SavedMap] = []
+    private(set) var maps: [SavedMap] = [] {
+        didSet { mappedRepoPaths = Set(maps.compactMap { $0.repoPath }) }
+    }
+    /// Cached set of repo paths that have a map — so per-chat-row "has a map?" is O(1), not an
+    /// O(maps) scan per row (and it only invalidates observers when the set actually changes).
+    private(set) var mappedRepoPaths: Set<String> = []
     private let dir: URL
 
     init(storeDirectory: URL = AppPaths.supportDirectory().appendingPathComponent("maps", isDirectory: true)) {

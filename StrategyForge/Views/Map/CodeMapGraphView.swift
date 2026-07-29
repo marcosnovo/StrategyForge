@@ -124,21 +124,39 @@ struct CodeMapGraphView: View {
         return Color(hue: 0.5, saturation: 0.05, brightness: 0.6)   // "other" — the long tail
     }
 
-    private var rendered: [CodeGraph.Node] {
-        graph.nodes.sorted { $0.degree > $1.degree }.prefix(maxNodes).map { $0 }
+    /// The per-graph derived collections (sorts, dictionaries, sets). These depend ONLY on the
+    /// graph, so they're computed once when it loads — NOT on every drag/zoom/selection frame.
+    private struct Derived {
+        var nodes: [CodeGraph.Node] = []
+        var ids: Set<String> = []
+        var byID: [String: CodeGraph.Node] = [:]
+        var edges: [CodeGraph.Edge] = []
+        var labelIDs: Set<String> = []
+        var hubIDs: Set<String> = []
+    }
+    @State private var derived = Derived()
+
+    private static func computeDerived(_ graph: CodeGraph, maxNodes: Int, maxEdges: Int, maxLabels: Int) -> Derived {
+        let byDegree = graph.nodes.sorted { $0.degree > $1.degree }
+        let nodes = Array(byDegree.prefix(maxNodes))
+        let ids = Set(nodes.map { $0.id })
+        let byID = Dictionary(nodes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let edges = Array(graph.edges.filter { ids.contains($0.source) && ids.contains($0.target) }.prefix(maxEdges))
+        let labelIDs = Set(nodes.prefix(maxLabels).map { $0.id })      // already degree-sorted
+        let hubIDs = Set(nodes.filter { $0.degree >= 2 }.prefix(40).map { $0.id })
+        return Derived(nodes: nodes, ids: ids, byID: byID, edges: edges, labelIDs: labelIDs, hubIDs: hubIDs)
     }
 
     var body: some View {
-        let nodes = rendered
-        let ids = Set(nodes.map { $0.id })
-        let byID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
-        let edges = Array(graph.edges.filter { ids.contains($0.source) && ids.contains($0.target) }.prefix(maxEdges))
-        let labelIDs = Set(nodes.sorted { $0.degree > $1.degree }.prefix(maxLabels).map { $0.id })
-        // Only the most-connected nodes ("congestion hubs") get the expensive glowing halo —
-        // that both marks high-connectivity nodes AND keeps the frame cheap.
-        let hubIDs = Set(nodes.filter { $0.degree >= 2 }.sorted { $0.degree > $1.degree }.prefix(40).map { $0.id })
+        // Cached per-graph (see Derived) — a nil/empty cache on the very first frame falls back
+        // to an inline compute; the `.task` fills it so drags/zooms never recompute the sorts.
+        let d = derived.nodes.isEmpty ? Self.computeDerived(graph, maxNodes: maxNodes, maxEdges: maxEdges, maxLabels: maxLabels) : derived
+        let nodes = d.nodes, byID = d.byID, edges = d.edges, labelIDs = d.labelIDs, hubIDs = d.hubIDs
         let focus = selectedNodeID
         let neighbors = Self.neighborIDs(of: focus, in: edges)
+        // Ambient breathing is a slow sinusoid — 12fps is imperceptible for it and halves the
+        // idle redraw cost; bump to 20fps only when a selection has particles worth smoothing.
+        let fps: Double = focus != nil ? 20 : 12
 
         ZStack {
             // Backdrop: a deep radial (glows read as light) or the app surface (light canvas).
@@ -149,7 +167,7 @@ struct CodeMapGraphView: View {
                 Theme.appBg
             }
             if !reduceMotion {
-                TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { tl in
+                TimelineView(.animation(minimumInterval: 1.0 / fps)) { tl in
                     graphCanvas(time: tl.date.timeIntervalSinceReferenceDate,
                                 nodes: nodes, byID: byID, edges: edges,
                                 labelIDs: labelIDs, hubIDs: hubIDs, focus: focus, neighbors: neighbors)
@@ -184,10 +202,11 @@ struct CodeMapGraphView: View {
         .onTapGesture { if selectedNodeID != nil { selectedNodeID = nil } }   // click empty bg → deselect
         .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous))
         .task(id: graph.nodes.count &* 1000 &+ graph.edges.count) {
-            let n = Self.layout(nodes: nodes)
+            derived = Self.computeDerived(graph, maxNodes: maxNodes, maxEdges: maxEdges, maxLabels: maxLabels)
+            let n = Self.layout(nodes: derived.nodes)
             norm = n
             flat3D = Self.normalize3D(n)
-            sphere3D = Self.layout3D(nodes: nodes)
+            sphere3D = Self.layout3D(nodes: derived.nodes)
             rankOf = graph.communityRank()
         }
     }
@@ -269,13 +288,19 @@ struct CodeMapGraphView: View {
         // map is head-on (rot 0 → looks 2D); dragging tilts it in 3D, exactly like the sphere.
         let R = min(size.width, size.height) * 0.42 * scale
         let src = sphere ? sphere3D : flat3D
+        // Hoist the rotation's trig OUT of the per-node loop — cos/sin(rotX,rotY) are constant
+        // for the whole frame, so this drops ~4 transcendental calls PER NODE to 4 per frame.
+        let cy = cos(rotY), sy = sin(rotY), cx = cos(rotX), sx = sin(rotX)
         for node in nodes {
             guard let p = src[node.id] else { continue }
-            let r = Self.rot3(p, ax: rotX, ay: rotY)
-            let persp = 1.7 / (1.7 - r.z)
-            pos[node.id] = CGPoint(x: center.x + CGFloat(r.x * persp) * R + offset.width,
-                                   y: center.y + CGFloat(r.y * persp) * R + offset.height)
-            depth[node.id] = (r.z + 1) / 2
+            let rx = p.x * cy + p.z * sy
+            let z1 = -p.x * sy + p.z * cy
+            let ry = p.y * cx - z1 * sx
+            let rz = p.y * sx + z1 * cx
+            let persp = 1.7 / (1.7 - rz)
+            pos[node.id] = CGPoint(x: center.x + CGFloat(rx * persp) * R + offset.width,
+                                   y: center.y + CGFloat(ry * persp) * R + offset.height)
+            depth[node.id] = (rz + 1) / 2
         }
         return (pos, depth)
     }
@@ -332,9 +357,10 @@ struct CodeMapGraphView: View {
                 }
             }
 
-            // Nodes back-to-front so the near face sits on top (when there's depth).
+            // Nodes back-to-front so the near face sits on top (when there's depth). Sort the
+            // precomputed (node, depth) pairs — no dictionary lookups inside the comparator.
             let cue = !flatHeadOn
-            let ordered = cue ? nodes.sorted { (depth[$0.id] ?? 1) < (depth[$1.id] ?? 1) } : nodes
+            let ordered = cue ? nodes.map { ($0, depth[$0.id] ?? 1) }.sorted { $0.1 < $1.1 }.map { $0.0 } : nodes
             for (i, node) in ordered.enumerated() {
                 guard let p = pos[node.id] else { continue }
                 let breathe = time == 0 ? 1.0 : (1.0 + 0.05 * sin(time * 1.1 + Double(i) * 0.7))
