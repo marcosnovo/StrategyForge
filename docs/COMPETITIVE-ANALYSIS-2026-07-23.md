@@ -6,6 +6,61 @@ públicos de cada competidor. Todas las afirmaciones citan fuente; donde la fuen
 dato no estaba documentado públicamente se marca **(no confirmado)**.
 **Audiencia:** producto/roadmap interno.
 
+> **Actualización 2026-07-29 — refresh competitivo (panel de 3 agentes, mercado a julio 2026).**
+>
+> **Nota:** ~**8.5/10 en su nicho** (orquestador nativo BYO), ~**6.5–7/10 vs el mercado amplio de
+> "AI coding tools"** (donde ganan las web hospedadas Cursor/Lovable/Replit por distribución, pulido
+> y pipeline de "ship"). El foso **se mantiene pero se ha estrechado por eje**.
+>
+> **La reivindicación 5-en-1 SIGUE en pie:** ningún competidor combina *equipo multi-agente +
+> verificador independiente + multi-proveedor + corre sobre TU suscripción CLI (BYO) + app nativa
+> macOS*. Pero por separado: multi-proveedor ya es **table-stakes** (Antigravity, Factory, Zed, Warp,
+> Amp), y la orquestación multi-agente también (Warp `/orchestrate`, Claude Code **Agent Teams**,
+> Antigravity Agent Manager, Factory Missions). Lo que **sigue siendo raro** es el **verificador
+> independiente** (solo Codex Code Review, **Devin Review**, y los *validator agents* de **Factory**);
+> el resto se auto-atesta. Lo verdaderamente **incontestado** = verificador independiente + modelo
+> económico **BYO-CLI** + **app nativa** juntos.
+> - **Amenazas más cercanas:** **Factory.ai (Droids)** — la más completa: orquestador→workers→
+>   *validators* en distinto proveedor (verificador real), multi-proveedor BYOK; le falta ser nativa
+>   SwiftUI y BYO-por-defecto. **Conductor** (Melty, YC S24, **Serie A $22M ~mar-2026**) — nativa macOS
+>   + BYO, pero **solo Claude+Codex (sin Gemini)**, cerrada, sin equipo-coordinado ni verificador.
+>   **Devin Review** (Cognition, ex-Windsurf) — verificador real pero Electron + hospedado.
+> - **El Mapa (grafo de código) es INCONTESTADO:** nadie ofrece grafo **visual interactivo + inyectado
+>   al agente + ahorro de tokens estimado + portable a tu CLI + nativo mac**. Lo commodity es RAG por
+>   embeddings (Cursor/Copilot/Windsurf); el grafo real (Sourcegraph SCIP / graphify / Aider repo-map)
+>   no es visual+nativo+portable+inyectado. graphify (que Coral envuelve) es una CLI Python + HTML.
+> - **Hueco nativo:** hasta la **app Mac oficial de Claude es Electron** ("criminally bad", Gruber);
+>   Codex app también Electron; Cursor/Windsurf Electron. Zed/Warp son nativas pero editores/terminales,
+>   no orquestadores opinados. → munición para posicionarnos "nativo, sin Electron, MIT, BYO, 3 provs".
+>
+> **🔴 URGENTE / table-stakes ROTO:** **Gemini CLI se retiró el 18-jun-2026**, sustituida por `agy`
+> (Antigravity CLI, Go, quotas peores). **Si Coral sigue lanzando `gemini`, el soporte Gemini está roto
+> para la mayoría de usuarios.** → necesita un **adaptador `agy`** ya (ver Bet 1). Verificar
+> `ProviderRun`/`ClaudeRunner` resolución del binario `gemini`.
+>
+> **5 apuestas para ponerse por encima (impacto × unicidad × factibilidad solo-founder):**
+> 1. **[HACER YA] Adaptador `agy`** — arreglar Gemini (roto hoy). Table-stakes, no diferencia pero da
+>    credibilidad por llegar pronto y correcto.
+> 2. **Firma = Arena con juez independiente como motor de recomendación** "¿qué modelo/equipo para esta
+>    tarea?" (Claude vs Codex vs equipo mixto → juez puntúa + coste/latencia). Whitespace en nativo.
+> 3. **Posicionamiento "autónomo pero rendible/accountable"** — soldar **verificador + procedencia por
+>    línea + Loop** en un solo relato. Stack Overflow 2026: 69% mantiene los agentes "con correa", 60%
+>    bloquea cambios no aprobados → el verificador independiente + provenance ES la correa que quieren.
+>    Barato (usa lo que ya hay), altísima unicidad.
+> 4. **"Ship" fino vía MCP** (Vercel/Supabase/Stripe) — tocar idea→desplegado sin ser un PaaS; ningún
+>    orquestador-worktree despliega. (shipper.now NO es de Hostinger; el de Hostinger es Horizons;
+>    Base44/Lovable/Replit ya integran hosting+dominio+Stripe pero son web para no-devs.)
+> 5. **Ganar el hueco "nativo/sin-markup/abierto" a propósito** — benchmarks RAM/arranque vs Electron,
+>    "tu gasto no sube con tu proveedor" vs el backlash de precios de Cursor.
+>
+> **Secuencia:** Bet 1 ya → Bet 3 como núcleo de posicionamiento → Bet 2 como demo-firma → Bet 5
+> continuo → Bet 4 cuando el núcleo esté. **Cuidado ToS:** Anthropic prohíbe llevar tokens OAuth
+> Pro/Max a clientes de terceros; la vía sancionada es **invocar la CLI oficial con el login del
+> usuario** (Coral lo hace — decirlo alto). Fuentes: code.claude.com/docs/agent-teams · factory.ai/news/missions ·
+> conductor.build · cognition.com/blog/windsurf · zed.dev/blog/parallel-agents · developers.googleblog.com
+> (retiro Gemini CLI) · daringfireball.net (Claude Mac Electron) · stackoverflow.blog (agents on a leash) ·
+> graphify.net · sourcegraph.com/blog/announcing-scip · aider.chat/docs/repomap.
+
 > **Actualización 2026-07-28 — `main`, gate verde (447 tests).** Nueva feature con foso propio:
 > **Mapa de código (grafo de conocimiento)**. Es el mayor diferenciador desde el análisis:
 > - **Qué es:** convierte cualquier repo en un grafo de conocimiento consultable (integra la CLI
