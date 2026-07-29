@@ -116,6 +116,9 @@ there is no automatic upload and no analytics backend.
 - macOS 14+ (Sonoma), Xcode to build.
 - Ships **outside the Mac App Store** (App Sandbox is off — it spawns the provider CLIs),
   distributed as a Developer ID-signed, notarized DMG (see [`docs/RELEASE.md`](docs/RELEASE.md)).
+- **Install:** download the DMG from [Releases](https://github.com/marcosnovo/StrategyForge/releases/latest),
+  or via Homebrew once the tap is published — `brew install --cask marcosnovo/coral/coral`
+  (see [`docs/HOMEBREW.md`](docs/HOMEBREW.md); the cask is [`Casks/coral.rb`](Casks/coral.rb)).
 
 ## Security & trust
 
