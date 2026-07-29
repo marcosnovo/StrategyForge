@@ -46,12 +46,17 @@ struct OnboardingView: View {
             }
             .staggeredAppear(index: 2)
 
+            // The wedge — before the how-to, say what makes Coral different from the
+            // metered, closed, cloud tools: it runs on plans you own, nothing leaves the
+            // Mac, and it mixes providers. This is the anti-"rent-an-agent" pitch.
+            wedgeStrip.staggeredAppear(index: 3)
+
             VStack(alignment: .leading, spacing: Space.l) {
                 step(1, "onboard.step1.title", "onboard.step1.desc")
                 step(2, "onboard.step2.title", "onboard.step2.desc")
                 step(3, "onboard.step3.title", "onboard.step3.desc")
             }
-            .staggeredAppear(index: 3)
+            .staggeredAppear(index: 4)
 
             Label(model.t("onboard.note"), systemImage: "info.circle.fill")
                 .font(.sfCallout)
@@ -60,12 +65,12 @@ struct OnboardingView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.accentSoft))
                 .fixedSize(horizontal: false, vertical: true)
-                .staggeredAppear(index: 4)
+                .staggeredAppear(index: 5)
 
             // Readiness before value: surface what the app needs to actually run
             // (a connected CLI) up front, not after the user has built a team — the
             // #1 activation gate for a tool that drives external CLIs.
-            readinessStrip.staggeredAppear(index: 5)
+            readinessStrip.staggeredAppear(index: 6)
 
             HStack {
                 Button(model.t("onboard.skip")) {
@@ -92,7 +97,7 @@ struct OnboardingView: View {
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
             }
-            .staggeredAppear(index: 5)
+            .staggeredAppear(index: 6)
         }
         .padding(Space.xl + Space.s)
         .frame(width: 560)
@@ -100,6 +105,35 @@ struct OnboardingView: View {
         // animation; see the TimelineView-over-material note in ChatView).
         .background(AuroraBackground(intensity: 0.9))
         .task { Analytics.log(.onboardingStarted) }
+    }
+
+    /// The differentiator strip: three compact badges (no metering · your keys, your Mac ·
+    /// mix providers) + an open-source line. This is what sets Coral apart from the metered,
+    /// account-gated, closed cloud tools — said up front, before the how-to.
+    private var wedgeStrip: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(alignment: .top, spacing: Space.m) {
+                wedgeBadge("bolt.slash.fill", "onboard.wedge.byo.title", "onboard.wedge.byo.desc")
+                wedgeBadge("lock.laptopcomputer", "onboard.wedge.private.title", "onboard.wedge.private.desc")
+                wedgeBadge("square.stack.3d.up.fill", "onboard.wedge.mix.title", "onboard.wedge.mix.desc")
+            }
+            Label(model.t("onboard.wedge.open"), systemImage: "checkmark.seal")
+                .font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassPanel(cornerRadius: Theme.innerCorner)
+    }
+
+    private func wedgeBadge(_ icon: String, _ titleKey: String, _ descKey: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Image(systemName: icon).font(.system(size: 15)).foregroundStyle(Theme.accent)
+            Text(model.t(titleKey)).font(.sfCaption2.weight(.semibold))
+            Text(model.t(descKey)).font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Environment-readiness spine: a Gatekeeper pre-empt + a per-provider status
