@@ -77,22 +77,19 @@ struct CodeMapGraphView: View {
     @State private var sphere3D: [String: V3] = [:]
 
     private let maxNodes = 240
-    private let maxEdges = 900
+    private let maxEdges = 650
     private let maxLabels = 26
 
-    /// "Living Reef" cluster palette — the app's own curated hues, not a system rainbow.
-    /// Coral leads (the biggest cluster, the hero); the rest are the desaturated team
-    /// spectrum + deep coral + muted status tones, all tuned to stay subordinate to coral
-    /// so the map reads as premium and clearly belongs to Coral.
-    private static let clusterColors: [Color] = [
-        Theme.coral, Theme.teamBlue, Theme.teamViolet, Theme.teamGreen, Theme.teamAmber,
-        Theme.teamRose, Theme.coralDeep, Theme.success, Theme.warning
-    ]
     private func color(_ community: Int) -> Color { Self.clusterColor(community) }
 
-    /// Shared so the cluster legend uses the exact same colours as the graph.
+    /// A DESIGNED categorical palette: coral leads the biggest cluster (the brand), and every
+    /// other family gets a maximally-distinct hue via golden-angle spacing at a fixed, tasteful
+    /// saturation/brightness — so families read as clearly different (like the old interactive)
+    /// yet stay cohesive and premium (not a raw system rainbow). Shared with the legend/panel.
     static func clusterColor(_ community: Int) -> Color {
-        clusterColors[((community % clusterColors.count) + clusterColors.count) % clusterColors.count]
+        if community <= 0 { return Theme.coral }
+        let hue = (0.11 + Double(community) * 0.6180339887).truncatingRemainder(dividingBy: 1.0)
+        return Color(hue: hue, saturation: 0.55, brightness: 0.85)
     }
 
     private var rendered: [CodeGraph.Node] {
@@ -339,25 +336,25 @@ struct CodeMapGraphView: View {
         }
     }
 
-    /// A gently bowed edge (quadratic curve) — reads as separate strands, not a straight mesh.
+    /// A straight synaptic edge — the neural-network look, and cheaper than a bezier.
     private func curve(_ e: CodeGraph.Edge, frames: [String: CGPoint], color: Color, width: CGFloat, ctx: inout GraphicsContext) {
         guard let a = frames[e.source], let b = frames[e.target] else { return }
         var path = Path()
         path.move(to: a)
-        path.addQuadCurve(to: b, control: Self.controlPoint(a, b))
+        path.addLine(to: b)
         ctx.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: width, lineCap: .round))
     }
 
+    /// A pulse of light travelling along a synapse (the selection's + a few ambient veins).
     private func drawParticles(_ e: CodeGraph.Edge, frames: [String: CGPoint], time: Double, ctx: inout GraphicsContext, faint: Bool = false) {
         guard let a = frames[e.source], let b = frames[e.target] else { return }
-        let c = Self.controlPoint(a, b)
         let dots = faint ? 2 : 3
         for d in 0..<dots {
             let phase = Double(d) / Double(dots)
-            let u = (time * (faint ? 0.28 : 0.5) + phase).truncatingRemainder(dividingBy: 1.0)
-            let fade = sin(u * .pi)
+            let u = CGFloat((time * (faint ? 0.28 : 0.5) + phase).truncatingRemainder(dividingBy: 1.0))
+            let fade = sin(Double(u) * .pi)
             guard fade > 0.03 else { continue }
-            let p = Self.pointOnQuad(a, c, b, CGFloat(u))
+            let p = CGPoint(x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u)
             let r: CGFloat = faint ? 1.7 : 2.4
             let base = faint ? 0.08 : 0.35, span = faint ? 0.28 : 0.55
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)),
@@ -365,43 +362,34 @@ struct CodeMapGraphView: View {
         }
     }
 
-    private static func controlPoint(_ a: CGPoint, _ b: CGPoint) -> CGPoint {
-        let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
-        let dx = b.x - a.x, dy = b.y - a.y
-        let len = max(sqrt(dx * dx + dy * dy), 1)
-        let bow: CGFloat = min(len * 0.12, 30)
-        return CGPoint(x: mid.x - dy / len * bow, y: mid.y + dx / len * bow)
-    }
-
-    private static func pointOnQuad(_ p0: CGPoint, _ p1: CGPoint, _ p2: CGPoint, _ t: CGFloat) -> CGPoint {
-        let v = 1 - t
-        return CGPoint(x: v * v * p0.x + 2 * v * t * p1.x + t * t * p2.x,
-                       y: v * v * p0.y + 2 * v * t * p1.y + t * t * p2.y)
-    }
-
     private func drawNode(_ node: CodeGraph.Node, at p: CGPoint, selected: Bool, dim: Bool, hub: Bool,
                           breathe: Double, sizeMul: CGFloat, alphaMul: Double, ctx: inout GraphicsContext) {
         let r = radius(node.degree) * scale * CGFloat(breathe) * sizeMul
         let tint = color(node.community)
         let rect = CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)
-        let fillA = (dim ? 0.18 : 0.92) * alphaMul
-        let ringA = (dim ? 0.2 : 0.75) * alphaMul
-        // Congestion glow: ONLY the top hubs (most connections) get the bioluminescent halo —
-        // it doubles as the "high-connectivity" marker and (being capped) keeps the frame cheap.
+        let fillA = (dim ? 0.30 : 0.85) * alphaMul
+        // A NEURON, not a bubble: a soft coloured glow, a coloured body, and a bright core
+        // that reads as a firing synapse. Cheap — solid discs only; the pricier radial-gradient
+        // halo is reserved for the top hubs (capped), which doubles as the congestion marker.
         if hub && !dim {
             let hr = r + 3 + 3 * CGFloat(breathe)
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - hr, y: p.y - hr, width: 2 * hr, height: 2 * hr)),
-                     with: .radialGradient(Gradient(colors: [tint.opacity(0.24 * alphaMul), .clear]),
-                                           center: p, startRadius: r * 0.6, endRadius: hr))
+                     with: .radialGradient(Gradient(colors: [tint.opacity(0.26 * alphaMul), .clear]),
+                                           center: p, startRadius: r * 0.5, endRadius: hr))
+        } else if !dim {
+            // Cheap soft glow for the rest: one low-alpha disc (no gradient).
+            let gr = r * 1.7
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - gr, y: p.y - gr, width: 2 * gr, height: 2 * gr)),
+                     with: .color(tint.opacity(0.10 * alphaMul)))
         }
-        // No per-node drop shadow — a drawLayer+shadow filter per node per frame was the main
-        // cost. A cheap white inner-light + thin ring reads as a lit object at a fraction of it.
+        // Body.
         ctx.fill(Path(ellipseIn: rect), with: .color(tint.opacity(fillA)))
+        // Bright firing core.
         if !dim {
-            ctx.fill(Path(ellipseIn: CGRect(x: p.x - r * 0.5, y: p.y - r * 0.7, width: r, height: r)),
-                     with: .color(.white.opacity(0.22 * alphaMul)))
+            let cr = r * 0.42
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - cr, y: p.y - cr, width: 2 * cr, height: 2 * cr)),
+                     with: .color(.white.opacity(0.75 * alphaMul)))
         }
-        ctx.stroke(Path(ellipseIn: rect), with: .color(.white.opacity(ringA)), lineWidth: 0.6)
         if selected {
             let ring = rect.insetBy(dx: -3.5, dy: -3.5)
             ctx.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2)
