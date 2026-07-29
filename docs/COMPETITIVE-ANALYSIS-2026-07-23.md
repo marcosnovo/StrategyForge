@@ -60,6 +60,25 @@ dato no estaba documentado públicamente se marca **(no confirmado)**.
 > conductor.build · cognition.com/blog/windsurf · zed.dev/blog/parallel-agents · developers.googleblog.com
 > (retiro Gemini CLI) · daringfireball.net (Claude Mac Electron) · stackoverflow.blog (agents on a leash) ·
 > graphify.net · sourcegraph.com/blog/announcing-scip · aider.chat/docs/repomap.
+>
+> **✅ Actualización 2026-07-29 (tarde) — las 5 apuestas ENVIADAS a `main`, gate verde (451 tests).**
+> Todas implementadas y probadas en una tirada, cada una como slice separada:
+> 1. **agy** — `AIProvider.alternativeBinaries` (`gemini` → `agy`) + resolución de binario en
+>    `ProviderRun`/`ProviderRegistry`. Gemini deja de estar roto. *(URGENTE resuelto — quitar de riesgos.)*
+> 2. **Arena recomendadora** — `recommendationBanner` en `ArenaView`: nombra ganador (proveedor·modelo),
+>    razón (calidad-juez o más-barato) y alternativa más económica.
+> 3. **Autónomo pero accountable** — `DiffReviewer` + `ChatViewModel.verifyIsolation()`: verifica el
+>    diff del worktree aislado con un **revisor de otra familia de proveedor** antes del merge; veredicto
+>    con severidad en `isolationBar`. (Soldado con provenance-por-línea + Loop en el relato del README.)
+> 4. **"Ship" fino** — `ShipService` maneja Vercel/Netlify/Cloudflare `wrangler` (detecta CLIs instaladas,
+>    despliega en el repo, saca la URL en vivo); menú + confirmación (acción externa) + hoja de resultado.
+>    *Nota:* se implementó vía **CLIs de deploy**, no MCP — más honesto con "BYO, corre en tu máquina, sin PaaS".
+> 5. **Posicionamiento nativo/BYO/verificador+provenance** — sección "Why Coral is different" en README
+>    (nativo-no-Electron, gasto plano, reviewer≠author, provenance por línea, Mapa inyectado, Arena
+>    recomendadora, MIT) con brechas honestas (sin pipeline de deploy propio, fuera de MAS).
+>
+> **Próximo hueco a vigilar:** distribución/pulido web (donde ganan Cursor/Lovable) sigue siendo el eje
+> más débil; el foso técnico (verificador+BYO+nativo+Mapa) está reforzado, pero el foso de *adopción* no.
 
 > **Actualización 2026-07-28 — `main`, gate verde (447 tests).** Nueva feature con foso propio:
 > **Mapa de código (grafo de conocimiento)**. Es el mayor diferenciador desde el análisis:
