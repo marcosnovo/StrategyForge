@@ -82,14 +82,34 @@ struct CodeMapGraphView: View {
 
     private func color(_ community: Int) -> Color { Self.clusterColor(community) }
 
-    /// A DESIGNED categorical palette: coral leads the biggest cluster (the brand), and every
-    /// other family gets a maximally-distinct hue via golden-angle spacing at a fixed, tasteful
-    /// saturation/brightness — so families read as clearly different (like the old interactive)
-    /// yet stay cohesive and premium (not a raw system rainbow). Shared with the legend/panel.
+    /// The deep backdrop the graph sits on (fixed, both themes) so the glows read as light —
+    /// and the target colour that far nodes fade toward (depth haze).
+    static let darkBg = Color(red: 0.035, green: 0.06, blue: 0.075)
+
+    /// A HAND-TUNED categorical palette (design-panel result): coral leads the biggest cluster
+    /// (the brand); the rest are a warm-coral→teal→violet arc, ORDERED so sequential (largest)
+    /// clusters are far apart in BOTH hue and lightness — families read as clearly different yet
+    /// cohesive/premium (not a golden-angle rainbow), and the lightness spread keeps them
+    /// separable for colour-blind viewers. Beyond the anchors the long tail collapses to grey
+    /// (the eye can't track >~10 categories — pretending otherwise is what looked messy).
+    private static let clusterAnchors: [Color] = [
+        Theme.coral,                                              // 0  brand coral
+        Color(hue: 0.55, saturation: 0.52, brightness: 0.82),    // 1  teal
+        Color(hue: 0.11, saturation: 0.62, brightness: 0.92),    // 2  amber
+        Color(hue: 0.72, saturation: 0.42, brightness: 0.80),    // 3  violet
+        Color(hue: 0.34, saturation: 0.48, brightness: 0.72),    // 4  sage
+        Color(hue: 0.02, saturation: 0.50, brightness: 0.86),    // 5  rose
+        Color(hue: 0.50, saturation: 0.55, brightness: 0.78),    // 6  cyan
+        Color(hue: 0.13, saturation: 0.35, brightness: 0.80),    // 7  sand
+        Color(hue: 0.63, saturation: 0.45, brightness: 0.82),    // 8  periwinkle
+        Color(hue: 0.42, saturation: 0.45, brightness: 0.70),    // 9  jade
+        Color(hue: 0.83, saturation: 0.40, brightness: 0.82),    // 10 orchid
+        Color(hue: 0.07, saturation: 0.55, brightness: 0.88),    // 11 apricot
+    ]
     static func clusterColor(_ community: Int) -> Color {
         if community <= 0 { return Theme.coral }
-        let hue = (0.11 + Double(community) * 0.6180339887).truncatingRemainder(dividingBy: 1.0)
-        return Color(hue: hue, saturation: 0.55, brightness: 0.85)
+        if community < clusterAnchors.count { return clusterAnchors[community] }
+        return Color(hue: 0.5, saturation: 0.05, brightness: 0.6)   // "other" — the long tail
     }
 
     private var rendered: [CodeGraph.Node] {
@@ -109,6 +129,10 @@ struct CodeMapGraphView: View {
         let neighbors = Self.neighborIDs(of: focus, in: edges)
 
         ZStack {
+            // A deep backdrop (both themes) — bloom only reads as light against darkness. This
+            // is also what made graphify's own interactive view feel alive.
+            RadialGradient(colors: [Color(red: 0.06, green: 0.10, blue: 0.12), Self.darkBg],
+                           center: .center, startRadius: 0, endRadius: 620)
             if !reduceMotion {
                 TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { tl in
                     graphCanvas(time: tl.date.timeIntervalSinceReferenceDate,
@@ -248,29 +272,37 @@ struct CodeMapGraphView: View {
 
             func edgeAlpha(_ e: CodeGraph.Edge, _ a: Double) -> Double {
                 let d = ((depth[e.source] ?? 1) + (depth[e.target] ?? 1)) / 2
-                return a * (0.35 + 0.65 * d)   // far edges recede
+                return a * (0.15 + 0.85 * d)   // far edges nearly vanish (depth)
             }
             if focus == nil {
                 for e in edges {
-                    let cross = byID[e.source]?.community != byID[e.target]?.community
-                    let c = cross ? Theme.coral : color(byID[e.source]?.community ?? 0)
-                    curve(e, frames: pos, color: c.opacity(edgeAlpha(e, cross ? 0.10 : 0.09)),
-                          width: cross ? 0.7 : 0.6, ctx: &ctx)
+                    let cs = byID[e.source]?.community, ct = byID[e.target]?.community
+                    let cross = cs != ct
+                    // Declutter: at rest, SKIP leaf↔leaf intra-cluster edges — they're smog
+                    // inside a lobe you already read as a coloured glow. Keep cross-cluster
+                    // couplings + anything touching a hub (the informative connections).
+                    guard cross || hubIDs.contains(e.source) || hubIDs.contains(e.target) else { continue }
+                    // Cross-cluster = the interesting lines → neutral white, brighter/thicker
+                    // (coral now belongs to cluster 0, so coral edges would read as membership).
+                    let col = cross ? Color.white.opacity(edgeAlpha(e, 0.16))
+                                    : color(cs ?? 0).opacity(edgeAlpha(e, 0.10))
+                    curve(e, frames: pos, color: col, width: cross ? 0.9 : 0.55, ctx: &ctx)
                 }
                 if time > 0 {
+                    // Pulses only on the FRONT cross-cluster ropes — the ones you can see.
                     var count = 0
-                    for e in edges where byID[e.source]?.community != byID[e.target]?.community {
+                    for e in edges where byID[e.source]?.community != byID[e.target]?.community
+                        && ((depth[e.source] ?? 1) + (depth[e.target] ?? 1)) / 2 > 0.55 {
                         drawParticles(e, frames: pos, time: time, ctx: &ctx, faint: true)
-                        count += 1
-                        if count >= 22 { break }
+                        count += 1; if count >= 20 { break }
                     }
                 }
             } else {
                 for e in edges where e.source != focus && e.target != focus {
-                    curve(e, frames: pos, color: Color.gray.opacity(0.05), width: 0.5, ctx: &ctx)
+                    curve(e, frames: pos, color: Color.white.opacity(0.03), width: 0.5, ctx: &ctx)
                 }
                 for e in edges where e.source == focus || e.target == focus {
-                    curve(e, frames: pos, color: Theme.coral.opacity(0.85), width: 1.6, ctx: &ctx)
+                    curve(e, frames: pos, color: Theme.coral.opacity(0.9), width: 1.6, ctx: &ctx)
                     if time > 0 { drawParticles(e, frames: pos, time: time, ctx: &ctx) }
                 }
             }
@@ -279,27 +311,48 @@ struct CodeMapGraphView: View {
             let ordered = sphere ? nodes.sorted { (depth[$0.id] ?? 1) < (depth[$1.id] ?? 1) } : nodes
             for (i, node) in ordered.enumerated() {
                 guard let p = pos[node.id] else { continue }
-                let breathe = time == 0 ? 1.0 : (1.0 + 0.06 * sin(time * 1.1 + Double(i) * 0.7))
+                let breathe = time == 0 ? 1.0 : (1.0 + 0.05 * sin(time * 1.1 + Double(i) * 0.7))
                 let d = depth[node.id] ?? 1
-                // Size encodes DEGREE (connections). Depth only nudges it a little on the
-                // sphere (front slightly bigger) — it must not out-shout the degree signal.
-                let sizeMul: CGFloat = sphere ? CGFloat(0.78 + 0.35 * d) : 1
-                let alphaMul = sphere ? (0.45 + 0.55 * d) : 1
+                // Size = DEGREE. On the sphere depth only nudges size a little (it must NOT
+                // out-shout degree); depth lives mostly in alpha + haze (see drawNode).
+                let sizeMul: CGFloat = sphere ? CGFloat(0.88 + 0.18 * d) : 1
+                let alphaMul = sphere ? (0.42 + 0.58 * d) : 1
                 drawNode(node, at: p, selected: node.id == focus,
                          dim: isDim(node, focus: focus, neighbors: neighbors), hub: hubIDs.contains(node.id),
-                         breathe: breathe, sizeMul: sizeMul, alphaMul: alphaMul, ctx: &ctx)
+                         breathe: breathe, sizeMul: sizeMul, alphaMul: alphaMul, depth: d, ctx: &ctx)
             }
 
+            drawLabels(nodes: nodes, pos: pos, depth: depth, focus: focus, neighbors: neighbors, ctx: &ctx)
+        }
+    }
+
+    /// At rest: ONE label per cluster at its centroid (the family name) — that answers "what
+    /// are the families?" far better than scattered per-node labels. With a selection: the
+    /// focus + its neighbours. Front-face only on the sphere.
+    private func drawLabels(nodes: [CodeGraph.Node], pos: [String: CGPoint], depth: [String: Double],
+                            focus: String?, neighbors: Set<String>, ctx: inout GraphicsContext) {
+        if focus == nil {
+            var sum: [Int: (x: CGFloat, y: CGFloat, n: CGFloat, d: Double)] = [:]
             for node in nodes {
-                let show = focus == nil ? labelIDs.contains(node.id)
-                                        : (node.id == focus || neighbors.contains(node.id))
-                // On the sphere, only label the front face so the back doesn't clutter.
-                guard show, sphere ? (depth[node.id] ?? 1) > 0.55 : true, let p = pos[node.id] else { continue }
-                let r = radius(node.degree) * scale
-                let text = Text(String(node.label.prefix(24))).font(.system(size: 9.5, weight: .medium))
+                guard let p = pos[node.id] else { continue }
+                let cur = sum[node.community] ?? (0, 0, 0, 0)
+                sum[node.community] = (cur.x + p.x, cur.y + p.y, cur.n + 1, cur.d + (depth[node.id] ?? 1))
+            }
+            for (community, s) in sum where s.n >= 3 {
+                guard !sphere || (s.d / Double(s.n)) > 0.5 else { continue }   // front-face only
+                let name = nodes.first { $0.community == community }?.communityName ?? "Cluster \(community)"
                 var tctx = ctx
-                drawText(&tctx, text, at: CGPoint(x: p.x, y: p.y + r + 7),
-                         color: node.id == focus ? Theme.ink : Theme.secondaryOnMaterial)
+                drawText(&tctx, Text(String(name.prefix(22))).font(.system(size: 11, weight: .semibold)),
+                         at: CGPoint(x: s.x / s.n, y: s.y / s.n), color: color(community).opacity(0.92))
+            }
+        } else {
+            for node in nodes where node.id == focus || neighbors.contains(node.id) {
+                guard sphere ? (depth[node.id] ?? 1) > 0.55 : true, let p = pos[node.id] else { continue }
+                let r = radius(node.degree) * scale
+                var tctx = ctx
+                drawText(&tctx, Text(String(node.label.prefix(24))).font(.system(size: 9.5, weight: .medium)),
+                         at: CGPoint(x: p.x, y: p.y + r + 7),
+                         color: node.id == focus ? .white : Color.white.opacity(0.72))
             }
         }
     }
@@ -363,43 +416,53 @@ struct CodeMapGraphView: View {
     }
 
     private func drawNode(_ node: CodeGraph.Node, at p: CGPoint, selected: Bool, dim: Bool, hub: Bool,
-                          breathe: Double, sizeMul: CGFloat, alphaMul: Double, ctx: inout GraphicsContext) {
+                          breathe: Double, sizeMul: CGFloat, alphaMul: Double, depth: Double, ctx: inout GraphicsContext) {
         let r = radius(node.degree) * scale * CGFloat(breathe) * sizeMul
-        let tint = color(node.community)
+        // Depth haze: far nodes fade TOWARD the dark backdrop (submerged), not just alpha.
+        var tint = color(node.community)
+        if sphere { tint = tint.mix(with: Self.darkBg, by: (1 - depth) * 0.5) }
         let rect = CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)
-        let fillA = (dim ? 0.30 : 0.85) * alphaMul
-        // A NEURON, not a bubble: a soft coloured glow, a coloured body, and a bright core
-        // that reads as a firing synapse. Cheap — solid discs only; the pricier radial-gradient
-        // halo is reserved for the top hubs (capped), which doubles as the congestion marker.
-        if hub && !dim {
-            let hr = r + 3 + 3 * CGFloat(breathe)
-            ctx.fill(Path(ellipseIn: CGRect(x: p.x - hr, y: p.y - hr, width: 2 * hr, height: 2 * hr)),
-                     with: .radialGradient(Gradient(colors: [tint.opacity(0.26 * alphaMul), .clear]),
-                                           center: p, startRadius: r * 0.5, endRadius: hr))
-        } else if !dim {
-            // Cheap soft glow for the rest: one low-alpha disc (no gradient).
-            let gr = r * 1.7
-            ctx.fill(Path(ellipseIn: CGRect(x: p.x - gr, y: p.y - gr, width: 2 * gr, height: 2 * gr)),
-                     with: .color(tint.opacity(0.10 * alphaMul)))
+        let a = alphaMul
+
+        // NEURON, not a bubble. Light comes from the RIM + an off-centre inner glow, never a
+        // glossy white centre dot. Bloom (a tiered stack of translucent discs = a fake gaussian,
+        // cheaper than a per-node gradient) is reserved for hubs + selection + the front face.
+        if !dim && (hub || selected) && depth > 0.4 {
+            for t: (CGFloat, Double) in [(3.0, 0.05), (1.95, 0.09), (1.35, 0.15)] {
+                let gr = r * t.0
+                ctx.fill(Path(ellipseIn: CGRect(x: p.x - gr, y: p.y - gr, width: 2 * gr, height: 2 * gr)),
+                         with: .color(tint.opacity(t.1 * a)))
+            }
         }
-        // Body.
-        ctx.fill(Path(ellipseIn: rect), with: .color(tint.opacity(fillA)))
-        // Bright firing core.
+        // Body = two stacked discs → one consistent light direction (top-left) without a
+        // gradient: a darker base + a lighter disc inset and nudged up-left.
+        ctx.fill(Path(ellipseIn: rect), with: .color(tint.mix(with: .black, by: 0.22).opacity((dim ? 0.28 : 0.9) * a)))
         if !dim {
-            let cr = r * 0.42
-            ctx.fill(Path(ellipseIn: CGRect(x: p.x - cr, y: p.y - cr, width: 2 * cr, height: 2 * cr)),
-                     with: .color(.white.opacity(0.75 * alphaMul)))
+            let lr = r * 0.82
+            let lp = CGPoint(x: p.x - r * 0.14, y: p.y - r * 0.16)
+            ctx.fill(Path(ellipseIn: CGRect(x: lp.x - lr, y: lp.y - lr, width: 2 * lr, height: 2 * lr)),
+                     with: .color(tint.mix(with: .white, by: 0.12).opacity(0.9 * a)))
+        }
+        // Rim: a thin bright edge — the premium "object, not ball" tell.
+        ctx.stroke(Path(ellipseIn: rect.insetBy(dx: 0.4, dy: 0.4)),
+                   with: .color(tint.mix(with: .white, by: 0.5).opacity((dim ? 0.12 : 0.5) * a)),
+                   lineWidth: max(0.7, r * 0.09))
+        // Firing core: small, dim, OFF-centre (hubs/selection only) — a synapse, not an eyeball.
+        if !dim && (hub || selected) {
+            let cr = r * 0.3
+            let cp = CGPoint(x: p.x - r * 0.1, y: p.y - r * 0.12)
+            ctx.fill(Path(ellipseIn: CGRect(x: cp.x - cr, y: cp.y - cr, width: 2 * cr, height: 2 * cr)),
+                     with: .color(.white.opacity(0.42 * a)))
         }
         if selected {
-            let ring = rect.insetBy(dx: -3.5, dy: -3.5)
-            ctx.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2)
+            ctx.stroke(Path(ellipseIn: rect.insetBy(dx: 0.5, dy: 0.5)), with: .color(Theme.coral), lineWidth: 1.6)
         }
     }
 
-    /// Node radius encodes DEGREE (number of connections) — leaves are small, hubs large,
-    /// gently compressed so a super-hub doesn't dominate. This is the "congestion" signal.
+    /// Node radius encodes DEGREE (connections) — leaves are dust (~2.5), hubs are stars (~20),
+    /// with a `pow(.6)` spread so the hierarchy is unmistakable but a super-hub doesn't dominate.
     private func radius(_ degree: Int) -> CGFloat {
-        min(max(2.2 + sqrt(Double(degree)) * 2.0, 2.2), 16)
+        min(max(2.5 + pow(Double(degree), 0.6) * 1.9, 2.5), 20)
     }
 
     private func drawText(_ ctx: inout GraphicsContext, _ text: Text, at point: CGPoint, color: Color) {
