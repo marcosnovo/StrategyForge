@@ -29,7 +29,12 @@ final class ProviderRegistry {
         let names = AIProvider.allCases.map { ($0, binaryFor($0)) }
         let found = await withTaskGroup(of: AIProvider?.self) { group -> Set<AIProvider> in
             for (p, name) in names {
-                group.addTask { ClaudeRunner.resolveBinary(name) != nil ? p : nil }
+                let alts = p.alternativeBinaries
+                group.addTask {
+                    if ClaudeRunner.resolveBinary(name) != nil { return p }
+                    // e.g. Gemini CLI retired → detect Google's `agy` (Antigravity CLI).
+                    return alts.contains { ClaudeRunner.resolveBinary($0) != nil } ? p : nil
+                }
             }
             var set: Set<AIProvider> = []
             for await r in group { if let r { set.insert(r) } }

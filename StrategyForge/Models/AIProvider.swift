@@ -38,6 +38,17 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Fallback binaries to try if the primary isn't found. Google RETIRED `gemini` (the Gemini
+    /// CLI) in mid-2026 in favour of `agy` (the Antigravity CLI), so a migrated user only has
+    /// `agy` — try it so Gemini keeps working. (Invocation flags are kept compatible; if a future
+    /// agy release diverges, that surfaces as a normal CLI error rather than "not installed".)
+    var alternativeBinaries: [String] {
+        switch self {
+        case .gemini: return ["agy"]
+        case .claude, .openai: return []
+        }
+    }
+
     /// A brand-ish tint for chips/badges (kept tasteful, not exact brand colors).
     var tint: Color {
         switch self {

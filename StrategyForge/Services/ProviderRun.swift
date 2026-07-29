@@ -362,6 +362,11 @@ struct CLIOneShotRunner: OneShotRunner {
     /// a non-existent "null" executable.
     static func resolveBinary(_ configured: String, provider: AIProvider) -> String? {
         let name = configured.isEmpty ? provider.binaryName : configured
-        return ClaudeRunner.resolveBinary(name)
+        if let p = ClaudeRunner.resolveBinary(name) { return p }
+        // Fall back to the provider's alternatives (e.g. Gemini CLI → Antigravity `agy`).
+        for alt in provider.alternativeBinaries {
+            if let p = ClaudeRunner.resolveBinary(alt) { return p }
+        }
+        return nil
     }
 }
