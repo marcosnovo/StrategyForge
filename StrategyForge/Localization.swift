@@ -296,7 +296,7 @@ enum L10n {
         "map.chat.help": ("Start a new chat bound to this repo — the map is injected automatically on the first message.",
                           "Abre un chat nuevo atado a este repo — el mapa se inyecta automáticamente en el primer mensaje."),
         "map.tapHint": ("Tap a node to focus its connections", "Toca un nodo para enfocar sus conexiones"),
-        "map.zoomHint": ("Pinch to zoom · drag to pan · double-tap to reset", "Pellizca para zoom · arrastra para mover · doble toque para reiniciar"),
+        "map.zoomHint": ("Drag to rotate · pinch to zoom · double-tap to reset", "Arrastra para girar · pellizca para zoom · doble toque para reiniciar"),
         "map.search": ("Search symbols…", "Buscar símbolos…"),
         "map.filter.all": ("All clusters", "Todos los clústeres"),
         "map.watch": ("Watch", "Vigilar"),
