@@ -535,10 +535,25 @@ struct CodeMapView: View {
         explaining = true
         Task {
             // Query by id — the canonical node identifier graphify always resolves.
-            let text = await store.explain(node.id)
-            explainText = text
+            let raw = await store.explain(node.id)
+            explainText = friendlyIntro(for: node) + "\n\n" + model.t("map.explain.details") + "\n" + raw
             explaining = false
         }
+    }
+
+    /// A plain-language lead-in before graphify's cryptic technical dump, built from the node +
+    /// its neighbours (which we already have) — no extra tokens.
+    private func friendlyIntro(for node: CodeGraph.Node) -> String {
+        let kind = node.kind ?? "node"
+        let loc = node.file.map { f in node.line.map { "\(f):\($0)" } ?? f } ?? "—"
+        let family = node.communityName ?? "cluster \(node.community)"
+        var s = model.t("map.explain.intro", node.label, kind, loc, family, node.degree)
+        if node.degree >= 10 { s += " " + model.t("map.explain.hub") }
+        if let graph = store.graph {
+            let tops = neighborsOf(node.id, in: graph).prefix(6).map { $0.label }.joined(separator: ", ")
+            if !tops.isEmpty { s += "\n" + model.t("map.explain.connects", tops) }
+        }
+        return s
     }
 
     private func runPath() {

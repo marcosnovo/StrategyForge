@@ -62,20 +62,24 @@ struct CodeMapGraphView: View {
     var matchIDs: Set<String>? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
     @State private var sphere = true
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
-    // Sphere rotation (radians): a gentle default tilt so it reads as a globe.
+    // Rotation (radians): sphere tilts like a globe; flat is head-on (0) and tilts on drag.
     @State private var rotX: Double = 0.5
     @State private var rotY: Double = 0
     @State private var lastRotX: Double = 0.5
     @State private var lastRotY: Double = 0
-    @State private var darkCanvas = true
+    /// nil = follow the app appearance (light app → light canvas); a tap overrides it.
+    @State private var darkOverride: Bool?
+    private var darkCanvas: Bool { darkOverride ?? (scheme == .dark) }
     // Memoised layouts so pan/zoom/rotate (which re-evaluate the body) don't recompute them.
     @State private var norm: [String: CGPoint] = [:]
     @State private var sphere3D: [String: V3] = [:]
+    @State private var flat3D: [String: V3] = [:]
     /// community id → size rank (0 = biggest), so colouring uses the DOMINANT clusters.
     @State private var rankOf: [Int: Int] = [:]
 
@@ -163,17 +167,13 @@ struct CodeMapGraphView: View {
         .background(ScrollZoomInstaller { factor in setZoom(scale * factor) })
         .contentShape(Rectangle())
         .gesture(
+            // Drag ROTATES in both modes (flat = tilting the plane in 3D, like the sphere).
             DragGesture()
                 .onChanged { g in
-                    if sphere {
-                        rotY = lastRotY + Double(g.translation.width) * 0.01
-                        rotX = min(max(lastRotX - Double(g.translation.height) * 0.01, -1.4), 1.4)
-                    } else {
-                        offset = CGSize(width: lastOffset.width + g.translation.width,
-                                        height: lastOffset.height + g.translation.height)
-                    }
+                    rotY = lastRotY + Double(g.translation.width) * 0.01
+                    rotX = min(max(lastRotX - Double(g.translation.height) * 0.01, -1.4), 1.4)
                 }
-                .onEnded { _ in lastRotX = rotX; lastRotY = rotY; lastOffset = offset }
+                .onEnded { _ in lastRotX = rotX; lastRotY = rotY }
         )
         .simultaneousGesture(
             MagnificationGesture()
@@ -181,24 +181,31 @@ struct CodeMapGraphView: View {
                 .onEnded { _ in lastScale = scale }
         )
         .onTapGesture(count: 2) { resetView() }
+        .onTapGesture { if selectedNodeID != nil { selectedNodeID = nil } }   // click empty bg → deselect
         .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous))
         .task(id: graph.nodes.count &* 1000 &+ graph.edges.count) {
-            norm = Self.layout(nodes: nodes)
+            let n = Self.layout(nodes: nodes)
+            norm = n
+            flat3D = Self.normalize3D(n)
             sphere3D = Self.layout3D(nodes: nodes)
             rankOf = graph.communityRank()
         }
     }
 
-    /// Sphere ⇄ flat toggle, tucked in the corner.
+    /// Sphere ⇄ flat toggle. Flat resets to head-on (0 tilt); both then rotate on drag.
     private var modeToggle: some View {
         cornerButton(sphere ? "globe" : "square.grid.2x2", help: sphere ? "Flat" : "Sphere") {
-            withAnimation(.easeInOut(duration: 0.25)) { sphere.toggle() }
+            withAnimation(.easeInOut(duration: 0.25)) {
+                sphere.toggle()
+                let rx = sphere ? 0.5 : 0.0
+                rotX = rx; lastRotX = rx; rotY = 0; lastRotY = 0
+            }
         }
     }
-    /// Dark ⇄ light canvas background.
+    /// Dark ⇄ light canvas background (overrides the app-appearance default).
     private var canvasToggle: some View {
         cornerButton(darkCanvas ? "sun.max" : "moon", help: darkCanvas ? "Light canvas" : "Dark canvas") {
-            withAnimation(.easeInOut(duration: 0.2)) { darkCanvas.toggle() }
+            withAnimation(.easeInOut(duration: 0.2)) { darkOverride = !darkCanvas }
         }
     }
     private func cornerButton(_ icon: String, help: String, _ action: @escaping () -> Void) -> some View {
@@ -216,7 +223,8 @@ struct CodeMapGraphView: View {
     private func resetView() {
         withAnimation(.easeOut(duration: 0.2)) {
             scale = 1; lastScale = 1; offset = .zero; lastOffset = .zero
-            rotX = 0.5; lastRotX = 0.5; rotY = 0; lastRotY = 0
+            let rx = sphere ? 0.5 : 0.0
+            rotX = rx; lastRotX = rx; rotY = 0; lastRotY = 0
         }
     }
 
@@ -256,30 +264,24 @@ struct CodeMapGraphView: View {
         var depth: [String: Double] = [:]
         pos.reserveCapacity(nodes.count); depth.reserveCapacity(nodes.count)
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-
-        if sphere {
-            let R = min(size.width, size.height) * 0.42 * scale
-            for node in nodes {
-                guard let p = sphere3D[node.id] else { continue }
-                let r = Self.rot3(p, ax: rotX, ay: rotY)
-                let persp = 1.7 / (1.7 - r.z)
-                pos[node.id] = CGPoint(x: center.x + CGFloat(r.x * persp) * R,
-                                       y: center.y + CGFloat(r.y * persp) * R)
-                depth[node.id] = (r.z + 1) / 2
-            }
-        } else {
-            let base = Self.fit(norm.isEmpty ? Self.layout(nodes: nodes) : norm, in: size)
-            let sway: CGFloat = time == 0 ? 0 : 3.0
-            for (i, node) in nodes.enumerated() {
-                guard let bp = base[node.id] else { continue }
-                let t = transform(bp, in: size)
-                pos[node.id] = CGPoint(x: t.x + CGFloat(sin(time * 0.55 + Double(i) * 1.3)) * sway,
-                                       y: t.y + CGFloat(cos(time * 0.5 + Double(i) * 0.9)) * sway)
-                depth[node.id] = 1
-            }
+        // Both modes now project a 3D point through the same rotation: the sphere uses its
+        // globe coords, the flat map uses its 2D layout laid on a plane (z=0). At rest the flat
+        // map is head-on (rot 0 → looks 2D); dragging tilts it in 3D, exactly like the sphere.
+        let R = min(size.width, size.height) * 0.42 * scale
+        let src = sphere ? sphere3D : flat3D
+        for node in nodes {
+            guard let p = src[node.id] else { continue }
+            let r = Self.rot3(p, ax: rotX, ay: rotY)
+            let persp = 1.7 / (1.7 - r.z)
+            pos[node.id] = CGPoint(x: center.x + CGFloat(r.x * persp) * R + offset.width,
+                                   y: center.y + CGFloat(r.y * persp) * R + offset.height)
+            depth[node.id] = (r.z + 1) / 2
         }
         return (pos, depth)
     }
+
+    /// Is the flat map lying head-on (no tilt)? Then it's a pure 2D view — no depth cueing.
+    private var flatHeadOn: Bool { !sphere && abs(rotX) < 0.04 && abs(rotY) < 0.04 }
 
     // MARK: One frame
 
@@ -330,16 +332,17 @@ struct CodeMapGraphView: View {
                 }
             }
 
-            // Nodes back-to-front so the sphere's near face sits on top.
-            let ordered = sphere ? nodes.sorted { (depth[$0.id] ?? 1) < (depth[$1.id] ?? 1) } : nodes
+            // Nodes back-to-front so the near face sits on top (when there's depth).
+            let cue = !flatHeadOn
+            let ordered = cue ? nodes.sorted { (depth[$0.id] ?? 1) < (depth[$1.id] ?? 1) } : nodes
             for (i, node) in ordered.enumerated() {
                 guard let p = pos[node.id] else { continue }
                 let breathe = time == 0 ? 1.0 : (1.0 + 0.05 * sin(time * 1.1 + Double(i) * 0.7))
                 let d = depth[node.id] ?? 1
-                // Size = DEGREE. On the sphere depth only nudges size a little (it must NOT
-                // out-shout degree); depth lives mostly in alpha + haze (see drawNode).
-                let sizeMul: CGFloat = sphere ? CGFloat(0.88 + 0.18 * d) : 1
-                let alphaMul = sphere ? (0.42 + 0.58 * d) : 1
+                // Size = DEGREE; depth only nudges it a little (it must NOT out-shout degree);
+                // depth lives mostly in alpha + haze. No cueing when the flat map is head-on.
+                let sizeMul: CGFloat = cue ? CGFloat(0.88 + 0.18 * d) : 1
+                let alphaMul = cue ? (0.42 + 0.58 * d) : 1
                 drawNode(node, at: p, selected: node.id == focus,
                          dim: isDim(node, focus: focus, neighbors: neighbors), hub: hubIDs.contains(node.id),
                          breathe: breathe, sizeMul: sizeMul, alphaMul: alphaMul, depth: d, ctx: &ctx)
@@ -362,7 +365,7 @@ struct CodeMapGraphView: View {
                 sum[node.community] = (cur.x + p.x, cur.y + p.y, cur.n + 1, cur.d + (depth[node.id] ?? 1))
             }
             for (community, s) in sum where s.n >= 3 {
-                guard !sphere || (s.d / Double(s.n)) > 0.5 else { continue }   // front-face only
+                guard flatHeadOn || (s.d / Double(s.n)) > 0.5 else { continue }   // front-face only
                 let name = nodes.first { $0.community == community }?.communityName ?? "Cluster \(community)"
                 var tctx = ctx
                 drawText(&tctx, Text(String(name.prefix(22))).font(.system(size: 11, weight: .semibold)),
@@ -370,7 +373,7 @@ struct CodeMapGraphView: View {
             }
         } else {
             for node in nodes where node.id == focus || neighbors.contains(node.id) {
-                guard sphere ? (depth[node.id] ?? 1) > 0.55 : true, let p = pos[node.id] else { continue }
+                guard flatHeadOn || (depth[node.id] ?? 1) > 0.55, let p = pos[node.id] else { continue }
                 let r = radius(node.degree) * scale
                 var tctx = ctx
                 drawText(&tctx, Text(String(node.label.prefix(24))).font(.system(size: 9.5, weight: .medium)),
@@ -443,7 +446,7 @@ struct CodeMapGraphView: View {
         let r = radius(node.degree) * scale * CGFloat(breathe) * sizeMul
         // Depth haze: far nodes fade TOWARD the dark backdrop (submerged), not just alpha.
         var tint = color(node.community)
-        if sphere { tint = tint.mix(with: fogTarget, by: (1 - depth) * 0.5) }
+        if !flatHeadOn { tint = tint.mix(with: fogTarget, by: (1 - depth) * 0.5) }
         let rect = CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)
         let a = alphaMul
 
@@ -512,7 +515,7 @@ struct CodeMapGraphView: View {
             let (pos, depth) = frames(nodes: nodes, in: geo.size, time: 0)
             ForEach(nodes) { node in
                 if let p = pos[node.id] {
-                    let front = !sphere || (depth[node.id] ?? 1) > 0.45
+                    let front = flatHeadOn || (depth[node.id] ?? 1) > 0.45
                     let hit = max(radius(node.degree) * scale + 5, 11)
                     Circle()
                         .fill(.clear)
@@ -620,6 +623,19 @@ struct CodeMapGraphView: View {
                                   z: c.z * cos(rad) + dir.z * sin(rad))
             }
         }
+        return out
+    }
+
+    /// Lay the flat 2D layout on a plane (z=0), centred + normalised to ~[-1,1], so it can go
+    /// through the same 3D rotation/projection as the sphere (drag tilts the plane).
+    private static func normalize3D(_ norm: [String: CGPoint]) -> [String: V3] {
+        guard !norm.isEmpty else { return [:] }
+        let xs = norm.values.map { $0.x }, ys = norm.values.map { $0.y }
+        let cx = (xs.min()! + xs.max()!) / 2, cy = (ys.min()! + ys.max()!) / 2
+        let half = max(max(xs.max()! - cx, ys.max()! - cy), 0.0001)
+        var out: [String: V3] = [:]
+        out.reserveCapacity(norm.count)
+        for (id, p) in norm { out[id] = V3(x: Double((p.x - cx) / half), y: Double((p.y - cy) / half), z: 0) }
         return out
     }
 
