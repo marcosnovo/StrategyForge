@@ -112,6 +112,56 @@ enum ProviderInstaller {
         }
     }
 
+    /// Is Homebrew available? If so we can auto-install Node.js for the user instead of
+    /// sending them to a download page.
+    static func hasHomebrew() -> Bool { ClaudeRunner.resolveBinary("brew") != nil }
+
+    /// The Node.js download page — the fallback when Homebrew isn't present.
+    static let nodeDownloadURL = URL(string: "https://nodejs.org/en/download")!
+
+    /// Install Node.js via Homebrew so the npm-based CLI install can proceed. Streams
+    /// brew's output; `.needsNode` means brew itself is missing (caller should send the
+    /// user to the download page instead).
+    nonisolated static func installNode() -> AsyncStream<InstallEvent> {
+        AsyncStream { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let brew = ClaudeRunner.resolveBinary("brew") else {
+                    continuation.yield(.needsNode); continuation.finish(); return
+                }
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: brew)
+                process.arguments = ["install", "node"]
+                var env = ProcessInfo.processInfo.environment
+                let binDir = (brew as NSString).deletingLastPathComponent
+                env["PATH"] = "\(binDir):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+                process.environment = env
+
+                let out = Pipe()
+                process.standardOutput = out
+                process.standardError = out
+                let buffer = LineBuffer()
+                out.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    guard !data.isEmpty else { return }
+                    for line in buffer.append(data) { continuation.yield(.log(line)) }
+                }
+                process.terminationHandler = { proc in
+                    out.fileHandleForReading.readabilityHandler = nil
+                    for line in buffer.drain() { continuation.yield(.log(line)) }
+                    if proc.terminationStatus == 0 { continuation.yield(.finished) }
+                    else { continuation.yield(.failed("brew exited with code \(proc.terminationStatus)")) }
+                    continuation.finish()
+                }
+                continuation.onTermination = { _ in
+                    out.fileHandleForReading.readabilityHandler = nil
+                    if process.isRunning { process.terminate() }
+                }
+                do { try process.run() }
+                catch { continuation.yield(.failed(error.localizedDescription)); continuation.finish() }
+            }
+        }
+    }
+
     /// Web sign-in WITHOUT a visible Terminal: run the CLI's login command attached to
     /// a HIDDEN pseudo-terminal (so a CLI that insists on a TTY — like `claude auth
     /// login` — behaves normally), stream its output, open the browser URL it prints,

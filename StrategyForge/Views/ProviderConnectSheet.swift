@@ -17,10 +17,12 @@ struct ProviderConnectSheet: View {
     /// Called after a successful connect so the caller can re-detect.
     var onConnected: () -> Void = {}
 
-    enum Phase: Equatable { case installing, signingIn, terminal, done, failed(String) }
+    enum Phase: Equatable { case installing, signingIn, terminal, node, done, failed(String) }
     @State private var phase: Phase = .installing
     @State private var log: [String] = []
     @State private var url: String?
+    /// Set while Node.js is being installed via Homebrew (before we can install the CLI).
+    @State private var installingNode = false
     /// Claude's login finishes by pasting a code shown in the browser — we collect it
     /// here and send it into the (hidden) login process.
     @State private var awaitingCode = false
@@ -33,7 +35,7 @@ struct ProviderConnectSheet: View {
                 ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
                 Text(model.t("provider.connect.title", provider.displayName)).font(.sfCardTitle)
                 Spacer()
-                if phase == .installing || phase == .signingIn { WorkingLogo(size: 16) }
+                if phase == .installing || phase == .signingIn || installingNode { WorkingLogo(size: 16) }
             }
             .padding(.horizontal, Space.l).padding(.vertical, Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -44,10 +46,36 @@ struct ProviderConnectSheet: View {
             statusLine
 
             if phase == .signingIn, let url, let u = URL(string: url) {
+                // Make the browser step impossible to miss: a loud hint + the open button.
+                Label(model.t("provider.signin.browserHint"), systemImage: "safari.fill")
+                    .font(.sfCaption2).foregroundStyle(Theme.accent)
+                    .fixedSize(horizontal: false, vertical: true)
                 Link(destination: u) {
                     Label(model.t("provider.signin.openPage"), systemImage: "arrow.up.forward.app")
                 }
                 .buttonStyle(.moon)
+            }
+            // Node.js is missing — the one true prerequisite. Offer a one-tap Homebrew
+            // install when brew is present, else a link to the Node.js download page.
+            if phase == .node {
+                VStack(alignment: .leading, spacing: Space.s) {
+                    if installingNode {
+                        Label(model.t("provider.node.installing"), systemImage: "arrow.down.circle")
+                            .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    } else if ProviderInstaller.hasHomebrew() {
+                        Button(action: installNodeThenRetry) {
+                            Label(model.t("provider.node.brew"), systemImage: "shippingbox.fill")
+                        }
+                        .buttonStyle(.moon)
+                    } else {
+                        Link(destination: ProviderInstaller.nodeDownloadURL) {
+                            Label(model.t("provider.node.download"), systemImage: "arrow.down.app")
+                        }
+                        .buttonStyle(.moon)
+                        Text(model.t("provider.node.manual"))
+                            .font(.sfCaption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             // Paste-the-code step (Claude): the browser shows a code to paste back.
             if awaitingCode {
@@ -133,6 +161,13 @@ struct ProviderConnectSheet: View {
         case .terminal:
             Label(model.t("provider.signin.terminalNote"), systemImage: "terminal")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        case .node:
+            VStack(alignment: .leading, spacing: 2) {
+                Label(model.t("provider.node.title"), systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout.weight(.medium)).foregroundStyle(Theme.warning)
+                Text(model.t("provider.node.desc"))
+                    .font(.sfCaption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         case .done:
             Label(model.t("provider.connect.done"), systemImage: "checkmark.circle.fill")
                 .font(.callout).foregroundStyle(Theme.success)
@@ -149,10 +184,31 @@ struct ProviderConnectSheet: View {
             case .log(let l): log.append(l)
             case .url(let u): url = u
             case .needsCode: awaitingCode = true
-            case .needsNode: phase = .failed(model.t("provider.needsNode"))
+            case .needsNode: phase = .node
             case .needsTerminal: phase = .terminal
             case .failed(let m): phase = .failed(m)
             case .done: phase = .done; awaitingCode = false; onConnected()
+            }
+        }
+    }
+
+    /// Install Node.js via Homebrew, then restart the whole connect flow (install CLI →
+    /// sign in) now that npm is available.
+    private func installNodeThenRetry() {
+        installingNode = true
+        Task {
+            for await ev in ProviderInstaller.installNode() {
+                switch ev {
+                case .log(let l): log.append(l)
+                case .finished:
+                    installingNode = false
+                    phase = .installing
+                    await run()
+                    return
+                case .failed(let m): installingNode = false; phase = .failed(m); return
+                case .needsNode: installingNode = false   // brew vanished — stay on .node (link fallback)
+                case .needsCode: break
+                }
             }
         }
     }
