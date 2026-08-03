@@ -128,6 +128,93 @@ dato no estaba documentado públicamente se marca **(no confirmado)**.
 > **Sigue pendiente en adopción:** publicar la web + el tap (hosting/repo, manual del founder); vídeo demo
 > de 60s; medir "time-to-first-run". El foso técnico está completo; el de adopción es ahora el trabajo.
 
+---
+
+## 📊 Actualización 2026-08-03 — informe completo del panorama (14 competidores, con notas)
+
+*Método: 4 agentes de investigación en paralelo (WebSearch/WebFetch) sobre docs/sitios/precios oficiales,
+a agosto 2026. Afirmaciones con fuente; lo no confirmado va marcado. Nota = fuerza competitiva holística
+hoy (producto + foso + momento + distribución), 1–10 — no "cuánto se parecen a Coral".*
+
+### Mapa del mercado + notas
+
+| # | Competidor | Qué es | Nota | Amenaza |
+|---|---|---|---|---|
+| 1 | **Claude Code** (Anthropic) | CLI agéntica 1ª parte; subagents/Agent Teams/grader; mono-proveedor | **9.5** | 🔴 Alta — es nuestro sustrato y el "¿por qué no el oficial?" |
+| 2 | **Cursor** (Anysphere) | IDE Electron; parallel agents + best-of-N; Serie D $2.3B @ **$29.3B** | **9.0** | 🟠 Media — ubicuo, pero mete su propia medición (trauma precios jun-2025) |
+| 3 | **Cognition** (Devin + Windsurf/Devin Desktop) | Ingeniero autónomo + **Devin Review** (reviewer real); ~$26B (reportado) | **8.5** | 🔴 Alta — Devin Review contesta nuestro titular "verificador" |
+| 4 | **Google Antigravity + `agy`** | Plataforma agéntica + Agent Manager; gratis, multi-modelo (incl. Claude) | **8.0** | 🟠 Media — escala Google, pero **cerró la Gemini CLI OSS** (18-jun-2026) |
+| 5 | **Factory.ai** (Droids) | SDLC agéntico enterprise; Serie C $150M @ **$1.5B** (abr-2026) | **8.0** | 🟠 Media — enterprise, **API-key-only**, medido |
+| 6 | **Replit** (Agent 4) | IDE cloud + parallel agents + hosting; Serie D $400M @ **$9B**; ~35M users | **8.0** | 🟢 Baja — otro público (no-devs/greenfield); backlash precios "effort-based" |
+| 7 | **Lovable** | Vibe-coding web; Serie B $330M @ **$6.6B**; ~$400M ARR | **7.5** | 🟢 Baja — no-devs, silo cloud medido |
+| 8 | **Zed** | Editor **nativo Rust, OSS** (1.0 abr-2026); parallel agents + ACP | **7.5** | 🟠 Media — **peer filosófico más cercano** (nativo+abierto+multi-provider) |
+| 9 | **Warp** | Terminal nativo (cliente AGPL); **"Oz" orquesta las 3 CLIs** | **7.5** | 🔴 Alta — **solapamiento arquitectónico más directo** |
+| 10 | **Amp** (Sourcegraph) | Agente + **"Oracle"** (2ª opinión) reviewer; **sin markup**; 40k equipos | **7.0** | 🟠 Media — reviewer real, pero cerrado/medido/cloud |
+| 11 | **Aider** | Pair-programmer **CLI OSS**, BYO-keys, architect/editor | **7.0** | 🟠 Media — **nuestro análogo OSS**; single-agent, sin GUI |
+| 12 | **Conductor** (Melty, YC S24) | App **Mac nativa** parallel Claude/Codex/Cursor; **$22M** Serie A | **6.5** | 🔴 **La más directa** — misma categoría exacta |
+| 13 | **Bolt** (StackBlitz) | Prompt→app en navegador (WebContainers); ~$700M | **6.5** | 🟢 Baja — nicho web, dependiente de Claude |
+
+### Los 3 que quitan el sueño (amenaza 🔴) y dónde ganamos
+
+- **Conductor** — *el gemelo directo*: nativa Mac, local, BYO-suscripción, parallel-worktree, YC, mindshare
+  de categoría. **Ganamos:** **MIT** (ellos cerrados) · añadimos **Gemini** (ellos no) · **mezcla
+  cross-provider por rol + verificador de otra familia** (ellos: sesiones paralelas + review humano).
+- **Warp** — ya orquesta Claude+Codex+Gemini en app nativa (motor "Oz"), pero **mete créditos medidos** y
+  **rechazó el login por suscripción** (GitHub issue #9609, cerrada sin enviar); AGPL+Oz propietario.
+  **Ganamos:** conducimos **tus suscripciones sin medición**, MIT puro, verificador cross-provider.
+- **Cognition/Devin Review** — único **reviewer independiente maduro y enviado** (+Autofix). **Ganamos:**
+  su reviewer es el **mismo proveedor**; el nuestro es **otra familia**; y somos BYO/sin-ACUs/nativo/abierto.
+
+### Nuestra nota
+
+| Eje | Nota | Lectura |
+|---|---|---|
+| **Producto/posicionamiento en el nicho** | **8.5 / 10** | La combinación {nativo + BYO-suscripción + sin medición + sin cuenta + MIT + verificador cross-family + provenance por línea + Mapa + mezcla por rol} **no la tiene nadie** (verificado vs 14 productos). |
+| **Fuerza de negocio hoy** | **5.5 / 10** | Solo-founder, pre-escala, sin financiación ni distribución. Foso técnico real; foso de adopción empezando. |
+
+**Posicionamiento (una frase):** el único orquestador multi-agente **nativo de Mac** que corre sobre **tus
+propias suscripciones** (sin medición, sin cuenta), **open source**, con **verificador de otra familia** y
+**procedencia por línea**.
+
+### Viento a favor (datos externos)
+
+- **Stack Overflow 2025** (49k respuestas): uso IA **84%** pero solo **33% confía** (46% desconfía); **devs
+  senior los más escépticos**; 66% pierde tiempo arreglando código "casi correcto". → *El verificador
+  independiente + provenance ES la correa que piden.*
+- **El mercado mete MÁS medición** (Anthropic y Copilot pasaron a usage-based a mediados 2026) → nuestra
+  postura **BYO-sin-markup** se vuelve más rara y valiosa.
+- **"La verificación es el nuevo cuello de botella"** (informe Anthropic 2026), pero **reviewer de distinta
+  familia aún no es estándar** → foso defendible.
+- **Tamaño de mercado** (estimaciones comerciales, direccional): AI code tools ~**$7.4–7.9B (2025) →
+  ~$9.4–10.1B (2026)**, CAGR ~23–28%.
+
+### Qué nos falta (prioridad honesta)
+
+| Prio | Hueco | Por qué |
+|---|---|---|
+| **P0** | Publicar **web** (`web/` ya lista) + **tap Homebrew**; **vídeo demo 60s** | El foso técnico no se traduce en usuarios; es el eje donde perdemos. |
+| **P1** | **Riesgo macro:** absorción por 1ª parte (la app de Claude Code ya hace sesiones paralelas) | Respuesta = cross-provider + abierto + verificador (lo que un mono-vendor **no puede**). |
+| **P1** | **Lente de coste nodo/arista** (del artículo *Graph Engineering con Opus 5*) + auditar que los workflows generados paralelizan de verdad | Convierte "sin markup" en visible/medible. Barato. |
+| **P2** | Paridad: **memoria dos niveles** (User+Org, como Factory); **sandboxing por-agente** (Conductor NO lo tiene → oportunidad) | Cierra brechas donde Factory nos iguala. |
+
+### Nota del artículo *"Graph Engineering con Opus 5"* (@angeldot_)
+
+Tesis: pasar de agentes en **línea recta** a **grafos paralelos**; *"los nodos piensan, las aristas
+transportan"* y *"un montón de lo que pagas en tokens es en realidad una arista, y las aristas son gratis"*
+(la transformación de datos debe vivir en código, no en llamadas al modelo). **Valida el ADN de Coral**
+(las estrategias ya son grafos; verificación adversarial y enrutado dinámico ya enviados). **Acción nueva:**
+una **lente de coste nodo(pagado)/arista(código, gratis)** en la vista de estrategia con ahorro estimado, y
+**verificar que `WorkflowGenerator` emite diamantes paralelos, no líneas rectas**.
+
+> **Fuentes clave (agosto 2026):** conductor.build · github.com/warpdotdev/warp/issues/9609 ·
+> devin.ai/blog/devin-review-windsurf · factory.ai/pricing · docs.factory.ai/cli/byok/overview ·
+> zed.dev/pricing · thenewstack.io/gemini-cli-antigravity-replacement · cnbc.com (Cursor $29.3B, nov-2025) ·
+> techcrunch.com (Cursor precios jul-2025; Cognition $10.2B) · survey.stackoverflow.co/2025/ai ·
+> resources.anthropic.com/2026-agentic-coding-trends-report · ampcode.com/manual · aider.chat/docs ·
+> sacra.com (Lovable/Replit/Bolt) · mordorintelligence.com / fortunebusinessinsights.com (tamaño mercado).
+
+---
+
 > **Actualización 2026-07-28 — `main`, gate verde (447 tests).** Nueva feature con foso propio:
 > **Mapa de código (grafo de conocimiento)**. Es el mayor diferenciador desde el análisis:
 > - **Qué es:** convierte cualquier repo en un grafo de conocimiento consultable (integra la CLI
