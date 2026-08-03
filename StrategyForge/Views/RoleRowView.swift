@@ -123,7 +123,13 @@ struct RoleEditorForm: View {
             HStack(alignment: .bottom, spacing: 16) {
                 labeled("field.instances") { countStepper }
                 labeled("field.tools") { toolsMenu }
+                if !role.isOrchestrator { labeled("field.sandbox") { sandboxMenu } }
                 Spacer(minLength: 0)
+            }
+            if !role.isOrchestrator {
+                Text(model.t(role.sandbox.helpKey))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             // Persistent per-agent memory (subagents only — the orchestrator has no
             // agent file). Off by default; on, the role carries learnings across runs.
@@ -362,6 +368,31 @@ struct RoleEditorForm: View {
             }
             .fixedSize()
         }
+    }
+
+    /// Per-agent sandbox picker. `.auto` is the default and reproduces the behaviour that
+    /// predates the field, so an untouched team generates exactly what it used to.
+    private var sandboxMenu: some View {
+        Menu {
+            ForEach(AgentSandbox.allCases) { s in
+                Button {
+                    role.sandbox = s
+                } label: {
+                    if role.sandbox == s {
+                        Label(model.t(s.labelKey), systemImage: "checkmark")
+                    } else {
+                        Label(model.t(s.labelKey), systemImage: s.icon)
+                    }
+                }
+            }
+        } label: {
+            Label(model.t(role.sandbox.labelKey), systemImage: role.sandbox.icon)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.bordered)
+        .fixedSize()
+        .help(model.t(role.sandbox.helpKey))
+        .accessibilityValue(model.t(role.sandbox.labelKey))
     }
 
     private var toolsMenu: some View {

@@ -75,6 +75,57 @@ enum RoleKind: String, Codable, CaseIterable, Identifiable, Hashable {
     }
 }
 
+/// How much of the repo one agent may touch while the team runs — per-AGENT isolation,
+/// not just per-loop. Parallel writers that share a working tree overwrite each other, so
+/// anything that edits gets its own git worktree by default; this makes that a choice the
+/// user can see and change per role, and adds a hard read-only seat.
+///
+/// Enforcement is real, not advisory: `.readOnly` restricts the generated subagent's
+/// `tools:` frontmatter to the read-only set (Claude Code refuses the rest), and
+/// `.worktree` emits `isolation: 'worktree'` on the workflow node so the runtime hands the
+/// agent its own checkout.
+enum AgentSandbox: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
+    /// Follow the role kind: advisory/review roles read, producers get their own worktree.
+    case auto
+    /// Always isolated — edits land on a branch you review before they touch your tree.
+    case worktree
+    /// Never edits. Tools are clamped to the read-only set.
+    case readOnly
+    /// Opt out: edits the working tree directly. Fastest, and unsafe with parallel writers.
+    case shared
+
+    var id: String { rawValue }
+    var labelKey: String { "sandbox.\(rawValue)" }
+    var helpKey: String { "sandbox.\(rawValue).help" }
+
+    var icon: String {
+        switch self {
+        case .auto:     return "wand.and.stars"
+        case .worktree: return "arrow.triangle.branch"
+        case .readOnly: return "eye"
+        case .shared:   return "folder"
+        }
+    }
+
+    /// Whether an agent in this sandbox runs in its own git worktree, given its role kind.
+    func isolatesInWorktree(for role: RoleKind) -> Bool {
+        switch self {
+        case .auto:     return !role.isReadOnlyByDefault
+        case .worktree: return true
+        case .readOnly, .shared: return false
+        }
+    }
+
+    /// Whether the agent is forbidden from editing at all, given its role kind.
+    func isReadOnly(for role: RoleKind) -> Bool {
+        switch self {
+        case .readOnly: return true
+        case .auto:     return role.isReadOnlyByDefault
+        case .worktree, .shared: return false
+        }
+    }
+}
+
 /// A single configurable role within a `Strategy`.
 struct AgentRole: Codable, Identifiable, Hashable {
     var id: UUID
@@ -108,6 +159,9 @@ struct AgentRole: Codable, Identifiable, Hashable {
     /// within one (that's the per-loop STATE.md). The generated subagent `.md` gets the
     /// read-first / append-last instructions, and the memory file is created on write.
     var memoryEnabled: Bool
+    /// Per-agent isolation. `.auto` reproduces the behaviour that predates this field, so
+    /// existing teams keep running exactly as they did.
+    var sandbox: AgentSandbox
 
     init(
         id: UUID = UUID(),
@@ -121,7 +175,8 @@ struct AgentRole: Codable, Identifiable, Hashable {
         tools: [String] = [],
         count: Int = 1,
         isOrchestrator: Bool = false,
-        memoryEnabled: Bool = false
+        memoryEnabled: Bool = false,
+        sandbox: AgentSandbox = .auto
     ) {
         self.id = id
         self.name = name
@@ -135,12 +190,13 @@ struct AgentRole: Codable, Identifiable, Hashable {
         self.count = count
         self.isOrchestrator = isOrchestrator
         self.memoryEnabled = memoryEnabled
+        self.sandbox = sandbox
     }
 
     // Tolerant decode: roles saved before multi-provider default to Claude.
     enum CodingKeys: String, CodingKey {
         case id, name, role, model, provider, providerModelID
-        case systemPrompt, description, tools, count, isOrchestrator, memoryEnabled
+        case systemPrompt, description, tools, count, isOrchestrator, memoryEnabled, sandbox
     }
 
     init(from decoder: Decoder) throws {
@@ -164,6 +220,9 @@ struct AgentRole: Codable, Identifiable, Hashable {
         count = try c.decodeIfPresent(Int.self, forKey: .count) ?? 1
         isOrchestrator = try c.decodeIfPresent(Bool.self, forKey: .isOrchestrator) ?? false
         memoryEnabled = try c.decodeIfPresent(Bool.self, forKey: .memoryEnabled) ?? false
+        // Unknown/absent sandbox → .auto, i.e. exactly the pre-field behaviour.
+        let sandboxRaw = ((try? c.decodeIfPresent(String.self, forKey: .sandbox)) ?? nil) ?? ""
+        sandbox = AgentSandbox(rawValue: sandboxRaw) ?? .auto
     }
 
     /// The repo-relative path of this role's persistent memory file (per expanded

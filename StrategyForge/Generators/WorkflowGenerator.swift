@@ -15,6 +15,34 @@
 
 import Foundation
 
+/// The SHAPE the generated workflow takes for a team — the graph before it's text.
+///
+/// Extracted so it has exactly one definition: `WorkflowGenerator` emits it as JavaScript
+/// and `GraphCostLens` prices it. If the two derived their own shapes independently, the
+/// cost lens would eventually describe a graph the generator no longer emits.
+enum WorkflowShape: Equatable {
+    /// One parallel Work branch per producer role, optionally gated by a Verify phase.
+    case roleParallel(orchestrator: AgentRole, workers: [AgentRole], verifier: AgentRole?)
+    /// One agent per unit of work: a scout discovers the item list, then a pipeline runs
+    /// (and optionally verifies) each item. `instances` is the scouted fan-out width.
+    case itemFanout(orchestrator: AgentRole, worker: AgentRole, verifier: AgentRole?, instances: Int)
+
+    var verifier: AgentRole? {
+        switch self {
+        case let .roleParallel(_, _, v), let .itemFanout(_, _, v, _): return v
+        }
+    }
+
+    /// How many agents run CONCURRENTLY at the widest point — the whole reason a workflow
+    /// beats a chat. A width of 1 means the "graph" is a straight line.
+    var parallelWidth: Int {
+        switch self {
+        case let .roleParallel(_, workers, _): return max(1, workers.count)
+        case let .itemFanout(_, _, _, n):      return max(1, n)
+        }
+    }
+}
+
 enum WorkflowGenerator {
 
     /// Repo-relative directory generated workflows live in.
@@ -37,8 +65,9 @@ enum WorkflowGenerator {
         return collapsed.isEmpty ? "team" : collapsed
     }
 
-    /// The dynamic-workflow program for a team, or nil for a solo team (no graph).
-    static func workflow(for strategy: Strategy) -> String? {
+    /// The graph a team compiles to, or nil for a solo team (one prompt isn't a graph).
+    /// Pure — the single source of truth both the emitter and the cost lens read.
+    static func shape(for strategy: Strategy) -> WorkflowShape? {
         let teammates = strategy.subagentRoles.filter { Strategy.isValidRoleName($0.name) }
         guard !teammates.isEmpty, let orchestrator = strategy.orchestrator else { return nil }
 
@@ -52,7 +81,6 @@ enum WorkflowGenerator {
         // If the team is ALL reviewers (unusual), treat them as producers so it still runs.
         let workers = producers.isEmpty ? teammates : producers
         let verifier = producers.isEmpty ? nil : reviewers.first
-        let hasVerify = verifier != nil
 
         // A fan-out of identical workers (all producers are plain workers, ≥2 instances via
         // the role's `count`) is a "one agent per unit of work" job — a codebase audit, a
@@ -61,9 +89,31 @@ enum WorkflowGenerator {
         // per role. This is the migration/graph pattern.
         let workerInstances = producers.filter { $0.role == .worker }.map { max(1, $0.count) }.reduce(0, +)
         if !producers.isEmpty, producers.allSatisfy({ $0.role == .worker }), workerInstances >= 2 {
-            return itemFanoutWorkflow(strategy: strategy, orchestrator: orchestrator,
-                                      worker: producers[0], verifier: verifier)
+            return .itemFanout(orchestrator: orchestrator, worker: producers[0],
+                               verifier: verifier, instances: workerInstances)
         }
+        return .roleParallel(orchestrator: orchestrator, workers: workers, verifier: verifier)
+    }
+
+    /// The dynamic-workflow program for a team, or nil for a solo team (no graph).
+    static func workflow(for strategy: Strategy) -> String? {
+        switch shape(for: strategy) {
+        case .none:
+            return nil
+        case let .itemFanout(orchestrator, worker, verifier, _):
+            return itemFanoutWorkflow(strategy: strategy, orchestrator: orchestrator,
+                                      worker: worker, verifier: verifier)
+        case let .roleParallel(orchestrator, workers, verifier):
+            return roleParallelWorkflow(strategy: strategy, orchestrator: orchestrator,
+                                        workers: workers, verifier: verifier)
+        }
+    }
+
+    /// One parallel Work branch per producer role: plan → parallel work → (verify) →
+    /// synthesize. The classic diamond.
+    static func roleParallelWorkflow(strategy: Strategy, orchestrator: AgentRole,
+                                     workers: [AgentRole], verifier: AgentRole?) -> String {
+        let hasVerify = verifier != nil
 
         let name = slug(strategy)
         let description = jsLine(strategy.description.isEmpty ? strategy.name : strategy.description)
@@ -97,13 +147,19 @@ enum WorkflowGenerator {
         // Work — one teammate per parallel branch. A producer that EDITS files (not
         // read-only) runs in its own git worktree so parallel writers can't overwrite each
         // other — the Bun-port lesson (isolate the workers, don't just prompt them nicely).
+        // A role with `count > 1` is N teammates, so it becomes N concurrent branches —
+        // emitting one branch for a role the user asked to triple would quietly narrow the
+        // graph back towards a line (and disagree with what the cost lens prices).
         out += "phase('Work')\n"
         out += "const results = await parallel([\n"
         for w in workers {
             let model = w.model.rawValue
-            let isolation = w.role.isReadOnlyByDefault ? "" : ", isolation: 'worktree'"
-            out += "  () => agent(`\(jsTemplate(workerPrompt(w)))\n\nTASK:\n${task}\n\nPLAN:\n${plan}`, "
-            out += "{ label: '\(jsLine(w.name))', phase: 'Work', model: '\(model)'\(isolation) }),\n"
+            let isolation = w.sandbox.isolatesInWorktree(for: w.role) ? ", isolation: 'worktree'" : ""
+            for instance in 1...max(1, w.count) {
+                let label = w.count > 1 ? "\(jsLine(w.name))-\(instance)" : jsLine(w.name)
+                out += "  () => agent(`\(jsTemplate(workerPrompt(w)))\n\nTASK:\n${task}\n\nPLAN:\n${plan}`, "
+                out += "{ label: '\(label)', phase: 'Work', model: '\(model)'\(isolation) }),\n"
+            }
         }
         out += "])\n\n"
 
@@ -137,7 +193,7 @@ enum WorkflowGenerator {
         let name = slug(strategy)
         let description = jsLine(strategy.description.isEmpty ? strategy.name : strategy.description)
         let workerModel = worker.model.rawValue
-        let isolation = worker.role.isReadOnlyByDefault ? "" : ", isolation: 'worktree'"
+        let isolation = worker.sandbox.isolatesInWorktree(for: worker.role) ? ", isolation: 'worktree'" : ""
         let hasVerify = verifier != nil
 
         var out = "\(managedSignature) for the team \"\(jsLine(strategy.name))\" — ITEM FAN-OUT.\n"

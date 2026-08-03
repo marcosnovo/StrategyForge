@@ -59,7 +59,7 @@ enum AgentFileGenerator {
         // Strip newlines from each entry: a tool name with "\n" (or a raw "\r" —
         // YAML treats CR as a line break too) would break out of the scalar and
         // inject its own frontmatter lines.
-        let tools = role.tools
+        var tools = role.tools
             .map {
                 $0.replacingOccurrences(of: "\r\n", with: " ")
                     .replacingOccurrences(of: "\n", with: " ")
@@ -67,6 +67,17 @@ enum AgentFileGenerator {
                     .trimmingCharacters(in: .whitespaces)
             }
             .filter { !$0.isEmpty }
+        // A read-only seat is enforced, not requested: clamp the grant to the read-only
+        // set so the agent physically cannot edit, whatever the prompt says. An explicit
+        // grant is intersected (never widened); an empty grant — which would otherwise
+        // inherit EVERY tool — is replaced by the read-only set.
+        // Only the EXPLICIT read-only seat clamps. `.auto` keeps whatever the role
+        // template granted, so existing teams generate byte-identical files.
+        if role.sandbox == .readOnly {
+            let allowed = Set(Constants.readOnlyTools)
+            let kept = tools.filter { allowed.contains($0) }
+            tools = kept.isEmpty ? Constants.readOnlyTools : kept
+        }
         if !tools.isEmpty {
             frontmatter += "tools: \(tools.joined(separator: ", "))\n"
         }

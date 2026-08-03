@@ -537,6 +537,10 @@ struct CostBreakdownView: View {
                     Text(String(format: "$%.2f", entry.value)).font(.sfMono).foregroundStyle(.secondary)
                 }
             }
+            // Where the money actually goes: paid nodes vs free edges (graph-engineering
+            // lens). Absent for a solo team, which doesn't compile to a graph.
+            GraphLensSection(strategy: strategy, effort: effort)
+
             Divider()
             Text(model.t("cost.disclaimer"))
                 .font(.sfCaption2).foregroundStyle(.secondary)
