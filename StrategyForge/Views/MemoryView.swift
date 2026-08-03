@@ -16,6 +16,7 @@ struct MemoryView: View {
 
     @State private var selectedID: Learning.ID?
     @State private var kindFilter: LearningKind?   // nil = all
+    @State private var scopeFilter: LearningScope? // nil = both levels
 
     var body: some View {
         HStack(spacing: 0) {
@@ -29,9 +30,13 @@ struct MemoryView: View {
     }
 
     private var filtered: [Learning] {
-        let base = kindFilter.map { k in store.learnings.filter { $0.kind == k } } ?? store.learnings
-        // Pinned first, then newest — a stable, scannable order.
+        var base = store.learnings
+        if let k = kindFilter { base = base.filter { $0.kind == k } }
+        if let s = scopeFilter { base = base.filter { $0.scope == s } }
+        // Team level first (it reads as policy), then pinned, then newest — the same
+        // precedence the digest injects them with, so the list matches what agents see.
         return base.sorted { a, b in
+            if a.scope != b.scope { return a.scope == .team }
             if a.pinned != b.pinned { return a.pinned }
             return a.createdAt > b.createdAt
         }
@@ -75,12 +80,35 @@ struct MemoryView: View {
     }
 
     private var filterBar: some View {
-        HStack(spacing: Space.xs) {
-            chip(nil, model.t("memory.filter.all"))
-            ForEach(LearningKind.allCases, id: \.self) { k in chip(k, model.t(k.displayKey)) }
-            Spacer()
+        VStack(alignment: .leading, spacing: Space.xs) {
+            HStack(spacing: Space.xs) {
+                chip(nil, model.t("memory.filter.all"))
+                ForEach(LearningKind.allCases, id: \.self) { k in chip(k, model.t(k.displayKey)) }
+                Spacer()
+            }
+            // The two levels: yours and your team's shared conventions.
+            HStack(spacing: Space.xs) {
+                scopeChip(nil, model.t("memory.filter.all"))
+                ForEach(LearningScope.allCases) { s in scopeChip(s, model.t(s.displayKey)) }
+                Spacer()
+            }
         }
         .padding(.horizontal, Space.s).padding(.vertical, Space.xs)
+    }
+
+    private func scopeChip(_ s: LearningScope?, _ label: String) -> some View {
+        let on = scopeFilter == s
+        return Button { scopeFilter = s } label: {
+            HStack(spacing: 4) {
+                if let s { Image(systemName: s.icon).font(.system(size: 9)) }
+                Text(label).font(.sfCaption2.weight(.medium))
+            }
+            .padding(.horizontal, Space.s).padding(.vertical, 3)
+            .background(Capsule().fill(on ? Theme.accentSoft : Color.clear))
+            .overlay(Capsule().strokeBorder(Theme.accent.opacity(on ? 0.5 : 0.15), lineWidth: 1))
+            .foregroundStyle(on ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.secondary))
+        }
+        .buttonStyle(.plain)
     }
 
     private func chip(_ k: LearningKind?, _ label: String) -> some View {
@@ -114,8 +142,8 @@ struct MemoryView: View {
     }
 
     private func subtitle(_ l: Learning) -> String {
-        var parts = [model.t(l.kind.displayKey)]
-        if let scope = l.repoScope, !scope.isEmpty { parts.append((scope as NSString).lastPathComponent) }
+        var parts = [model.t(l.scope.displayKey), model.t(l.kind.displayKey)]
+        if let repo = l.repoScope, !repo.isEmpty { parts.append((repo as NSString).lastPathComponent) }
         return parts.joined(separator: " · ")
     }
 
@@ -147,6 +175,13 @@ struct MemoryView: View {
                         ForEach(LearningKind.allCases, id: \.self) { Text(model.t($0.displayKey)).tag($0) }
                     }
                     .labelsHidden().fixedSize()
+                    Picker("", selection: learning.scope) {
+                        ForEach(LearningScope.allCases) { s in
+                            Label(model.t(s.displayKey), systemImage: s.icon).tag(s)
+                        }
+                    }
+                    .labelsHidden().fixedSize()
+                    .help(model.t(learning.wrappedValue.scope.helpKey))
                     Spacer()
                     Button { store.togglePinned(learning.wrappedValue.id) } label: {
                         Label(model.t(learning.wrappedValue.pinned ? "memory.unpin" : "memory.pin"),
@@ -173,6 +208,9 @@ struct MemoryView: View {
                             .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty } }))
                         .textFieldStyle(.roundedBorder)
                 }
+                Text(model.t(learning.wrappedValue.scope.helpKey))
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 // Provenance is read-only — a learning always shows where it came from.
                 HStack(spacing: Space.s) {
                     Image(systemName: "info.circle").font(.sfCaption2).foregroundStyle(.tertiary)
@@ -215,7 +253,8 @@ struct MemoryView: View {
     // MARK: - Actions
 
     private func addManual() {
-        let new = Learning(kind: kindFilter ?? .pattern, title: "", source: LearningSource(origin: .manual))
+        let new = Learning(kind: kindFilter ?? .pattern, title: "",
+                           scope: scopeFilter ?? .user, source: LearningSource(origin: .manual))
         store.add(new)
         selectedID = new.id
     }

@@ -33,7 +33,13 @@ struct MemoryContext {
 enum MemorySelector {
 
     /// The top `limit` learnings for a context: repo-scoped entries only apply to their
-    /// repo; then rank pinned-first, then by tag overlap, then recency, then usefulness.
+    /// repo; then rank pinned-first, then **team level before personal** (a shared
+    /// convention outranks a preference), then by tag overlap, then recency, then
+    /// usefulness.
+    ///
+    /// Team learnings are also never squeezed out by a small `limit`: `topN` returns the
+    /// applicable team entries plus as many personal ones as still fit. Policy that
+    /// silently vanishes when the base grows isn't policy.
     static func topN(_ all: [Learning], context: MemoryContext, limit: Int) -> [Learning] {
         guard limit > 0 else { return [] }
         let repoName = context.repoPath.map { ($0 as NSString).lastPathComponent }
@@ -47,15 +53,23 @@ enum MemorySelector {
 
         func overlap(_ l: Learning) -> Int { l.tags.reduce(0) { $0 + (ctxTokens.contains($1.lowercased()) ? 1 : 0) } }
 
-        return eligible.sorted { a, b in
-            if a.pinned != b.pinned { return a.pinned }                 // pinned first
-            let oa = overlap(a), ob = overlap(b)
-            if oa != ob { return oa > ob }                              // more tag overlap
-            if a.createdAt != b.createdAt { return a.createdAt > b.createdAt } // newer
-            if a.timesApplied != b.timesApplied { return a.timesApplied > b.timesApplied }
-            return a.id.uuidString < b.id.uuidString                    // stable tiebreak
+        // Ranking WITHIN one level — unchanged from before the levels existed, so a base
+        // of purely personal learnings orders exactly as it always did.
+        func ranked(_ pool: [Learning]) -> [Learning] {
+            pool.sorted { a, b in
+                if a.pinned != b.pinned { return a.pinned }                 // pinned first
+                let oa = overlap(a), ob = overlap(b)
+                if oa != ob { return oa > ob }                              // more tag overlap
+                if a.createdAt != b.createdAt { return a.createdAt > b.createdAt } // newer
+                if a.timesApplied != b.timesApplied { return a.timesApplied > b.timesApplied }
+                return a.id.uuidString < b.id.uuidString                    // stable tiebreak
+            }
         }
-        .prefix(limit)
-        .map { $0 }
+
+        // Team learnings are policy, so the whole team level is ranked ahead of the
+        // personal one: when `limit` bites, a preference is dropped before a convention.
+        let team = ranked(eligible.filter { $0.scope == .team })
+        let personal = ranked(eligible.filter { $0.scope != .team })
+        return Array((team + personal).prefix(limit))
     }
 }

@@ -1,0 +1,30 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Coral app icon: living-coral gradient squircle + a branching coral glyph
+       that doubles as the agent topology (root orchestrator → 4 tips). Master
+       source; regenerate the PNG set with Branding/make_icon.py. -->
+  <defs>
+    <linearGradient id="coral" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF8A6E"/>
+      <stop offset="0.46" stop-color="#FF6B54"/>
+      <stop offset="1" stop-color="#F03E27"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="115" ry="115" fill="url(#coral)"/>
+  <g transform="translate(106,106) scale(3.0)" fill="none" stroke="#FFF3EC"
+     stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M50 84 L50 60"/>
+    <path d="M50 60 C50 49 33 50 29 40"/>
+    <path d="M29 40 C26 32 22 31 21 24"/>
+    <path d="M29 40 C32 33 36 32 39 25"/>
+    <path d="M50 60 C50 49 67 50 71 40"/>
+    <path d="M71 40 C74 32 78 31 79 24"/>
+    <path d="M71 40 C68 33 64 32 61 25"/>
+  </g>
+  <g transform="translate(106,106) scale(3.0)" fill="#FFF3EC">
+    <circle cx="50" cy="84" r="7.6"/>
+    <circle cx="21" cy="24" r="5.6"/>
+    <circle cx="39" cy="25" r="5.6"/>
+    <circle cx="61" cy="25" r="5.6"/>
+    <circle cx="79" cy="24" r="5.6"/>
+  </g>
+</svg>

@@ -17,9 +17,16 @@ now, so tests `@testable import Coral` (not `StrategyForge`). 165 tests,
 
 Targets: `StrategyForge` (app), `StrategyForgeTests` (unit tests — the real
 gate for most changes, written with `Testing` / `@Test`, not XCTest),
-`StrategyForgeUITests`. There is no CI configured yet, so this command is the
-only automated check there is. A change is not "done" until it passes —
+`StrategyForgeUITests`. This command is the only automated check there is — and
+since the repo went public, **CI runs exactly it** on every push to `main` and
+every PR (`.github/workflows/tests.yml`, `macos-26`, ~3–5 min; docs/branding-only
+pushes are skipped via `paths-ignore`). A change is not "done" until it passes —
 never call something finished on the strength of a read-through alone.
+
+That CI job is also the way a **Linux session** (remote/web Claude Code) gets the
+gate run at all: it can't invoke `xcodebuild` locally, but pushing the branch and
+opening a PR does run the real suite on a Mac runner. Push, then read the check
+result — don't report unverified work as done when this path is available.
 
 Requires macOS + Xcode. This suite cannot run in a Linux sandbox (e.g. a
 remote/web Claude Code session) — say so explicitly rather than skipping the

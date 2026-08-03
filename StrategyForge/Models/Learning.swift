@@ -32,6 +32,25 @@ enum LearningKind: String, Codable, CaseIterable, Sendable, Hashable {
     }
 }
 
+/// Which of the two memory levels a learning belongs to.
+///
+/// Factory's User+Org split is the parity gap the competitive analysis flagged, and it's a
+/// real distinction rather than a tag: a `team` learning is a shared convention that reads
+/// as POLICY — it outranks personal preference when both apply, and it is never dropped to
+/// make room in a digest. A `user` learning is how *you* like to work on this Mac.
+///
+/// There is no server behind this. "Team" means the learnings you'd share with the people
+/// you work with (and that roam with you via sync); Coral has no org accounts to enforce.
+enum LearningScope: String, Codable, CaseIterable, Identifiable, Sendable, Hashable {
+    case user
+    case team
+
+    var id: String { rawValue }
+    var displayKey: String { "memory.scope.\(rawValue)" }
+    var helpKey: String { "memory.scope.\(rawValue).help" }
+    var icon: String { self == .team ? "person.2.fill" : "person.fill" }
+}
+
 /// Where a learning came from — the provenance that makes the knowledge base honest.
 struct LearningSource: Codable, Hashable, Sendable {
     enum Origin: String, Codable, Sendable { case manual, review, missionReport, stateFile }
@@ -59,6 +78,8 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
     var tags: [String]
     /// nil = applies globally; otherwise scoped to this repo path/name.
     var repoScope: String?
+    /// Which memory LEVEL this belongs to — yours, or the team's shared policy.
+    var scope: LearningScope
     var source: LearningSource
     var createdAt: Date
     /// Last edit time — the last-writer-wins key for cross-device sync. Defaults to
@@ -71,7 +92,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
     var pinned: Bool
 
     init(id: UUID = UUID(), kind: LearningKind, title: String, body: String = "",
-         tags: [String] = [], repoScope: String? = nil,
+         tags: [String] = [], repoScope: String? = nil, scope: LearningScope = .user,
          source: LearningSource, createdAt: Date = Date(), updatedAt: Date? = nil,
          timesApplied: Int = 0, pinned: Bool = false) {
         self.id = id
@@ -80,6 +101,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
         self.body = body
         self.tags = tags
         self.repoScope = repoScope
+        self.scope = scope
         self.source = source
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
@@ -90,7 +112,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
     // Tolerant decode so older saved data (without newer keys) still loads — the same
     // per-field `decodeIfPresent ?? default` idiom as AppSettings.
     private enum CodingKeys: String, CodingKey {
-        case id, kind, title, body, tags, repoScope, source, createdAt, updatedAt, timesApplied, pinned
+        case id, kind, title, body, tags, repoScope, scope, source, createdAt, updatedAt, timesApplied, pinned
     }
 
     init(from decoder: Decoder) throws {
@@ -101,6 +123,9 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
         body = try c.decodeIfPresent(String.self, forKey: .body) ?? ""
         tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
         repoScope = try c.decodeIfPresent(String.self, forKey: .repoScope)
+        // Everything saved before the two levels existed was personal.
+        let scopeRaw = ((try? c.decodeIfPresent(String.self, forKey: .scope)) ?? nil) ?? ""
+        scope = LearningScope(rawValue: scopeRaw) ?? .user
         source = try c.decodeIfPresent(LearningSource.self, forKey: .source)
             ?? LearningSource(origin: .manual)
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
@@ -109,9 +134,12 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
         pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
     }
 
-    /// Dedupe identity: same kind + same normalized title + same scope is "the same
+    /// Dedupe identity: same kind + same normalized title + same repo scope is "the same
     /// learning" (so promoting the same Review finding twice doesn't pile up).
+    /// The LEVEL is part of it too: promoting a personal note to a team
+    /// convention must not silently collapse into the personal one — they say different
+    /// things about how binding the rule is.
     var dedupeKey: String {
-        "\(kind.rawValue)|\(title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())|\(repoScope ?? "")"
+        "\(kind.rawValue)|\(title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())|\(repoScope ?? "")|\(scope.rawValue)"
     }
 }

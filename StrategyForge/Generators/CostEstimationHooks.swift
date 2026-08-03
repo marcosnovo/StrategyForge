@@ -78,9 +78,12 @@ enum CostEstimator {
     /// solo lead as if it delegated understates its cost — the whole point of the
     /// delegation economics is that the lead's token bill tracks how much it hands
     /// off, not just its per-token price.
-    private struct Workload { let input: Double; let output: Double }
+    /// Rough input/output tokens for one role on one medium task. Internal (not private)
+    /// so `GraphCostLens` prices the same nodes this estimator does — two independent
+    /// workload tables would drift and quietly disagree in the UI.
+    struct Workload { let input: Double; let output: Double }
 
-    private static func workload(isOrchestrator: Bool, role: RoleKind, canDelegate: Bool) -> Workload {
+    static func workload(isOrchestrator: Bool, role: RoleKind, canDelegate: Bool) -> Workload {
         if isOrchestrator {
             return canDelegate
                 ? Workload(input: 40_000, output: 15_000)   // delegates → light
@@ -92,6 +95,27 @@ enum CostEstimator {
         default: // worker, planner, specialist, (orchestrator handled above)
             return Workload(input: 90_000, output: 45_000)
         }
+    }
+
+    /// USD for one model call of `input`/`output` tokens on `model`. Input dominates an
+    /// agent's bill (~100:1 read:write) and much of it is a repeated prefix served from
+    /// cache, so the cached share is priced at the cache-read rate and only the rest at
+    /// the fresh-input rate; tokenizer overhead lifts the effective spend above sticker.
+    /// Returns 0 for a model with no known pricing.
+    static func callCostUSD(input: Double, output: Double, model: ClaudeModel) -> Double {
+        guard let price = Constants.pricing[model.rawValue] else { return 0 }
+        let cachedIn = input * Constants.CostModel.cachedInputFraction
+        let freshIn = input - cachedIn
+        let inputCost = (freshIn * price.inputPerM
+                         + cachedIn * price.inputPerM * Constants.CostModel.cacheReadMultiplier) / 1_000_000
+        let outputCost = output / 1_000_000 * price.outputPerM
+        return (inputCost + outputCost) * Constants.CostModel.tokenizerOverhead
+    }
+
+    /// USD per million FRESH input tokens on `model` (no cache discount) — what re-reading
+    /// an upstream result costs when it travels through a model instead of through code.
+    static func freshInputPerMillion(_ model: ClaudeModel) -> Double {
+        (Constants.pricing[model.rawValue]?.inputPerM ?? 0) * Constants.CostModel.tokenizerOverhead
     }
 
     /// Estimate the cost of running `strategy` once at the baseline (medium) effort.
@@ -111,21 +135,10 @@ enum CostEstimator {
         let canDelegate = strategy.roles.contains { !$0.isOrchestrator }
 
         for role in strategy.roles {
-            guard let price = Constants.pricing[role.model.rawValue] else { continue }
+            guard Constants.pricing[role.model.rawValue] != nil else { continue }
             let load = workload(isOrchestrator: role.isOrchestrator, role: role.role, canDelegate: canDelegate)
             let count = Double(max(role.count, 1))
-
-            // Input dominates an agent's bill (~100:1 read:write), and much of it is
-            // a repeated prefix served from cache — so price the cached share at the
-            // cache-read rate and only the rest at the fresh-input rate.
-            let inputTokens = load.input * m
-            let cachedIn = inputTokens * Constants.CostModel.cachedInputFraction
-            let freshIn = inputTokens - cachedIn
-            let inputCost = (freshIn * price.inputPerM
-                             + cachedIn * price.inputPerM * Constants.CostModel.cacheReadMultiplier) / 1_000_000
-            let outputCost = load.output * m / 1_000_000 * price.outputPerM
-            // Tokenizer overhead lifts the effective spend above the sticker rate.
-            let cost = count * (inputCost + outputCost) * Constants.CostModel.tokenizerOverhead
+            let cost = count * callCostUSD(input: load.input * m, output: load.output * m, model: role.model)
 
             total += cost
             tokens += count * (load.input + load.output) * m

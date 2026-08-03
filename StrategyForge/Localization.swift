@@ -750,6 +750,27 @@ enum L10n {
             "Rough estimate for one medium task, using approximate token prices (USD per million tokens, in + out). Real cost depends on your task, effort and plan — Solo and read-only teams are cheapest; big teams and top-tier models cost more.",
             "Estimación aproximada para una tarea media, con precios de tokens aproximados (USD por millón de tokens, entrada + salida). El coste real depende de tu tarea, el esfuerzo y tu plan — «En solitario» y los equipos de solo lectura son lo más barato; los equipos grandes y los modelos top cuestan más."),
 
+        // MARK: Node/edge cost lens
+        "graphlens.title": ("Nodes & edges", "Nodos y aristas"),
+        "graphlens.paid": ("Paid nodes", "Nodos pagados"),
+        "graphlens.free": ("Free edges", "Aristas gratis"),
+        "graphlens.freeNote": ("carried in code", "transportadas en código"),
+        "graphlens.width": ("Parallel width", "Anchura paralela"),
+        "graphlens.path": ("critical path: %d", "camino crítico: %d"),
+        "graphlens.vsLine": ("vs. straight line", "vs. línea recta"),
+        "graphlens.saved": ("~%@ not spent", "~%@ que no gastas"),
+        "graphlens.note": (
+            "The nodes think, the edges carry. A node is a model call — that's the bill. An edge is data moving between nodes, and this team moves it in code, for free. A straight-line chain would pay a model to re-read everything upstream at every hop.",
+            "Los nodos piensan, las aristas transportan. Un nodo es una llamada al modelo — eso es la factura. Una arista es datos moviéndose entre nodos, y este equipo los mueve en código, gratis. Una cadena en línea recta pagaría a un modelo por releer todo lo anterior en cada salto."),
+        "graphlens.straightLine": (
+            "This team compiles to a straight line — nothing runs in parallel, so there's nothing to save. Add a second producer role to fan out.",
+            "Este equipo compila en línea recta — nada corre en paralelo, así que no hay nada que ahorrar. Añade un segundo rol productor para abrir el fan-out."),
+        "graphlens.node.plan": ("Plan", "Plan"),
+        "graphlens.node.scout": ("Scout", "Explorador"),
+        "graphlens.node.work": ("Work", "Trabajo"),
+        "graphlens.node.verify": ("Verify", "Verificación"),
+        "graphlens.node.synthesize": ("Synthesize", "Síntesis"),
+
         // MARK: Preview panel
         "preview.title": ("Preview", "Vista previa"),
         "action.preview": ("Preview files", "Ver archivos"),
@@ -1085,6 +1106,36 @@ enum L10n {
                                 "Elige qué IA ejecuta este agente. Cada agente puede usar una distinta: mezcla Claude, ChatGPT y Gemini en un equipo."),
         "field.instances": ("Instances", "Instancias"),
         "field.tools": ("Tools", "Herramientas"),
+        "field.sandbox": ("Sandbox", "Aislamiento"),
+
+        // MARK: Per-agent sandbox
+        "sandbox.auto": ("Automatic", "Automático"),
+        "sandbox.auto.help": (
+            "Follows the role: advisory and review seats read, and anything that edits gets its own git worktree so parallel agents can't overwrite each other.",
+            "Sigue al rol: los puestos de consejo y revisión solo leen, y todo lo que edita recibe su propio worktree git para que los agentes en paralelo no se pisen."),
+        "sandbox.worktree": ("Isolated worktree", "Worktree aislado"),
+        "sandbox.worktree.help": (
+            "Always runs in its own git worktree on a fresh branch. Edits never touch your working tree until you review and merge them.",
+            "Siempre corre en su propio worktree git sobre una rama nueva. Sus ediciones no tocan tu árbol de trabajo hasta que las revises y fusiones."),
+        "sandbox.readOnly": ("Read-only", "Solo lectura"),
+        "sandbox.readOnly.help": (
+            "Cannot edit anything. The generated agent's tools are clamped to the read-only set, so this is enforced rather than requested — the right seat for an independent verifier.",
+            "No puede editar nada. Las herramientas del agente generado se limitan al conjunto de solo lectura, así que se impone en vez de pedirse — el puesto adecuado para un verificador independiente."),
+        "sandbox.shared": ("Shared working tree", "Árbol compartido"),
+        "sandbox.shared.help": (
+            "Edits your working tree directly. Fastest, and fine for a single agent — but two agents sharing a tree will overwrite each other's work.",
+            "Edita tu árbol de trabajo directamente. Lo más rápido, y correcto para un solo agente — pero dos agentes compartiendo árbol se sobrescriben el trabajo."),
+
+        // MARK: Memory scope (two levels: yours + your team's)
+        "memory.scope": ("Level", "Nivel"),
+        "memory.scope.user": ("Yours", "Tuyo"),
+        "memory.scope.user.help": (
+            "A learning of your own — how you like to work, on this Mac.",
+            "Un aprendizaje tuyo — cómo te gusta trabajar, en este Mac."),
+        "memory.scope.team": ("Team", "Equipo"),
+        "memory.scope.team.help": (
+            "A shared convention or rule. Team learnings read as policy: they are injected before your personal ones and are never dropped to make room.",
+            "Una convención o regla compartida. Los aprendizajes de equipo se leen como política: se inyectan antes que los tuyos y nunca se descartan por falta de sitio."),
         "field.name": ("Name", "Nombre"),
 
         // MARK: Role kinds (UI badges)

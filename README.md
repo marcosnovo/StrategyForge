@@ -34,11 +34,39 @@ CLI subscriptions**. No competitor combines all of these (verified across the 20
   vector index.
 - **Compare & choose.** The **Arena** pits models/teams head-to-head with an independent judge and
   recommends one for the task — natively, on your CLIs.
+- **Isolation per agent, enforced.** Each role gets a sandbox: its own git worktree, a hard
+  read-only seat (the generated `tools:` grant is clamped, not merely asked for), or the shared
+  tree. Parallel writers can't overwrite each other, and a verifier physically can't edit.
+- **You can see where the money goes.** The **node/edge cost lens** prices a team as the graph it
+  compiles to — paid nodes (model calls) against free edges (data carried in code) — next to what
+  the straight-line version would have cost.
 - **MIT, open, free.**
 
 Honest gaps: there's no built-in deploy/host pipeline (by design — it's a pro-dev tool on your repo),
 and Coral ships outside the Mac App Store (Developer ID + notarization), so first launch uses the
 normal Gatekeeper allow.
+
+### "Won't the first-party app just absorb this?"
+
+The fair objection, and worth answering plainly: Claude Code already runs parallel sessions and
+Agent Teams, and every lab is shipping an orchestrator. Three things a single-vendor product
+**structurally cannot** do, which is why Coral is built the way it is:
+
+1. **A vendor won't route your work to a rival.** Cross-provider delegation *inside one run* — a
+   Claude orchestrator, a Codex implementer, a Gemini reviewer — means handing work and spend to a
+   competitor. No lab ships that. Coral is provider-agnostic by construction, so the mix is the
+   default rather than a concession.
+2. **A same-family reviewer isn't an independent one.** A verifier drawn from the model that wrote
+   the code agrees with itself in a different font. Coral's defaults to a *different provider
+   family*, runs read-only on a fresh context, and grades against a real signal — a test that
+   actually passed — not against the author's claim of doneness.
+3. **Open beats a bundled feature.** MIT, no account, no server, no telemetry backend. You can read
+   exactly what Coral does with your credentials, fork it, or take the generated `.claude/` config
+   and leave. The exit is part of the product.
+
+And on terms of service: Coral never carries your subscription tokens into a third-party client. It
+invokes each provider's **official CLI with your own login** — the sanctioned path — which is
+precisely what makes "your plan, no markup" possible.
 
 ## What it does
 
@@ -64,6 +92,16 @@ normal Gatekeeper allow.
   runnable **dynamic workflow** (`.claude/workflows/<team>.mjs`) — the team's topology as
   a program Claude Code executes (plan → parallel work → synthesize), giving the design a
   deterministic runtime, not just turn-by-turn delegation.
+- **Remember across projects.** A knowledge base of learnings (patterns, decisions,
+  pitfalls) at **two levels** — *yours* and *your team's*. Team learnings read as policy:
+  they're injected ahead of personal ones, marked `[team]` in the generated `CLAUDE.md`,
+  and a tight digest drops a preference before it drops a convention. Every entry carries
+  real provenance; nothing is stored that an agent merely asserted.
+- **See the graph you're paying for.** The **node/edge cost lens** (in the cost popover)
+  splits a team into paid nodes and free edges, shows how wide the fan-out actually is,
+  and compares it against the straight-line version of the same work. It's also the
+  standing audit that generated workflows really parallelize — a role you set to 3
+  instances emits 3 concurrent branches, and a test asserts it.
 - **Sync** your teams/config across Macs via CloudKit (device-local transcripts stay
   local); **Usage** shows real token usage and your Claude plan headroom.
 
@@ -83,6 +121,11 @@ normal Gatekeeper allow.
    only owns the block between `<!-- CORAL:START -->` and `<!-- CORAL:END -->`; the rest
    is preserved, and legacy `STRATEGYFORGE` blocks are upgraded in place).
 6. **`tools`** restricts what a subagent can touch; omit to inherit all tools.
+7. **Sandbox is per role.** *Automatic* follows the role kind (advisory seats read,
+   producers get their own git worktree); *Isolated worktree*, *Read-only* and *Shared
+   working tree* override it. Read-only is enforced by clamping the generated `tools:`
+   grant — including the empty "inherit everything" grant — not by asking nicely in the
+   prompt.
 
 The verifier that grades a loop runs **read-only** (it can read + run tests, never edit),
 so an independent judge can't "fix" the code it's judging.
