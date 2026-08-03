@@ -62,9 +62,9 @@
 <!-- ── Hero ──────────────────────────────────────────────────────────────── -->
 <div class="wrap">
   <div class="hero">
-    <span class="pill"><span class="dot"></span> Open source (MIT) · macOS 14+ · sin cuenta, sin API keys</span>
-    <h1>Equipos de agentes IA —<br><span class="grad">tuyos, no alquilados.</span></h1>
-    <p class="sub">Coral es una app nativa de macOS que diseña <em>y</em> ejecuta un equipo de agentes IA — un orquestador y sus especialistas — conduciendo las CLIs que ya pagas (<strong>Claude Code</strong>, <strong>Codex</strong>, <strong>Gemini&nbsp;/&nbsp;agy</strong>) en headless, en tu propia máquina. Sin factura por token encima. Sin cuenta. Nada sale de tu Mac.</p>
+    <span class="pill"><span class="dot"></span> Gratis y open source (MIT) · sin cuenta, sin API keys</span>
+    <h1>Ejecuta un equipo de agentes IA en tu Mac.<br><span class="grad">Tuyo, no alquilado.</span></h1>
+    <p class="sub">Coral es una app nativa de macOS que diseña <em>y</em> ejecuta un equipo — un orquestador y sus especialistas — conduciendo las CLIs que ya pagas: <strong class="p-claude">Claude Code</strong>, <strong class="p-codex">Codex</strong>, <strong class="p-gemini">Gemini&nbsp;/&nbsp;agy</strong>. Un verificador de <em>otra familia de proveedor</em> califica el trabajo, cada línea se atribuye al modelo que la escribió, y no cae ninguna factura por token encima.</p>
     <div class="cta">
       <a class="btn moon" href="https://github.com/marcosnovo/StrategyForge/releases/latest">Descargar para macOS</a>
       <a class="btn bordered" href="https://github.com/marcosnovo/StrategyForge">Ver el código (MIT)</a>
@@ -75,7 +75,7 @@
         <button data-copy="brew install --cask marcosnovo/coral/coral" data-copied="¡Copiado!">Copiar</button>
       </span>
     </div>
-    <p class="fineprint">macOS 14+ · firmada con Developer ID y notarizada · gratis y open source</p>
+    <p class="fineprint">macOS 26+ · firmada con Developer ID y notarizada · gratis para siempre, sin plan de pago</p>
   </div>
 
   <!-- ── Ventana de la app ───────────────────────────────────────────────── -->
@@ -118,15 +118,15 @@
           </div>
           <div class="agentline">
             <span class="avatar" style="background:#FF6B54"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-            <span><strong>orchestrator</strong> delegó 2 tareas · Opus 5</span>
+            <span><strong>orchestrator</strong> delegó 2 tareas · Opus 4.8</span>
           </div>
           <div class="agentline">
             <span class="avatar" style="background:#FF6B54"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 14 10M14 4l6 6-3 3-6-6Z"/></svg></span>
-            <span><strong>impl-handler</strong> editó 3 ficheros en un worktree aislado · GPT-5 Codex</span>
+            <span><strong>impl-handler</strong> editó 3 ficheros en un worktree aislado · GPT-5</span>
           </div>
           <div class="agentline">
             <span class="avatar" style="background:#B58A52"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-10"/></svg></span>
-            <span><strong>reviewer</strong> pasó la suite — 41 OK, 0 fallos · Gemini 3 Pro</span>
+            <span><strong>reviewer</strong> pasó la suite — 41 OK, 0 fallos · Gemini 2.5 Pro</span>
           </div>
           <div class="composer">
             Pregunta lo que sea, o suelta un repo…
@@ -136,7 +136,7 @@
 
         <div class="activity">
           <div class="hd">Equipo</div>
-          <div class="node"><span class="sw" style="background:#FF6B54"></span><span class="nm">orchestrator</span><span class="rl">Opus 5</span></div>
+          <div class="node"><span class="sw" style="background:#FF6B54"></span><span class="nm">orchestrator</span><span class="rl">Opus 4.8</span></div>
           <div class="node child"><span class="sw" style="background:#FF6B54"></span><span class="nm">impl-handler</span><span class="rl">Codex</span></div>
           <div class="node child"><span class="sw" style="background:#FF6B54"></span><span class="nm">impl-store</span><span class="rl">Codex</span></div>
           <div class="node child"><span class="sw" style="background:#B58A52"></span><span class="nm">reviewer</span><span class="rl">Gemini</span></div>
@@ -153,6 +153,91 @@
     <p class="caption">Una tirada, tres proveedores, un verificador independiente — sobre tus propias suscripciones.</p>
   </div>
 </div>
+
+<!-- La tension -->
+<section id="why-teams">
+  <div class="wrap">
+    <p class="eyebrow">Un agente solo no escala</p>
+    <div class="tension">
+      <p class="big">No estás escribiendo código. Eres un <em>bus de copy-paste</em> entre tres chats — esperando que el modelo que acaba de escribirlo pille lo que hizo mal.</p>
+      <ul>
+        <li><b>Tú eres la capa de integración.</b>Cargando el contexto entre pasos, cambiando de pestaña a mano, re-explicando el repo cada vez.</li>
+        <li><b>Un modelo corrige su propia tarea.</b>Un monocultivo revisa su código y aprueba sus propios errores, con total seguridad.</li>
+        <li><b>Pagas tres labs y usas uno.</b>Tu mejor equipo es el que tu proveedor permite — no el que diseñarías de verdad.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- La colonia -->
+<section id="colony-section">
+  <div class="wrap">
+    <p class="eyebrow center">Tres labs. Una colonia.</p>
+    <h2 class="center">Un arrecife no lo construye una especie.</h2>
+    <p class="lede center">Coral ejecuta agentes de tres labs distintos como un solo equipo, con suscripciones que ya tienes. <strong>Cualquier modelo puede ocupar cualquier rol</strong> — tú repartes, el Asesor solo sugiere. La app de ningún proveedor puede siquiera enseñarte esta tirada, y menos dejar que el modelo de un rival revise su trabajo.</p>
+    <div class="colony">
+      <canvas id="colony" aria-label="Un coral que gira despacio: tres ramas, una por proveedor, cuyas puntas son los modelos que Coral puede asignar." role="img"></canvas>
+      <span class="colony-tag">una colonia · tres especies · todos los modelos</span>
+      <div class="colony-legend">
+        <span><i style="background:var(--p-claude)"></i>Claude</span>
+        <span><i style="background:var(--p-codex)"></i>Codex</span>
+        <span><i style="background:var(--p-gemini)"></i>Gemini</span>
+      </div>
+    </div>
+    <p class="caption">Las puntas son el catálogo real — los modelos que Coral puede asignar hoy a un rol.</p>
+  </div>
+</section>
+
+<!-- Formas de estrategia -->
+<section id="shapes">
+  <div class="wrap">
+    <p class="eyebrow center">No rellenas un formulario</p>
+    <h2 class="center">Una estrategia es una forma.</h2>
+    <p class="lede center">Qué agentes, qué roles, cómo se ramifica el trabajo. Parte de una topología probada, reasigna cualquier rol a cualquier modelo, y Coral escribe la config y la ejecuta.</p>
+    <div class="shapes">
+      <div class="shape">
+        <svg viewBox="0 0 120 60" aria-hidden="true">
+          <g stroke="var(--coral)" stroke-width="2" fill="none"><path d="M30 30 L80 14"/><path d="M30 30 L80 30"/><path d="M30 30 L80 46"/></g>
+          <circle cx="30" cy="30" r="6" fill="var(--coral)"/>
+          <g fill="var(--p-codex)"><circle cx="82" cy="14" r="5"/><circle cx="82" cy="30" r="5"/><circle cx="82" cy="46" r="5"/></g>
+        </svg>
+        <h4>Orquestador + workers</h4>
+        <p>Reparte una tarea a agentes en paralelo.</p>
+      </div>
+      <div class="shape">
+        <svg viewBox="0 0 120 60" aria-hidden="true">
+          <g stroke="var(--tertiary)" stroke-width="2" fill="none"><path d="M24 30 L54 30"/><path d="M66 30 L96 30"/></g>
+          <circle cx="18" cy="30" r="6" fill="var(--p-claude)"/>
+          <circle cx="60" cy="30" r="6" fill="var(--p-codex)"/>
+          <circle cx="102" cy="30" r="6" fill="var(--p-gemini)"/>
+        </svg>
+        <h4>Planificar → construir → revisar</h4>
+        <p>Un pipeline que aterriza verificado.</p>
+      </div>
+      <div class="shape">
+        <svg viewBox="0 0 120 60" aria-hidden="true">
+          <g stroke="var(--coral)" stroke-width="1.8" fill="none"><path d="M22 30 L96 12"/><path d="M22 30 L96 24"/><path d="M22 30 L96 36"/><path d="M22 30 L96 48"/></g>
+          <circle cx="20" cy="30" r="6" fill="var(--coral)"/>
+          <g fill="var(--p-gemini)"><circle cx="98" cy="12" r="4"/><circle cx="98" cy="24" r="4"/><circle cx="98" cy="36" r="4"/><circle cx="98" cy="48" r="4"/></g>
+        </svg>
+        <h4>Investigación en abanico</h4>
+        <p>Explora en paralelo, informa una vez.</p>
+      </div>
+      <div class="shape">
+        <svg viewBox="0 0 120 60" aria-hidden="true">
+          <g stroke="var(--coral)" stroke-width="2" fill="none"><path d="M24 16 L58 30"/><path d="M24 44 L58 30"/><path d="M66 30 L96 30"/></g>
+          <circle cx="22" cy="16" r="5" fill="var(--p-codex)"/>
+          <circle cx="22" cy="44" r="5" fill="var(--p-gemini)"/>
+          <circle cx="62" cy="30" r="6" fill="var(--p-claude)"/>
+          <circle cx="100" cy="30" r="5" fill="var(--coral)"/>
+        </svg>
+        <h4>Debate y consenso</h4>
+        <p>Posturas opuestas, mediadas hasta una decisión.</p>
+      </div>
+    </div>
+    <p class="caption">La app trae 13 topologías editables — estas son cuatro.</p>
+  </div>
+</section>
 
 <!-- ── Por qué es distinto ───────────────────────────────────────────────── -->
 <section id="why">
@@ -189,7 +274,7 @@
       <div class="card">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
         <h3>Nativa, no Electron</h3>
-        <p>SwiftUI de verdad sobre macOS 14+. En reposo no te cuesta nada: no anima, evicta ViewModels y saca el trabajo pesado del hilo principal. Hasta los laboratorios de IA envían shells de Electron para este flujo.</p>
+        <p>SwiftUI de verdad sobre macOS 26+. En reposo no te cuesta nada: no anima, evicta ViewModels y saca el trabajo pesado del hilo principal. Hasta los laboratorios de IA envían shells de Electron para este flujo.</p>
       </div>
     </div>
   </div>
@@ -226,19 +311,10 @@
         <h3>Memoria de dos niveles</h3>
         <p>Una base de conocimiento entre proyectos — patrones, decisiones, errores — cada uno con su procedencia real. <strong>Tuyo</strong> y <strong>de tu equipo</strong> son niveles separados: lo del equipo se lee como política y se inyecta primero. La reflexión post-run cosecha el STATE.md de cada loop de vuelta a la base.</p>
       </div>
-      <div class="card">
-        <h3>Ship</h3>
-        <p>Despliega desde el mismo chat que escribió el código, usando CLIs de deploy que ya tienes — Vercel, Netlify, Cloudflare <span class="mono">wrangler</span>. Coral detecta cuáles están instaladas, las ejecuta en tu repo y te devuelve la URL en vivo. No es un PaaS, y no hay cuenta nuestra de hosting.</p>
-      </div>
-      <div class="card">
-        <h3>Escribe configuración real</h3>
-        <p>Genera <span class="mono">.claude/agents/*.md</span>, un <span class="mono">CLAUDE.md</span> de orquestación, servidores MCP y un workflow dinámico ejecutable — para que el equipo que diseñaste aquí corra también en una sesión pelada de <span class="mono">claude</span>. Portátil por construcción; no hay lock-in del que salir.</p>
-      </div>
-      <div class="card">
-        <h3>Consumo a la vista</h3>
-        <p>Uso real de tokens por modelo desde los logs locales de cada CLI, más el margen de tu plan de Claude — leído en el dispositivo, nunca subido. Los diagnósticos de cuelgues y crashes se resumen en un log local exportable.</p>
-      </div>
     </div>
+    <p class="lede center" style="margin:var(--s-xl) auto 0;font-size:14.5px">
+      También va dentro, sin discurso de venta: <strong>Ship</strong> (despliega desde el chat que escribió el código, con las CLIs de Vercel / Netlify / <span class="mono">wrangler</span> que ya tienes) &middot; <strong>export de config real</strong> (<span class="mono">.claude/agents/*.md</span>, un <span class="mono">CLAUDE.md</span> de orquestación, servidores MCP y un workflow ejecutable) &middot; <strong>consumo</strong> (tokens reales por modelo desde los logs locales de cada CLI, más el margen de tu plan de Claude, leído en el dispositivo y nunca subido).
+    </p>
   </div>
 </section>
 
@@ -347,6 +423,7 @@
         <tbody>
           <tr><th scope="row">Facturación</th><td class="yes">Tu plan, sin markup</td><td class="no">Asiento + medición por token</td></tr>
           <tr><th scope="row">Login por suscripción (Claude Max / ChatGPT / Gemini)</th><td class="yes">Nativo, vía la CLI oficial</td><td class="no">Solo API key</td></tr>
+          <tr><th scope="row">Proveedores</th><td class="yes">Claude &middot; Codex &middot; <strong>Gemini / <span class="mono">agy</span></strong></td><td class="no">Normalmente solo Claude + Codex</td></tr>
           <tr><th scope="row">Cuenta obligatoria</th><td class="yes">Ninguna</td><td class="no">Sí, con login</td></tr>
           <tr><th scope="row">App</th><td class="yes">SwiftUI nativa</td><td class="no">Navegador / shell Electron</td></tr>
           <tr><th scope="row">Mezcla cross-proveedor en una tirada</th><td class="yes">Sí, por rol</td><td class="no">Secuencial o mono-proveedor</td></tr>
@@ -354,6 +431,8 @@
           <tr><th scope="row">Procedencia por línea</th><td class="yes">Sí, cross-proveedor</td><td class="no">No se expone</td></tr>
           <tr><th scope="row">Grafo de código inyectado al agente</th><td class="yes">Sí, con ahorro de tokens visible</td><td class="no">Índice hospedado, solo para su chat</td></tr>
           <tr><th scope="row">Config portable a una sesión de CLI pelada</th><td class="yes">Generada y tuya</td><td class="no">Propietaria</td></tr>
+          <tr><th scope="row">Macs soportados</th><td class="yes">Binario universal — Apple Silicon e Intel</td><td class="no">A menudo solo Apple Silicon</td></tr>
+          <tr><th scope="row">Precio</th><td class="yes">Gratis, sin plan de pago</td><td class="no">Asiento, y luego créditos</td></tr>
           <tr><th scope="row">Código</th><td class="yes">Abierto (MIT)</td><td class="no">Binario cerrado</td></tr>
         </tbody>
       </table>
@@ -370,7 +449,7 @@
   <div class="wrap">
     <p class="eyebrow center">Instalar</p>
     <h2 class="center">Tres maneras de entrar.</h2>
-    <p class="lede center">macOS 14+ (Sonoma). Coral puede instalar las CLIs de los proveedores y firmarte desde dentro de la app.</p>
+    <p class="lede center">macOS 26 o superior, Apple Silicon o Intel. Coral puede instalar las CLIs de los proveedores y firmarte desde dentro de la app.</p>
     <div class="codeblock">
 <span class="c"># Homebrew</span>
 brew install --cask marcosnovo/coral/coral

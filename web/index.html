@@ -62,9 +62,9 @@
 <!-- ── Hero ──────────────────────────────────────────────────────────────── -->
 <div class="wrap">
   <div class="hero">
-    <span class="pill"><span class="dot"></span> Open source (MIT) · macOS 14+ · no account, no API keys</span>
-    <h1>Multi-agent AI teams —<br><span class="grad">yours, not rented.</span></h1>
-    <p class="sub">Coral is a native macOS app that designs <em>and</em> runs a team of AI agents — an orchestrator plus specialists — driving the CLIs you already pay for (<strong>Claude Code</strong>, <strong>Codex</strong>, <strong>Gemini&nbsp;/&nbsp;agy</strong>) headlessly on your own machine. No per-token bill on top. No account. Nothing leaves your Mac.</p>
+    <span class="pill"><span class="dot"></span> Free and open source (MIT) · no account, no API keys</span>
+    <h1>Run a team of AI agents on your Mac.<br><span class="grad">Yours, not rented.</span></h1>
+    <p class="sub">Coral is a native macOS app that designs <em>and</em> runs a team — an orchestrator plus specialists — driving the CLIs you already pay for: <strong class="p-claude">Claude Code</strong>, <strong class="p-codex">Codex</strong>, <strong class="p-gemini">Gemini&nbsp;/&nbsp;agy</strong>. A verifier from a <em>different provider family</em> grades the work, every line is attributed to the model that wrote it, and no per-token bill lands on top.</p>
     <div class="cta">
       <a class="btn moon" href="https://github.com/marcosnovo/StrategyForge/releases/latest">Download for macOS</a>
       <a class="btn bordered" href="https://github.com/marcosnovo/StrategyForge">View source (MIT)</a>
@@ -75,7 +75,7 @@
         <button data-copy="brew install --cask marcosnovo/coral/coral" data-copied="Copied">Copy</button>
       </span>
     </div>
-    <p class="fineprint">macOS 14+ · Developer ID signed &amp; notarized · free and open source</p>
+    <p class="fineprint">macOS 26+ · Developer ID signed &amp; notarized · free forever, no paid tier</p>
   </div>
 
   <!-- ── App window ──────────────────────────────────────────────────────── -->
@@ -121,15 +121,15 @@
           </div>
           <div class="agentline">
             <span class="avatar" style="background:#FF6B54"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-            <span><strong>orchestrator</strong> delegated 2 tasks · Opus 5</span>
+            <span><strong>orchestrator</strong> delegated 2 tasks · Opus 4.8</span>
           </div>
           <div class="agentline">
             <span class="avatar" style="background:#FF6B54"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 14 10M14 4l6 6-3 3-6-6Z"/></svg></span>
-            <span><strong>impl-handler</strong> edited 3 files in an isolated worktree · GPT-5 Codex</span>
+            <span><strong>impl-handler</strong> edited 3 files in an isolated worktree · GPT-5</span>
           </div>
           <div class="agentline">
             <span class="avatar" style="background:#B58A52"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-10"/></svg></span>
-            <span><strong>reviewer</strong> ran the suite — 41 passed, 0 failed · Gemini 3 Pro</span>
+            <span><strong>reviewer</strong> ran the suite — 41 passed, 0 failed · Gemini 2.5 Pro</span>
           </div>
           <div class="composer">
             Ask anything, or drop a repo…
@@ -140,7 +140,7 @@
         <!-- Activity panel -->
         <div class="activity">
           <div class="hd">Team</div>
-          <div class="node"><span class="sw" style="background:#FF6B54"></span><span class="nm">orchestrator</span><span class="rl">Opus 5</span></div>
+          <div class="node"><span class="sw" style="background:#FF6B54"></span><span class="nm">orchestrator</span><span class="rl">Opus 4.8</span></div>
           <div class="node child"><span class="sw" style="background:#FF6B54"></span><span class="nm">impl-handler</span><span class="rl">Codex</span></div>
           <div class="node child"><span class="sw" style="background:#FF6B54"></span><span class="nm">impl-store</span><span class="rl">Codex</span></div>
           <div class="node child"><span class="sw" style="background:#B58A52"></span><span class="nm">reviewer</span><span class="rl">Gemini</span></div>
@@ -157,6 +157,91 @@
     <p class="caption">One run, three providers, one independent verifier — on your own subscriptions.</p>
   </div>
 </div>
+
+<!-- ── The tension ───────────────────────────────────────────────────────── -->
+<section id="why-teams">
+  <div class="wrap">
+    <p class="eyebrow">One agent doesn't scale</p>
+    <div class="tension">
+      <p class="big">You're not writing code. You're a <em>copy-paste bus</em> between three chat windows — hoping the model that just wrote it catches what it got wrong.</p>
+      <ul>
+        <li><b>You are the integration layer.</b>Carrying context between steps, switching tabs by hand, re-explaining the repo every time.</li>
+        <li><b>One model grades its own homework.</b>A monoculture reviews its own code and approves its own mistakes, confidently.</li>
+        <li><b>You pay three labs and use one.</b>Your best team is the one your vendor permits — not the one you'd actually design.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ── The colony ────────────────────────────────────────────────────────── -->
+<section id="colony-section">
+  <div class="wrap">
+    <p class="eyebrow center">Three labs. One colony.</p>
+    <h2 class="center">A reef isn't built by one species.</h2>
+    <p class="lede center">Coral runs agents from three different labs as a single team, on subscriptions you already own. <strong>Any model can take any role</strong> — you cast it, the Advisor only suggests. No single vendor's app can even show you this run, let alone let a rival's model check its work.</p>
+    <div class="colony">
+      <canvas id="colony" aria-label="A slowly rotating coral: three boughs, one per provider, whose tips are the models Coral can cast." role="img"></canvas>
+      <span class="colony-tag">one colony · three species · every model</span>
+      <div class="colony-legend">
+        <span><i style="background:var(--p-claude)"></i>Claude</span>
+        <span><i style="background:var(--p-codex)"></i>Codex</span>
+        <span><i style="background:var(--p-gemini)"></i>Gemini</span>
+      </div>
+    </div>
+    <p class="caption">The tips are the real catalog — the models Coral can actually assign to a role today.</p>
+  </div>
+</section>
+
+<!-- ── Strategy shapes ───────────────────────────────────────────────────── -->
+<section id="shapes">
+  <div class="wrap">
+    <p class="eyebrow center">You don't fill in a form</p>
+    <h2 class="center">A strategy is a shape.</h2>
+    <p class="lede center">Which agents, which roles, how the work branches. Start from a proven topology, reassign any role to any model, and Coral writes the config and runs it.</p>
+    <div class="shapes">
+      <div class="shape">
+        <svg viewBox="0 0 120 60" aria-hidden="true">
+          <g stroke="var(--coral)" stroke-width="2" fill="none"><path d="M30 30 L80 14"/><path d="M30 30 L80 30"/><path d="M30 30 L80 46"/></g>
+          <circle cx="30" cy="30" r="6" fill="var(--coral)"/>
+          <g fill="var(--p-codex)"><circle cx="82" cy="14" r="5"/><circle cx="82" cy="30" r="5"/><circle cx="82" cy="46" r="5"/></g>
+        </svg>
+        <h4>Orchestrator + workers</h4>
+        <p>Fan one task out to parallel agents.</p>
+      </div>
+      <div class="shape">
+        <svg viewBox="0 0 120 60" aria-hidden="true">
+          <g stroke="var(--tertiary)" stroke-width="2" fill="none"><path d="M24 30 L54 30"/><path d="M66 30 L96 30"/></g>
+          <circle cx="18" cy="30" r="6" fill="var(--p-claude)"/>
+          <circle cx="60" cy="30" r="6" fill="var(--p-codex)"/>
+          <circle cx="102" cy="30" r="6" fill="var(--p-gemini)"/>
+        </svg>
+        <h4>Plan → build → review</h4>
+        <p>A pipeline that lands verified.</p>
+      </div>
+      <div class="shape">
+        <svg viewBox="0 0 120 60" aria-hidden="true">
+          <g stroke="var(--coral)" stroke-width="1.8" fill="none"><path d="M22 30 L96 12"/><path d="M22 30 L96 24"/><path d="M22 30 L96 36"/><path d="M22 30 L96 48"/></g>
+          <circle cx="20" cy="30" r="6" fill="var(--coral)"/>
+          <g fill="var(--p-gemini)"><circle cx="98" cy="12" r="4"/><circle cx="98" cy="24" r="4"/><circle cx="98" cy="36" r="4"/><circle cx="98" cy="48" r="4"/></g>
+        </svg>
+        <h4>Research fan-out</h4>
+        <p>Explore in parallel, report back once.</p>
+      </div>
+      <div class="shape">
+        <svg viewBox="0 0 120 60" aria-hidden="true">
+          <g stroke="var(--coral)" stroke-width="2" fill="none"><path d="M24 16 L58 30"/><path d="M24 44 L58 30"/><path d="M66 30 L96 30"/></g>
+          <circle cx="22" cy="16" r="5" fill="var(--p-codex)"/>
+          <circle cx="22" cy="44" r="5" fill="var(--p-gemini)"/>
+          <circle cx="62" cy="30" r="6" fill="var(--p-claude)"/>
+          <circle cx="100" cy="30" r="5" fill="var(--coral)"/>
+        </svg>
+        <h4>Debate &amp; consensus</h4>
+        <p>Opposing views, mediated into a decision.</p>
+      </div>
+    </div>
+    <p class="caption">13 editable topologies ship in the app — these are four of them.</p>
+  </div>
+</section>
 
 <!-- ── Why different ─────────────────────────────────────────────────────── -->
 <section id="why">
@@ -193,7 +278,7 @@
       <div class="card">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
         <h3>Native, not Electron</h3>
-        <p>Real SwiftUI on macOS 14+. Idle costs you nothing — nothing animates at rest, ViewModels are evicted, heavy work stays off the main thread. Even the AI labs ship Electron shells for this workflow.</p>
+        <p>Real SwiftUI on macOS 26+. Idle costs you nothing — nothing animates at rest, ViewModels are evicted, heavy work stays off the main thread. Even the AI labs ship Electron shells for this workflow.</p>
       </div>
     </div>
   </div>
@@ -230,19 +315,10 @@
         <h3>Two-level memory</h3>
         <p>A cross-project knowledge base of learnings — patterns, decisions, mistakes — each carrying real provenance. <strong>Yours</strong> and <strong>your team's</strong> are separate levels: team learnings read as policy and are injected first. Post-run reflection harvests each loop's STATE.md back into the base.</p>
       </div>
-      <div class="card">
-        <h3>Ship</h3>
-        <p>Deploy from the chat that wrote the code, using deploy CLIs you already have — Vercel, Netlify, Cloudflare <span class="mono">wrangler</span>. Coral detects what's installed, runs it in your repo and hands back the live URL. Not a PaaS, no hosting account of ours.</p>
-      </div>
-      <div class="card">
-        <h3>It writes real config</h3>
-        <p>Generate <span class="mono">.claude/agents/*.md</span>, an orchestration <span class="mono">CLAUDE.md</span>, MCP servers and a runnable dynamic workflow — so the team you designed here also runs in a plain <span class="mono">claude</span> session. Portable by construction; no lock-in to leave.</p>
-      </div>
-      <div class="card">
-        <h3>Usage you can see</h3>
-        <p>Real token usage per model from each CLI's local logs, plus your Claude plan headroom — read on-device, never uploaded. Crash and hang diagnostics summarize into a local, exportable log.</p>
-      </div>
     </div>
+    <p class="lede center" style="margin:var(--s-xl) auto 0;font-size:14.5px">
+      Also in the box, without the sales pitch: <strong>Ship</strong> (deploy from the chat that wrote the code, using the Vercel / Netlify / <span class="mono">wrangler</span> CLIs you already have) · <strong>real config export</strong> (<span class="mono">.claude/agents/*.md</span>, an orchestration <span class="mono">CLAUDE.md</span>, MCP servers and a runnable workflow, so the team runs in a plain <span class="mono">claude</span> session too) · <strong>usage</strong> (real tokens per model from each CLI's local logs, plus your Claude plan headroom, read on-device and never uploaded).
+    </p>
   </div>
 </section>
 
@@ -351,6 +427,7 @@
         <tbody>
           <tr><th scope="row">Billing</th><td class="yes">Your plan, no markup</td><td class="no">Seat + per-token metering</td></tr>
           <tr><th scope="row">Subscription login (Claude Max / ChatGPT / Gemini)</th><td class="yes">Native, via each official CLI</td><td class="no">API key only</td></tr>
+          <tr><th scope="row">Providers</th><td class="yes">Claude · Codex · <strong>Gemini / <span class="mono">agy</span></strong></td><td class="no">Usually Claude + Codex only</td></tr>
           <tr><th scope="row">Account required</th><td class="yes">None</td><td class="no">Yes, login-gated</td></tr>
           <tr><th scope="row">App</th><td class="yes">Native SwiftUI</td><td class="no">Browser / Electron shell</td></tr>
           <tr><th scope="row">Cross-provider mixing in one run</th><td class="yes">Yes, per role</td><td class="no">Sequential or single-vendor</td></tr>
@@ -358,6 +435,8 @@
           <tr><th scope="row">Per-line provenance</th><td class="yes">Yes, across providers</td><td class="no">Not exposed</td></tr>
           <tr><th scope="row">Code graph injected into the agent</th><td class="yes">Yes, with token savings shown</td><td class="no">Hosted index, for their chat only</td></tr>
           <tr><th scope="row">Config portable to a plain CLI session</th><td class="yes">Generated and yours</td><td class="no">Proprietary</td></tr>
+          <tr><th scope="row">Mac support</th><td class="yes">Universal binary — Apple Silicon and Intel</td><td class="no">Often Apple Silicon only</td></tr>
+          <tr><th scope="row">Price</th><td class="yes">Free, no paid tier</td><td class="no">Seat, then credits</td></tr>
           <tr><th scope="row">Source</th><td class="yes">Open (MIT)</td><td class="no">Closed binary</td></tr>
         </tbody>
       </table>
@@ -374,7 +453,7 @@
   <div class="wrap">
     <p class="eyebrow center">Install</p>
     <h2 class="center">Three ways in.</h2>
-    <p class="lede center">macOS 14+ (Sonoma). Coral can install and sign into the provider CLIs from inside the app.</p>
+    <p class="lede center">macOS 26 or newer, Apple Silicon or Intel. Coral can install and sign into the provider CLIs from inside the app.</p>
     <div class="codeblock">
 <span class="c"># Homebrew</span>
 brew install --cask marcosnovo/coral/coral
