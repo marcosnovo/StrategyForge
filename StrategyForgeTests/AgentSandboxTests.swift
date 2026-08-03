@@ -95,6 +95,46 @@ struct AgentSandboxTests {
         #expect(WorkflowGenerator.workflow(for: s)!.contains("isolation: 'worktree'"))
     }
 
+    @Test func aReadOnlySeatCarriesItsClampedGrantIntoTheWorkflowToo() {
+        // The hole a review caught: clamping `tools:` in .claude/agents/<name>.md does
+        // nothing if the same team runs through .claude/workflows/<team>.mjs, where the
+        // node would otherwise inherit every tool. Read-only nodes are pinned to their
+        // generated agent file, so both execution paths enforce the same grant.
+        var s = StrategyLibrary.domainSpecialists()
+        let reviewerIndex = s.roles.firstIndex { $0.role == .reviewer }!
+        let reviewerName = s.roles[reviewerIndex].name
+        s.roles[reviewerIndex].sandbox = .readOnly
+
+        let js = WorkflowGenerator.workflow(for: s)!
+        #expect(js.contains("agentType: '\(reviewerName)'"))
+        // …and the file that agentType resolves to really is the clamped one.
+        let file = AgentFileGenerator.generate(for: s)
+            .first { $0.relativePath == ".claude/agents/\(reviewerName).md" }!
+        #expect(file.contents.contains("tools: \(Constants.readOnlyTools.joined(separator: ", "))"))
+    }
+
+    @Test func nonReadOnlySeatsAreNotPinnedSoUntouchedTeamsEmitWhatTheyAlwaysDid() {
+        // .auto must not start pinning agent types — that would change the emitted
+        // workflow for every existing team, including advisory roles whose ROLE KIND
+        // reads as read-only but whose grant was never clamped.
+        for strategy in StrategyLibrary.all where !strategy.subagentRoles.isEmpty {
+            #expect(!WorkflowGenerator.workflow(for: strategy)!.contains("agentType:"),
+                    "\(strategy.name) pinned an agentType without an explicit read-only seat")
+        }
+    }
+
+    @Test func theExpandedInstanceNameIsTheOneTheAgentFileUses() {
+        // With count > 1 the files are <name>-1.md … <name>-N.md, so the pin has to
+        // carry the suffix or agentType resolves to nothing.
+        var role = role(.worker, sandbox: .readOnly)
+        role.count = 3
+        #expect(WorkflowGenerator.agentTypeOption(for: role, instance: 2) == ", agentType: 'seat-2'")
+        role.count = 1
+        #expect(WorkflowGenerator.agentTypeOption(for: role, instance: 1) == ", agentType: 'seat'")
+        role.sandbox = .auto
+        #expect(WorkflowGenerator.agentTypeOption(for: role, instance: 1).isEmpty)
+    }
+
     @Test func aReadOnlySeatIsNeverGivenAWorktree() {
         var s = StrategyLibrary.domainSpecialists()
         for i in s.roles.indices where !s.roles[i].isOrchestrator {

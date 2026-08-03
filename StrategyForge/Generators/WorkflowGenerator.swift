@@ -57,6 +57,25 @@ enum WorkflowGenerator {
         "\(workflowsDirectory)/\(slug(strategy)).mjs"
     }
 
+    /// Pins a workflow node to the SUBAGENT FILE we generate for that role, so the node
+    /// runs with that file's `tools:` grant instead of the workflow runtime's default
+    /// (which inherits every tool). Without this, a seat the user marked **Read-only**
+    /// would be clamped in `.claude/agents/<name>.md` and then hand the full toolset back
+    /// the moment the same team ran through `.claude/workflows/<team>.mjs` — enforcement
+    /// on one execution path only is not enforcement.
+    ///
+    /// Emitted for the EXPLICIT read-only seat only, matching the clamp rule in
+    /// `AgentFileGenerator`: `.auto` must keep producing byte-identical workflows for
+    /// teams that never touched the setting.
+    ///
+    /// The name has to match the file's `name:` frontmatter exactly — `AgentFileGenerator`
+    /// writes `<name>.md` for a single instance and `<name>-N.md` when `count > 1`.
+    static func agentTypeOption(for role: AgentRole, instance: Int) -> String {
+        guard role.sandbox == .readOnly, Strategy.isValidRoleName(role.name) else { return "" }
+        let name = max(role.count, 1) == 1 ? role.name : "\(role.name)-\(instance)"
+        return ", agentType: '\(jsLine(name))'"
+    }
+
     /// A stable, filesystem-safe slug from the team name (falls back to "team").
     static func slug(_ strategy: Strategy) -> String {
         let base = strategy.name.lowercased()
@@ -157,8 +176,9 @@ enum WorkflowGenerator {
             let isolation = w.sandbox.isolatesInWorktree(for: w.role) ? ", isolation: 'worktree'" : ""
             for instance in 1...max(1, w.count) {
                 let label = w.count > 1 ? "\(jsLine(w.name))-\(instance)" : jsLine(w.name)
+                let pin = agentTypeOption(for: w, instance: instance)
                 out += "  () => agent(`\(jsTemplate(workerPrompt(w)))\n\nTASK:\n${task}\n\nPLAN:\n${plan}`, "
-                out += "{ label: '\(label)', phase: 'Work', model: '\(model)'\(isolation) }),\n"
+                out += "{ label: '\(label)', phase: 'Work', model: '\(model)'\(isolation)\(pin) }),\n"
             }
         }
         out += "])\n\n"
@@ -169,9 +189,10 @@ enum WorkflowGenerator {
         if let verifier {
             let model = verifier.model.rawValue
             out += "phase('Verify')\n"
+            let pin = agentTypeOption(for: verifier, instance: 1)
             out += "const verified = await parallel(results.filter(Boolean).map((r, i) => () => "
             out += "agent(`\(jsTemplate(verifyPrompt(verifier)))\n\nTASK:\n${task}\n\nWORK TO VERIFY:\n${r}`, "
-            out += "{ label: 'verify:' + i, phase: 'Verify', model: '\(model)' })))\n\n"
+            out += "{ label: 'verify:' + i, phase: 'Verify', model: '\(model)'\(pin) })))\n\n"
             synthInput = "verified"
         }
 
@@ -194,6 +215,8 @@ enum WorkflowGenerator {
         let description = jsLine(strategy.description.isEmpty ? strategy.name : strategy.description)
         let workerModel = worker.model.rawValue
         let isolation = worker.sandbox.isolatesInWorktree(for: worker.role) ? ", isolation: 'worktree'" : ""
+        let workerPin = agentTypeOption(for: worker, instance: 1)
+        let verifierPin = verifier.map { agentTypeOption(for: $0, instance: 1) } ?? ""
         let hasVerify = verifier != nil
 
         var out = "\(managedSignature) for the team \"\(jsLine(strategy.name))\" — ITEM FAN-OUT.\n"
@@ -225,14 +248,14 @@ enum WorkflowGenerator {
             let vModel = verifier.model.rawValue
             out += "const findings = await pipeline(items,\n"
             out += "  (item) => agent(`\(jsTemplate(itemWorkerPrompt(worker)))\n\nTASK:\n${task}\n\nITEM:\n${item}`, "
-            out += "{ label: 'work:' + item, phase: 'Work', model: '\(workerModel)'\(isolation) }),\n"
+            out += "{ label: 'work:' + item, phase: 'Work', model: '\(workerModel)'\(isolation)\(workerPin) }),\n"
             out += "  (result, item) => agent(`\(jsTemplate(verifyPrompt(verifier)))\n\nITEM:\n${item}\n\nWORK TO VERIFY:\n${result}`, "
-            out += "{ label: 'verify:' + item, phase: 'Verify', model: '\(vModel)' })\n"
+            out += "{ label: 'verify:' + item, phase: 'Verify', model: '\(vModel)'\(verifierPin) })\n"
             out += ")\n\n"
         } else {
             out += "const findings = await parallel(items.map((item) => () => "
             out += "agent(`\(jsTemplate(itemWorkerPrompt(worker)))\n\nTASK:\n${task}\n\nITEM:\n${item}`, "
-            out += "{ label: 'work:' + item, phase: 'Work', model: '\(workerModel)'\(isolation) })))\n\n"
+            out += "{ label: 'work:' + item, phase: 'Work', model: '\(workerModel)'\(isolation)\(workerPin) })))\n\n"
         }
 
         // Synthesize — one report from the (verified) findings, not N separate chats.
