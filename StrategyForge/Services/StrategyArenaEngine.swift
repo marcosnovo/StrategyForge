@@ -50,6 +50,11 @@ enum StrategyProgressReducer {
         case .roleStarted(let role, _, _, let task):
             if !p.activeRoles.contains(role) { p.activeRoles.append(role) }
             p.lastNarration = task.isEmpty ? role : "\(role): \(task)"
+        case .roleActivity(let role, let title, let detail):
+            // Live tool step — surface it as the contestant's latest narration line.
+            p.lastNarration = detail.map { "\(role): \(title) \($0)" } ?? "\(role): \(title)"
+        case .roleFile:
+            break   // file edits don't change arena progress state
         case .roleFinished(let role, _):
             p.activeRoles.removeAll { $0 == role }
             if !p.finishedRoles.contains(role) { p.finishedRoles.append(role) }

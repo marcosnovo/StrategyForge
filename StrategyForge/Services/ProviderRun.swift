@@ -69,10 +69,34 @@ enum OneShotError: Error, LocalizedError, Equatable {
     }
 }
 
+/// A live step emitted WHILE a one-shot call runs, so the meta path can show what a
+/// worker is doing in real time instead of a silent multi-minute gap. Only providers
+/// with a structured tool stream (Claude, via `--output-format stream-json`) emit these;
+/// others complete buffered and emit nothing until they finish.
+enum OneShotEvent: Sendable, Equatable {
+    case tool(name: String, detail: String?)   // a tool the worker invoked (+ target)
+    case fileEdited(String)                     // absolute path of a file it wrote/edited
+}
+
 /// A provider-agnostic single-shot completion. Injectable so the orchestrator can
 /// be unit-tested with a mock and run for real with the CLI-backed implementation.
 protocol OneShotRunner: Sendable {
     func run(prompt: String, provider: AIProvider, model: String, cwd: String?) async throws -> OneShotResult
+    /// Streaming variant: run the call, emitting live tool steps via `onEvent`. Declared
+    /// as a REQUIREMENT (not only an extension method) so it dispatches dynamically — an
+    /// extension-only method on a protocol existential would always call the default and
+    /// silently ignore `CLIOneShotRunner`'s real streaming implementation.
+    func run(prompt: String, provider: AIProvider, model: String, cwd: String?,
+             onEvent: @escaping @Sendable (OneShotEvent) -> Void) async throws -> OneShotResult
+}
+
+extension OneShotRunner {
+    /// Default: ignore events and delegate to the buffered `run`, so mocks and any runner
+    /// that can't stream keep working unchanged; `CLIOneShotRunner` overrides it.
+    func run(prompt: String, provider: AIProvider, model: String, cwd: String?,
+             onEvent: @escaping @Sendable (OneShotEvent) -> Void) async throws -> OneShotResult {
+        try await run(prompt: prompt, provider: provider, model: model, cwd: cwd)
+    }
 }
 
 /// The real runner: spawns each provider's CLI headlessly.
@@ -150,6 +174,67 @@ struct CLIOneShotRunner: OneShotRunner {
             let estCost = Self.estimatedCostUSD(tokens: estTokens, model: model)
             return OneShotResult(text: cleanText, tokens: estTokens, costUSD: estCost,
                                  provider: provider, model: model, estimated: true)
+        }
+    }
+
+    /// Streaming run: for Claude, drive the CLI with `--output-format stream-json` and
+    /// parse each NDJSON line into live tool steps (reusing the chat path's parser),
+    /// accumulating the final answer + usage. Other providers have no structured tool
+    /// stream in one-shot mode, so they fall back to the buffered `run` (the caller's
+    /// live elapsed timer still shows the call is alive).
+    func run(prompt: String, provider: AIProvider, model: String, cwd: String?,
+             onEvent: @escaping @Sendable (OneShotEvent) -> Void) async throws -> OneShotResult {
+        guard provider == .claude else {
+            return try await run(prompt: prompt, provider: provider, model: model, cwd: cwd)
+        }
+        let configured = binaries[provider] ?? provider.binaryName
+        guard let bin = Self.resolveBinary(configured, provider: provider) else {
+            throw OneShotError.notInstalled(provider)
+        }
+        var args = ["--output-format", "stream-json", "--verbose", "--permission-mode", permissionMode]
+        if readOnly { args.append(contentsOf: ["--disallowedTools", "Edit Write MultiEdit NotebookEdit"]) }
+        if !model.isEmpty { args.append(contentsOf: ["--model", model]) }
+        args.append(contentsOf: ["-p", prompt])
+
+        // Accumulate the answer + authoritative usage from the stream; the box is written
+        // from the reader thread and read once the process exits.
+        let acc = StreamAccumulator()
+        let (out, err, status) = try await Self.launch(bin: bin, args: args, cwd: cwd, extraEnv: [:]) { line in
+            for ev in ClaudeStreamParser.events(from: line) {
+                switch ev {
+                case .tool(let name, let detail): onEvent(.tool(name: name, detail: detail))
+                case .delegated(let sub):         onEvent(.tool(name: "Task", detail: sub))
+                case .skillUsed(let slug):        onEvent(.tool(name: "Skill", detail: slug))
+                case .fileEdited(let path):       onEvent(.fileEdited(path))
+                case .assistantText(let t):       acc.appendText(t)
+                case .usage(let tk, let cost):    acc.setUsage(tokens: tk, cost: cost)
+                default: break
+                }
+            }
+        }
+        if status != 0 {
+            let msg = err.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let friendly = Self.authFailureMessage(provider: provider, stdout: out, stderr: msg) {
+                throw OneShotError.failed(friendly)
+            }
+            throw OneShotError.failed(msg.isEmpty ? "\(provider.displayName) exited with code \(status)" : msg)
+        }
+        let snap = acc.snapshot()
+        return OneShotResult(text: snap.text, tokens: snap.tokens, costUSD: snap.cost,
+                             provider: .claude, model: model)
+    }
+
+    /// Thread-safe accumulator for the streamed answer text + final usage.
+    private final class StreamAccumulator: @unchecked Sendable {
+        private let lock = NSLock()
+        private var text = ""
+        private var tokens = 0
+        private var cost = 0.0
+        func appendText(_ t: String) { lock.lock(); if !text.isEmpty { text += "\n" }; text += t; lock.unlock() }
+        func setUsage(tokens tk: Int, cost c: Double) { lock.lock(); tokens = tk; cost = c; lock.unlock() }
+        func snapshot() -> (text: String, tokens: Int, cost: Double) {
+            lock.lock(); defer { lock.unlock() }
+            return (text.trimmingCharacters(in: .whitespacesAndNewlines), tokens, cost)
         }
     }
 
@@ -278,7 +363,8 @@ struct CLIOneShotRunner: OneShotRunner {
     static let callTimeout: TimeInterval = 600
 
     private static func launch(bin: String, args: [String], cwd: String?,
-                               extraEnv: [String: String] = [:]) async throws -> (String, String, Int32) {
+                               extraEnv: [String: String] = [:],
+                               onOutLine: (@Sendable (String) -> Void)? = nil) async throws -> (String, String, Int32) {
         let box = ProcessBox()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { cont in
@@ -333,7 +419,24 @@ struct CLIOneShotRunner: OneShotRunner {
                         errData = errPipe.fileHandleForReading.readDataToEndOfFile()
                         errRead.leave()
                     }
-                    let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+                    // With a line callback (streaming): read stdout incrementally so tool
+                    // steps surface AS they happen, still accumulating the full output for
+                    // the final parse. Without one: a single blocking read (byte-identical
+                    // to the previous behaviour, so the non-streaming path is unchanged).
+                    var outData = Data()
+                    let outHandle = outPipe.fileHandleForReading
+                    if let onOutLine {
+                        let buf = LineBuffer()
+                        while true {
+                            let chunk = outHandle.availableData
+                            if chunk.isEmpty { break }   // EOF
+                            outData.append(chunk)
+                            for line in buf.append(chunk) { onOutLine(line) }
+                        }
+                        for line in buf.drain() { onOutLine(line) }
+                    } else {
+                        outData = outHandle.readDataToEndOfFile()
+                    }
                     errRead.wait()
                     p.waitUntilExit()
                     watchdog.cancel()

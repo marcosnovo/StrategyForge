@@ -186,6 +186,39 @@ struct MetaOrchestratorRunTests {
         #expect(phases == ["plan", "delegate", "synthesize"])
     }
 
+    @Test func streamsWorkerToolStepsAsRoleActivity() async {
+        // A runner that streams a couple of live tool events per call must surface them as
+        // MetaEvent.roleActivity / .roleFile, attributed to the right role — the wiring
+        // that makes the timeline fill in real time instead of a silent multi-minute gap.
+        final class StreamingRunner: OneShotRunner, @unchecked Sendable {
+            func run(prompt: String, provider: AIProvider, model: String, cwd: String?) async throws -> OneShotResult {
+                if prompt.contains("JSON array") {
+                    return OneShotResult(text: #"[{"role":"researcher","task":"dig"}]"#, tokens: 1, costUSD: 0, provider: provider, model: model)
+                }
+                return OneShotResult(text: "done", tokens: 1, costUSD: 0, provider: provider, model: model)
+            }
+            func run(prompt: String, provider: AIProvider, model: String, cwd: String?,
+                     onEvent: @escaping @Sendable (OneShotEvent) -> Void) async throws -> OneShotResult {
+                onEvent(.tool(name: "Read", detail: "App.swift"))
+                onEvent(.fileEdited("/tmp/out.md"))
+                return try await run(prompt: prompt, provider: provider, model: model, cwd: cwd)
+            }
+        }
+        let orch = AgentRole(name: "orchestrator", role: .orchestrator, model: .opus48,
+                             systemPrompt: "", description: "Lead", count: 1, isOrchestrator: true)
+        let researcher = AgentRole(name: "researcher", role: .researcher, model: .sonnet5,
+                                   provider: .claude, systemPrompt: "", description: "Investigate", count: 1)
+        let strategy = Strategy(name: "T", description: "", roles: [orch, researcher], orchestrationNotes: "")
+        let box = EventBox()
+        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: StreamingRunner()) { box.append($0) }
+
+        // The researcher's Read step surfaced live, attributed to it.
+        #expect(box.events.contains(.roleActivity(role: "researcher", title: "Read", detail: "App.swift")))
+        #expect(box.events.contains(.roleFile(role: "researcher", path: "/tmp/out.md")))
+        // The orchestrator (plan + synthesize) streamed too, attributed to it.
+        #expect(box.events.contains(.roleActivity(role: "orchestrator", title: "Read", detail: "App.swift")))
+    }
+
     @Test func soloTeamAnswersDirectly() async {
         let orch = AgentRole(name: "solo", role: .orchestrator, model: .opus48,
                              systemPrompt: "", description: "", count: 1, isOrchestrator: true)

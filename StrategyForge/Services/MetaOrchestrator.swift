@@ -19,6 +19,8 @@ import Foundation
 enum MetaEvent: Sendable, Equatable {
     case phase(String)                                   // "plan" | "delegate" | "synthesize"
     case roleStarted(role: String, provider: AIProvider, model: String, task: String = "")
+    case roleActivity(role: String, title: String, detail: String?)  // a live tool step by a role
+    case roleFile(role: String, path: String)            // a file a role wrote/edited (live)
     case roleFinished(role: String, tokens: Int)
     case roleFailed(role: String, message: String)       // one worker failed; others go on
     case assistantText(String)                           // the final synthesized answer
@@ -130,8 +132,12 @@ struct MetaOrchestrator {
     /// cross-provider failure says exactly which agent broke and why (the raw CLI
     /// stderr is otherwise anonymous — the #1 confusion with mixed-provider runs).
     private static func runStep(_ runner: OneShotRunner, role: String, provider: AIProvider,
-                                model: String, prompt: String, cwd: String?) async throws -> OneShotResult {
+                                model: String, prompt: String, cwd: String?,
+                                onActivity: (@Sendable (OneShotEvent) -> Void)? = nil) async throws -> OneShotResult {
         do {
+            if let onActivity {
+                return try await runner.run(prompt: prompt, provider: provider, model: model, cwd: cwd, onEvent: onActivity)
+            }
             return try await runner.run(prompt: prompt, provider: provider, model: model, cwd: cwd)
         } catch let e as OneShotError {
             if case .notInstalled = e { throw e }   // already actionable
@@ -152,13 +158,28 @@ struct MetaOrchestrator {
         let orchModel = modelID(for: orchestrator)
         let workers = strategy.subagentRoles
 
+        // Map a role's live one-shot events onto MetaEvents, so the timeline fills with
+        // each agent's tool steps AS they happen (Claude workers/orchestrator stream via
+        // stream-json; other providers stay buffered).
+        func activity(_ roleName: String) -> @Sendable (OneShotEvent) -> Void {
+            { ev in
+                switch ev {
+                case .tool(let name, let detail):
+                    onEvent(.roleActivity(role: roleName, title: name, detail: detail))
+                case .fileEdited(let path):
+                    onEvent(.roleFile(role: roleName, path: path))
+                }
+            }
+        }
+
         do {
             if Task.isCancelled { return nil }
             // Solo team: no workers → the orchestrator just answers directly.
             if workers.isEmpty {
                 onEvent(.phase("plan"))
                 onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
-                let r = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider, model: orchModel, prompt: task, cwd: cwd)
+                let r = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider, model: orchModel, prompt: task, cwd: cwd,
+                                          onActivity: activity(orchestrator.name))
                 onEvent(.roleFinished(role: orchestrator.name, tokens: r.tokens))
                 // Usage is emitted as a DELTA per step so the live counter climbs during
                 // the run (not just at the end); ChatViewModel accumulates the deltas.
@@ -172,7 +193,8 @@ struct MetaOrchestrator {
             onEvent(.phase("plan"))
             onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
             let planRes = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider,
-                                            model: orchModel, prompt: planPrompt(task: task, workers: workers), cwd: cwd)
+                                            model: orchModel, prompt: planPrompt(task: task, workers: workers), cwd: cwd,
+                                            onActivity: activity(orchestrator.name))
             onEvent(.roleFinished(role: orchestrator.name, tokens: planRes.tokens))
             onEvent(.usage(tokens: planRes.tokens, costUSD: planRes.costUSD, estimated: planRes.estimated))
             let subtasks = parsePlan(planRes.text, workers: workers, task: task)
@@ -200,7 +222,8 @@ struct MetaOrchestrator {
                         group.addTask {
                             onEvent(.roleStarted(role: role.name, provider: role.provider, model: m, task: sub.task))
                             do {
-                                let r = try await runStep(runner, role: role.name, provider: role.provider, model: m, prompt: prompt, cwd: cwd)
+                                let r = try await runStep(runner, role: role.name, provider: role.provider, model: m, prompt: prompt, cwd: cwd,
+                                                      onActivity: activity(role.name))
                                 onEvent(.roleFinished(role: role.name, tokens: r.tokens))
                                 onEvent(.usage(tokens: r.tokens, costUSD: r.costUSD, estimated: r.estimated))
                                 return WorkerResult(order: thisOrder, role: role.name, text: r.text, tokens: r.tokens, cost: r.costUSD)
@@ -233,7 +256,8 @@ struct MetaOrchestrator {
             onEvent(.phase("synthesize"))
             onEvent(.roleStarted(role: orchestrator.name, provider: orchestrator.provider, model: orchModel))
             let synth = try await runStep(runner, role: orchestrator.name, provider: orchestrator.provider,
-                                          model: orchModel, prompt: synthesisPrompt(task: task, results: results), cwd: cwd)
+                                          model: orchModel, prompt: synthesisPrompt(task: task, results: results), cwd: cwd,
+                                          onActivity: activity(orchestrator.name))
             onEvent(.roleFinished(role: orchestrator.name, tokens: synth.tokens))
             onEvent(.usage(tokens: synth.tokens, costUSD: synth.costUSD, estimated: synth.estimated))
             onEvent(.assistantText(synth.text))

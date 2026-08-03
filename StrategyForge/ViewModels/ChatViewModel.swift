@@ -1231,6 +1231,22 @@ final class ChatViewModel {
                     narrate("▸ \(role) · \(model)\(taskSuffix)…", assistantIndex: assistantIndex)
                 }
             }
+        case .roleActivity(let role, let title, let detail):
+            // A live tool step streamed from a worker/orchestrator mid-call — attribute it
+            // to the agent (orchestrator steps carry agent: nil, like the Claude path) so
+            // the timeline and each agent's drill-down fill in real time. appendStep dedups
+            // an immediate repeat.
+            let isOrch = (role == orchName)
+            if isOrch { activeSubagent = nil }
+            appendStep(ActivityStep(title: title, detail: detail, at: Date(),
+                                    isDelegation: false, agent: isOrch ? nil : role))
+        case .roleFile(let role, let path):
+            if !editedFiles.contains(path) { editedFiles.append(path) }
+            if !turnEditedFiles.contains(path) { turnEditedFiles.append(path) }
+            let author = EditProvenanceResolver.attribute(subagent: (role == orchName) ? nil : role,
+                                                          strategy: config.strategy)
+            fileProvenance[path] = author
+            recordLineProvenance(path: path, author: author)
         case .roleFinished(let role, let tokens):
             // Exact per-agent + per-model attribution on the cross-provider path.
             if tokens > 0 {
