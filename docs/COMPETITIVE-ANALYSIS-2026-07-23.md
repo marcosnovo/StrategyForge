@@ -197,6 +197,42 @@ propias suscripciones** (sin medición, sin cuenta), **open source**, con **veri
 | **P1** | **Lente de coste nodo/arista** (del artículo *Graph Engineering con Opus 5*) + auditar que los workflows generados paralelizan de verdad | Convierte "sin markup" en visible/medible. Barato. |
 | **P2** | Paridad: **memoria dos niveles** (User+Org, como Factory); **sandboxing por-agente** (Conductor NO lo tiene → oportunidad) | Cierra brechas donde Factory nos iguala. |
 
+> **✅ Actualización 2026-08-03 (tarde) — las 4 filas atacadas. Gate NO ejecutado (sesión Linux;
+> hay que pasar `xcodebuild test` en el Mac antes de mergear).**
+>
+> - **P0 — web.** `web/` reescrita **bilingüe (EN + `/es/`)** con los tokens *reales* de la app
+>   (paleta `classic` de `DesignSystem.swift`, claro por defecto + oscuro, escala `Space`,
+>   `.btn.moon`, fondo aurora + grano) y una **réplica en HTML del shell** (rail → lista de chats →
+>   hilo → panel de actividad con topología, veredicto cross-family y ahorro del Mapa). Copy al día
+>   con lo enviado (Mapa, Arena, loops, Review, Ship, memoria, export de config). `og.png` 1200×630
+>   generada desde `og.source.html` versionado. **Pendiente del fundador:** dominio + desplegar +
+>   URLs absolutas de OG.
+> - **P0 — vídeo + tap.** [`DEMO-VIDEO.md`](DEMO-VIDEO.md): guion de rodaje de 60s (shot list,
+>   subtítulos, ajustes de captura, entregables) — el vídeo hay que grabarlo en el Mac.
+>   [`HOMEBREW.md`](HOMEBREW.md) lleva ahora una ruta de día-de-lanzamiento con el orden correcto de
+>   dependencias (release → notarización → tap → web).
+> - **P1 — riesgo macro (absorción por 1ª parte).** Respuesta escrita y colocada donde se lee: nueva
+>   sección en el `README` y en ambas webs. Los tres argumentos estructurales: *un proveedor no te
+>   enruta a su rival*, *un verificador de la misma familia no verifica*, *abierto le gana a feature
+>   incluida* — más la nota de ToS (invocamos la CLI oficial con tu login).
+> - **P1 — lente de coste nodo/arista + auditoría.** `WorkflowShape` extraída de `WorkflowGenerator`
+>   como única fuente de verdad; `GraphCostLens` la tarifica (nodos pagados vs aristas gratis,
+>   anchura paralela, camino crítico, comparación contra la línea recta) y se muestra en el popover
+>   de coste. **La auditoría encontró un bug real:** un rol con `count: 3` emitía **una sola** rama
+>   de Work — un equipo que el usuario había ensanchado corría en línea recta. Corregido, y un test
+>   sobre `StrategyLibrary.all` asegura que el grafo nunca sea más estrecho que la plantilla.
+> - **P2 — memoria dos niveles.** `LearningScope {user, team}`: lo de equipo rankea por delante, se
+>   marca `[team]` en el digest como vinculante, y entra en la clave de dedupe (promover una nota
+>   personal a convención ya no la colapsa). Una base sin entradas de equipo rankea y renderiza
+>   exactamente igual que antes.
+> - **P2 — sandboxing por-agente.** `AgentSandbox {auto, worktree, readOnly, shared}` por rol, con
+>   selector en el editor. Es **imposición, no prompt**: `readOnly` recorta el `tools:` del agente
+>   generado al conjunto de solo-lectura (incluido el grant vacío, que si no heredaría todo) y
+>   `worktree` emite `isolation: 'worktree'` en el nodo del workflow. `auto` = comportamiento previo.
+> - **Lectura del eje de adopción:** el foso técnico ya no tiene huecos abiertos de este informe. Lo
+>   que queda para lanzar es **artefacto, no código** — release + notarización + dominio + vídeo.
+>   Ver [`PRODUCT-HUNT.md`](PRODUCT-HUNT.md).
+
 ### Nota del artículo *"Graph Engineering con Opus 5"* (@angeldot_)
 
 Tesis: pasar de agentes en **línea recta** a **grafos paralelos**; *"los nodos piensan, las aristas

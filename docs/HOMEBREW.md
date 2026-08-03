@@ -1,5 +1,18 @@
 # Installing Coral via Homebrew
 
+> **Launch-day path (about 15 minutes, in this order).** The landing page ships a
+> `brew install --cask marcosnovo/coral/coral` line with a copy button, so until the tap is
+> public that button hands people a command that fails — publish the tap *before* you
+> announce, or delete the line.
+>
+> 1. Cut the release first. A cask with no `.dmg` to point at can't be validated
+>    (see [`RELEASE.md`](RELEASE.md)) — the tap is the *last* step, not the first.
+> 2. Create the tap repo and copy the cask in (**One-time** below).
+> 3. Fill in the real `version` + `sha256` (**Every release** below).
+> 4. `brew audit --cask --new coral` — must pass before you tell anyone.
+> 5. On a machine that has never seen Coral, run the exact command from the website.
+>    Installing over your own dev copy proves nothing.
+
 Goal: `brew install --cask coral`. The cask itself lives in this repo at
 [`Casks/coral.rb`](../Casks/coral.rb) as the source of truth, but Homebrew serves
 casks from a **tap** (a repo named `homebrew-<name>`). This is a one-time setup you
