@@ -1592,6 +1592,7 @@ enum L10n {
         "activity.empty": ("Steps will appear here as the agents work.", "Los pasos aparecerán aquí según trabajen los agentes."),
         "activity.team": ("TEAM", "EQUIPO"),
         "activity.agentDetail": ("Agent activity", "Actividad del agente"),
+        "activity.back": ("Back", "Atrás"),
         "activity.seeAll": ("See all", "Ver todos"),
         "activity.allSteps": ("All steps", "Todos los pasos"),
         "activity.tab.steps": ("Steps", "Pasos"),

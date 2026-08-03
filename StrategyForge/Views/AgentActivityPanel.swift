@@ -95,15 +95,13 @@ struct AgentActivityPanel: View {
             .zoomWindowOnDoubleClick()
             .zIndex(1)
 
-            // THE STAGE — the multi-agent constellation, pinned under the header and always
-            // visible (not a buried toggle). At rest it shows the CONFIGURED team as a calm
-            // idle constellation ("your crew, ready"); during a run it comes alive with
-            // fan-out/fan-in. This is Coral's signature — the one thing only Coral has.
-            agentStage
-                .zIndex(0)
-
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.m) {
+                    // THE STAGE — the multi-agent constellation. At rest it shows the
+                    // CONFIGURED team as a calm idle constellation ("your crew, ready");
+                    // during a run it comes alive with fan-out/fan-in. It scrolls WITH the
+                    // panel (not pinned) so the timeline/output aren't crowded off-screen.
+                    agentStage
                     // When a recommendation is on screen over a team the user chose,
                     // make the choice explicit: selected vs recommended, and why. (Rare
                     // preview state — kept as its own card above the three groups.)
@@ -1074,8 +1072,18 @@ struct ActivityStepRow: View {
             }
             Spacer(minLength: Space.xs)
             if let start = startedAt {
-                Text(activityElapsed(from: start, to: step.at))
-                    .scaledFont(9, design: .monospaced).foregroundStyle(Theme.tertiaryOnMaterial)
+                // The ACTIVE step ticks live (…0:44, 0:45) so a long-running worker never
+                // looks frozen; finished steps keep their fixed offset from the turn start.
+                if isActive {
+                    TimelineView(.periodic(from: Date(), by: 1)) { ctx in
+                        Text(activityElapsed(from: start, to: ctx.date))
+                            .scaledFont(9, design: .monospaced).foregroundStyle(Theme.tealText)
+                            .contentTransition(.numericText())
+                    }
+                } else {
+                    Text(activityElapsed(from: start, to: step.at))
+                        .scaledFont(9, design: .monospaced).foregroundStyle(Theme.tertiaryOnMaterial)
+                }
             }
         }
         .padding(.vertical, step.isDelegation ? 6 : 2)
@@ -1178,6 +1186,15 @@ struct SubagentDetailPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: Space.s) {
+                // A back affordance (not a close "×"): this is a drill-DOWN column, so a
+                // left chevron reads as "return to the panel", the expected UX.
+                Button { onClose() } label: {
+                    Image(systemName: "chevron.left").font(.system(size: 12, weight: .semibold))
+                }
+                .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                .keyboardShortcut(.escape, modifiers: [])
+                .help(model.t("activity.back"))
+                .accessibilityLabel(model.t("activity.back"))
                 Image(systemName: icon)
                     .foregroundStyle(Theme.accent)
                 VStack(alignment: .leading, spacing: 1) {
@@ -1189,12 +1206,6 @@ struct SubagentDetailPanel: View {
                     Image(systemName: "circle.fill").font(.system(size: 6))
                         .foregroundStyle(Theme.success).symbolEffect(.pulse, options: .repeating)
                 }
-                Button { onClose() } label: {
-                    Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
-                }
-                .buttonStyle(.plain).foregroundStyle(Theme.secondaryOnMaterial)
-                .help(model.t("common.done"))
-                .accessibilityLabel(model.t("common.done"))
             }
             .padding(Space.m)
             .background {

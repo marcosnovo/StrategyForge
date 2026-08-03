@@ -1507,7 +1507,8 @@ struct ChatView: View {
             }
             if !vm.queued.isEmpty { queuedChips }
             if !vm.attachments.isEmpty { attachmentChips }
-            HStack(spacing: Space.s) {
+            // .bottom so the buttons sit level with the LAST line as the field grows.
+            HStack(alignment: .bottom, spacing: Space.s) {
             // Attach files for Claude to review.
             Button {
                 pickAttachments()
@@ -1525,7 +1526,12 @@ struct ChatView: View {
                 // composer reads clearly over the frosted bar (never washed).
                 .foregroundStyle(Theme.ink)
                 .tint(Theme.accent)
-                .lineLimit(1...5)
+                // maxWidth:.infinity gives the field a BOUNDED width so a long line wraps
+                // (instead of extending and getting clipped); 1...8 then grows the box with
+                // the content up to 8 lines and scrolls internally beyond that — so you
+                // never lose the line you're typing.
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1...8)
                 .focused($inputFocused)
                 // @-mentions + /-commands: refresh both palettes as the draft changes.
                 .onChange(of: vm.input) { refreshMentions(); refreshSlash() }

@@ -1033,8 +1033,8 @@ final class ChatViewModel {
                 persistStreaming()
             case .tool(let name, let detail):
                 activity.append(name)
-                timeline.append(ActivityStep(title: name, detail: detail, at: Date(),
-                                             isDelegation: false, agent: activeSubagent))
+                appendStep(ActivityStep(title: name, detail: detail, at: Date(),
+                                        isDelegation: false, agent: activeSubagent))
                 separatorPending = true
             case .delegated(let subagent):
                 activeSubagent = subagent
@@ -1071,8 +1071,8 @@ final class ChatViewModel {
                 if !turnSkillsUsed.contains(slug) { turnSkillsUsed.append(slug) }
                 if !skillsUsed.contains(slug) { skillsUsed.append(slug) }
                 activity.append("skill: \(slug)")
-                timeline.append(ActivityStep(title: "Skill", detail: slug, at: Date(),
-                                             isDelegation: false, agent: activeSubagent))
+                appendStep(ActivityStep(title: "Skill", detail: slug, at: Date(),
+                                        isDelegation: false, agent: activeSubagent))
                 separatorPending = true
             case .denied(let items):
                 deniedTools = items
@@ -1176,6 +1176,19 @@ final class ChatViewModel {
         """
     }
 
+    /// Append a timeline step, collapsing an *immediate* duplicate (same title, detail,
+    /// agent and delegation flag) into the one already there. A streaming CLI sometimes
+    /// re-emits the identical tool marker back-to-back; without this the timeline shows
+    /// the same row several times, which reads as the run being stuck.
+    private func appendStep(_ step: ActivityStep) {
+        if let last = timeline.last,
+           last.title == step.title, last.detail == step.detail,
+           last.agent == step.agent, last.isDelegation == step.isDelegation {
+            return
+        }
+        timeline.append(step)
+    }
+
     /// Map a MetaOrchestrator event onto the same chat/activity state the Claude
     /// path uses, so the activity panel and transcript work identically.
     private func apply(_ event: MetaEvent, assistantIndex: Int) {
@@ -1189,25 +1202,34 @@ final class ChatViewModel {
             if role == orchName {
                 activeSubagent = nil
             } else {
+                let brief = task.trimmingCharacters(in: .whitespacesAndNewlines)
+                // The meta path can re-emit the SAME roleStarted marker several times for
+                // one worker (heartbeats / repeated delegation lines). Only record the
+                // delegation + "working" steps and narrate on the FIRST start of a given
+                // role+task — otherwise the timeline fills with identical rows all stamped
+                // at the same second, which reads as "stuck / repeating 3× / 9×".
+                let alreadyRunning = rolesInProgress.contains(role)
+                    && !brief.isEmpty && roleTasks[role] == brief
                 activeSubagent = role
                 rolesInProgress.insert(role)
                 roleModels[role] = model
-                let brief = task.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !brief.isEmpty { roleTasks[role] = brief }
                 if !agentsInvolved.contains(role) { agentsInvolved.append(role) }
-                activity.append("→ \(role)")
-                roleStartedAt[role] = Date()
-                // The step DETAIL now carries the assigned task, so the timeline shows
-                // what each agent is actually doing — not just that it was delegated to.
-                timeline.append(ActivityStep(title: role, detail: shortTask(brief) ?? model, at: Date(),
-                                             isDelegation: true, agent: nil))
-                // A step attributed to the AGENT itself, so its per-agent drill-down shows
-                // "working on …" the moment it starts — instead of staying empty for the
-                // minutes the one-shot CLI runs with no intermediate output.
-                timeline.append(ActivityStep(title: "role.working", detail: shortTask(brief) ?? model,
-                                             at: Date(), isDelegation: false, agent: role))
-                let taskSuffix = shortTask(brief).map { " — \($0)" } ?? ""
-                narrate("▸ \(role) · \(model)\(taskSuffix)…", assistantIndex: assistantIndex)
+                if !alreadyRunning {
+                    activity.append("→ \(role)")
+                    roleStartedAt[role] = Date()
+                    // The step DETAIL now carries the assigned task, so the timeline shows
+                    // what each agent is actually doing — not just that it was delegated to.
+                    timeline.append(ActivityStep(title: role, detail: shortTask(brief) ?? model, at: Date(),
+                                                 isDelegation: true, agent: nil))
+                    // A step attributed to the AGENT itself, so its per-agent drill-down shows
+                    // "working on …" the moment it starts — instead of staying empty for the
+                    // minutes the one-shot CLI runs with no intermediate output.
+                    timeline.append(ActivityStep(title: "role.working", detail: shortTask(brief) ?? model,
+                                                 at: Date(), isDelegation: false, agent: role))
+                    let taskSuffix = shortTask(brief).map { " — \($0)" } ?? ""
+                    narrate("▸ \(role) · \(model)\(taskSuffix)…", assistantIndex: assistantIndex)
+                }
             }
         case .roleFinished(let role, let tokens):
             // Exact per-agent + per-model attribution on the cross-provider path.
