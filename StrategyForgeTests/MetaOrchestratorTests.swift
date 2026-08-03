@@ -201,6 +201,7 @@ struct MetaOrchestratorRunTests {
                      onEvent: @escaping @Sendable (OneShotEvent) -> Void) async throws -> OneShotResult {
                 onEvent(.tool(name: "Read", detail: "App.swift"))
                 onEvent(.fileEdited("/tmp/out.md"))
+                onEvent(.progress("Summarising findings"))
                 return try await run(prompt: prompt, provider: provider, model: model, cwd: cwd)
             }
         }
@@ -217,6 +218,8 @@ struct MetaOrchestratorRunTests {
         #expect(box.events.contains(.roleFile(role: "researcher", path: "/tmp/out.md")))
         // The orchestrator (plan + synthesize) streamed too, attributed to it.
         #expect(box.events.contains(.roleActivity(role: "orchestrator", title: "Read", detail: "App.swift")))
+        // Raw-output progress surfaced as a rolling narration line for the role.
+        #expect(box.events.contains(.roleNarration(role: "researcher", text: "Summarising findings")))
     }
 
     @Test func soloTeamAnswersDirectly() async {
@@ -252,5 +255,28 @@ struct ProviderUsageEstimateTests {
     @Test func estimatedCostFallsBackForUnknownModel() {
         let cost = CLIOneShotRunner.estimatedCostUSD(tokens: 1_000_000, model: "some-codex-model")
         #expect(cost == Constants.CostModel.estimatedBlendedFallbackPerM)
+    }
+}
+
+/// The "summarize the important bit" cleaner for providers with no structured tool stream.
+struct ProgressLineTests {
+    @Test func stripsANSIAndKeepsTheText() {
+        let raw = "\u{1B}[32m✔\u{1B}[0m  Reading the repository structure"
+        #expect(CLIOneShotRunner.progressLine(raw) == "✔ Reading the repository structure")
+    }
+
+    @Test func dropsEmptySpinnerAndSymbolOnlyLines() {
+        #expect(CLIOneShotRunner.progressLine("") == nil)
+        #expect(CLIOneShotRunner.progressLine("   ") == nil)
+        #expect(CLIOneShotRunner.progressLine("⠋⠙⠹") == nil)             // spinner frames
+        #expect(CLIOneShotRunner.progressLine("────────────") == nil)     // box-drawing rule
+        #expect(CLIOneShotRunner.progressLine("esc to interrupt") == nil) // banner noise
+    }
+
+    @Test func collapsesWhitespaceAndTruncatesLongLines() {
+        let long = String(repeating: "analysing files ", count: 20)
+        let out = try? #require(CLIOneShotRunner.progressLine(long))
+        #expect((out?.count ?? 0) <= 141)
+        #expect(out?.hasSuffix("…") == true)
     }
 }

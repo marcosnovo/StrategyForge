@@ -20,6 +20,7 @@ enum MetaEvent: Sendable, Equatable {
     case phase(String)                                   // "plan" | "delegate" | "synthesize"
     case roleStarted(role: String, provider: AIProvider, model: String, task: String = "")
     case roleActivity(role: String, title: String, detail: String?)  // a live tool step by a role
+    case roleNarration(role: String, text: String)       // rolling "what it's doing now" (Codex/Gemini)
     case roleFile(role: String, path: String)            // a file a role wrote/edited (live)
     case roleFinished(role: String, tokens: Int)
     case roleFailed(role: String, message: String)       // one worker failed; others go on
@@ -168,6 +169,8 @@ struct MetaOrchestrator {
                     onEvent(.roleActivity(role: roleName, title: name, detail: detail))
                 case .fileEdited(let path):
                     onEvent(.roleFile(role: roleName, path: path))
+                case .progress(let text):
+                    onEvent(.roleNarration(role: roleName, text: text))
                 }
             }
         }

@@ -293,6 +293,10 @@ final class ChatViewModel {
     /// 2m 14s" — the one-shot CLIs don't stream, so this is the liveness signal that the
     /// team is alive (not hung) during the long, silent worker calls.
     var roleStartedAt: [String: Date] = [:]
+    /// Meta path: the latest cleaned line of a role's raw output (Codex/Gemini, which have
+    /// no structured tool stream) — a rolling "what it's doing right now" shown on the
+    /// active agent row so the run never reads as silent/frozen.
+    var roleLiveLine: [String: String] = [:]
     /// Meta path: a live, human-readable narration of what the team is doing, written
     /// into the assistant bubble as it happens (the one-shot legs don't token-stream,
     /// so without this the chat looks frozen until the final synthesis lands).
@@ -885,6 +889,7 @@ final class ChatViewModel {
         rolesInProgress = []
         roleTasks = [:]
         roleStartedAt = [:]
+        roleLiveLine = [:]
         pendingCommands = [:]
         turnStartedAt = Date()
         lastStreamPersist = .distantPast
@@ -1240,6 +1245,10 @@ final class ChatViewModel {
             if isOrch { activeSubagent = nil }
             appendStep(ActivityStep(title: title, detail: detail, at: Date(),
                                     isDelegation: false, agent: isOrch ? nil : role))
+        case .roleNarration(let role, let text):
+            // Rolling "what it's doing now" for a provider with no structured tool stream.
+            let key = (role == orchName) ? (orchName ?? role) : role
+            roleLiveLine[key] = text
         case .roleFile(let role, let path):
             if !editedFiles.contains(path) { editedFiles.append(path) }
             if !turnEditedFiles.contains(path) { turnEditedFiles.append(path) }
@@ -1256,6 +1265,7 @@ final class ChatViewModel {
             if role != orchName {
                 rolesInProgress.remove(role)
                 roleStartedAt[role] = nil
+                roleLiveLine[role] = nil
                 // Attribute a completed step to the agent so the panel marks it done.
                 timeline.append(ActivityStep(title: "role.done", detail: role, at: Date(),
                                              isDelegation: false, agent: role))
@@ -1266,6 +1276,7 @@ final class ChatViewModel {
             // mark this agent's narration line as failed so the UI isn't left "working".
             rolesInProgress.remove(role)
             roleStartedAt[role] = nil
+            roleLiveLine[role] = nil
             DiagnosticsLog.record("meta worker “\(role)” failed — \(message)")
             if let i = metaNarration.lastIndex(where: { $0.contains(role) && $0.hasPrefix("▸") }) {
                 metaNarration[i] = "⚠ \(role)"
@@ -1380,6 +1391,7 @@ final class ChatViewModel {
         let repo = workingDirectory()
         deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
+        roleLiveLine = [:]
         turnSkillsUsed = []
         turnEditedFiles = []
         rolesInProgress = []; roleTasks = [:]

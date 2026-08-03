@@ -76,6 +76,7 @@ enum OneShotError: Error, LocalizedError, Equatable {
 enum OneShotEvent: Sendable, Equatable {
     case tool(name: String, detail: String?)   // a tool the worker invoked (+ target)
     case fileEdited(String)                     // absolute path of a file it wrote/edited
+    case progress(String)                       // a cleaned line of raw output (Codex/Gemini)
 }
 
 /// A provider-agnostic single-shot completion. Injectable so the orchestrator can
@@ -184,32 +185,52 @@ struct CLIOneShotRunner: OneShotRunner {
     /// live elapsed timer still shows the call is alive).
     func run(prompt: String, provider: AIProvider, model: String, cwd: String?,
              onEvent: @escaping @Sendable (OneShotEvent) -> Void) async throws -> OneShotResult {
-        guard provider == .claude else {
-            return try await run(prompt: prompt, provider: provider, model: model, cwd: cwd)
-        }
         let configured = binaries[provider] ?? provider.binaryName
         guard let bin = Self.resolveBinary(configured, provider: provider) else {
             throw OneShotError.notInstalled(provider)
         }
-        var args = ["--output-format", "stream-json", "--verbose", "--permission-mode", permissionMode]
-        if readOnly { args.append(contentsOf: ["--disallowedTools", "Edit Write MultiEdit NotebookEdit"]) }
-        if !model.isEmpty { args.append(contentsOf: ["--model", model]) }
-        args.append(contentsOf: ["-p", prompt])
+        let apiKey = apiKeys[provider].flatMap { $0.isEmpty ? nil : $0 }
+
+        // Claude has a structured tool stream (stream-json); Codex/Gemini don't, so for
+        // those we stream their raw stdout and surface the latest meaningful line as a
+        // rolling "what it's doing now" (progress), still buffering the full answer.
+        let claudeStream = (provider == .claude)
+        let args: [String]
+        if claudeStream {
+            var a = ["--output-format", "stream-json", "--verbose", "--permission-mode", permissionMode]
+            if readOnly { a.append(contentsOf: ["--disallowedTools", "Edit Write MultiEdit NotebookEdit"]) }
+            if !model.isEmpty { a.append(contentsOf: ["--model", model]) }
+            a.append(contentsOf: ["-p", prompt])
+            args = a
+        } else {
+            args = Self.command(for: provider, prompt: prompt, model: model, permissionMode: permissionMode,
+                                reasoningEffort: reasoningEffort, hasAPIKey: apiKey != nil, readOnly: readOnly).args
+        }
+        var extraEnv: [String: String] = [:]
+        if provider == .openai, let apiKey { extraEnv["OPENAI_API_KEY"] = apiKey }
+        if provider == .gemini {
+            if let apiKey { extraEnv["GEMINI_API_KEY"] = apiKey }
+            else { extraEnv["GOOGLE_GENAI_USE_GCA"] = "true" }
+        }
 
         // Accumulate the answer + authoritative usage from the stream; the box is written
         // from the reader thread and read once the process exits.
         let acc = StreamAccumulator()
-        let (out, err, status) = try await Self.launch(bin: bin, args: args, cwd: cwd, extraEnv: [:]) { line in
-            for ev in ClaudeStreamParser.events(from: line) {
-                switch ev {
-                case .tool(let name, let detail): onEvent(.tool(name: name, detail: detail))
-                case .delegated(let sub):         onEvent(.tool(name: "Task", detail: sub))
-                case .skillUsed(let slug):        onEvent(.tool(name: "Skill", detail: slug))
-                case .fileEdited(let path):       onEvent(.fileEdited(path))
-                case .assistantText(let t):       acc.appendText(t)
-                case .usage(let tk, let cost):    acc.setUsage(tokens: tk, cost: cost)
-                default: break
+        let (out, err, status) = try await Self.launch(bin: bin, args: args, cwd: cwd, extraEnv: extraEnv) { line in
+            if claudeStream {
+                for ev in ClaudeStreamParser.events(from: line) {
+                    switch ev {
+                    case .tool(let name, let detail): onEvent(.tool(name: name, detail: detail))
+                    case .delegated(let sub):         onEvent(.tool(name: "Task", detail: sub))
+                    case .skillUsed(let slug):        onEvent(.tool(name: "Skill", detail: slug))
+                    case .fileEdited(let path):       onEvent(.fileEdited(path))
+                    case .assistantText(let t):       acc.appendText(t)
+                    case .usage(let tk, let cost):    acc.setUsage(tokens: tk, cost: cost)
+                    default: break
+                    }
                 }
+            } else if let clean = Self.progressLine(line) {
+                onEvent(.progress(clean))
             }
         }
         if status != 0 {
@@ -219,9 +240,38 @@ struct CLIOneShotRunner: OneShotRunner {
             }
             throw OneShotError.failed(msg.isEmpty ? "\(provider.displayName) exited with code \(status)" : msg)
         }
-        let snap = acc.snapshot()
-        return OneShotResult(text: snap.text, tokens: snap.tokens, costUSD: snap.cost,
-                             provider: .claude, model: model)
+        if claudeStream {
+            let snap = acc.snapshot()
+            return OneShotResult(text: snap.text, tokens: snap.tokens, costUSD: snap.cost,
+                                 provider: .claude, model: model)
+        }
+        // Codex/Gemini: plain text, no reported usage → estimate (flagged), same as `run`.
+        let cleanText = out.trimmingCharacters(in: .whitespacesAndNewlines)
+        let estTokens = estimateTokens(prompt: prompt, output: cleanText)
+        let estCost = Self.estimatedCostUSD(tokens: estTokens, model: model)
+        return OneShotResult(text: cleanText, tokens: estTokens, costUSD: estCost,
+                             provider: provider, model: model, estimated: true)
+    }
+
+    /// Turn one raw CLI stdout line into a short, human "what's happening now" — or nil to
+    /// skip it. Strips ANSI colour codes, drops empty / spinner / pure-symbol / banner
+    /// noise, collapses whitespace and truncates. This is the "summarize the important
+    /// bit" for providers with no structured tool stream (Codex/Gemini).
+    static func progressLine(_ raw: String) -> String? {
+        // Strip ANSI escape sequences (colours, cursor moves, spinners).
+        let noANSI = raw.replacingOccurrences(of: "\u{1B}\\[[0-9;?]*[A-Za-z]", with: "",
+                                              options: .regularExpression)
+        let collapsed = noANSI.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        let s = collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard s.count >= 4 else { return nil }
+        // Skip lines that are only symbols/box-drawing/spinner frames (no letters/digits).
+        let hasWord = s.range(of: "[\\p{L}\\p{N}]", options: .regularExpression) != nil
+        guard hasWord else { return nil }
+        // Drop obvious banner/noise lines.
+        let low = s.lowercased()
+        let noise = ["■", "▔", "────", "====", "thinking...", "loading", "esc to interrupt"]
+        if noise.contains(where: { low.contains($0) }) { return nil }
+        return s.count > 140 ? String(s.prefix(140)) + "…" : s
     }
 
     /// Thread-safe accumulator for the streamed answer text + final usage.

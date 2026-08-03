@@ -53,6 +53,8 @@ enum StrategyProgressReducer {
         case .roleActivity(let role, let title, let detail):
             // Live tool step — surface it as the contestant's latest narration line.
             p.lastNarration = detail.map { "\(role): \(title) \($0)" } ?? "\(role): \(title)"
+        case .roleNarration(let role, let text):
+            p.lastNarration = "\(role): \(text)"
         case .roleFile:
             break   // file edits don't change arena progress state
         case .roleFinished(let role, _):

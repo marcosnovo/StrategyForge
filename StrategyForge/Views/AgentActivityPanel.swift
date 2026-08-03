@@ -517,13 +517,15 @@ struct AgentActivityPanel: View {
             }
             agentRow(name: orchestratorName, icon: RoleKind.orchestrator.icon,
                      tint: RoleKind.orchestrator.tint, target: .orchestrator,
-                     objective: orchestratorObjective, status: orchestratorStatus, stats: agg.orch)
+                     objective: orchestratorObjective, status: orchestratorStatus, stats: agg.orch,
+                     liveLine: shownStrategy.orchestrator.flatMap { vm.roleLiveLine[$0.name] })
             ForEach(shownStrategy.subagentRoles) { role in
                 let name = titleCase(role.name)
                 let s = agg.subs[name] ?? (0, nil)
                 agentRow(name: name, icon: role.role.icon, tint: role.role.tint, target: .sub(name),
                          objective: objective(forSubagent: name, fallback: role.description),
-                         status: subagentStatus(name, hasWork: s.tools > 0), stats: s)
+                         status: subagentStatus(name, hasWork: s.tools > 0), stats: s,
+                         liveLine: vm.roleLiveLine[role.name])
             }
         }
     }
@@ -856,7 +858,7 @@ struct AgentActivityPanel: View {
 
     private func agentRow(name: String, icon: String, tint: Color, target: AgentFocus,
                           objective: String, status: AgentStatus,
-                          stats: (tools: Int, span: String?)) -> some View {
+                          stats: (tools: Int, span: String?), liveLine: String? = nil) -> some View {
         let isOpen = focus == target
         return Button {
             focus = isOpen ? nil : target
@@ -879,7 +881,19 @@ struct AgentActivityPanel: View {
                         .foregroundStyle(isOpen ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
                         .rotationEffect(.degrees(isOpen ? 90 : 0))
                 }
-                if !objective.isEmpty {
+                // While active, prefer the rolling live line (what it's doing RIGHT now,
+                // streamed from the raw output) over the static objective — so a Codex/
+                // Gemini worker with no structured tool stream still reads as alive.
+                if status == .active, let live = liveLine, !live.isEmpty {
+                    HStack(spacing: 5) {
+                        Image(systemName: "waveform").scaledFont(9).foregroundStyle(tint)
+                            .symbolEffect(.variableColor, options: .repeating)
+                        Text(live)
+                            .font(.system(size: 10)).foregroundStyle(Theme.secondaryOnMaterial)
+                            .lineLimit(2).truncationMode(.tail)
+                    }
+                    .padding(.leading, 16 + Space.s)
+                } else if !objective.isEmpty {
                     Text(objective)
                         .font(.system(size: 10)).foregroundStyle(Theme.secondaryOnMaterial)
                         .lineLimit(1).truncationMode(.tail)
