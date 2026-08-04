@@ -75,7 +75,8 @@ suscripciones** (Claude Code / Codex / Gemini — sin medición, sin cuenta), **
 - **Auto-mejora del equipo (RAI)** — deriva probes del uso real, corre la suite juzgada independientemente, y edita una palanca por ronda hasta converger; humano aprueba. *(Nadie auto-mejora el diseño del equipo con tu historial + juez cross-provider.)*
 - **Ship fino** (Vercel/Netlify/Cloudflare) sin ser PaaS. **BYO, sin cuenta, MIT.**
 - **"Trabajo repetido" visible** — detecta que un segundo agente rehace lo que otro ya hizo (misma herramienta+objetivo) y lo muestra en la trayectoria; los agentes reportan rutas descartadas/fallos (evidencia, no solo la conclusión). *(Hanako 2026.)*
-- **Puerta por blast-radius** — clasifica el diff (contenido→auto · amplio→gate · irreversible→nunca) y confirma antes de fusionar cambios irreversibles; la confianza del modelo NO cuenta. *(Eval Engineering 2026.)*
+- **Puerta por blast-radius** — clasifica el diff (contenido→auto · amplio→gate · irreversible→nunca); confirma antes de fusionar irreversibles en aislamiento **y bloquea el auto-merge del Loop** para irreversibles (aditivo; el `loop.sh` generado aún no). La confianza del modelo NO cuenta. *(Eval Engineering 2026.)*
+- **Vista de trayectoria "A vs B"** — columnas por agente con los pasos que un compañero rehízo resaltados ("REPETIDO") y "pagado dos veces". *(Hanako 2026.)*
 - **Panel de jueces multi-familia** para verificar el diff (promediar rompe el sesgo de familia) + se registra el juez/modelo usado.
 - **Memory como "verdad operativa"** — lo auto-cosechado entra como *pendiente de revisión*; solo lo revisado/pinned se inyecta a los agentes (gatekeeping humano). *(Replit 2026.)*
 
@@ -89,7 +90,7 @@ suscripciones** (Claude Code / Codex / Gemini — sin medición, sin cuenta), **
 | **P1** | **Transparencia app-wide:** que ninguna operación larga parezca congelada (progreso en vivo en todo) | Máxima del founder: "si parece bloqueado, nadie lo usa". ✅ barrido hecho (chat, evals/RAI, map, verify, ship, usage). |
 | **P1** | **Riesgo macro:** absorción por 1ª parte (app de Claude Code con sesiones paralelas) | Respuesta = cross-provider + abierto + verificador + RAI (lo que un mono-vendor no puede). |
 | **P2** | **Paridad:** memoria dos niveles (User+Org, como Factory); sandboxing por-agente (Conductor NO lo tiene → oportunidad) | Cierra brechas donde Factory nos iguala. |
-| **P2** | **Aplicar el blast-radius al auto-merge del Loop** (hoy solo en aislamiento manual) | El loop-engine está protegido; llevar el gate al auto-merge cierra el círculo "merge sin humano pero con freno". |
+| **P2** | **Blast-radius en el `loop.sh` generado** (el auto-merge in-app ya lo tiene) | El script ships a otros repos; necesita una versión bash diseñada por humano. |
 
 ---
 
