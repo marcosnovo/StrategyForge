@@ -39,7 +39,9 @@ enum StateFileParser {
                     kind: kind, title: title, body: body,
                     tags: repoName.isEmpty ? [] : [repoName],
                     repoScope: repo.isEmpty ? nil : repo,
-                    source: LearningSource(origin: .stateFile, detail: repo)))
+                    source: LearningSource(origin: .stateFile, detail: repo),
+                    // Auto-harvested → enters the corpus as PENDING REVIEW, not canonical.
+                    reviewed: false))
             }
             buffer = []
         }

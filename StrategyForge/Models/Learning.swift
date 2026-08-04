@@ -69,11 +69,16 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
     var timesApplied: Int
     /// Pinned learnings always sort first and are always eligible for injection.
     var pinned: Bool
+    /// Human-reviewed = canonical (the "operational truth layer": knowledge enters the corpus
+    /// through review, not auto-save). Only reviewed (or pinned / manual) learnings are injected
+    /// into agents — auto-harvested ones wait as "pending" until a human approves them, so a
+    /// wrong lesson can't silently compound across every future run. Manual entries are trusted.
+    var reviewed: Bool
 
     init(id: UUID = UUID(), kind: LearningKind, title: String, body: String = "",
          tags: [String] = [], repoScope: String? = nil,
          source: LearningSource, createdAt: Date = Date(), updatedAt: Date? = nil,
-         timesApplied: Int = 0, pinned: Bool = false) {
+         timesApplied: Int = 0, pinned: Bool = false, reviewed: Bool = true) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -85,12 +90,13 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
         self.updatedAt = updatedAt ?? createdAt
         self.timesApplied = timesApplied
         self.pinned = pinned
+        self.reviewed = reviewed
     }
 
     // Tolerant decode so older saved data (without newer keys) still loads — the same
     // per-field `decodeIfPresent ?? default` idiom as AppSettings.
     private enum CodingKeys: String, CodingKey {
-        case id, kind, title, body, tags, repoScope, source, createdAt, updatedAt, timesApplied, pinned
+        case id, kind, title, body, tags, repoScope, source, createdAt, updatedAt, timesApplied, pinned, reviewed
     }
 
     init(from decoder: Decoder) throws {
@@ -107,6 +113,9 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
         timesApplied = try c.decodeIfPresent(Int.self, forKey: .timesApplied) ?? 0
         pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+        // Grandfather entries saved before review existed → treated as reviewed (don't silently
+        // drop knowledge the user already relied on).
+        reviewed = try c.decodeIfPresent(Bool.self, forKey: .reviewed) ?? true
     }
 
     /// Dedupe identity: same kind + same normalized title + same scope is "the same

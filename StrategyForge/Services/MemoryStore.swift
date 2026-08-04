@@ -86,6 +86,18 @@ final class MemoryStore {
         save()
     }
 
+    /// Promote a pending (auto-harvested) learning to canonical — the human gatekeeping step
+    /// that lets it be injected into agents. Only after this does the knowledge become "truth".
+    func approve(_ id: Learning.ID) {
+        guard let i = learnings.firstIndex(where: { $0.id == id }), !learnings[i].reviewed else { return }
+        learnings[i].reviewed = true
+        learnings[i].updatedAt = Date()
+        save()
+    }
+
+    /// Auto-harvested learnings still awaiting human review (not yet canonical).
+    var pendingReviewCount: Int { learnings.filter { !$0.reviewed && !$0.pinned }.count }
+
     /// Bump timesApplied after these learnings were injected into a generated file.
     func markApplied(ids: [Learning.ID]) {
         guard !ids.isEmpty else { return }
@@ -101,8 +113,12 @@ final class MemoryStore {
     /// The relevant-learnings markdown block for a run's context (repo + task), ready to
     /// inject into a generated CLAUDE.md / LOOP.md. Empty when nothing applies.
     func digest(repoPath: String?, task: String?, limit: Int = 6) -> String {
+        // Only CANONICAL knowledge is injected into agents: reviewed (or pinned) entries. A
+        // pending auto-harvested lesson could be wrong; injecting it would compound the error
+        // across every run (Replit's "operational truth layer" — enter through review).
+        let canonical = learnings.filter { $0.reviewed || $0.pinned }
         let picked = MemorySelector.topN(
-            learnings, context: MemoryContext(repoPath: repoPath, language: nil, taskText: task), limit: limit)
+            canonical, context: MemoryContext(repoPath: repoPath, language: nil, taskText: task), limit: limit)
         return MemoryDigest.render(picked)
     }
 

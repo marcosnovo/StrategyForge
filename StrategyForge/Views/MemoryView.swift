@@ -106,6 +106,19 @@ struct MemoryView: View {
                          .background(Circle().fill(Theme.accentSoft.opacity(0.6)))
                  },
                  trailing: {
+                     // Auto-harvested + not yet approved → PENDING: not injected into agents
+                     // until a human promotes it. One tap approves (human gatekeeping).
+                     if !learning.reviewed && !learning.pinned {
+                         Button { store.approve(learning.id) } label: {
+                             Label(model.t("memory.approve"), systemImage: "checkmark.seal")
+                                 .labelStyle(.titleAndIcon).font(.sfCaption2.weight(.medium))
+                                 .foregroundStyle(Theme.warning)
+                                 .padding(.horizontal, 6).padding(.vertical, 1)
+                                 .background(Capsule().fill(Theme.warning.opacity(0.14)))
+                         }
+                         .buttonStyle(.plain)
+                         .help(model.t("memory.pending.help"))
+                     }
                      if learning.pinned {
                          Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(Theme.accent)
                      }

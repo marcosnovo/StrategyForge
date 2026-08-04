@@ -40,6 +40,24 @@ struct MemoryStoreTests {
         Learning(kind: kind, title: title, tags: tags, source: LearningSource(origin: .manual), pinned: pinned)
     }
 
+    @Test func pendingLearningsAreNotInjectedUntilApproved() throws {
+        try withTempDir { dir in
+            let store = MemoryStore(storeDirectory: dir)
+            // An auto-harvested learning (reviewed:false) about a specific repo/topic.
+            let harvested = Learning(kind: .mistake, title: "Do not regenerate fixtures",
+                                     tags: ["swift"], repoScope: "/repo",
+                                     source: LearningSource(origin: .stateFile), reviewed: false)
+            let id = store.add(harvested)
+            #expect(store.pendingReviewCount == 1)
+            // Pending → excluded from the digest injected into agents.
+            #expect(store.digest(repoPath: "/repo", task: "fixtures").isEmpty)
+            // Approve (human gatekeeping) → now canonical and injectable.
+            store.approve(id)
+            #expect(store.pendingReviewCount == 0)
+            #expect(store.digest(repoPath: "/repo", task: "fixtures").contains("regenerate fixtures"))
+        }
+    }
+
     @Test func roundTripsThroughDisk() throws {
         try withTempDir { dir in
             let store = MemoryStore(storeDirectory: dir)
