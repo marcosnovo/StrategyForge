@@ -37,21 +37,79 @@ struct SidebarView: View {
     @State private var renamingID: Configuration.ID?
     @State private var renameText = ""
 
-    /// Chats sorted newest-first, filtered by the search field.
+    // Filter / group / sort controls for the chat list (persisted). Mirror the reference:
+    // Status, Provider ("Entorno"), Group by, Sort by.
+    @AppStorage("chat.groupBy") private var groupBy = "date"        // date | folder | state | none
+    @AppStorage("chat.sortBy") private var sortBy = "recency"       // recency | name | oldest
+    @AppStorage("chat.status") private var statusFilter = "all"     // all | active
+    @AppStorage("chat.provider") private var providerFilter = "all" // all | claude | openai | gemini
+
+    /// Is a chat "active"? Running, needs attention, or has a real conversation — vs an empty
+    /// brand-new placeholder. Drives the Status filter.
+    private func isActive(_ c: Configuration) -> Bool {
+        model.runningChatIDs.contains(c.id) || model.attentionChatIDs.contains(c.id) || !c.transcript.isEmpty
+    }
+
+    /// Chats after the Status + Provider filters and the chosen Sort, then the search field.
     private var visibleConfigs: [Configuration] {
-        let sorted = model.configurations.sorted { $0.recency > $1.recency }
+        var list = model.configurations
+        if statusFilter == "active" { list = list.filter(isActive) }
+        if providerFilter != "all" { list = list.filter { $0.provider.rawValue == providerFilter } }
+        switch sortBy {
+        case "name":   list.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case "oldest": list.sort { $0.recency < $1.recency }
+        default:       list.sort { $0.recency > $1.recency }   // recency, newest first
+        }
         let q = debouncedQuery.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return sorted }
-        // The transcript scan is the costly part (many chats × long histories); it
-        // runs once per debounced query in the search task, so here — inside a body
-        // computed property that re-evaluates on every invalidation — the deep match
-        // is just a dictionary lookup.
-        return sorted.filter {
+        guard !q.isEmpty else { return list }
+        // The transcript scan is the costly part; it runs once per debounced query in the search
+        // task, so here the deep match is just a dictionary lookup.
+        return list.filter {
             $0.name.lowercased().contains(q)
             || ($0.repoPath ?? "").lowercased().contains(q)
             || model.strategyDisplayName($0.strategy).lowercased().contains(q)
             || deepMatches?[$0.id] != nil
         }
+    }
+
+    /// `visibleConfigs` grouped into titled sections per the Group-by choice, keeping each
+    /// section in the current sort order.
+    private var sections: [(id: String, title: String, items: [Configuration])] {
+        let items = visibleConfigs
+        switch groupBy {
+        case "folder":
+            return grouped(items, key: { $0.repoPath.map { ($0 as NSString).lastPathComponent } ?? model.t("chat.group.noRepo") })
+        case "state":
+            return grouped(items, key: {
+                if model.runningChatIDs.contains($0.id) { return model.t("chat.group.running") }
+                return isActive($0) ? model.t("chat.group.active") : model.t("chat.group.new")
+            })
+        default: // date
+            return grouped(items, key: { dateBucket($0.recency) })
+        }
+    }
+
+    /// Group preserving first-seen order of both the buckets and their items.
+    private func grouped(_ items: [Configuration], key: (Configuration) -> String)
+        -> [(id: String, title: String, items: [Configuration])] {
+        var order: [String] = []
+        var buckets: [String: [Configuration]] = [:]
+        for c in items {
+            let k = key(c)
+            if buckets[k] == nil { buckets[k] = []; order.append(k) }
+            buckets[k]!.append(c)
+        }
+        return order.map { (id: $0, title: $0, items: buckets[$0] ?? []) }
+    }
+
+    /// Coarse date bucket for the Date grouping (Today / Yesterday / This week / This month / Older).
+    private func dateBucket(_ date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return model.t("chat.group.today") }
+        if cal.isDateInYesterday(date) { return model.t("chat.group.yesterday") }
+        if let week = cal.dateInterval(of: .weekOfYear, for: Date()), week.contains(date) { return model.t("chat.group.thisWeek") }
+        if let month = cal.dateInterval(of: .month, for: Date()), month.contains(date) { return model.t("chat.group.thisMonth") }
+        return model.t("chat.group.older")
     }
 
     /// True only when the chat list actually spans more than one AI provider — then a
@@ -77,43 +135,19 @@ struct SidebarView: View {
             // selection, and its hover is invisible. Selection is driven by tap so our
             // `.selectedRow` (coral wash + hairline + spine) and `.hoverTint` are the cues.
             ScrollView {
-                LazyVStack(spacing: 5) {   // room to breathe — the list was too cramped
-                    ForEach(visibleConfigs) { config in
-                        chatRow(config)
-                            .selectedRow(model.selectedConfigID == config.id, cornerRadius: Theme.rowCorner)
-                            .hoverTint(cornerRadius: Theme.rowCorner)
-                            .contentShape(Rectangle())
-                            .onTapGesture { model.selectedConfigID = config.id }
-                            // VoiceOver: one focusable button per chat, carrying its selected
-                            // state and a live "running / loop running" value.
-                            .accessibilityElement(children: .combine)
-                            .accessibilityAddTraits(model.selectedConfigID == config.id
-                                                    ? [.isButton, .isSelected] : .isButton)
-                            .accessibilityLabel(config.name.isEmpty ? model.t("chat.untitled") : config.name)
-                            .accessibilityValue(rowAccessibilityValue(config))
-                            .contextMenu {
-                                Button(model.t("sidebar.rename")) { beginRename(config) }
-                                Button(model.t("config.duplicate")) { model.duplicateConfiguration(config.id) }
-                                Button(model.t("doc.export")) { model.exportStrategyDocument(config) }
-                                if config.repoPath != nil {
-                                    Button(model.t("config.regenerate")) {
-                                        // Same overwrite gate as the editor's Generate button —
-                                        // a context-menu click must not silently clobber agent
-                                        // files the user edited by hand.
-                                        let conflicts = model.overwriteConflicts(for: config)
-                                        if conflicts.isEmpty {
-                                            model.generate(config)
-                                        } else {
-                                            regenerateConflicts = conflicts
-                                            pendingRegenerate = config.id
-                                        }
-                                    }
-                                }
-                                Divider()
-                                Button(model.t("sidebar.delete"), role: .destructive) {
-                                    pendingDelete = config.id
-                                }
+                LazyVStack(spacing: 5, pinnedViews: [.sectionHeaders]) {   // room to breathe
+                    // Grouped into sections (Date / Folder / State) unless a search is active or
+                    // grouping is off — then it's the flat, sorted list.
+                    if groupBy == "none" || !debouncedQuery.isEmpty {
+                        ForEach(visibleConfigs) { decoratedRow($0) }
+                    } else {
+                        ForEach(sections, id: \.id) { sec in
+                            Section {
+                                ForEach(sec.items) { decoratedRow($0) }
+                            } header: {
+                                sectionHeader(sec.title)
                             }
+                        }
                     }
                     if model.configurations.isEmpty {
                         // The native, premium empty state (used consistently app-wide now).
@@ -243,6 +277,44 @@ struct SidebarView: View {
             }.value
             if !Task.isCancelled { deepMatches = matches; debouncedQuery = new }
         }
+    }
+
+    /// A chat row with its selection/hover/tap/a11y/context-menu chrome — the single place
+    /// rows are decorated, reused by both the flat and the grouped renderers.
+    @ViewBuilder private func decoratedRow(_ config: Configuration) -> some View {
+        chatRow(config)
+            .selectedRow(model.selectedConfigID == config.id, cornerRadius: Theme.rowCorner)
+            .hoverTint(cornerRadius: Theme.rowCorner)
+            .contentShape(Rectangle())
+            .onTapGesture { model.selectedConfigID = config.id }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(model.selectedConfigID == config.id ? [.isButton, .isSelected] : .isButton)
+            .accessibilityLabel(config.name.isEmpty ? model.t("chat.untitled") : config.name)
+            .accessibilityValue(rowAccessibilityValue(config))
+            .contextMenu {
+                Button(model.t("sidebar.rename")) { beginRename(config) }
+                Button(model.t("config.duplicate")) { model.duplicateConfiguration(config.id) }
+                Button(model.t("doc.export")) { model.exportStrategyDocument(config) }
+                if config.repoPath != nil {
+                    Button(model.t("config.regenerate")) {
+                        let conflicts = model.overwriteConflicts(for: config)
+                        if conflicts.isEmpty { model.generate(config) }
+                        else { regenerateConflicts = conflicts; pendingRegenerate = config.id }
+                    }
+                }
+                Divider()
+                Button(model.t("sidebar.delete"), role: .destructive) { pendingDelete = config.id }
+            }
+    }
+
+    /// A pinned group header (Today / a repo name / Running …).
+    private func sectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title).font(.sfFieldLabel).foregroundStyle(Theme.tertiaryOnMaterial).textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.horizontal, Space.s).padding(.top, Space.s).padding(.bottom, 2)
+        .background(.bar)
     }
 
     /// A conversation row: a rounded strategy-diagram avatar, the chat title, a
@@ -417,6 +489,7 @@ struct SidebarView: View {
         HStack(spacing: Space.s) {
             Text(model.t("sidebar.chats")).font(.sfCardTitle).foregroundStyle(Theme.ink)
             Spacer(minLength: Space.xs)
+            filterMenu
             Menu {
                 Button(model.t("import.repo")) { model.importFromRepo() }
                 Button(model.t("doc.import")) { model.importStrategyDocument() }
@@ -438,6 +511,39 @@ struct SidebarView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         // No opaque fill — the frosted column reads through the header (Aetheris).
         .zoomWindowOnDoubleClick()
+    }
+
+    /// Filter / group / sort control (the sliders icon) — Status, Provider, Group by, Sort by.
+    /// A filled icon signals a non-default filter is active.
+    private var filterMenu: some View {
+        let filtering = statusFilter != "all" || providerFilter != "all"
+        return Menu {
+            Picker(model.t("chat.filter.status"), selection: $statusFilter) {
+                Text(model.t("chat.filter.status.all")).tag("all")
+                Text(model.t("chat.filter.status.active")).tag("active")
+            }
+            Picker(model.t("chat.filter.provider"), selection: $providerFilter) {
+                Text(model.t("chat.filter.provider.all")).tag("all")
+                ForEach(AIProvider.allCases) { p in Text(p.displayName).tag(p.rawValue) }
+            }
+            Divider()
+            Picker(model.t("chat.groupBy"), selection: $groupBy) {
+                Text(model.t("chat.group.date")).tag("date")
+                Text(model.t("chat.group.folder")).tag("folder")
+                Text(model.t("chat.group.state")).tag("state")
+                Text(model.t("chat.group.none")).tag("none")
+            }
+            Picker(model.t("chat.sortBy"), selection: $sortBy) {
+                Text(model.t("chat.sort.recency")).tag("recency")
+                Text(model.t("chat.sort.name")).tag("name")
+                Text(model.t("chat.sort.oldest")).tag("oldest")
+            }
+        } label: {
+            Image(systemName: filtering ? "line.3.horizontal.decrease.circle.fill"
+                                        : "line.3.horizontal.decrease.circle")
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .help(model.t("chat.filter.help"))
     }
 
 }
