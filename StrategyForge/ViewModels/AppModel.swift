@@ -1946,6 +1946,12 @@ final class AppModel {
         return list.filter { FileManager.default.fileExists(atPath: $0) && seen.insert($0).inserted }
     }
 
+    /// Session cache of the user's GitHub repos, so entering Code doesn't re-run `gh` every
+    /// time (a slow subprocess that made the section switch feel laggy). Refreshed only when
+    /// empty or stale; survives view recreation because it lives on the model, not @State.
+    var cachedGitHubRepos: [GitHubCLI.RepoRef] = []
+    @ObservationIgnored var gitHubReposLoadedAt: Date?
+
     /// Create a brand-new GitHub repo and open it in Code Mode — no trip to
     /// github.com and back.
     func createAndOpenGitHubRepo(name: String, isPrivate: Bool) async {

@@ -560,26 +560,26 @@ private struct SpotlightBeam: View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             ZStack {
-                // The cone: narrow at the lamp (right edge), widening onto the icon (leftward).
+                // The cone: narrow at the lamp (left edge), widening onto the icon (rightward).
                 Path { p in
-                    p.move(to: CGPoint(x: w, y: h * 0.5 - 4))
-                    p.addLine(to: CGPoint(x: w, y: h * 0.5 + 4))
-                    p.addLine(to: CGPoint(x: 0, y: h * 0.85))
-                    p.addLine(to: CGPoint(x: 0, y: h * 0.15))
+                    p.move(to: CGPoint(x: 0, y: h * 0.5 - 4))
+                    p.addLine(to: CGPoint(x: 0, y: h * 0.5 + 4))
+                    p.addLine(to: CGPoint(x: w, y: h * 0.85))
+                    p.addLine(to: CGPoint(x: w, y: h * 0.15))
                     p.closeSubpath()
                 }
                 .fill(LinearGradient(colors: [tint.opacity(0.42), tint.opacity(0.04)],
-                                     startPoint: .trailing, endPoint: .leading))
+                                     startPoint: .leading, endPoint: .trailing))
                 .blur(radius: 3)
-                // Pool of light where the icon sits (a touch left of centre).
+                // Pool of light where the icon sits (a touch right of centre).
                 Ellipse().fill(tint.opacity(0.20))
                     .frame(width: w * 0.6, height: h * 0.6)
-                    .position(x: w * 0.42, y: h * 0.5)
+                    .position(x: w * 0.58, y: h * 0.5)
                     .blur(radius: 6)
-                // The lamp cap on the trailing edge.
+                // The lamp cap on the leading edge.
                 Capsule().fill(tint.opacity(0.9))
                     .frame(width: 3, height: 12)
-                    .position(x: w - 1, y: h * 0.5)
+                    .position(x: 1, y: h * 0.5)
                     .shadow(color: tint.opacity(0.6), radius: 3)
             }
         }

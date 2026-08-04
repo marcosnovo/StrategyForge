@@ -196,10 +196,19 @@ struct CodeLauncherView: View {
     }
 
     private func loadRepos() async {
-        guard ghRepos.isEmpty, !loadingRepos else { return }
+        // Show the cached list INSTANTLY (so the section switch never waits on `gh`), and only
+        // hit the network when the cache is empty or stale (>10 min). This is why entering Code
+        // no longer re-runs `gh` every time — the list lives on the model, not @State.
+        if !model.cachedGitHubRepos.isEmpty { ghRepos = model.cachedGitHubRepos }
+        let fresh = model.gitHubReposLoadedAt.map { Date().timeIntervalSince($0) < 600 } ?? false
+        if fresh || loadingRepos { return }
         loadingRepos = true
-        ghRepos = await GitHubCLI.listRepos()
+        let fetched = await GitHubCLI.listRepos()
         loadingRepos = false
+        guard !fetched.isEmpty else { return }
+        ghRepos = fetched
+        model.cachedGitHubRepos = fetched
+        model.gitHubReposLoadedAt = Date()
     }
 
     // MARK: Hero
