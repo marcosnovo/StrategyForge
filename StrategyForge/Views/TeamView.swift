@@ -144,13 +144,17 @@ struct TeamView: View {
 
                     connectionNote
 
+                    // Cost lens: which spend buys thinking (nodes) vs routing/fan-out (edges).
+                    costLensCard
+                        .staggeredAppear(index: strategy.subagentRoles.count + 2)
+
                     // Evals: measure the team against a scenario suite before trusting it.
                     EvalsView(strategy: $team.strategy)
-                        .staggeredAppear(index: strategy.subagentRoles.count + 2)
+                        .staggeredAppear(index: strategy.subagentRoles.count + 3)
 
                     // Tool unit tests: deterministic tool checks, no model in the loop.
                     ToolChecksView(strategy: $team.strategy)
-                        .staggeredAppear(index: strategy.subagentRoles.count + 3)
+                        .staggeredAppear(index: strategy.subagentRoles.count + 4)
                 }
                 .padding(Space.xl)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -275,6 +279,50 @@ struct TeamView: View {
         Label(model.t("team.flow.note"), systemImage: "arrow.triangle.branch")
             .font(.sfCaption2).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// The node/edge cost lens: how many model calls (nodes) this team makes per turn, and the
+    /// avoidable "edge" spend (routing/fan-out overhead) with an estimated saving — so a team is
+    /// designed to spend on thinking, not on transport ("edges are free").
+    private var costLensCard: some View {
+        let report = GraphCostLens.analyze(strategy)
+        return VStack(alignment: .leading, spacing: Space.s) {
+            SectionHeader("circle.hexagongrid", model.t("lens.title"), subtitle: model.t("lens.subtitle"))
+            HStack(spacing: Space.m) {
+                Label(model.t("lens.nodes", report.modelCalls), systemImage: "point.3.filled.connected.trianglepath.dotted")
+                    .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+                if report.estSavingUSD > 0 {
+                    Label(model.t("lens.saving", String(format: "~$%.2f", report.estSavingUSD)), systemImage: "scissors")
+                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.success)
+                }
+                Spacer()
+            }
+            if report.findings.isEmpty {
+                Label(model.t("lens.clean"), systemImage: "checkmark.seal")
+                    .font(.sfCaption2).foregroundStyle(Theme.success)
+            } else {
+                ForEach(report.findings) { f in
+                    HStack(alignment: .top, spacing: Space.s) {
+                        Image(systemName: "arrow.right.circle").scaledFont(10).foregroundStyle(Theme.warning).padding(.top, 1)
+                        Text(lensFindingText(f)).font(.sfCaption2).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+        .card()
+    }
+
+    private func lensFindingText(_ f: GraphCostLens.Finding) -> String {
+        switch f {
+        case .singleWorkerOverhead(let s):
+            return model.t("lens.finding.singleWorker", String(format: "~$%.2f", s))
+        case .fanoutOnFrontier(let role, let n, let s):
+            return model.t("lens.finding.fanout", role, n, String(format: "~$%.2f", s))
+        case .excessiveFanout(let role, let n):
+            return model.t("lens.finding.excess", role, n)
+        }
     }
 
     // MARK: - Agent card
