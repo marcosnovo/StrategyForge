@@ -353,6 +353,9 @@ final class ChatViewModel {
     /// indicators and finish banners work even when this chat isn't on screen.
     @ObservationIgnored var onRunningChanged: ((Bool) -> Void)?
     var errorText: String?
+    /// A provider whose saved login looks expired (detected mid-run) — the UI shows a
+    /// one-tap "Reconnect" banner so a stale session self-heals instead of hanging.
+    var needsReauth: AIProvider?
     /// Running token total + cost for this chat, grows per turn.
     var totalTokens = 0
     var totalCostUSD = 0.0
@@ -1257,6 +1260,10 @@ final class ChatViewModel {
             if isOrch { activeSubagent = nil }
             appendStep(ActivityStep(title: title, detail: detail, at: Date(),
                                     isDelegation: false, agent: isOrch ? nil : role))
+        case .authRequired(let provider):
+            // A provider's login is stale — surface a one-tap Reconnect (the run fails fast
+            // rather than hanging on a prompt no one can answer).
+            needsReauth = provider
         case .roleNarration(let role, let text):
             // Rolling "what it's doing now" for a provider with no structured tool stream.
             let key = (role == orchName) ? (orchName ?? role) : role
@@ -1411,7 +1418,7 @@ final class ChatViewModel {
             : lastPromptText
         guard !isRunning, !prompt.isEmpty else { return }
         let repo = workingDirectory()
-        deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
+        deniedTools = []; errorText = nil; needsReauth = nil; activity = []; activeSubagent = nil
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
         roleLiveLine = [:]; rolesRunning = [:]
         turnSkillsUsed = []

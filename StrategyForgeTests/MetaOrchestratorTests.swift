@@ -222,6 +222,31 @@ struct MetaOrchestratorRunTests {
         #expect(box.events.contains(.roleNarration(role: "researcher", text: "Summarising findings")))
     }
 
+    @Test func staleLoginSurfacesAuthRequiredForThatProvider() async {
+        // A worker whose provider login is stale throws .authRequired → the run must emit
+        // MetaEvent.authRequired(that provider) so the UI can offer a one-tap Reconnect,
+        // instead of the whole run reading as an anonymous failure.
+        final class AuthFailRunner: OneShotRunner, @unchecked Sendable {
+            func run(prompt: String, provider: AIProvider, model: String, cwd: String?) async throws -> OneShotResult {
+                if prompt.contains("JSON array") {
+                    return OneShotResult(text: #"[{"role":"researcher","task":"dig"}]"#, tokens: 1, costUSD: 0, provider: provider, model: model)
+                }
+                if provider == .gemini { throw OneShotError.authRequired(.gemini) }
+                return OneShotResult(text: "ok", tokens: 1, costUSD: 0, provider: provider, model: model)
+            }
+        }
+        let orch = AgentRole(name: "orchestrator", role: .orchestrator, model: .opus48,
+                             systemPrompt: "", description: "Lead", count: 1, isOrchestrator: true)
+        var researcher = AgentRole(name: "researcher", role: .researcher, model: .haiku45,
+                                   systemPrompt: "", description: "Investigate", count: 1)
+        researcher.provider = .gemini
+        researcher.providerModelID = "gemini-flash"
+        let strategy = Strategy(name: "T", description: "", roles: [orch, researcher], orchestrationNotes: "")
+        let box = EventBox()
+        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: AuthFailRunner()) { box.append($0) }
+        #expect(box.events.contains(.authRequired(.gemini)))
+    }
+
     @Test func soloTeamAnswersDirectly() async {
         let orch = AgentRole(name: "solo", role: .orchestrator, model: .opus48,
                              systemPrompt: "", description: "", count: 1, isOrchestrator: true)
@@ -278,5 +303,20 @@ struct ProgressLineTests {
         let out = try? #require(CLIOneShotRunner.progressLine(long))
         #expect((out?.count ?? 0) <= 141)
         #expect(out?.hasSuffix("…") == true)
+    }
+
+    @Test func detectsInteractiveAuthPrompts() {
+        // These block the run waiting for input no one can give → must fail fast.
+        #expect(CLIOneShotRunner.isAuthPrompt("Opening authentication page in your browser."))
+        #expect(CLIOneShotRunner.isAuthPrompt("Do you want to continue? [Y/n]"))
+        #expect(CLIOneShotRunner.isAuthPrompt("Please set an auth method"))
+        // Ordinary model output must NOT trip it.
+        #expect(!CLIOneShotRunner.isAuthPrompt("Here are five steps to research the repo."))
+        #expect(!CLIOneShotRunner.isAuthPrompt("Reading package.json"))
+    }
+
+    @Test func stripsANSIFromTerminalOutput() {
+        #expect(CLIOneShotRunner.stripANSI("\u{1B}[32mgreen\u{1B}[0m text") == "green text")
+        #expect(CLIOneShotRunner.stripANSI("plain") == "plain")
     }
 }

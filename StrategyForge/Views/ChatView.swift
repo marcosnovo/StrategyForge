@@ -49,6 +49,9 @@ struct ChatView: View {
     @State private var repoSuggestDismissed = false
     /// Drives the "reconnect & retry" sheet when a turn fails with an auth error.
     @State private var reconnecting = false
+    /// The specific provider being reconnected from the mid-run "needs re-login" banner
+    /// (may be a worker's provider, e.g. Gemini — not necessarily the chat's own).
+    @State private var reconnectingProvider: AIProvider?
     /// Code mode: a developer workspace (files/diffs) instead of plain chat.
     @State private var codeMode = false
     /// Token Saver: tips dismissed in this chat session, plus the transient
@@ -290,6 +293,7 @@ struct ChatView: View {
             // STATE strips keep their tinted treatment — these are things to resolve, not
             // suggestions. Color is reserved for state (design review, wave B).
             if engineMissing { engineMissingCard }
+            if let p = vm.needsReauth { reauthBanner(p) }
             if vm.mixedProvidersNote { mixedProvidersStrip }
             if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
             if !vm.editedFiles.isEmpty { changedFilesStrip }
@@ -1452,6 +1456,36 @@ struct ChatView: View {
         let e = error.lowercased()
         return e.contains("401") || e.contains("authenticate") || e.contains("credentials")
             || e.contains("sign in") || e.contains("log in") || e.contains("unauthorized")
+    }
+
+    /// Mid-run "a provider's login went stale" → a one-tap Reconnect (in-app sign-in),
+    /// then auto-retry the same turn. This is what turns a silent freeze into a self-heal.
+    private func reauthBanner(_ provider: AIProvider) -> some View {
+        HStack(spacing: Space.s) {
+            Label(model.t("chat.reauth.needed", provider.displayName),
+                  systemImage: "person.crop.circle.badge.exclamationmark")
+                .font(.sfCaption2).foregroundStyle(Theme.warningText)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button { reconnectingProvider = provider } label: {
+                Label(model.t("chat.reconnect", provider.displayName), systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.moon).controlSize(.small)
+            Button { vm.needsReauth = nil } label: {
+                Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+            }
+            .buttonStyle(.plain).foregroundStyle(.secondary)
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.warning.opacity(0.12))
+        // Reconnect the SPECIFIC provider (worker or orchestrator) then re-run the turn.
+        .sheet(item: $reconnectingProvider) { p in
+            ProviderConnectSheet(provider: p) {
+                vm.needsReauth = nil
+                vm.retryAllowingAll()
+            }
+        }
     }
 
     private func errorBanner(_ error: String) -> some View {

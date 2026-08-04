@@ -24,6 +24,7 @@ enum MetaEvent: Sendable, Equatable {
     case roleFile(role: String, path: String)            // a file a role wrote/edited (live)
     case roleFinished(role: String, tokens: Int)
     case roleFailed(role: String, message: String)       // one worker failed; others go on
+    case authRequired(AIProvider)                        // a provider needs re-login (fail fast, offer Reconnect)
     case assistantText(String)                           // the final synthesized answer
     case usage(tokens: Int, costUSD: Double, estimated: Bool = false)  // totals across every call
     case failed(String)
@@ -142,6 +143,7 @@ struct MetaOrchestrator {
             return try await runner.run(prompt: prompt, provider: provider, model: model, cwd: cwd)
         } catch let e as OneShotError {
             if case .notInstalled = e { throw e }   // already actionable
+            if case .authRequired = e { throw e }   // keep typed → UI offers Reconnect
             let modelLabel = model.isEmpty ? "default model" : model
             throw OneShotError.failed("“\(role)” (\(provider.displayName) · \(modelLabel)) failed — \(e.errorDescription ?? "unknown error")")
         }
@@ -232,6 +234,11 @@ struct MetaOrchestrator {
                                 return WorkerResult(order: thisOrder, role: role.name, text: r.text, tokens: r.tokens, cost: r.costUSD)
                             } catch {
                                 if Task.isCancelled { return nil }
+                                // A stale login surfaces as a typed auth error → tell the UI
+                                // which provider to reconnect (one-tap), not just "failed".
+                                if case .authRequired(let p)? = (error as? OneShotError) {
+                                    onEvent(.authRequired(p))
+                                }
                                 // Report the failure (logged + marked done on the main
                                 // actor via .roleFailed) and keep the other workers going.
                                 // runStep already re-labels the error with role/provider.
@@ -269,6 +276,10 @@ struct MetaOrchestrator {
         } catch {
             // A cancelled turn shouldn't surface as an error.
             if Task.isCancelled || error is CancellationError { return nil }
+            // A stale login (orchestrator's own provider) → offer a one-tap Reconnect.
+            if case .authRequired(let p)? = (error as? OneShotError) {
+                onEvent(.authRequired(p))
+            }
             let msg = (error as? OneShotError)?.errorDescription ?? error.localizedDescription
             onEvent(.failed(msg))
             return nil

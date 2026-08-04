@@ -15,6 +15,7 @@
 //
 
 import Foundation
+import Darwin   // openpty / winsize — run Codex/Gemini under a PTY so they stream (and don't block-buffer)
 
 /// A process-wide registry of live child CLI processes, so the app can terminate them
 /// on quit instead of orphaning them (a running loop/chat subprocess otherwise survives
@@ -58,6 +59,10 @@ enum OneShotError: Error, LocalizedError, Equatable {
     /// The watchdog terminated the call after N seconds — reported distinctly so the
     /// user sees a timeout (and its cause) rather than an opaque "exited with code 143".
     case timedOut(Int)
+    /// The CLI wants an interactive login (its saved session is stale/missing) — caught the
+    /// moment it prints an auth prompt, so the run fails fast with a Reconnect affordance
+    /// instead of hanging on a prompt no one can answer.
+    case authRequired(AIProvider)
 
     var errorDescription: String? {
         switch self {
@@ -65,6 +70,8 @@ enum OneShotError: Error, LocalizedError, Equatable {
         case .failed(let m): return m
         case .timedOut(let s):
             return "The model didn't finish within \(s / 60) minutes — the task or the combined agent output may be too large. Try splitting the task, using fewer agents, or a faster model."
+        case .authRequired(let p):
+            return "\(p.displayName) needs you to sign in again — its saved login looks expired. Reconnect \(p.displayName) and retry."
         }
     }
 }
@@ -154,9 +161,9 @@ struct CLIOneShotRunner: OneShotRunner {
                 """)
             // A CLI can exit non-zero while printing a structured auth error to STDOUT
             // (Claude prints a 401 result JSON with an empty stderr). Turn that into a
-            // message the user can act on instead of a bare "exited with code N".
-            if let friendly = Self.authFailureMessage(provider: provider, stdout: out, stderr: msg) {
-                throw OneShotError.failed(friendly)
+            // typed auth error so any caller can offer a one-tap Reconnect.
+            if Self.authFailureMessage(provider: provider, stdout: out, stderr: msg) != nil {
+                throw OneShotError.authRequired(provider)
             }
             throw OneShotError.failed(msg.isEmpty ? "\(provider.displayName) exited with code \(status)" : msg)
         }
@@ -178,11 +185,12 @@ struct CLIOneShotRunner: OneShotRunner {
         }
     }
 
-    /// Streaming run: for Claude, drive the CLI with `--output-format stream-json` and
-    /// parse each NDJSON line into live tool steps (reusing the chat path's parser),
-    /// accumulating the final answer + usage. Other providers have no structured tool
-    /// stream in one-shot mode, so they fall back to the buffered `run` (the caller's
-    /// live elapsed timer still shows the call is alive).
+    /// Streaming run. Claude drives the CLI with `--output-format stream-json` over a pipe
+    /// and parses each NDJSON line into live tool steps (reusing the chat path's parser).
+    /// Codex/Gemini have no structured stream AND block-buffer when their stdout is a pipe,
+    /// so they run under a PTY (see `launchPTY`) — that makes them line-buffer, and we
+    /// surface each cleaned line as a rolling "what it's doing now". Either way an
+    /// interactive auth prompt fails fast (`.authRequired`) instead of hanging.
     func run(prompt: String, provider: AIProvider, model: String, cwd: String?,
              onEvent: @escaping @Sendable (OneShotEvent) -> Void) async throws -> OneShotResult {
         let configured = binaries[provider] ?? provider.binaryName
@@ -191,33 +199,14 @@ struct CLIOneShotRunner: OneShotRunner {
         }
         let apiKey = apiKeys[provider].flatMap { $0.isEmpty ? nil : $0 }
 
-        // Claude has a structured tool stream (stream-json); Codex/Gemini don't, so for
-        // those we stream their raw stdout and surface the latest meaningful line as a
-        // rolling "what it's doing now" (progress), still buffering the full answer.
-        let claudeStream = (provider == .claude)
-        let args: [String]
-        if claudeStream {
-            var a = ["--output-format", "stream-json", "--verbose", "--permission-mode", permissionMode]
-            if readOnly { a.append(contentsOf: ["--disallowedTools", "Edit Write MultiEdit NotebookEdit"]) }
-            if !model.isEmpty { a.append(contentsOf: ["--model", model]) }
-            a.append(contentsOf: ["-p", prompt])
-            args = a
-        } else {
-            args = Self.command(for: provider, prompt: prompt, model: model, permissionMode: permissionMode,
-                                reasoningEffort: reasoningEffort, hasAPIKey: apiKey != nil, readOnly: readOnly).args
-        }
-        var extraEnv: [String: String] = [:]
-        if provider == .openai, let apiKey { extraEnv["OPENAI_API_KEY"] = apiKey }
-        if provider == .gemini {
-            if let apiKey { extraEnv["GEMINI_API_KEY"] = apiKey }
-            else { extraEnv["GOOGLE_GENAI_USE_GCA"] = "true" }
-        }
-
-        // Accumulate the answer + authoritative usage from the stream; the box is written
-        // from the reader thread and read once the process exits.
-        let acc = StreamAccumulator()
-        let (out, err, status) = try await Self.launch(bin: bin, args: args, cwd: cwd, extraEnv: extraEnv) { line in
-            if claudeStream {
+        // Claude: structured tool stream over a pipe.
+        if provider == .claude {
+            var args = ["--output-format", "stream-json", "--verbose", "--permission-mode", permissionMode]
+            if readOnly { args.append(contentsOf: ["--disallowedTools", "Edit Write MultiEdit NotebookEdit"]) }
+            if !model.isEmpty { args.append(contentsOf: ["--model", model]) }
+            args.append(contentsOf: ["-p", prompt])
+            let acc = StreamAccumulator()
+            let (out, err, status) = try await Self.launch(bin: bin, args: args, cwd: cwd, extraEnv: [:]) { line in
                 for ev in ClaudeStreamParser.events(from: line) {
                     switch ev {
                     case .tool(let name, let detail): onEvent(.tool(name: name, detail: detail))
@@ -229,28 +218,51 @@ struct CLIOneShotRunner: OneShotRunner {
                     default: break
                     }
                 }
-            } else if let clean = Self.progressLine(line) {
-                onEvent(.progress(clean))
             }
-        }
-        if status != 0 {
-            let msg = err.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let friendly = Self.authFailureMessage(provider: provider, stdout: out, stderr: msg) {
-                throw OneShotError.failed(friendly)
+            if status != 0 {
+                let msg = err.trimmingCharacters(in: .whitespacesAndNewlines)
+                if Self.authFailureMessage(provider: provider, stdout: out, stderr: msg) != nil {
+                    throw OneShotError.authRequired(provider)
+                }
+                throw OneShotError.failed(msg.isEmpty ? "\(provider.displayName) exited with code \(status)" : msg)
             }
-            throw OneShotError.failed(msg.isEmpty ? "\(provider.displayName) exited with code \(status)" : msg)
-        }
-        if claudeStream {
             let snap = acc.snapshot()
             return OneShotResult(text: snap.text, tokens: snap.tokens, costUSD: snap.cost,
                                  provider: .claude, model: model)
         }
-        // Codex/Gemini: plain text, no reported usage → estimate (flagged), same as `run`.
-        let cleanText = out.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Codex/Gemini: PTY so they stream; each cleaned line becomes rolling progress.
+        let args = Self.command(for: provider, prompt: prompt, model: model, permissionMode: permissionMode,
+                                reasoningEffort: reasoningEffort, hasAPIKey: apiKey != nil, readOnly: readOnly).args
+        var extraEnv: [String: String] = [:]
+        if provider == .openai, let apiKey { extraEnv["OPENAI_API_KEY"] = apiKey }
+        if provider == .gemini {
+            if let apiKey { extraEnv["GEMINI_API_KEY"] = apiKey }
+            else { extraEnv["GOOGLE_GENAI_USE_GCA"] = "true" }
+        }
+        let (out, status) = try await Self.launchPTY(provider: provider, bin: bin, args: args, cwd: cwd,
+                                                     extraEnv: extraEnv) { line in
+            if let clean = Self.progressLine(line) { onEvent(.progress(clean)) }
+        }
+        if status != 0 {
+            if Self.authFailureMessage(provider: provider, stdout: out, stderr: "") != nil {
+                throw OneShotError.authRequired(provider)
+            }
+            let tail = Self.stripANSI(out).trimmingCharacters(in: .whitespacesAndNewlines)
+            throw OneShotError.failed(tail.isEmpty ? "\(provider.displayName) exited with code \(status)" : String(tail.suffix(400)))
+        }
+        // PTY output carries terminal formatting — strip ANSI for the answer fed to synthesis.
+        let cleanText = Self.stripANSI(out).trimmingCharacters(in: .whitespacesAndNewlines)
         let estTokens = estimateTokens(prompt: prompt, output: cleanText)
         let estCost = Self.estimatedCostUSD(tokens: estTokens, model: model)
         return OneShotResult(text: cleanText, tokens: estTokens, costUSD: estCost,
                              provider: provider, model: model, estimated: true)
+    }
+
+    /// Remove ANSI/VT100 escape sequences from terminal output.
+    static func stripANSI(_ s: String) -> String {
+        s.replacingOccurrences(of: "\u{1B}\\[[0-9;?]*[A-Za-z]", with: "", options: .regularExpression)
+         .replacingOccurrences(of: "\u{1B}\\][^\u{07}]*\u{07}", with: "", options: .regularExpression)
     }
 
     /// Turn one raw CLI stdout line into a short, human "what's happening now" — or nil to
@@ -384,6 +396,40 @@ struct CLIOneShotRunner: OneShotRunner {
 
     // MARK: Process
 
+    /// Build the child environment: an augmented PATH, provider auth keys stripped (so only
+    /// what the user configured IN Coral takes effect), the pinned Claude config dir, then
+    /// the caller's `extraEnv`. Shared by the pipe and PTY launchers.
+    static func buildEnv(bin: String, extraEnv: [String: String]) -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let binDir = (bin as NSString).deletingLastPathComponent
+        env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+        // An inherited key from the launching shell/Xcode would silently override the
+        // subscription login — Claude 401s, Codex is forced into API mode. Strip them all,
+        // then re-add the user's own via extraEnv.
+        for k in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY",
+                  "GEMINI_API_KEY", "GOOGLE_API_KEY",
+                  "GOOGLE_GENAI_USE_GCA", "GOOGLE_GENAI_USE_VERTEXAI"] { env[k] = nil }
+        if let dir = ClaudeRunner.resolveClaudeConfigDir() { env["CLAUDE_CONFIG_DIR"] = dir }
+        for (k, v) in extraEnv { env[k] = v }
+        return env
+    }
+
+    /// Does this line look like an interactive login/auth prompt the CLI is BLOCKING on?
+    /// If so, we kill it immediately and fail with `.authRequired` instead of letting the
+    /// run hang until the watchdog — a hung app is the one thing that guarantees no one
+    /// uses it. Kept tight to avoid false positives on ordinary model output.
+    static func isAuthPrompt(_ line: String) -> Bool {
+        let s = line.lowercased()
+        return s.contains("opening authentication page")
+            || s.contains("do you want to continue")
+            || s.contains("please set an auth method")
+            || s.contains("waiting for auth")
+            || s.contains("authenticate in your browser")
+            || s.contains("sign in to continue")
+            || s.contains("press enter to continue")
+    }
+
     /// Holds the spawned process so a task cancellation can terminate it (the caller
     /// stops the turn → we must not leave the CLI running, burning tokens/money).
     private final class ProcessBox: @unchecked Sendable {
@@ -391,6 +437,7 @@ struct CLIOneShotRunner: OneShotRunner {
         private var process: Process?
         private var cancelled = false
         private var timedOut = false
+        private var auth = false
         /// Returns false when the run was already cancelled — the caller must NOT
         /// launch the process then (terminate() on a never-launched Process raises
         /// NSInvalidArgumentException, and launching would leak an ownerless CLI).
@@ -404,6 +451,80 @@ struct CLIOneShotRunner: OneShotRunner {
         func timeOut() { lock.lock(); defer { lock.unlock() }
             timedOut = true; cancelled = true; if let p = process, p.isRunning { p.terminate() } }
         func didTimeOut() -> Bool { lock.lock(); defer { lock.unlock() }; return timedOut }
+        /// The CLI printed an interactive auth prompt — kill it now and remember why, so the
+        /// caller throws `.authRequired` instead of the run hanging on an unanswerable prompt.
+        func tripAuth() { lock.lock(); defer { lock.unlock() }
+            auth = true; cancelled = true; if let p = process, p.isRunning { p.terminate() } }
+        func didTripAuth() -> Bool { lock.lock(); defer { lock.unlock() }; return auth }
+    }
+
+    /// Launch under a PTY so a CLI that block-buffers when its stdout is a pipe (Codex,
+    /// Gemini) instead line-buffers and streams — the only way to see what a non-Claude
+    /// worker is doing while it runs. Reads the master fd with raw `read()` (returns 0 at
+    /// EOF, -1 on EIO after the child exits — no exceptions, unlike FileHandle). stdout and
+    /// stderr are merged onto the PTY; an interactive auth prompt trips a fast fail.
+    private static func launchPTY(provider: AIProvider, bin: String, args: [String], cwd: String?,
+                                  extraEnv: [String: String],
+                                  onOutLine: @escaping @Sendable (String) -> Void) async throws -> (String, Int32) {
+        let box = ProcessBox()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<(String, Int32), Error>) in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    var master: Int32 = 0, slave: Int32 = 0
+                    var ws = winsize(ws_row: 48, ws_col: 120, ws_xpixel: 0, ws_ypixel: 0)
+                    guard openpty(&master, &slave, nil, nil, &ws) == 0 else {
+                        cont.resume(throwing: OneShotError.failed("Couldn't open a terminal for \(provider.displayName)."))
+                        return
+                    }
+                    let p = Process()
+                    p.executableURL = URL(fileURLWithPath: bin)
+                    p.arguments = args
+                    if let cwd { p.currentDirectoryURL = URL(fileURLWithPath: cwd) }
+                    p.environment = Self.buildEnv(bin: bin, extraEnv: extraEnv)
+                    let slaveHandle = FileHandle(fileDescriptor: slave, closeOnDealloc: false)
+                    p.standardInput = slaveHandle
+                    p.standardOutput = slaveHandle
+                    p.standardError = slaveHandle
+                    guard box.adopt(p) else {
+                        close(master); close(slave)
+                        cont.resume(throwing: CancellationError()); return
+                    }
+                    do { try p.run() } catch {
+                        close(master); close(slave)
+                        cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return
+                    }
+                    close(slave)   // the child holds its own copy; the parent reads via master
+                    LiveProcesses.register(p)
+                    defer { LiveProcesses.deregister(p) }
+                    let watchdog = DispatchWorkItem { box.timeOut() }
+                    DispatchQueue.global().asyncAfter(deadline: .now() + Self.callTimeout, execute: watchdog)
+                    let buf = LineBuffer()
+                    var outData = Data()
+                    var raw = [UInt8](repeating: 0, count: 4096)
+                    while true {
+                        let n = read(master, &raw, raw.count)
+                        if n <= 0 { break }   // 0 = EOF, -1 = EIO after slave close
+                        let chunk = Data(raw[0..<n])
+                        outData.append(chunk)
+                        var tripped = false
+                        for line in buf.append(chunk) {
+                            onOutLine(line)
+                            if Self.isAuthPrompt(line) { box.tripAuth(); tripped = true }
+                        }
+                        if tripped { break }
+                    }
+                    for line in buf.drain() { onOutLine(line) }
+                    p.waitUntilExit()
+                    watchdog.cancel()
+                    close(master)
+                    if box.didTripAuth() { cont.resume(throwing: OneShotError.authRequired(provider)); return }
+                    if box.didTimeOut() { cont.resume(throwing: OneShotError.timedOut(Int(Self.callTimeout))); return }
+                    cont.resume(returning: (String(data: outData, encoding: .utf8) ?? "", p.terminationStatus))
+                }
+            }
+        } onCancel: {
+            box.terminate()
+        }
     }
 
     /// Per-call watchdog. Generous on purpose: a heavy multi-agent synthesis (the
@@ -423,22 +544,7 @@ struct CLIOneShotRunner: OneShotRunner {
                     p.executableURL = URL(fileURLWithPath: bin)
                     p.arguments = args
                     if let cwd { p.currentDirectoryURL = URL(fileURLWithPath: cwd) }
-                    var env = ProcessInfo.processInfo.environment
-                    let home = FileManager.default.homeDirectoryForCurrentUser.path
-                    let binDir = (bin as NSString).deletingLastPathComponent
-                    env["PATH"] = "\(binDir):\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
-                    // Only credentials the user configured IN Coral should take effect.
-                    // An inherited key from the launching shell/Xcode would silently
-                    // override the subscription login — Claude 401s, Codex is forced into
-                    // API mode. Strip them all, then re-add the user's own via extraEnv.
-                    for k in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY",
-                              "GEMINI_API_KEY", "GOOGLE_API_KEY",
-                              "GOOGLE_GENAI_USE_GCA", "GOOGLE_GENAI_USE_VERTEXAI"] { env[k] = nil }
-                    // Pin the SAME Claude config dir the chat path uses, so diagnostics
-                    // and the real run never disagree about which login they test.
-                    if let dir = ClaudeRunner.resolveClaudeConfigDir() { env["CLAUDE_CONFIG_DIR"] = dir }
-                    for (k, v) in extraEnv { env[k] = v }
-                    p.environment = env
+                    p.environment = Self.buildEnv(bin: bin, extraEnv: extraEnv)
                     let outPipe = Pipe(), errPipe = Pipe()
                     p.standardOutput = outPipe
                     p.standardError = errPipe

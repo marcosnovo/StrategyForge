@@ -55,6 +55,8 @@ enum StrategyProgressReducer {
             p.lastNarration = detail.map { "\(role): \(title) \($0)" } ?? "\(role): \(title)"
         case .roleNarration(let role, let text):
             p.lastNarration = "\(role): \(text)"
+        case .authRequired(let provider):
+            p.lastNarration = "\(provider.displayName): needs re-login"
         case .roleFile:
             break   // file edits don't change arena progress state
         case .roleFinished(let role, _):
