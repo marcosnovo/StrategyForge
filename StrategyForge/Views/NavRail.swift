@@ -550,35 +550,36 @@ struct NavRail: View {
     #endif
 }
 
-/// A "spotlight" behind the active icon-rail row: a lamp cap up top, a soft cone widening
-/// down onto the icon, and a warm pool of light — so the selected section looks lit, not
-/// boxed. Slid between rows by the caller's matchedGeometry. Purely decorative.
+/// A "spotlight" behind the active icon-rail row, lit FROM THE RIGHT: a lamp on the trailing
+/// edge, a soft cone widening leftward onto the icon, and a warm pool of light. As the active
+/// section changes the caller's matchedGeometry slides this beam vertically (up/down) between
+/// rows, so the light visibly travels to the chosen section. Purely decorative.
 private struct SpotlightBeam: View {
     var tint: Color = Theme.coral
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             ZStack {
-                // The cone: narrow at the lamp (top), widening onto the icon (down).
+                // The cone: narrow at the lamp (right edge), widening onto the icon (leftward).
                 Path { p in
-                    p.move(to: CGPoint(x: w * 0.5 - 4, y: 2))
-                    p.addLine(to: CGPoint(x: w * 0.5 + 4, y: 2))
-                    p.addLine(to: CGPoint(x: w * 0.84, y: h))
-                    p.addLine(to: CGPoint(x: w * 0.16, y: h))
+                    p.move(to: CGPoint(x: w, y: h * 0.5 - 4))
+                    p.addLine(to: CGPoint(x: w, y: h * 0.5 + 4))
+                    p.addLine(to: CGPoint(x: 0, y: h * 0.85))
+                    p.addLine(to: CGPoint(x: 0, y: h * 0.15))
                     p.closeSubpath()
                 }
                 .fill(LinearGradient(colors: [tint.opacity(0.42), tint.opacity(0.04)],
-                                     startPoint: .top, endPoint: .bottom))
+                                     startPoint: .trailing, endPoint: .leading))
                 .blur(radius: 3)
-                // Pool of light where the icon sits.
+                // Pool of light where the icon sits (a touch left of centre).
                 Ellipse().fill(tint.opacity(0.20))
-                    .frame(width: w * 0.66, height: h * 0.5)
-                    .position(x: w * 0.5, y: h * 0.55)
+                    .frame(width: w * 0.6, height: h * 0.6)
+                    .position(x: w * 0.42, y: h * 0.5)
                     .blur(radius: 6)
-                // The lamp cap.
+                // The lamp cap on the trailing edge.
                 Capsule().fill(tint.opacity(0.9))
-                    .frame(width: 10, height: 3)
-                    .position(x: w * 0.5, y: 2)
+                    .frame(width: 3, height: 12)
+                    .position(x: w - 1, y: h * 0.5)
                     .shadow(color: tint.opacity(0.6), radius: 3)
             }
         }
