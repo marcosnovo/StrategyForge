@@ -52,6 +52,9 @@ struct ChatView: View {
     /// The specific provider being reconnected from the mid-run "needs re-login" banner
     /// (may be a worker's provider, e.g. Gemini — not necessarily the chat's own).
     @State private var reconnectingProvider: AIProvider?
+    /// Confirmation before merging an IRREVERSIBLE isolated change (migrations, deletions, prod,
+    /// money) — the blast-radius gate: this lane never merges silently.
+    @State private var confirmIrreversibleMerge = false
     /// Code mode: a developer workspace (files/diffs) instead of plain chat.
     @State private var codeMode = false
     /// Token Saver: tips dismissed in this chat session, plus the transient
@@ -2063,35 +2066,71 @@ struct ChatView: View {
                     Task { isolationDiffText = await vm.isolationDiff() ?? "—"; showIsolationDiff = true }
                 }
                 .controlSize(.small).disabled(vm.isolationBusy)
-                Button(model.t("isolate.merge")) { Task { await vm.mergeIsolation() } }
-                    .buttonStyle(.moon).controlSize(.small).disabled(vm.isolationBusy)
+                Button(model.t("isolate.merge")) {
+                    // Blast-radius gate: an irreversible change must be confirmed, never merged
+                    // on one click. Contained/wide merge directly (still a manual human action).
+                    if vm.isolationBlast?.radius == .irreversible { confirmIrreversibleMerge = true }
+                    else { Task { await vm.mergeIsolation() } }
+                }
+                .buttonStyle(.moon).controlSize(.small).disabled(vm.isolationBusy)
                 Button(model.t("isolate.discard"), role: .destructive) { Task { await vm.discardIsolation() } }
                     .controlSize(.small).disabled(vm.isolationBusy)
             }
             .padding(.horizontal, Space.m).padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous).fill(Theme.accentSoft))
             .padding(.top, 4)
+            .confirmationDialog(model.t("blast.merge.confirm.title"), isPresented: $confirmIrreversibleMerge,
+                                titleVisibility: .visible) {
+                Button(model.t("blast.merge.confirm.go"), role: .destructive) { Task { await vm.mergeIsolation() } }
+                Button(model.t("ship.cancel"), role: .cancel) {}
+            } message: {
+                Text(model.t("blast.merge.confirm.body", vm.isolationBlast?.reasons.joined(separator: ", ") ?? ""))
+            }
         }
     }
 
     /// The independent-verifier verdict on the isolated diff: a green seal when a different-family
     /// reviewer approves, an amber flag with the issue count otherwise.
     @ViewBuilder private var isolationVerdict: some View {
-        if vm.isolationVerifyError != nil {
-            Label(model.t("isolate.verify.fail"), systemImage: "exclamationmark.triangle")
-                .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
-        } else if let by = vm.isolationVerifiedBy {
-            let n = vm.isolationFindings.count
-            let high = vm.isolationFindings.filter { $0.severity == .high }.count
-            if n == 0 {
-                Label(model.t("isolate.verified", by.displayName), systemImage: "checkmark.seal.fill")
-                    .font(.sfCaption2).foregroundStyle(Theme.success).lineLimit(1)
-            } else {
-                Label(model.t("isolate.issues", n) + (high > 0 ? " ⚑\(high)" : ""), systemImage: "exclamationmark.triangle.fill")
-                    .font(.sfCaption2).foregroundStyle(Theme.warning).lineLimit(1)
-                    .help(vm.isolationFindings.prefix(6).map { "• [\($0.severity.rawValue)] \($0.title)" }.joined(separator: "\n"))
+        HStack(spacing: Space.s) {
+            // The blast-radius lane (gate on cost-to-undo, not on confidence): green=contained,
+            // amber=wide, red=irreversible ("a human must look").
+            if let blast = vm.isolationBlast { blastChip(blast) }
+            if vm.isolationVerifyError != nil {
+                Label(model.t("isolate.verify.fail"), systemImage: "exclamationmark.triangle")
+                    .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+            } else if !vm.isolationJudges.isEmpty {
+                let n = vm.isolationFindings.count
+                let high = vm.isolationFindings.filter { $0.severity == .high }.count
+                let judges = vm.isolationJudges.count
+                let by = judges > 1 ? model.t("isolate.verified.panel", judges)
+                                    : (vm.isolationVerifiedBy?.displayName ?? "")
+                if n == 0 {
+                    Label(judges > 1 ? by : model.t("isolate.verified", by), systemImage: "checkmark.seal.fill")
+                        .font(.sfCaption2).foregroundStyle(Theme.success).lineLimit(1)
+                        .help(vm.isolationJudges.map(\.displayName).joined(separator: " · "))
+                } else {
+                    Label(model.t("isolate.issues", n) + (high > 0 ? " ⚑\(high)" : ""), systemImage: "exclamationmark.triangle.fill")
+                        .font(.sfCaption2).foregroundStyle(Theme.warning).lineLimit(1)
+                        .help((judges > 1 ? by + "\n" : "")
+                              + vm.isolationFindings.prefix(6).map { "• [\($0.severity.rawValue)] \($0.title)" }.joined(separator: "\n"))
+                }
             }
         }
+    }
+
+    /// A small lane chip for the change's blast radius, with the "why" in a tooltip.
+    private func blastChip(_ a: BlastAssessment) -> some View {
+        let color: Color = a.radius == .irreversible ? Theme.danger
+                         : (a.radius == .wide ? Theme.warning : Theme.success)
+        let icon = a.radius == .irreversible ? "hand.raised.fill"
+                 : (a.radius == .wide ? "exclamationmark.triangle.fill" : "checkmark.shield.fill")
+        return Label(model.t(a.radius.labelKey), systemImage: icon)
+            .font(.sfCaption2.weight(.medium)).foregroundStyle(color).lineLimit(1)
+            .padding(.horizontal, 6).padding(.vertical, 1)
+            .background(Capsule().fill(color.opacity(0.14)))
+            .help(a.reasons.isEmpty ? model.t("blast.\(a.radius.rawValue).help")
+                                    : model.t("blast.why", a.reasons.joined(separator: ", ")))
     }
 
     /// Bet 4 — the thin "ship" result: progress while the deploy CLI runs, then the live

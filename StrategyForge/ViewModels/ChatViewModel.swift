@@ -456,6 +456,12 @@ final class ChatViewModel {
     private(set) var isolationFindings: [ReviewFinding] = []
     private(set) var isolationVerifiedBy: AIProvider?
     private(set) var isolationVerifyError: String?
+    /// The panel of independent judges that graded the diff (different families when possible)
+    /// — averaging across families breaks a single judge's correlated bias.
+    private(set) var isolationJudges: [AIProvider] = []
+    /// The change's blast radius (how expensive a bad merge is to undo) — gate on this, not on
+    /// the model's confidence. Irreversible changes must never auto-merge.
+    private(set) var isolationBlast: BlastAssessment?
 
     /// Run an INDEPENDENT read-only review of the isolated diff (reviewer ≠ author — ideally a
     /// DIFFERENT provider family), so autonomous changes are gated by a separate judge before you
@@ -467,35 +473,58 @@ final class ChatViewModel {
         isolationVerifyError = nil
         guard let diff = await CodeGit.fullDiff(repo: iso.path),
               !diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            isolationFindings = []; isolationVerifiedBy = nil
+            isolationFindings = []; isolationVerifiedBy = nil; isolationJudges = []; isolationBlast = nil
             isolationVerifyError = "No changes to verify yet."
             return
         }
-        let reviewer = independentReviewer()
+        // Gate on BLAST RADIUS (how costly a bad merge is to undo), not the model's confidence.
+        isolationBlast = BlastRadiusClassifier.classify(diff: diff)
+        // A PANEL of independent judges (different families when connected) — averaging across
+        // families breaks a single judge's correlated bias. Falls back to one when only one exists.
+        let judges = independentReviewers(max: 3)
         var bins = providerBinaries; bins[.claude] = binary
         let runner = CLIOneShotRunner(binaries: bins, apiKeys: providerAPIKeys,
                                       reasoningEffort: codexReasoningEffort, readOnly: true)
-        do {
-            let r = try await runner.run(prompt: DiffReviewer.reviewPrompt(diff: diff),
-                                         provider: reviewer, model: "", cwd: iso.path)
-            isolationFindings = DiffReviewer.parseFindings(r.text)
-            isolationVerifiedBy = reviewer
-        } catch {
-            isolationVerifyError = (error as? OneShotError)?.errorDescription ?? error.localizedDescription
+        var perJudge: [[ReviewFinding]] = []
+        var ran: [AIProvider] = []
+        var lastError: String?
+        for judge in judges {
+            do {
+                let r = try await runner.run(prompt: DiffReviewer.reviewPrompt(diff: diff),
+                                             provider: judge, model: "", cwd: iso.path)
+                perJudge.append(DiffReviewer.parseFindings(r.text))
+                ran.append(judge)
+                // Pin/log the judge (family + model returned) so a score is always traceable to
+                // exactly which examiner produced it (judges are versioned software).
+                DiagnosticsLog.record("verify judge: \(judge.displayName) · model=\(r.model.isEmpty ? "default" : r.model) · findings=\(perJudge.last?.count ?? 0)")
+            } catch {
+                lastError = (error as? OneShotError)?.errorDescription ?? error.localizedDescription
+            }
         }
+        guard !ran.isEmpty else {
+            isolationFindings = []; isolationVerifiedBy = nil; isolationJudges = []
+            isolationVerifyError = lastError ?? "No judge could run."
+            return
+        }
+        isolationFindings = DiffReviewer.combinePanel(perJudge).map(\.finding)
+        isolationJudges = ran
+        isolationVerifiedBy = ran.first
     }
 
-    /// A reviewer of a DIFFERENT family than the chat's provider, if one is connected — an
-    /// independent second opinion. Falls back to the same provider (still read-only, reviewer≠author).
-    private func independentReviewer() -> AIProvider {
+    /// Up to `max` reviewers of DIFFERENT families than the chat's provider (independent second
+    /// opinions), then the author's own family last as a fallback so there's always ≥1.
+    private func independentReviewers(max: Int) -> [AIProvider] {
+        var out: [AIProvider] = []
         for p in [AIProvider.openai, .gemini, .claude] where p != config.provider {
-            if CLIOneShotRunner.resolveBinary(providerBinaries[p] ?? "", provider: p) != nil { return p }
+            if CLIOneShotRunner.resolveBinary(providerBinaries[p] ?? "", provider: p) != nil { out.append(p) }
         }
-        return config.provider
+        if out.isEmpty { out.append(config.provider) }   // still read-only, reviewer≠author
+        return Array(out.prefix(Swift.max(1, max)))
     }
 
     private func clearVerification() {
         isolationFindings = []; isolationVerifiedBy = nil; isolationVerifyError = nil
+        isolationJudges = []; isolationBlast = nil
     }
 
     /// Commit the worktree's changes and merge them (no-ff) into the live tree, then tear down.

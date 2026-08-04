@@ -106,6 +106,30 @@ enum DiffReviewer {
         return findings.sorted { $0.severity.rank < $1.severity.rank }
     }
 
+    /// Merge findings from a PANEL of independent judges (ideally different model families):
+    /// dedupe the same issue (normalized title + file), keep the highest severity anyone
+    /// reported, and count how many judges agreed. Averaging across families is what breaks a
+    /// single judge's correlated bias (Eval Engineering 2026). Sorted high-severity first, then
+    /// most-agreed. Each inner array is one judge's findings.
+    static func combinePanel(_ perJudge: [[ReviewFinding]]) -> [(finding: ReviewFinding, agree: Int)] {
+        var order: [String] = []
+        var map: [String: (finding: ReviewFinding, agree: Int)] = [:]
+        for judge in perJudge {
+            var seen = Set<String>()
+            for f in judge {
+                let key = String(f.title.lowercased().prefix(60)) + "\u{1}" + f.file.lowercased()
+                if map[key] == nil { map[key] = (f, 0); order.append(key) }
+                else if f.severity.rank < map[key]!.finding.severity.rank { map[key]!.finding.severity = f.severity }
+                if !seen.contains(key) { map[key]!.agree += 1; seen.insert(key) }
+            }
+        }
+        return order.compactMap { map[$0] }.sorted {
+            $0.finding.severity.rank != $1.finding.severity.rank
+                ? $0.finding.severity.rank < $1.finding.severity.rank
+                : $0.agree > $1.agree
+        }
+    }
+
     /// Review a diff via the (independent, read-only) runner. An empty/whitespace diff
     /// yields a clean review; a failed run yields a review carrying `error`, so callers
     /// can't mistake "the reviewer never ran" for "no issues found".
