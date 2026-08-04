@@ -573,59 +573,35 @@ private struct SpotlightAnchorKey: PreferenceKey {
     }
 }
 
-/// A CORAL "spotlight" lit from the left — glowy, diffuse, and reading as actual light rather
-/// than a coloured triangle. It's built from soft radial glows (a bright coral source, a warm
-/// pool on the icon, an overall halo) plus a faint cone for direction. Sized to the active row
-/// and slid by the caller. Decorative.
+/// A soft CORAL glow behind the active icon — a diffuse radial bloom (brightest at the icon,
+/// fading out), like a light behind it. No cone, no lamp: just a warm halo. Sized to the active
+/// row and slid between rows by the caller. Decorative.
 private struct SpotlightBeam: View {
     var tint: Color = Theme.coral
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
-            let cy = h * 0.5
+            // The icon sits in the upper part of the cell (label below), so bias the glow up.
+            let center = CGPoint(x: w * 0.5, y: h * 0.42)
+            let r = min(w, h) * 0.9
             ZStack {
-                // Overall halo — the whole row glows, so it looks lit everywhere, not just a shape.
-                Capsule().fill(tint.opacity(0.14)).blur(radius: 12)
-
-                // Faint directional cone (soft, low-opacity) — gives a sense of the beam without
-                // looking like a hard triangle. Coral throughout, brightest at the source.
-                cone(w: w, h: h, spread: 0.44)
-                    .fill(LinearGradient(colors: [tint.opacity(0.34), tint.opacity(0.10), .clear],
-                                         startPoint: .leading, endPoint: .trailing))
-                    .blur(radius: 6)
-
-                // The SOURCE glow on the left — a bright coral bulb of light (was a white cap).
-                Circle()
-                    .fill(RadialGradient(colors: [tint.opacity(0.95), tint.opacity(0.5), .clear],
-                                         center: .center, startRadius: 0, endRadius: h * 0.42))
-                    .frame(width: h * 0.85, height: h * 0.85)
-                    .position(x: h * 0.12, y: cy)
-                    .blur(radius: 2)
-
-                // The pool where the icon sits — a soft coral hotspot that fades out.
-                Circle()
-                    .fill(RadialGradient(colors: [tint.opacity(0.6), tint.opacity(0.22), .clear],
-                                         center: .center, startRadius: 0, endRadius: h * 0.6))
-                    .frame(width: h * 1.2, height: h * 1.2)
-                    .position(x: w * 0.62, y: cy)
+                // Wide soft base bloom.
+                RadialGradient(colors: [tint.opacity(0.30), tint.opacity(0.10), .clear],
+                               center: .center, startRadius: 0, endRadius: r)
+                    .frame(width: r * 2, height: r * 2)
+                    .position(center)
+                    .blur(radius: 8)
+                // Brighter core right behind the icon.
+                RadialGradient(colors: [tint.opacity(0.55), tint.opacity(0.20), .clear],
+                               center: .center, startRadius: 0, endRadius: r * 0.6)
+                    .frame(width: r * 1.2, height: r * 1.2)
+                    .position(center)
                     .blur(radius: 4)
             }
             .compositingGroup()
         }
         .allowsHitTesting(false)
-    }
-
-    /// A cone from the leading edge (narrow) widening rightward, `spread` = half the fractional
-    /// height it fans to at the wide end.
-    private func cone(w: CGFloat, h: CGFloat, spread: CGFloat) -> Path {
-        Path { p in
-            p.move(to: CGPoint(x: 0, y: h * (0.5 - 0.09)))
-            p.addLine(to: CGPoint(x: 0, y: h * (0.5 + 0.09)))
-            p.addLine(to: CGPoint(x: w, y: h * (0.5 + spread)))
-            p.addLine(to: CGPoint(x: w, y: h * (0.5 - spread)))
-            p.closeSubpath()
-        }
     }
 }
 
