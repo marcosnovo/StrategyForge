@@ -975,6 +975,11 @@ struct ChatView: View {
                         activityRow.id("activity")
                             .transition(.opacity.combined(with: .offset(y: 6)))
                     }
+                    // Tappable team strip — reach EACH agent's live activity straight from the
+                    // chat (no need to hunt for the side panel). Shows while a team runs or after.
+                    if !config.strategy.subagentRoles.isEmpty, vm.isRunning || vm.hasFinishedActivity {
+                        agentsStrip
+                    }
                     // A quiet close on a finished turn: "Completed · 1m 04s · 12.3k · $0.04"
                     // (per-turn stats — the header shows the running cumulative total).
                     completionBeat
@@ -1313,6 +1318,46 @@ struct ChatView: View {
         .padding(Space.m)
         .frame(maxWidth: 560, alignment: .leading)
         .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
+    }
+
+    /// A horizontal, tappable strip of the team's agents — tap one to open its live activity
+    /// (what it's doing / did), right from the chat. The active agent glows; done agents get a
+    /// check. This is the "access each agent from the chat screen" affordance.
+    private var agentsStrip: some View {
+        let roles = config.strategy.subagentRoles
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Space.s) {
+                ForEach(roles) { role in
+                    let name = role.name
+                    let running = vm.isRunning && (
+                        vm.rolesInProgress.contains { AgentNameMatcher.titlesMatch($0, name) }
+                        || (vm.rolesInProgress.isEmpty && AgentNameMatcher.titlesMatch(vm.activeSubagent ?? "", name)))
+                    let count = vm.rolesRunning[name] ?? 0
+                    Button {
+                        agentFocus = .sub(name)
+                        showActivity = true      // open the panel focused on this agent
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: role.role.icon).scaledFont(10).foregroundStyle(role.role.tint)
+                            Text(name).font(.sfCaption2.weight(.medium)).lineLimit(1)
+                            if running {
+                                if count > 1 { Text("×\(count)").scaledFont(9, weight: .bold).foregroundStyle(Theme.tealText) }
+                                Circle().fill(Theme.teal).frame(width: 5, height: 5)
+                            } else if vm.hasFinishedActivity {
+                                Image(systemName: "checkmark").scaledFont(8, weight: .bold).foregroundStyle(Theme.success)
+                            }
+                        }
+                        .padding(.horizontal, Space.s).padding(.vertical, 4)
+                        .background(Capsule().fill(running ? role.role.tint.opacity(0.14) : Theme.hairline.opacity(0.5)))
+                        .overlay(Capsule().strokeBorder(running ? role.role.tint.opacity(0.5) : .clear, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .help(model.t("chat.agent.open", name))
+                }
+            }
+            .padding(.horizontal, Space.xs)
+        }
+        .frame(maxWidth: 560)
     }
 
     private var activityRow: some View {

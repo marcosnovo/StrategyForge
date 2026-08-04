@@ -200,6 +200,7 @@ enum L10n {
         "chat.reauth.needed": ("%@ needs to sign in again — its saved login looks expired. The run stopped instead of hanging.",
                                "%@ necesita iniciar sesión de nuevo — su sesión guardada parece caducada. La ejecución se detuvo en vez de colgarse."),
         "chat.reconnect": ("Reconnect %@", "Reconectar %@"),
+        "chat.agent.open": ("See what %@ is doing", "Ver qué hace %@"),
         "banner.exportLog": ("Export log", "Exportar log"),
         "settings.diagnostics": ("Diagnostics", "Diagnóstico"),
         "settings.diagnostics.log": ("Error log", "Registro de errores"),
@@ -1131,6 +1132,8 @@ enum L10n {
                                        "Cuándo el orquestador debe pasarle trabajo a este asistente. Sé específico y orientado a la acción: esto es lo que dispara la delegación."),
 
         "field.model": ("Model", "Modelo"),
+        "field.model.custom": ("Or type any model id (e.g. gpt-5.2, gemini-3-pro)…",
+                               "O escribe cualquier id de modelo (p.ej. gpt-5.2, gemini-3-pro)…"),
         "field.aiProvider": ("AI provider", "Proveedor de IA"),
         "glossary.aiProvider": ("Choose which AI runs this agent. Every agent can use a different one — mix Claude, ChatGPT and Gemini in one team.",
                                 "Elige qué IA ejecuta este agente. Cada agente puede usar una distinta: mezcla Claude, ChatGPT y Gemini en un equipo."),

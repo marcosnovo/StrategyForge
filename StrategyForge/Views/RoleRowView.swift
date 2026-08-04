@@ -205,6 +205,10 @@ struct RoleEditorForm: View {
                     }
                 } else {
                     providerModelGrid
+                    // ANY model on ANY provider: the quick chips are curated, but an expert can
+                    // type any model id the provider's CLI accepts (e.g. a newer GPT/Gemini) —
+                    // Coral doesn't gate you to a short built-in list.
+                    customModelField
                     if !role.provider.isExecutable {
                         Label(model.t("provider.soon.note"), systemImage: "clock")
                             .font(.sfCaption2).foregroundStyle(.secondary)
@@ -267,6 +271,22 @@ struct RoleEditorForm: View {
             .strokeBorder(selected ? p.tint : Theme.hairline, lineWidth: selected ? 1.5 : 1))
         .contentShape(Rectangle())
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selected)
+    }
+
+    /// A free-text model id for the current (non-Claude) provider — the "any model" escape
+    /// hatch so no expert is limited to the built-in chips. Writes `providerModelID`; the
+    /// chips above just prefill it.
+    private var customModelField: some View {
+        let binding = Binding(
+            get: { role.providerModelID ?? "" },
+            set: { role.providerModelID = $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }
+        )
+        return HStack(spacing: Space.s) {
+            Image(systemName: "pencil").scaledFont(9).foregroundStyle(.tertiary)
+            TextField(model.t("field.model.custom"), text: binding)
+                .textFieldStyle(.roundedBorder).font(.sfCode)
+                .autocorrectionDisabled()
+        }
     }
 
     /// Model grid for a non-Claude provider (writes providerModelID).
