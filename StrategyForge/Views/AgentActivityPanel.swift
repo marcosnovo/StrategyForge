@@ -430,6 +430,15 @@ struct AgentActivityPanel: View {
                     Text(model.t("activity.usage.claudePlan",
                                  Int(e.fiveHourPercent.rounded()), Int(e.weekPercent.rounded())))
                         .font(.sfCaption2).foregroundStyle(Theme.secondaryOnMaterial)
+                    // When does the 5-hour window reset? Glanceable here, not only on Usage.
+                    if let r = e.fiveHourResetsAt {
+                        TimelineView(.periodic(from: .now, by: 60)) { ctx in
+                            let s = max(0, Int(r.timeIntervalSince(ctx.date)))
+                            let txt = s >= 3600 ? "\(s / 3600)h \((s % 3600) / 60)m" : "\(max(1, s / 60))m"
+                            Text(model.t("activity.usage.resetsIn", txt))
+                                .font(.sfCaption2).foregroundStyle(Theme.tertiaryOnMaterial)
+                        }
+                    }
                 }
             }
             // EXACT per-model / per-agent spend for THIS run (from each message's

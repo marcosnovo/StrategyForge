@@ -183,6 +183,12 @@ struct UsageView: View {
                     }
                 }
                 modelPctBar(model.t("usage.sevenDay"), percent: e.weekPercent)
+                if let wr = e.weekResetsAt {
+                    TimelineView(.periodic(from: .now, by: 60)) { ctx in
+                        Text(model.t("usage.week.resetsIn", countdown(to: wr, now: ctx.date)))
+                            .font(.sfCaption2).foregroundStyle(.tertiary).frame(maxWidth: .infinity)
+                    }
+                }
                 if let u = model.claudeUsage, u.hasData { claudeLocalBreakdown(u) }
             } else if let u = model.claudeUsage, u.hasData {
                 // No exact % yet (not fetched / signed out) — 5h time-to-reset ring + a
