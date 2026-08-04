@@ -209,6 +209,15 @@ struct MetaOrchestrator {
             // accounted on the parent context to avoid data races.
             onEvent(.phase("delegate"))
             if Task.isCancelled { return nil }
+            // How many DISTINCT subtasks the plan gave each role. When the planner already
+            // split a role into several subtasks, those subtasks ARE the parallelism — run
+            // ONE instance each. Only fan a role that got a SINGLE subtask out to role.count.
+            // (Without this, K subtasks × count instances multiplied — e.g. 4×3 = 12 Gemini
+            // calls for one query, the "×12 researcher" bug.)
+            let subtasksPerRole = Dictionary(grouping: subtasks, by: { $0.roleName }).mapValues(\.count)
+            DiagnosticsLog.record("meta plan: \(subtasks.count) subtask(s) → " +
+                subtasksPerRole.map { "\($0.key)×\($0.value)" }.sorted().joined(separator: ", "))
+            let globalInstanceCap = 8   // hard ceiling on total parallel workers per turn
             struct WorkerResult: Sendable { let order: Int; let role: String; let text: String; let tokens: Int; let cost: Double }
             // Fault-tolerant: one worker failing must NOT cancel its siblings or hang the
             // turn. (A THROWING task group cancels every sibling on the first error and
@@ -220,15 +229,23 @@ struct MetaOrchestrator {
                 for sub in subtasks {
                     guard let role = workers.first(where: { $0.name == sub.roleName }) else { continue }
                     let m = modelID(for: role)
-                    let instances = max(1, min(role.count, 8))
+                    let hasSiblings = (subtasksPerRole[sub.roleName] ?? 1) > 1
+                    let instances = hasSiblings ? 1 : max(1, min(role.count, globalInstanceCap))
                     for inst in 0..<instances {
+                        if order >= globalInstanceCap {
+                            DiagnosticsLog.record("meta delegate: hit \(globalInstanceCap)-worker cap, dropping extra instances")
+                            break
+                        }
                         let thisOrder = order; order += 1
                         let prompt = workerPrompt(role: role, task: sub.task, instance: inst, of: instances)
+                        let taskPreview = sub.task.prefix(60).trimmingCharacters(in: .whitespacesAndNewlines)
+                        DiagnosticsLog.record("meta start #\(thisOrder + 1): \(role.name) inst \(inst + 1)/\(instances) · \(role.provider.displayName)·\(m.isEmpty ? "default" : m) · task=\(taskPreview)")
                         group.addTask {
                             onEvent(.roleStarted(role: role.name, provider: role.provider, model: m, task: sub.task))
                             do {
                                 let r = try await runStep(runner, role: role.name, provider: role.provider, model: m, prompt: prompt, cwd: cwd,
                                                       onActivity: activity(role.name))
+                                DiagnosticsLog.record("meta done #\(thisOrder + 1): \(role.name) · \(r.tokens) tok" + (r.estimated ? " (est)" : ""))
                                 onEvent(.roleFinished(role: role.name, tokens: r.tokens))
                                 onEvent(.usage(tokens: r.tokens, costUSD: r.costUSD, estimated: r.estimated))
                                 return WorkerResult(order: thisOrder, role: role.name, text: r.text, tokens: r.tokens, cost: r.costUSD)
@@ -243,6 +260,7 @@ struct MetaOrchestrator {
                                 // actor via .roleFailed) and keep the other workers going.
                                 // runStep already re-labels the error with role/provider.
                                 let why = (error as? OneShotError)?.errorDescription ?? error.localizedDescription
+                                DiagnosticsLog.record("meta FAIL #\(thisOrder + 1): \(role.name) — \(why)")
                                 onEvent(.roleFailed(role: role.name, message: why))
                                 return nil
                             }

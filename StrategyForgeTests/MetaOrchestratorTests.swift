@@ -222,6 +222,40 @@ struct MetaOrchestratorRunTests {
         #expect(box.events.contains(.roleNarration(role: "researcher", text: "Summarising findings")))
     }
 
+    @Test func multipleSubtasksForARoleDoNotMultiplyByCount() async {
+        // The "×12 researcher" bug: a role with count=3 that the planner splits into 3
+        // subtasks must run 3 workers (one per subtask) — NOT 3×3 = 9. Its subtasks are
+        // already the parallelism; only a SINGLE-subtask role fans out to its count.
+        let orch = AgentRole(name: "orchestrator", role: .orchestrator, model: .opus48,
+                             systemPrompt: "", description: "Lead", count: 1, isOrchestrator: true)
+        let researcher = AgentRole(name: "researcher", role: .researcher, model: .sonnet5,
+                                   provider: .claude, systemPrompt: "", description: "Investigate", count: 3)
+        let strategy = Strategy(name: "T", description: "", roles: [orch, researcher], orchestrationNotes: "")
+        let runner = MockRunner()
+        runner.planJSON = #"[{"role":"researcher","task":"a"},{"role":"researcher","task":"b"},{"role":"researcher","task":"c"}]"#
+        let box = EventBox()
+        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: runner) { box.append($0) }
+        // researcher (Sonnet) ran exactly 3 times — one per subtask, not 9.
+        let researcherCalls = runner.calls.filter { $0 == .init(provider: .claude, model: "claude-sonnet-5") }.count
+        #expect(researcherCalls == 3)
+    }
+
+    @Test func singleSubtaskRoleFansOutToItsCount() async {
+        // A role that gets ONE subtask still fans out to its configured count (parallel
+        // instances on the same subtask) — here count=3 → 3 calls.
+        let orch = AgentRole(name: "orchestrator", role: .orchestrator, model: .opus48,
+                             systemPrompt: "", description: "Lead", count: 1, isOrchestrator: true)
+        let worker = AgentRole(name: "worker", role: .worker, model: .sonnet5,
+                               provider: .claude, systemPrompt: "", description: "Do", count: 3)
+        let strategy = Strategy(name: "T", description: "", roles: [orch, worker], orchestrationNotes: "")
+        let runner = MockRunner()
+        runner.planJSON = #"[{"role":"worker","task":"only one"}]"#
+        let box = EventBox()
+        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: runner) { box.append($0) }
+        let workerCalls = runner.calls.filter { $0 == .init(provider: .claude, model: "claude-sonnet-5") }.count
+        #expect(workerCalls == 3)
+    }
+
     @Test func staleLoginSurfacesAuthRequiredForThatProvider() async {
         // A worker whose provider login is stale throws .authRequired → the run must emit
         // MetaEvent.authRequired(that provider) so the UI can offer a one-tap Reconnect,
