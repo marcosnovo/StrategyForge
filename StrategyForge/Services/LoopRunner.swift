@@ -142,7 +142,20 @@ final class LoopRunController {
     /// the temporary worktree. Silently merging unverified work never happens.
     private func finalizeWorktree(_ wt: WorktreeContext?, epoch: Int, pass: Bool?) async {
         guard let wt else { return }
+        // Classify the run's changes BEFORE committing, to gate the auto-merge on blast radius
+        // (cost-to-undo), not just the verifier's PASS. An irreversible change (migrations,
+        // deletions, prod, money) is never auto-merged — a human must look — even on a verified
+        // PASS. This only ever makes the loop MORE conservative; reversible work is unaffected.
+        let blast = BlastRadiusClassifier.classify(diff: await CodeGit.fullDiff(repo: wt.dir) ?? "")
         _ = await CodeGit.commitAll(dir: wt.dir, message: "Coral loop \(wt.branch)")
+        if pass == true && blast.radius == .irreversible {
+            await CodeGit.removeWorktree(repo: wt.base, path: wt.dir)   // keep the branch for review
+            if epoch == runEpoch {
+                let why = blast.reasons.joined(separator: ", ")
+                lastVerdictReason = "PASS, but the change is irreversible\(why.isEmpty ? "" : " (\(why))") — kept branch \(wt.branch) for you to merge by hand."
+            }
+            return
+        }
         if pass == true {
             let merge = await CodeGit.mergeNoFF(repo: wt.base, branch: wt.branch,
                                                 message: "Merge loop \(wt.branch) (verified PASS)")

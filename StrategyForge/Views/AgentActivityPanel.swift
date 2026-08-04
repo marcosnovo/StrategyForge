@@ -50,6 +50,8 @@ struct AgentActivityPanel: View {
     @State private var previewingFiles = false
     @State private var showHistory = false
     @State private var showCompare = false
+    /// The "A vs B" trajectory sheet — what each agent did, with redone work highlighted.
+    @State private var showTrajectory = false
 
     /// The strategy to show: the recommendation preview when idle, else the live team.
     private var shownStrategy: Strategy {
@@ -206,8 +208,16 @@ struct AgentActivityPanel: View {
                     .padding(.horizontal, 6).padding(.vertical, 1)
                     .background(Capsule().fill(Theme.warning.opacity(0.16)))
                 Spacer()
+                Button { showTrajectory = true } label: {
+                    HStack(spacing: 2) { Text(model.t("activity.seeAll")); Image(systemName: "chevron.right").scaledFont(8) }
+                        .font(.sfCaption2.weight(.medium))
+                }
+                .buttonStyle(.plain).foregroundStyle(Theme.accent)
             }
             .help(model.t("activity.redone.help"))
+            .sheet(isPresented: $showTrajectory) {
+                TrajectoryCompareView(steps: vm.timeline).environment(model)
+            }
             ForEach(dups.prefix(5)) { d in
                 HStack(spacing: Space.s) {
                     Image(systemName: activityToolIcon(d.title)).scaledFont(9).foregroundStyle(.secondary).frame(width: 14)
