@@ -66,8 +66,8 @@ enum Constants {
     /// ships or renames models — everything else references these ids.
     static let models: [ModelInfo] = [
         ModelInfo(
-            id: "claude-opus-4-8",
-            displayName: "Opus 4.8",
+            id: "claude-opus-5",
+            displayName: "Opus 5",
             safeguardNoteKey: nil
         ),
         ModelInfo(
@@ -83,6 +83,11 @@ enum Constants {
         ModelInfo(
             id: "claude-haiku-4-5",
             displayName: "Haiku 4.5",
+            safeguardNoteKey: nil
+        ),
+        ModelInfo(
+            id: "claude-opus-4-8",
+            displayName: "Opus 4.8",
             safeguardNoteKey: nil
         ),
     ]
@@ -125,7 +130,8 @@ enum Constants {
     }
 
     static let pricing: [String: ModelPrice] = [
-        "claude-opus-4-8":  ModelPrice(inputPerM: 15, outputPerM: 75),
+        "claude-opus-5":    ModelPrice(inputPerM: 15, outputPerM: 75),
+        "claude-opus-4-8":  ModelPrice(inputPerM: 15, outputPerM: 75),   // legacy, still priced
         "claude-fable-5":   ModelPrice(inputPerM: 10, outputPerM: 50),
         "claude-sonnet-5":  ModelPrice(inputPerM: 3,  outputPerM: 15),
         "claude-haiku-4-5": ModelPrice(inputPerM: 1,  outputPerM: 5),

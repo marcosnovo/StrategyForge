@@ -62,7 +62,7 @@ private enum DiagramSpecBuilder {
     /// Model tiers — the accent node is the one running the highest tier.
     private static func tier(_ model: ClaudeModel) -> Int {
         switch model {
-        case .opus48, .fable5: return 3
+        case .opus5, .opus48, .fable5: return 3
         case .sonnet5: return 2
         case .haiku45: return 1
         }

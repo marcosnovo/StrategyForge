@@ -74,7 +74,10 @@ extension AdvisorEngine {
     /// (guarded by a unit test), since that's what the CLI actually receives.
     static let modelProfiles: [ModelProfile] = [
         // Claude
-        ModelProfile(provider: .claude, modelID: ClaudeModel.opus48.rawValue,
+        ModelProfile(provider: .claude, modelID: ClaudeModel.opus5.rawValue,
+                     displayName: ClaudeModel.opus5.displayName,
+                     reasoning: 5, coding: 4, breadth: 4, speed: 2),
+        ModelProfile(provider: .claude, modelID: ClaudeModel.opus48.rawValue,   // legacy, still selectable
                      displayName: ClaudeModel.opus48.displayName,
                      reasoning: 5, coding: 4, breadth: 4, speed: 2),
         ModelProfile(provider: .claude, modelID: ClaudeModel.fable5.rawValue,
@@ -223,7 +226,7 @@ extension AdvisorEngine {
         switch p {
         case .openai: return "ChatGPT · Codex"
         case .gemini: return "Gemini"
-        case .claude: return ClaudeModel.opus48.displayName
+        case .claude: return ClaudeModel.opus5.displayName
         }
     }
 

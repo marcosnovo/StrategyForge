@@ -239,9 +239,9 @@ struct MissionReportTests {
 struct LaunchCommandGeneratorTests {
 
     @Test func usesOrchestratorModel() {
-        let strategy = StrategyLibrary.debateConsensus() // moderator is Opus 4.8
-        #expect(LaunchCommandGenerator.command(for: strategy) == "claude --model claude-opus-4-8")
-        #expect(LaunchCommandGenerator.inSessionInstruction(for: strategy) == "/model claude-opus-4-8")
+        let strategy = StrategyLibrary.debateConsensus() // moderator is Opus 5 (current expert)
+        #expect(LaunchCommandGenerator.command(for: strategy) == "claude --model claude-opus-5")
+        #expect(LaunchCommandGenerator.inSessionInstruction(for: strategy) == "/model claude-opus-5")
     }
 
     @Test func respectsCustomBinaryPath() {
@@ -283,14 +283,14 @@ struct CostEstimatorTests {
         // Per the delegation economics, the lead's own token bill tracks how much it
         // hands off. A solo lead does the work itself; give it a team and its own
         // contribution drops. Isolate the LEAD's cost with a different-model worker
-        // (Haiku) so `byModel[.opus48]` is purely the Opus lead's share.
+        // (Haiku) so `byModel[.opus5]` is purely the Opus lead's share.
         let solo = StrategyLibrary.solo()               // single Opus agent, no team
-        let soloLead = CostEstimator.estimate(solo).byModel[.opus48] ?? 0
+        let soloLead = CostEstimator.estimate(solo).byModel[.opus5] ?? 0
 
         var team = solo
         team.roles.append(AgentRole(name: "worker", role: .worker, model: .haiku45,
                                     systemPrompt: "implement", description: "do the work"))
-        let delegatingLead = CostEstimator.estimate(team).byModel[.opus48] ?? 0
+        let delegatingLead = CostEstimator.estimate(team).byModel[.opus5] ?? 0
 
         #expect(soloLead > 0)
         #expect(delegatingLead < soloLead)

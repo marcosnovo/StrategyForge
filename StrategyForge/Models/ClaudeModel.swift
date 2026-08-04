@@ -12,12 +12,18 @@ import Foundation
 /// A Claude model selectable for a role. The raw value is the model id used both
 /// in subagent frontmatter (`model:`) and in the launch command (`--model`).
 enum ClaudeModel: String, Codable, CaseIterable, Identifiable, Hashable {
-    case opus48 = "claude-opus-4-8"
+    case opus5 = "claude-opus-5"          // current Expert (supersedes Opus 4.8)
     case fable5 = "claude-fable-5"
     case sonnet5 = "claude-sonnet-5"
     case haiku45 = "claude-haiku-4-5"
+    case opus48 = "claude-opus-4-8"       // legacy — kept so saved configs still decode
 
     var id: String { rawValue }
+
+    /// The models offered in pickers. Coral's stance (founder, 2026): don't hide models —
+    /// expose EVERY real one so an expert can fine-tune a team however they want; the app just
+    /// defaults to the efficient pick per task. Current generation first, legacy Opus 4.8 last.
+    static var selectable: [ClaudeModel] { [.opus5, .fable5, .sonnet5, .haiku45, .opus48] }
 
     /// The metadata entry from the centralized catalog, if present.
     private var info: Constants.ModelInfo? {
@@ -43,7 +49,7 @@ enum ClaudeModel: String, Codable, CaseIterable, Identifiable, Hashable {
     var tierNameKey: String {
         switch self {
         case .fable5:  return "model.tier.specialist"
-        case .opus48:  return "model.tier.expert"
+        case .opus5, .opus48: return "model.tier.expert"
         case .sonnet5: return "model.tier.generalist"
         case .haiku45: return "model.tier.fast"
         }
@@ -55,7 +61,7 @@ enum ClaudeModel: String, Codable, CaseIterable, Identifiable, Hashable {
     /// An SF Symbol that conveys the tier at a glance in the model grid.
     var tierIcon: String {
         switch self {
-        case .opus48:  return "star.fill"          // Expert
+        case .opus5, .opus48: return "star.fill"   // Expert
         case .fable5:  return "scope"              // Specialist
         case .sonnet5: return "book.fill"          // Generalist
         case .haiku45: return "bolt.fill"          // Fast

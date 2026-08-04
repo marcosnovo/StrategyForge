@@ -121,7 +121,7 @@ enum TokenSaverEngine {
         //    Haiku answers it at a fraction of the price (two clicks in Team).
         //    Any code-ish / multi-step word means real work — stay silent then.
         if !dismissed.contains(.modelOverkill),
-           let orch = signals.orchestratorModel, orch == .opus48 || orch == .fable5,
+           let orch = signals.orchestratorModel, orch == .opus5 || orch == .opus48 || orch == .fable5,
            signals.messageCount <= 2,
            (1..<80).contains(draftLength),
            !heavyWorkKeywords.contains(where: { draft.contains($0) }) {

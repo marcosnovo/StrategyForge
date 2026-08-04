@@ -300,7 +300,7 @@ struct RoleEditorForm: View {
     /// A capability grid: one card per Claude model showing tier icon/name.
     private var modelGrid: some View {
         HStack(spacing: 6) {
-            ForEach(ClaudeModel.allCases) { m in modelChip(m) }
+            ForEach(ClaudeModel.selectable) { m in modelChip(m) }
         }
     }
 

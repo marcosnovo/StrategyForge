@@ -26,7 +26,7 @@ struct AdvisorEngineTests {
         let advice = AdvisorEngine.advise(
             task: "Migración multi-archivo de bcrypt a argon2 en todo el repo, serán días de trabajo")
         // Deep + ambitious → the top tier (Fable, with Opus as the acceptable floor).
-        #expect(advice.model == .fable5 || advice.model == .opus48)
+        #expect(advice.model == .fable5 || advice.model == .opus5)
         // A cross-repo migration warrants more than a solo agent.
         #expect(advice.strategy.roles.count > 1)
         #expect(!advice.strategy.subagentRoles.isEmpty)
@@ -80,7 +80,7 @@ struct AdvisorEngineTests {
             task: "Investiga y depura por qué el checkout falla de forma intermitente en todo el repo; encuentra la causa raíz del fallo")
         #expect(advice.shapeRationaleKey == "advisor.rationale.nondelegable")
         #expect(advice.strategy.roles.count <= 2)          // executor + advisor, no fleet
-        #expect(advice.model == .fable5 || advice.model == .opus48)
+        #expect(advice.model == .fable5 || advice.model == .opus5)
         #expect(advice.decisionPath.contains {
             $0.questionKey == "advisor.q.team" && !$0.answerIsYes
                 && $0.evidenceKeys.contains("advisor.ev.serialDebug")

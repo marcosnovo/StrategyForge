@@ -213,7 +213,7 @@ enum AdvisorEngine {
                 hardestEvidence.append("advisor.ev.complexScope")
             }
             let hardest = !hardestEvidence.isEmpty
-            model = hardest ? .fable5 : .opus48
+            model = hardest ? .fable5 : .opus5
             record("advisor.q.hardest", yes: hardest,
                    answer: hardest ? "advisor.a.hardest.yes" : "advisor.a.hardest.no",
                    evidence: hardestEvidence)
@@ -291,7 +291,7 @@ enum AdvisorEngine {
         switch model {
         case .haiku45: effort = .low
         case .sonnet5: effort = .medium
-        case .opus48:  effort = (trimmed.count > 280 || depthEvidence.count >= 2) ? .high : .medium
+        case .opus5, .opus48: effort = (trimmed.count > 280 || depthEvidence.count >= 2) ? .high : .medium
         case .fable5:  effort = .high
         }
 
@@ -437,12 +437,12 @@ enum AdvisorEngine {
     }
 
     private static func downTier(_ m: ClaudeModel) -> ClaudeModel {
-        switch m { case .fable5: return .opus48; case .opus48: return .sonnet5
+        switch m { case .fable5: return .opus5; case .opus5, .opus48: return .sonnet5
                    case .sonnet5: return .haiku45; case .haiku45: return .haiku45 }
     }
     private static func upTier(_ m: ClaudeModel) -> ClaudeModel {
-        switch m { case .haiku45: return .sonnet5; case .sonnet5: return .opus48
-                   case .opus48: return .fable5; case .fable5: return .fable5 }
+        switch m { case .haiku45: return .sonnet5; case .sonnet5: return .opus5
+                   case .opus5, .opus48: return .fable5; case .fable5: return .fable5 }
     }
     private static func lower(_ e: CostEffort) -> CostEffort {
         switch e { case .high: return .medium; case .medium: return .low; case .low: return .low }

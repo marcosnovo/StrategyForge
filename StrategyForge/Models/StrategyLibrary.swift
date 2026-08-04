@@ -380,7 +380,7 @@ enum StrategyLibrary {
                 AgentRole(
                     name: "deep-specialist",
                     role: .specialist,
-                    model: .opus48,
+                    model: .opus5,
                     systemPrompt: """
                     You take only the genuinely hard work: subtle design decisions, \
                     tricky correctness, gnarly refactors. Bring deep reasoning, name \
@@ -413,7 +413,7 @@ enum StrategyLibrary {
             roles: [
                 orchestrator(
                     name: "orchestrator",
-                    model: .opus48,
+                    model: .opus5,
                     description: "Main session. Ranks hypotheses from evidence, "
                         + "directs the minimal fix, and confirms the root cause.",
                     systemPrompt: """
@@ -704,7 +704,7 @@ enum StrategyLibrary {
             roles: [
                 orchestrator(
                     name: "moderator",
-                    model: .opus48,
+                    model: .opus5,
                     description: "Main session. Poses the question to each debater, "
                         + "collects their arguments, and synthesizes a consensus.",
                     systemPrompt: """
@@ -881,7 +881,7 @@ enum StrategyLibrary {
                 AgentRole(
                     name: "design-critic",
                     role: .reviewer,
-                    model: .opus48,
+                    model: .opus5,
                     systemPrompt: """
                     You are a read-only senior design critic on a fresh context. Review the built \
                     UI against (a) the reference quality bar, (b) the ban list, and (c) the active \
@@ -972,7 +972,7 @@ enum StrategyLibrary {
                 AgentRole(
                     name: "reviewer-a",
                     role: .reviewer,
-                    model: .opus48,
+                    model: .opus5,
                     systemPrompt: """
                     You are an ADVERSARIAL, read-only verifier on a FRESH context — you did not \
                     write this translation. Compare the ported file against the original as the \
@@ -990,7 +990,7 @@ enum StrategyLibrary {
                 AgentRole(
                     name: "reviewer-b",
                     role: .reviewer,
-                    model: .opus48,
+                    model: .opus5,
                     systemPrompt: """
                     You are a SECOND, independent adversarial verifier, separate from reviewer-a \
                     and on your own fresh context — two reviewers that share a context aren't \
@@ -1085,7 +1085,7 @@ enum StrategyLibrary {
             roles: [
                 orchestrator(
                     name: "solo",
-                    model: .opus48,
+                    model: .opus5,
                     description: "Main session. Does all the work directly with no "
                         + "subagents.",
                     systemPrompt: """

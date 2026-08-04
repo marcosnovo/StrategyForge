@@ -150,7 +150,9 @@ struct NavRail: View {
                     SpotlightBeam(tint: Theme.coral)
                         .frame(width: r.width, height: r.height)
                         .position(x: r.midX, y: r.midY)
-                        .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.78),
+                        // Snappy + a touch of bounce so the light darts to the new section the
+                        // instant it's picked (agile, not a slow glide that lags the click).
+                        .animation(reduceMotion ? nil : .spring(response: 0.26, dampingFraction: 0.68),
                                    value: model.navSection)
                 }
             }
@@ -571,61 +573,55 @@ private struct SpotlightAnchorKey: PreferenceKey {
     }
 }
 
-/// A cinematic "spotlight" lit FROM THE LEFT: a bright lamp on the leading edge, a crisp cone
-/// widening rightward with a white-hot core that cools to coral, a glowing pool on the icon,
-/// and a soft outer bloom. Sized to the active row and slid by the caller. Decorative.
+/// A CORAL "spotlight" lit from the left — glowy, diffuse, and reading as actual light rather
+/// than a coloured triangle. It's built from soft radial glows (a bright coral source, a warm
+/// pool on the icon, an overall halo) plus a faint cone for direction. Sized to the active row
+/// and slid by the caller. Decorative.
 private struct SpotlightBeam: View {
     var tint: Color = Theme.coral
-    /// Warm near-white at the source so the cone reads as real light, not a coloured shape.
-    private var hot: Color { Color.white }
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             let cy = h * 0.5
             ZStack {
-                // Outer bloom — a soft coral wash that gives the whole row a lit halo.
-                RoundedRectangle(cornerRadius: h * 0.4, style: .continuous)
-                    .fill(tint.opacity(0.12))
-                    .blur(radius: 10)
+                // Overall halo — the whole row glows, so it looks lit everywhere, not just a shape.
+                Capsule().fill(tint.opacity(0.14)).blur(radius: 12)
 
-                // The cone: narrow at the lamp, fanning to the icon. Two stacked fills — a wide
-                // soft cone + a tighter bright core — give it depth instead of a flat triangle.
-                cone(w: w, h: h, spread: 0.42)
-                    .fill(LinearGradient(colors: [tint.opacity(0.38), tint.opacity(0.02)],
+                // Faint directional cone (soft, low-opacity) — gives a sense of the beam without
+                // looking like a hard triangle. Coral throughout, brightest at the source.
+                cone(w: w, h: h, spread: 0.44)
+                    .fill(LinearGradient(colors: [tint.opacity(0.34), tint.opacity(0.10), .clear],
                                          startPoint: .leading, endPoint: .trailing))
-                    .blur(radius: 4)
-                cone(w: w, h: h, spread: 0.24)
-                    .fill(LinearGradient(colors: [hot.opacity(0.55), tint.opacity(0.18), .clear],
-                                         startPoint: .leading, endPoint: .trailing))
+                    .blur(radius: 6)
+
+                // The SOURCE glow on the left — a bright coral bulb of light (was a white cap).
+                Circle()
+                    .fill(RadialGradient(colors: [tint.opacity(0.95), tint.opacity(0.5), .clear],
+                                         center: .center, startRadius: 0, endRadius: h * 0.42))
+                    .frame(width: h * 0.85, height: h * 0.85)
+                    .position(x: h * 0.12, y: cy)
                     .blur(radius: 2)
 
-                // Pool of light where the icon sits — a radial hotspot (bright center → fade).
+                // The pool where the icon sits — a soft coral hotspot that fades out.
                 Circle()
-                    .fill(RadialGradient(colors: [hot.opacity(0.5), tint.opacity(0.28), .clear],
-                                         center: .center, startRadius: 0, endRadius: h * 0.55))
-                    .frame(width: h * 1.05, height: h * 1.05)
-                    .position(x: w * 0.6, y: cy)
-                    .blur(radius: 3)
-
-                // The lamp on the leading edge — a bright cap with a bloom, the light source.
-                Capsule().fill(hot.opacity(0.95))
-                    .frame(width: 3.5, height: h * 0.34)
-                    .position(x: 1.5, y: cy)
-                    .shadow(color: tint.opacity(0.9), radius: 5)
-                    .shadow(color: hot.opacity(0.5), radius: 2)
+                    .fill(RadialGradient(colors: [tint.opacity(0.6), tint.opacity(0.22), .clear],
+                                         center: .center, startRadius: 0, endRadius: h * 0.6))
+                    .frame(width: h * 1.2, height: h * 1.2)
+                    .position(x: w * 0.62, y: cy)
+                    .blur(radius: 4)
             }
             .compositingGroup()
         }
         .allowsHitTesting(false)
     }
 
-    /// A cone from the leading edge (narrow) widening to the trailing edge, `spread` = half the
-    /// fractional height it fans to at the wide end.
+    /// A cone from the leading edge (narrow) widening rightward, `spread` = half the fractional
+    /// height it fans to at the wide end.
     private func cone(w: CGFloat, h: CGFloat, spread: CGFloat) -> Path {
         Path { p in
-            p.move(to: CGPoint(x: 0, y: h * (0.5 - 0.06)))
-            p.addLine(to: CGPoint(x: 0, y: h * (0.5 + 0.06)))
+            p.move(to: CGPoint(x: 0, y: h * (0.5 - 0.09)))
+            p.addLine(to: CGPoint(x: 0, y: h * (0.5 + 0.09)))
             p.addLine(to: CGPoint(x: w, y: h * (0.5 + spread)))
             p.addLine(to: CGPoint(x: w, y: h * (0.5 - spread)))
             p.closeSubpath()

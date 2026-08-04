@@ -556,7 +556,7 @@ struct LoopEditorView: View {
     /// Model chips mirroring RoleEditorForm.modelGrid (tier icon + tier + name).
     private func modelChips(_ selection: Binding<ClaudeModel>, enabled: Bool) -> some View {
         HStack(spacing: 6) {
-            ForEach(ClaudeModel.allCases) { m in
+            ForEach(ClaudeModel.selectable) { m in
                 let selected = selection.wrappedValue == m
                 Button {
                     withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
