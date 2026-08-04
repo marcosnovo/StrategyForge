@@ -73,6 +73,10 @@ struct TaskToStrategySheet: View {
             .controlSize(.large)
             .disabled(task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
 
+            if isGenerating {
+                WorkingLine(label: model.t("task2strat.generating"))
+            }
+
             if let result {
                 resultCard(result)
             }

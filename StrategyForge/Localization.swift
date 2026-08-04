@@ -329,6 +329,7 @@ enum L10n {
         "isolate.banner": ("Running isolated in a worktree", "Ejecución aislada en un worktree"),
         "isolate.review": ("Review diff", "Revisar diff"),
         "isolate.verify": ("Verify", "Verificar"),
+        "isolate.verifying": ("Reviewing the diff…", "Revisando el diff…"),
         "isolate.verified": ("Verified by %@", "Verificado por %@"),
         "isolate.issues": ("%d issues", "%d problemas"),
         "isolate.verify.fail": ("Verify failed", "Falló la verificación"),
@@ -344,6 +345,8 @@ enum L10n {
         "ship.cancel": ("Cancel", "Cancelar"),
         "ship.title": ("Deploy", "Despliegue"),
         "ship.deploying": ("Deploying to %@…", "Desplegando a %@…"),
+        "ship.deploying.note": ("This can take a few minutes — the deploy CLI is building and uploading.",
+                                "Puede tardar unos minutos — la CLI de deploy está construyendo y subiendo."),
         "ship.done": ("Deployed", "Desplegado"),
         "ship.failed": ("Deploy failed", "Falló el despliegue"),
         "ship.open": ("Open site", "Abrir sitio"),
@@ -1623,6 +1626,7 @@ enum L10n {
         "activity.working.elapsed": ("working · %@", "trabajando · %@"),
         "activity.working.slow": ("· taking a while — it's still running, you can queue a follow-up",
                                   "· tardando un poco — sigue en marcha, puedes dejar otro mensaje en cola"),
+        "working.slow": ("· still working", "· sigue en marcha"),
 
         // MARK: Document preview
         "filepreview.title": ("Files produced", "Archivos generados"),
@@ -1739,6 +1743,7 @@ enum L10n {
         "eval.regenerate": ("Regenerate", "Regenerar"),
         "eval.run": ("Run evals", "Ejecutar evals"),
         "eval.generated": ("Generated %lld scenarios.", "Generados %lld escenarios."),
+        "eval.generating": ("Generating scenarios…", "Generando escenarios…"),
         "eval.generateFailed": ("Couldn't generate scenarios — check the team's provider is connected.",
                                 "No se pudieron generar escenarios — comprueba que el proveedor del equipo está conectado."),
         "eval.doneBanner": ("Evals: %lld/%lld passed.", "Evals: %lld/%lld superados."),

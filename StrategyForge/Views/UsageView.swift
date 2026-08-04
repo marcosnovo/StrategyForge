@@ -103,6 +103,11 @@ struct UsageView: View {
                 Text(model.t("usage.subtitle")).font(.sfCallout).foregroundStyle(.secondary)
             }
             Spacer()
+            // Live elapsed while a slow provider refresh runs, so the rotating icon isn't the
+            // only (ambiguous) signal that it's working.
+            if model.isRefreshingUsage {
+                HStack(spacing: 5) { WorkingLogo(size: 13); ElapsedText() }
+            }
             Button {
                 Task { await model.refreshUsage(); await model.refreshExactUsage(force: true) }
             } label: {

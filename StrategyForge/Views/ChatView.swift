@@ -2045,7 +2045,17 @@ struct ChatView: View {
             HStack(spacing: Space.s) {
                 Image(systemName: "shield.lefthalf.filled").foregroundStyle(Theme.coral).font(.system(size: 11))
                 Text(model.t("isolate.banner")).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
-                isolationVerdict
+                // While the independent review runs (a CLI pass over the diff — seconds to
+                // a minute), show a live "reviewing… Xs" so it never looks stuck.
+                if vm.isolationBusy {
+                    HStack(spacing: 5) {
+                        WorkingLogo(size: 12)
+                        Text(model.t("isolate.verifying")).font(.sfCaption2).foregroundStyle(Theme.accent)
+                        ElapsedText()
+                    }
+                } else {
+                    isolationVerdict
+                }
                 Spacer()
                 Button(model.t("isolate.verify")) { Task { await vm.verifyIsolation() } }
                     .controlSize(.small).disabled(vm.isolationBusy)
@@ -2105,8 +2115,11 @@ struct ChatView: View {
             }
             .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(.bar)
             if shipping {
-                HStack(spacing: Space.s) { ProgressView().controlSize(.small); Text(model.t("ship.deploying", shipTool?.displayName ?? "")).font(.sfBodyM).foregroundStyle(.secondary) }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: Space.s) {
+                    WorkingLine(label: model.t("ship.deploying", shipTool?.displayName ?? ""))
+                    Text(model.t("ship.deploying.note")).font(.sfCaption2).foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding(Space.l)
             } else {
                 ScrollView {
                     Text(shipResult?.log.isEmpty == false ? shipResult!.log : "—")

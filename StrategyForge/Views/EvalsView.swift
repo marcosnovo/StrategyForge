@@ -46,6 +46,10 @@ struct EvalsView: View {
             if let p = progress, isBusy {
                 ProgressView(value: Double(p.done), total: Double(max(p.total, 1)))
                 Text(model.t("eval.progress", p.done, p.total)).font(.sfCaption2).foregroundStyle(.secondary)
+            } else if isBusy {
+                // Generating scenarios (single CLI call, no per-item progress) — a self-timing
+                // "working… Xs" line so it never looks frozen.
+                WorkingLine(label: model.t("eval.generating"))
             }
             if improving, let last = improveLog.last {
                 HStack(spacing: Space.s) {

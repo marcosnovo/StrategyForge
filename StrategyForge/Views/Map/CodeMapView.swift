@@ -574,7 +574,7 @@ struct CodeMapView: View {
                 Button(model.t("map.path.find")) { runPath() }
                     .buttonStyle(.moon).disabled(pathA.isEmpty || pathB.isEmpty || pathing)
             }
-            if pathing { ProgressView() }
+            if pathing { HStack(spacing: Space.s) { ProgressView().controlSize(.small); ElapsedText() } }
             if let t = pathText {
                 ScrollView {
                     Text(t).font(.sfCode).textSelection(.enabled)
@@ -716,6 +716,8 @@ struct CodeMapView: View {
             ProgressView().controlSize(.large)
             Text(label).font(.sfBodyM).foregroundStyle(Theme.secondaryOnMaterial)
             if let repo = store.repoURL { Text(repo.lastPathComponent).font(.sfCaption2).foregroundStyle(.tertiary) }
+            // Live elapsed so a 30s+ graph build never reads as frozen.
+            ElapsedText()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
