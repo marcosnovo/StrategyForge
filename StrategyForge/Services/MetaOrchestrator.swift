@@ -80,7 +80,14 @@ struct MetaOrchestrator {
         if total > 1 {
             p += "You are instance \(instance + 1) of \(total) working on this in parallel — focus on your share and be concise.\n\n"
         }
-        p += "Task:\n\(task)"
+        p += "Task:\n\(task)\n\n"
+        // Pass EVIDENCE, not just a conclusion (Hanako 2026): the next agent inherits this and
+        // cannot reason from a bare line. Report what you RULED OUT and what FAILED, not only
+        // what worked — the dead ends are the part that stops a teammate re-walking them.
+        p += "When you report back, include a short \"Ruled out / failed:\" section listing the "
+           + "approaches, endpoints or assumptions you tried that did NOT work (and why), plus any "
+           + "concrete artifact (a schema, an exact error, a file path) — so a teammate never has "
+           + "to rediscover it. Don't just give the final conclusion."
         return p
     }
 

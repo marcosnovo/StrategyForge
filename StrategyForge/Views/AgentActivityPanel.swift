@@ -179,9 +179,48 @@ struct AgentActivityPanel: View {
     private var activityCard: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             stepsSection
+            let dups = WastedWork.detect(vm.timeline)
+            if !dups.isEmpty {
+                sectionDivider
+                wastedWorkSection(dups)
+            }
             if !vm.isRunning && !vm.history.isEmpty {
                 sectionDivider
                 historySection
+            }
+        }
+    }
+
+    /// "Redone work" — the collaboration failure made visible: the same tool + target run by
+    /// more than one agent (they can't share a window, so a teammate re-walked it). This is the
+    /// waste that's invisible in the final answer and only shows in the trajectory.
+    private func wastedWorkSection(_ dups: [DuplicatedWork]) -> some View {
+        let redundant = WastedWork.redundantCount(dups)
+        return VStack(alignment: .leading, spacing: Space.xs) {
+            HStack(spacing: Space.xs) {
+                Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 11)).foregroundStyle(Theme.warning)
+                Text(model.t("activity.redone.title")).font(.sfFieldLabel)
+                    .foregroundStyle(Theme.tertiaryOnMaterial).tracking(0.6)
+                Text("\(redundant)").font(.sfCaption2.weight(.bold)).monospacedDigit()
+                    .foregroundStyle(Theme.warning)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(Capsule().fill(Theme.warning.opacity(0.16)))
+                Spacer()
+            }
+            .help(model.t("activity.redone.help"))
+            ForEach(dups.prefix(5)) { d in
+                HStack(spacing: Space.s) {
+                    Image(systemName: activityToolIcon(d.title)).scaledFont(9).foregroundStyle(.secondary).frame(width: 14)
+                    Text("\(d.title) · \(d.detail)").font(.sfCaption2).lineLimit(1).truncationMode(.middle)
+                    Spacer(minLength: Space.xs)
+                    // ×N and — when it crossed agents — a badge naming them (the real problem).
+                    if d.crossAgent {
+                        Text(d.agents.joined(separator: " · ")).scaledFont(9, weight: .medium)
+                            .foregroundStyle(Theme.warningText).lineLimit(1)
+                    }
+                    Text("×\(d.count)").font(.sfCaption2.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(Theme.warning)
+                }
             }
         }
     }
