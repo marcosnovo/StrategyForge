@@ -79,6 +79,9 @@ suscripciones** (Claude Code / Codex / Gemini — sin medición, sin cuenta), **
 - **Vista de trayectoria "A vs B"** — columnas por agente con los pasos que un compañero rehízo resaltados ("REPETIDO") y "pagado dos veces". *(Hanako 2026.)*
 - **Panel de jueces multi-familia** para verificar el diff (promediar rompe el sesgo de familia) + se registra el juez/modelo usado.
 - **Memory como "verdad operativa"** — lo auto-cosechado entra como *pendiente de revisión*; solo lo revisado/pinned se inyecta a los agentes (gatekeeping humano). *(Replit 2026.)*
+- **Lente de coste nodo/arista** — separa el gasto que compra pensamiento (nodos = llamadas al modelo) del enrutado/fan-out evitable (aristas), con ahorro estimado por turno. *(Graph Engineering con Opus 5.)*
+- **Countdowns de reset** (5h + semana) glanceables, y **filtrar/agrupar/ordenar chats** (estado, proveedor, fecha/carpeta/estado, recencia/nombre). *(CodexBar.)*
+- **Todos los modelos expuestos** (Opus 5 · Fable 5 · Sonnet 5 · Haiku 4.5 · Opus 4.8) — el experto configura fino, la app elige el eficiente por defecto.
 
 ---
 
