@@ -6,6 +6,20 @@ públicos de cada competidor. Todas las afirmaciones citan fuente; donde la fuen
 dato no estaba documentado públicamente se marca **(no confirmado)**.
 **Audiencia:** producto/roadmap interno.
 
+> **Actualización 2026-08-04 — enviado: auto-mejora recursiva de equipos (RAI).** Inspirado en el
+> post "How to Recursively Improve Your Agents" (Agno). Coral ya tenía Evals maduros (genera escenarios,
+> juez independiente read-only, trayectoria, baseline/regresión). El hueco era **cerrar el bucle sobre el
+> DISEÑO del equipo**. Nuevo `Services/TeamImprover.swift` (motor RAI **convergente**, no RSI): deriva
+> probes del **spec + uso real** (transcripts), corre la suite juzgada por el verificador independiente, y
+> por cada ronda de fallos pide a un **editor independiente (Claude)** UNA palanca mínima (afinar el system
+> prompt de un rol / cambiar su modelo), la aplica y re-corre — hasta superar el umbral o el freno de
+> iteraciones. UI: botón **"Auto-mejorar"** en `EvalsView` con log en vivo + hoja de revisión (start→end
+> pass-rate, una línea por edición) que el humano **aprueba antes de aplicar**. También: `EvalRunner.run`
+> ahora antepone el system prompt del orquestador (los evals prueban la persona real, y las ediciones RAI
+> son observables); generación de probes consciente del uso (`usageExcerpts`). 467 tests, +11.
+> **Diferenciador:** nadie auto-mejora el *diseño del equipo* usando *tu propio historial* + un juez de
+> **otra familia de proveedor**, con humano en el bucle (convergente a spec, no RSI divergente).
+
 > **Actualización 2026-07-29 — refresh competitivo (panel de 3 agentes, mercado a julio 2026).**
 >
 > **Nota:** ~**8.5/10 en su nicho** (orquestador nativo BYO), ~**6.5–7/10 vs el mercado amplio de

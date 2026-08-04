@@ -16,14 +16,31 @@ enum EvalRunner {
     // MARK: - Generation (pure prompt + parse)
 
     /// Prompt the orchestrator to invent `count` scenarios spread across the four
-    /// categories, given the team's purpose. Asks for strict JSON.
-    static func generatePrompt(team: Strategy, count: Int) -> String {
+    /// categories, given the team's purpose. When `usageExcerpts` is non-empty, the probes
+    /// are DERIVED FROM REAL USAGE (the article's key move) — recurring question shapes,
+    /// visible fumbles, out-of-scope asks — not only the spec. Asks for strict JSON.
+    static func generatePrompt(team: Strategy, count: Int, usageExcerpts: [String] = []) -> String {
         let cats = EvalCategory.allCases.map(\.rawValue).joined(separator: ", ")
+        let usageBlock: String
+        if usageExcerpts.isEmpty {
+            usageBlock = ""
+        } else {
+            let sample = usageExcerpts.prefix(30).enumerated()
+                .map { "- \($0.element.prefix(200))" }.joined(separator: "\n")
+            usageBlock = """
+
+            REAL USAGE (recent things people actually asked this team — mine these for
+            recurring shapes, the edge cases it fumbled, and out-of-scope asks; prefer
+            probes grounded in this over invented ones):
+            \(sample)
+            """
+        }
         return """
         You are designing an EVAL SUITE to stress-test an AI agent team before it's trusted.
 
         TEAM PURPOSE:
         \(team.name) — \(team.description)
+        \(usageBlock)
 
         Generate \(count) test scenarios spread across these categories: \(cats).
         - answersCorrectly: a question the team should answer well.
@@ -149,11 +166,13 @@ enum EvalRunner {
 
     // MARK: - Run (wires the pure parts to an injected runner)
 
-    /// Generate `count` scenarios for `team` using the orchestrator's model.
-    static func generate(team: Strategy, count: Int, runner: OneShotRunner, cwd: String? = nil) async -> [EvalScenario] {
+    /// Generate `count` scenarios for `team` using the orchestrator's model, optionally
+    /// derived from real usage excerpts (recent prompts people gave this team).
+    static func generate(team: Strategy, count: Int, usageExcerpts: [String] = [],
+                         runner: OneShotRunner, cwd: String? = nil) async -> [EvalScenario] {
         guard let orchestrator = team.orchestrator else { return [] }
         let model = MetaOrchestrator.modelID(for: orchestrator)
-        guard let result = try? await runner.run(prompt: generatePrompt(team: team, count: count),
+        guard let result = try? await runner.run(prompt: generatePrompt(team: team, count: count, usageExcerpts: usageExcerpts),
                                                  provider: orchestrator.provider, model: model, cwd: cwd)
         else { return [] }
         return parseScenarios(result.text)
@@ -168,13 +187,18 @@ enum EvalRunner {
             return EvalRun(results: [], threshold: suite.passThreshold)
         }
         let answerModel = MetaOrchestrator.modelID(for: orchestrator)
+        // Answer AS the configured team: prepend the orchestrator's own system prompt, so the
+        // eval tests the persona/rules the user actually set (and so auto-improvement's edits
+        // to that prompt are observable in the score — without this, editing it is a no-op).
+        let systemPrefix = orchestrator.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         var results: [EvalResult] = []
         let total = suite.scenarios.count
         for (i, scenario) in suite.scenarios.enumerated() {
             // When the scenario grades the PATH, ask the team to report it (the one-shot
             // output carries no tool events, so the team self-reports on a `PATH:` line).
             let gradesPath = !scenario.trajectoryExpectation.isEmpty
-            let answerPrompt = gradesPath ? scenario.prompt + pathReportInstruction : scenario.prompt
+            let base = systemPrefix.isEmpty ? scenario.prompt : systemPrefix + "\n\n---\n\n" + scenario.prompt
+            let answerPrompt = gradesPath ? base + pathReportInstruction : base
             let answer = (try? await answerRunner.run(prompt: answerPrompt,
                                                       provider: orchestrator.provider,
                                                       model: answerModel, cwd: cwd))?.text ?? ""
