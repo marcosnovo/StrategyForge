@@ -19,9 +19,6 @@ struct NavRail: View {
     @Binding var showSidebar: Bool
     /// Drives the styled account popover (reference-style menu with icon rows).
     @State private var showAccountMenu = false
-    /// "Spotlight dock": one moving beam that slides to whichever section is active, so the
-    /// selection reads as a light being aimed — not a static pill (the founder's reference).
-    @Namespace private var spotlightNS
     /// Advanced destinations (Loops / Skills / Usage) collapse by default so a first-run
     /// rail is just Chats · Code · Team + account — power stays one disclosure away.
     /// The rail can EXPAND to a labeled sidebar or stay a minimal icon strip (persisted).
@@ -143,6 +140,22 @@ struct NavRail: View {
         .padding(.horizontal, Space.s)
         .padding(.top, 34)          // clear the floating traffic lights (hidden titlebar)
         .padding(.bottom, Space.m)
+        // ONE spotlight beam behind the whole rail, positioned on the active row's bounds and
+        // animated → it physically SLIDES between sections (never insert-then-settle). Sits
+        // UNDER the icons (zIndex -1) so it lights them rather than covering them.
+        .backgroundPreferenceValue(SpotlightAnchorKey.self) { anchor in
+            GeometryReader { proxy in
+                if let anchor, !railExpanded {
+                    let r = proxy[anchor]
+                    SpotlightBeam(tint: Theme.coral)
+                        .frame(width: r.width, height: r.height)
+                        .position(x: r.midX, y: r.midY)
+                        .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.78),
+                                   value: model.navSection)
+                }
+            }
+            .allowsHitTesting(false)
+        }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: railExpanded)
         // The rail uses the native macOS `.sidebar` vibrancy so it reads as a true sidebar,
         // distinct from the content columns (chat list / activity panel), which stay on
@@ -346,19 +359,18 @@ struct NavRail: View {
             }
         }
         .background {
-            if active {
-                // Expanded → the calm coral pill + leading bar (a text list wants a quiet
-                // marker). Collapsed icon rail → the SPOTLIGHT beam, which slides between
-                // rows via matchedGeometry so the selection reads as "aim the light".
-                if railExpanded {
-                    RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
-                        .fill(Theme.coral.opacity(0.09))
-                        .matchedGeometryEffect(id: "spotlight", in: spotlightNS)
-                } else {
-                    SpotlightBeam(tint: Theme.coral)
-                        .matchedGeometryEffect(id: "spotlight", in: spotlightNS)
-                }
+            // Expanded → the calm coral pill (a text list wants a quiet marker). The
+            // collapsed icon rail's selection is drawn by ONE sliding spotlight overlay
+            // (see the rail container), so no per-row background there.
+            if active && railExpanded {
+                RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+                    .fill(Theme.coral.opacity(0.09))
             }
+        }
+        // Report the ACTIVE row's bounds so the single spotlight beam can slide onto it
+        // (a real move between rows, not an insert-then-settle).
+        .anchorPreference(key: SpotlightAnchorKey.self, value: .bounds) {
+            (active && !railExpanded) ? $0 : nil
         }
         .overlay(alignment: .leading) {
             if active && railExpanded {
@@ -550,40 +562,74 @@ struct NavRail: View {
     #endif
 }
 
-/// A "spotlight" behind the active icon-rail row, lit FROM THE RIGHT: a lamp on the trailing
-/// edge, a soft cone widening leftward onto the icon, and a warm pool of light. As the active
-/// section changes the caller's matchedGeometry slides this beam vertically (up/down) between
-/// rows, so the light visibly travels to the chosen section. Purely decorative.
+/// The active row's bounds, so ONE spotlight beam can be positioned on it and animate its
+/// move between rows (a real slide, not an insert). nil when nothing should be lit.
+private struct SpotlightAnchorKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = nextValue() ?? value
+    }
+}
+
+/// A cinematic "spotlight" lit FROM THE LEFT: a bright lamp on the leading edge, a crisp cone
+/// widening rightward with a white-hot core that cools to coral, a glowing pool on the icon,
+/// and a soft outer bloom. Sized to the active row and slid by the caller. Decorative.
 private struct SpotlightBeam: View {
     var tint: Color = Theme.coral
+    /// Warm near-white at the source so the cone reads as real light, not a coloured shape.
+    private var hot: Color { Color.white }
+
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
+            let cy = h * 0.5
             ZStack {
-                // The cone: narrow at the lamp (left edge), widening onto the icon (rightward).
-                Path { p in
-                    p.move(to: CGPoint(x: 0, y: h * 0.5 - 4))
-                    p.addLine(to: CGPoint(x: 0, y: h * 0.5 + 4))
-                    p.addLine(to: CGPoint(x: w, y: h * 0.85))
-                    p.addLine(to: CGPoint(x: w, y: h * 0.15))
-                    p.closeSubpath()
-                }
-                .fill(LinearGradient(colors: [tint.opacity(0.42), tint.opacity(0.04)],
-                                     startPoint: .leading, endPoint: .trailing))
-                .blur(radius: 3)
-                // Pool of light where the icon sits (a touch right of centre).
-                Ellipse().fill(tint.opacity(0.20))
-                    .frame(width: w * 0.6, height: h * 0.6)
-                    .position(x: w * 0.58, y: h * 0.5)
-                    .blur(radius: 6)
-                // The lamp cap on the leading edge.
-                Capsule().fill(tint.opacity(0.9))
-                    .frame(width: 3, height: 12)
-                    .position(x: 1, y: h * 0.5)
-                    .shadow(color: tint.opacity(0.6), radius: 3)
+                // Outer bloom — a soft coral wash that gives the whole row a lit halo.
+                RoundedRectangle(cornerRadius: h * 0.4, style: .continuous)
+                    .fill(tint.opacity(0.12))
+                    .blur(radius: 10)
+
+                // The cone: narrow at the lamp, fanning to the icon. Two stacked fills — a wide
+                // soft cone + a tighter bright core — give it depth instead of a flat triangle.
+                cone(w: w, h: h, spread: 0.42)
+                    .fill(LinearGradient(colors: [tint.opacity(0.38), tint.opacity(0.02)],
+                                         startPoint: .leading, endPoint: .trailing))
+                    .blur(radius: 4)
+                cone(w: w, h: h, spread: 0.24)
+                    .fill(LinearGradient(colors: [hot.opacity(0.55), tint.opacity(0.18), .clear],
+                                         startPoint: .leading, endPoint: .trailing))
+                    .blur(radius: 2)
+
+                // Pool of light where the icon sits — a radial hotspot (bright center → fade).
+                Circle()
+                    .fill(RadialGradient(colors: [hot.opacity(0.5), tint.opacity(0.28), .clear],
+                                         center: .center, startRadius: 0, endRadius: h * 0.55))
+                    .frame(width: h * 1.05, height: h * 1.05)
+                    .position(x: w * 0.6, y: cy)
+                    .blur(radius: 3)
+
+                // The lamp on the leading edge — a bright cap with a bloom, the light source.
+                Capsule().fill(hot.opacity(0.95))
+                    .frame(width: 3.5, height: h * 0.34)
+                    .position(x: 1.5, y: cy)
+                    .shadow(color: tint.opacity(0.9), radius: 5)
+                    .shadow(color: hot.opacity(0.5), radius: 2)
             }
+            .compositingGroup()
         }
         .allowsHitTesting(false)
+    }
+
+    /// A cone from the leading edge (narrow) widening to the trailing edge, `spread` = half the
+    /// fractional height it fans to at the wide end.
+    private func cone(w: CGFloat, h: CGFloat, spread: CGFloat) -> Path {
+        Path { p in
+            p.move(to: CGPoint(x: 0, y: h * (0.5 - 0.06)))
+            p.addLine(to: CGPoint(x: 0, y: h * (0.5 + 0.06)))
+            p.addLine(to: CGPoint(x: w, y: h * (0.5 + spread)))
+            p.addLine(to: CGPoint(x: w, y: h * (0.5 - spread)))
+            p.closeSubpath()
+        }
     }
 }
 
