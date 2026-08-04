@@ -583,6 +583,10 @@ struct ParticleLabView: View {
                 LiveGraphLabSection()
                 Divider()
 
+                // Thinking-orbs port (Jakub Antalík) — pick one for the loaders.
+                ThinkingOrbsLabSection()
+                Divider()
+
                 // Wow-moment candidates to choose from (rich, in motion).
                 WowGalleryLabSection()
                 Divider()
