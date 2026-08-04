@@ -573,31 +573,40 @@ private struct SpotlightAnchorKey: PreferenceKey {
     }
 }
 
-/// A soft CORAL glow behind the active icon — a diffuse radial bloom (brightest at the icon,
-/// fading out), like a light behind it. No cone, no lamp: just a warm halo. Sized to the active
-/// row and slid between rows by the caller. Decorative.
+/// A CORAL spotlight shining FROM THE LEFT onto the active icon: a bright lamp on the leading
+/// edge, a soft cone of coral light widening rightward, and a warm pool on the icon. Sized to
+/// the active row and slid vertically between rows by the caller. Decorative.
 private struct SpotlightBeam: View {
     var tint: Color = Theme.coral
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
-            // The icon sits in the upper part of the cell (label below), so bias the glow up.
-            let center = CGPoint(x: w * 0.5, y: h * 0.42)
-            let r = min(w, h) * 0.9
+            let iconY = h * 0.38          // the icon sits in the upper part of the cell
             ZStack {
-                // Wide soft base bloom.
-                RadialGradient(colors: [tint.opacity(0.30), tint.opacity(0.10), .clear],
-                               center: .center, startRadius: 0, endRadius: r)
-                    .frame(width: r * 2, height: r * 2)
-                    .position(center)
-                    .blur(radius: 8)
-                // Brighter core right behind the icon.
-                RadialGradient(colors: [tint.opacity(0.55), tint.opacity(0.20), .clear],
-                               center: .center, startRadius: 0, endRadius: r * 0.6)
-                    .frame(width: r * 1.2, height: r * 1.2)
-                    .position(center)
-                    .blur(radius: 4)
+                // The cone: narrow at the lamp (left edge), fanning right across the icon.
+                Path { p in
+                    p.move(to: CGPoint(x: 0, y: iconY - h * 0.06))
+                    p.addLine(to: CGPoint(x: 0, y: iconY + h * 0.06))
+                    p.addLine(to: CGPoint(x: w * 0.9, y: iconY + h * 0.34))
+                    p.addLine(to: CGPoint(x: w * 0.9, y: iconY - h * 0.34))
+                    p.closeSubpath()
+                }
+                .fill(LinearGradient(colors: [tint.opacity(0.55), tint.opacity(0.16), .clear],
+                                     startPoint: .leading, endPoint: .trailing))
+                .blur(radius: 4)
+                // Pool of light where the icon sits.
+                RadialGradient(colors: [tint.opacity(0.5), tint.opacity(0.18), .clear],
+                               center: .center, startRadius: 0, endRadius: h * 0.5)
+                    .frame(width: h, height: h)
+                    .position(x: w * 0.5, y: iconY)
+                    .blur(radius: 3)
+                // The lamp on the leading edge — the source, a bright coral bulb.
+                Capsule().fill(tint.opacity(0.95))
+                    .frame(width: 3.5, height: h * 0.3)
+                    .position(x: 2, y: iconY)
+                    .shadow(color: tint.opacity(0.9), radius: 5)
+                    .shadow(color: tint.opacity(0.5), radius: 2)
             }
             .compositingGroup()
         }

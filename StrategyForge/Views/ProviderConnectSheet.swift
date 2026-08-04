@@ -35,7 +35,7 @@ struct ProviderConnectSheet: View {
                 ProviderLogo(provider: provider, size: 18, templateTint: provider.tint)
                 Text(model.t("provider.connect.title", provider.displayName)).font(.sfCardTitle)
                 Spacer()
-                if phase == .installing || phase == .signingIn || installingNode { WorkingLogo(size: 16) }
+                if phase == .installing || phase == .signingIn || installingNode { ThinkingOrb(state: .connecting, size: 18) }
             }
             .padding(.horizontal, Space.l).padding(.vertical, Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)

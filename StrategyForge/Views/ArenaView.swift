@@ -476,7 +476,7 @@ struct ArenaView: View {
                 }
             }
             if arena.isRunning && arena.outcomes.isEmpty {
-                HStack(spacing: Space.s) { WorkingLogo(size: 16); Text(model.t("arena.running")).font(.sfCaption2).foregroundStyle(.secondary) }
+                HStack(spacing: Space.s) { ThinkingOrb(state: .connecting, size: 18); Text(model.t("arena.running")).font(.sfCaption2).foregroundStyle(.secondary) }
                     .padding(.vertical, Space.m)
             }
             recommendationBanner()

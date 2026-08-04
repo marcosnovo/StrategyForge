@@ -713,7 +713,9 @@ struct CodeMapView: View {
 
     private func busyState(_ label: String) -> some View {
         VStack(spacing: Space.m) {
-            ProgressView().controlSize(.large)
+            // The "searching" thought-orb (a scan meridian sweeping a dotted globe) fits
+            // building/exploring a repo's graph.
+            ThinkingOrb(state: .searching, size: 72)
             Text(label).font(.sfBodyM).foregroundStyle(Theme.secondaryOnMaterial)
             if let repo = store.repoURL { Text(repo.lastPathComponent).font(.sfCaption2).foregroundStyle(.tertiary) }
             // Live elapsed so a 30s+ graph build never reads as frozen.

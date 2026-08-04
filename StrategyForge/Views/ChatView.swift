@@ -1139,7 +1139,7 @@ struct ChatView: View {
                                 // on the latest answer when another provider CLI is connected.
                                 if let other = secondOpinionProvider {
                                     if vm.isSecondOpinionRunning {
-                                        WorkingLogo(size: 12)
+                                        ThinkingOrb(state: .solving, size: 14)
                                     } else {
                                         Button { Task { await runSecondOpinion(from: other) } } label: {
                                             Label(model.t("chat.secondOpinion", other.displayName), systemImage: "arrow.triangle.branch")
@@ -1362,7 +1362,8 @@ struct ChatView: View {
 
     private var activityRow: some View {
         HStack(spacing: Space.s) {
-            WorkingLogo(size: 18)
+            // The "working" thought-orb (particles on tilted orbits) while a turn runs.
+            ThinkingOrb(state: .working, size: 22)
             if let sub = vm.activeSubagent {
                 // Show the strategy at work: which teammate the orchestrator called.
                 HStack(spacing: 4) {
