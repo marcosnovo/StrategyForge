@@ -16,8 +16,10 @@ struct StrategyCost {
     let perRun: Double
     /// Approximate total tokens (input + output) for one run — the headline figure.
     let perRunTokens: Int
-    /// Contribution per model (USD), for the breakdown.
-    let byModel: [ClaudeModel: Double]
+    /// Contribution per model (USD), for the breakdown — keyed by the resolved model
+    /// id string so cross-provider teams (GPT/Gemini roles) appear alongside Claude
+    /// ones instead of being collapsed onto a Claude enum.
+    let byModel: [String: Double]
 
     enum Tier { case low, medium, high }
 
@@ -104,14 +106,21 @@ enum CostEstimator {
     static func estimate(_ strategy: Strategy, effort: CostEffort) -> StrategyCost {
         var total = 0.0
         var tokens = 0.0
-        var byModel: [ClaudeModel: Double] = [:]
+        var byModel: [String: Double] = [:]
         let m = effort.multiplier
         // Whether the orchestrator has anyone to delegate to. Drives how much of the
         // work the lead does itself (see `workload`).
         let canDelegate = strategy.roles.contains { !$0.isOrchestrator }
 
         for role in strategy.roles {
-            guard let price = Constants.pricing[role.model.rawValue] else { continue }
+            // Resolve the model id the role actually runs (a non-Claude role carries it in
+            // providerModelID). We don't ship rate cards for GPT/Gemini, so PRICE such a
+            // role at its configured Claude tier as a documented proxy — but ATTRIBUTE the
+            // cost to the real model id so the breakdown shows "gpt-5", not a Claude model.
+            let modelID = MetaOrchestrator.modelID(for: role)
+            let displayID = modelID.isEmpty ? role.model.rawValue : modelID
+            let priceKey = Constants.pricing[displayID] != nil ? displayID : role.model.rawValue
+            guard let price = Constants.pricing[priceKey] else { continue }
             let load = workload(isOrchestrator: role.isOrchestrator, role: role.role, canDelegate: canDelegate)
             let count = Double(max(role.count, 1))
 
@@ -129,7 +138,7 @@ enum CostEstimator {
 
             total += cost
             tokens += count * (load.input + load.output) * m
-            byModel[role.model, default: 0] += cost
+            byModel[displayID, default: 0] += cost
         }
 
         return StrategyCost(perRun: total, perRunTokens: Int(tokens), byModel: byModel)

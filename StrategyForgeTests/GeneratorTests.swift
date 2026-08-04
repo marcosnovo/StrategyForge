@@ -285,12 +285,12 @@ struct CostEstimatorTests {
         // contribution drops. Isolate the LEAD's cost with a different-model worker
         // (Haiku) so `byModel[.opus5]` is purely the Opus lead's share.
         let solo = StrategyLibrary.solo()               // single Opus agent, no team
-        let soloLead = CostEstimator.estimate(solo).byModel[.opus5] ?? 0
+        let soloLead = CostEstimator.estimate(solo).byModel[ClaudeModel.opus5.rawValue] ?? 0
 
         var team = solo
         team.roles.append(AgentRole(name: "worker", role: .worker, model: .haiku45,
                                     systemPrompt: "implement", description: "do the work"))
-        let delegatingLead = CostEstimator.estimate(team).byModel[.opus5] ?? 0
+        let delegatingLead = CostEstimator.estimate(team).byModel[ClaudeModel.opus5.rawValue] ?? 0
 
         #expect(soloLead > 0)
         #expect(delegatingLead < soloLead)
@@ -299,8 +299,8 @@ struct CostEstimatorTests {
     @Test func breakdownCoversUsedModels() {
         let cost = CostEstimator.estimate(StrategyLibrary.orchestratorWorkers())
         // Fan-out uses Fable (orchestrator) + Sonnet (workers).
-        #expect(cost.byModel[.fable5] != nil)
-        #expect(cost.byModel[.sonnet5] != nil)
+        #expect(cost.byModel[ClaudeModel.fable5.rawValue] != nil)
+        #expect(cost.byModel[ClaudeModel.sonnet5.rawValue] != nil)
     }
 
     @Test func effortScalesCostAndMediumIsBaseline() {

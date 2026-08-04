@@ -1166,7 +1166,11 @@ final class ChatViewModel {
         // between step transitions the bubble would sit still for minutes. Re-render once
         // a second to keep the active step's elapsed timer visibly ticking ("…en directo").
         narrationTicker?.cancel()
-        narrationTicker = Task { [weak self] in
+        // Isolate the ticker to the main actor: its body calls renderNarration(), which
+        // reads metaNarration and writes messages[assistantIndex].text — the same state
+        // apply() mutates from the event loop. An unisolated Task would run that off the
+        // main executor and race the event handling; @MainActor serializes both paths.
+        narrationTicker = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 self?.renderNarration(assistantIndex)
@@ -1242,6 +1246,12 @@ final class ChatViewModel {
             activity.append(p)
             if p != "delegate" { activeSubagent = nil }   // orchestrator is planning/synthesizing
             narrate(phaseNarration(p), assistantIndex: assistantIndex)
+        case .rolePlanned(let counts):
+            // Authoritative instances-per-role from the plan, emitted before any worker
+            // starts. Pre-populate the running count so finish/fail events decrement a
+            // correct total and a role stays "working" until its LAST instance completes,
+            // regardless of the order events arrive from the concurrent workers.
+            for (role, n) in counts where n > 0 { rolesRunning[role] = n }
         case .roleStarted(let role, _, let model, let task):
             if role == orchName {
                 activeSubagent = nil
@@ -1256,11 +1266,14 @@ final class ChatViewModel {
                     && !brief.isEmpty && roleTasks[role] == brief
                 activeSubagent = role
                 rolesInProgress.insert(role)
-                // Count this instance — a role with count>1 fans out to several parallel
-                // calls sharing this name; the role is done only when the LAST one finishes.
-                rolesRunning[role, default: 0] += 1
-                roleModels[role] = model
-                if !brief.isEmpty { roleTasks[role] = brief }
+                // Instance accounting is authoritative from `.rolePlanned` (emitted before
+                // any worker starts), NOT incremented here — worker start/finish events
+                // arrive out of order across threads, so counting on start would race.
+                // Model + task are set ONCE per role: all instances of a role share the
+                // same model, and a later instance's roleStarted (or a heartbeat re-emit)
+                // must not overwrite the first-recorded task with a different/stale value.
+                if roleModels[role] == nil { roleModels[role] = model }
+                if roleTasks[role] == nil, !brief.isEmpty { roleTasks[role] = brief }
                 if !agentsInvolved.contains(role) { agentsInvolved.append(role) }
                 if !alreadyRunning {
                     activity.append("→ \(role)")

@@ -18,6 +18,7 @@ import Foundation
 /// Progress emitted by a meta-orchestration run, for the activity UI.
 enum MetaEvent: Sendable, Equatable {
     case phase(String)                                   // "plan" | "delegate" | "synthesize"
+    case rolePlanned(counts: [String: Int])              // authoritative instances-per-role from the plan
     case roleStarted(role: String, provider: AIProvider, model: String, task: String = "")
     case roleActivity(role: String, title: String, detail: String?)  // a live tool step by a role
     case roleNarration(role: String, text: String)       // rolling "what it's doing now" (Codex/Gemini)
@@ -225,6 +226,27 @@ struct MetaOrchestrator {
             DiagnosticsLog.record("meta plan: \(subtasks.count) subtask(s) → " +
                 subtasksPerRole.map { "\($0.key)×\($0.value)" }.sorted().joined(separator: ", "))
             let globalInstanceCap = 8   // hard ceiling on total parallel workers per turn
+            // Pre-compute how many instances each role will ACTUALLY run — same order +
+            // fan-out + cap logic as the delegation loop below — and tell the UI up front.
+            // The concurrent task group emits roleStarted/roleFinished from many threads
+            // with no ordering guarantee, so a roleFinished can land before its matching
+            // roleStarted; without an authoritative up-front count the UI would decrement
+            // a role to "done" too early (the "seems like only one agent ran" symptom).
+            var plannedInstances: [String: Int] = [:]
+            do {
+                var order = 0
+                for sub in subtasks {
+                    guard let role = workers.first(where: { $0.name == sub.roleName }) else { continue }
+                    let hasSiblings = (subtasksPerRole[sub.roleName] ?? 1) > 1
+                    let instances = hasSiblings ? 1 : max(1, min(role.count, globalInstanceCap))
+                    for _ in 0..<instances {
+                        if order >= globalInstanceCap { break }
+                        order += 1
+                        plannedInstances[role.name, default: 0] += 1
+                    }
+                }
+            }
+            onEvent(.rolePlanned(counts: plannedInstances))
             struct WorkerResult: Sendable { let order: Int; let role: String; let text: String; let tokens: Int; let cost: Double }
             // Fault-tolerant: one worker failing must NOT cancel its siblings or hang the
             // turn. (A THROWING task group cancels every sibling on the first error and

@@ -470,11 +470,21 @@ struct CLIOneShotRunner: OneShotRunner {
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<(String, Int32), Error>) in
                 DispatchQueue.global(qos: .userInitiated).async {
-                    var master: Int32 = 0, slave: Int32 = 0
+                    var master: Int32 = -1, slave: Int32 = -1
                     var ws = winsize(ws_row: 48, ws_col: 120, ws_xpixel: 0, ws_ypixel: 0)
                     guard openpty(&master, &slave, nil, nil, &ws) == 0 else {
                         cont.resume(throwing: OneShotError.failed("Couldn't open a terminal for \(provider.displayName)."))
                         return
+                    }
+                    // Guarantee BOTH fds are closed on EVERY exit path — a throw during
+                    // setup, an auth-trip break, a cancellation, or the normal finish —
+                    // instead of relying on each path to remember. `slave` is handed to the
+                    // child (we drop our copy once it launches); `master` is ours until the
+                    // final read. The flags mark what this closure still owns.
+                    var slaveOpen = true, masterOpen = true
+                    defer {
+                        if slaveOpen { close(slave) }
+                        if masterOpen { close(master) }
                     }
                     let p = Process()
                     p.executableURL = URL(fileURLWithPath: bin)
@@ -486,14 +496,12 @@ struct CLIOneShotRunner: OneShotRunner {
                     p.standardOutput = slaveHandle
                     p.standardError = slaveHandle
                     guard box.adopt(p) else {
-                        close(master); close(slave)
-                        cont.resume(throwing: CancellationError()); return
+                        cont.resume(throwing: CancellationError()); return   // defer closes both fds
                     }
                     do { try p.run() } catch {
-                        close(master); close(slave)
-                        cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return
+                        cont.resume(throwing: OneShotError.failed(error.localizedDescription)); return   // defer closes both
                     }
-                    close(slave)   // the child holds its own copy; the parent reads via master
+                    close(slave); slaveOpen = false   // the child holds its own copy; the parent reads via master
                     LiveProcesses.register(p)
                     defer { LiveProcesses.deregister(p) }
                     let watchdog = DispatchWorkItem { box.timeOut() }
@@ -516,7 +524,11 @@ struct CLIOneShotRunner: OneShotRunner {
                     for line in buf.drain() { onOutLine(line) }
                     p.waitUntilExit()
                     watchdog.cancel()
-                    close(master)
+                    close(master); masterOpen = false
+                    // Auth is checked BEFORE timeout: if a stale-login prompt tripped the
+                    // fast-fail, surface .authRequired even if the watchdog also fired in the
+                    // same window (a killed process can look "timed out"), so the user gets a
+                    // one-tap Reconnect rather than a misleading timeout.
                     if box.didTripAuth() { cont.resume(throwing: OneShotError.authRequired(provider)); return }
                     if box.didTimeOut() { cont.resume(throwing: OneShotError.timedOut(Int(Self.callTimeout))); return }
                     cont.resume(returning: (String(data: outData, encoding: .utf8) ?? "", p.terminationStatus))

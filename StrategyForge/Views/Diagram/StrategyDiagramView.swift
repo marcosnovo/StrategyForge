@@ -59,13 +59,24 @@ private struct DiagramSpec {
 
 private enum DiagramSpecBuilder {
 
-    /// Model tiers — the accent node is the one running the highest tier.
-    private static func tier(_ model: ClaudeModel) -> Int {
-        switch model {
-        case .opus5, .opus48, .fable5: return 3
-        case .sonnet5: return 2
-        case .haiku45: return 1
+    /// Model tiers — the accent node is the one running the highest tier. Provider-aware:
+    /// a Claude role maps by its enum; a non-Claude role maps by a coarse read of its
+    /// model id (frontier vs. mini/flash) so a mixed-provider team still highlights its
+    /// strongest model instead of silently ignoring GPT/Gemini roles.
+    private static func tier(_ role: AgentRole) -> Int {
+        if role.provider == .claude {
+            switch role.model {
+            case .opus5, .opus48, .fable5: return 3
+            case .sonnet5: return 2
+            case .haiku45: return 1
+            }
         }
+        let id = (role.providerModelID ?? "").lowercased()
+        if id.contains("mini") || id.contains("flash") || id.contains("lite")
+            || id.contains("nano") || id.contains("haiku") { return 1 }
+        if id.contains("opus") || id.contains("ultra") || id.contains("pro")
+            || id.contains("gpt-5") || id.contains("-5") { return 3 }
+        return 2
     }
 
     private static func titleCase(_ slug: String) -> String {
@@ -124,7 +135,7 @@ private enum DiagramSpecBuilder {
     }
 
     static func build(from strategy: Strategy, compact: Bool = false, t: (String) -> String) -> DiagramSpec {
-        let topTier = strategy.roles.map { tier($0.model) }.max() ?? 3
+        let topTier = strategy.roles.map { tier($0) }.max() ?? 3
 
         // Orchestrator (or the single solo agent).
         let orchRole = strategy.orchestrator
@@ -134,7 +145,7 @@ private enum DiagramSpecBuilder {
             title: titleCase(orchRole?.name ?? "orchestrator"),
             model: orchRole?.modelDisplayName ?? "—",
             subtitle: t(orchestratorSubtitleKey(strategy)),
-            isAccent: tier(orchRole?.model ?? .fable5) >= topTier,
+            isAccent: (orchRole.map { tier($0) } ?? 3) >= topTier,
             loopLabel: nil,
             provider: orchRole?.provider ?? .claude,
             isOrchestrator: true,
@@ -179,7 +190,7 @@ private enum DiagramSpecBuilder {
                 title: box.title,
                 model: box.role.modelDisplayName,
                 subtitle: subtitle,
-                isAccent: tier(box.role.model) >= topTier,
+                isAccent: tier(box.role) >= topTier,
                 loopLabel: nil,   // no self-loops — the round-trip tells the story
                 provider: box.role.provider,
                 isOrchestrator: false,

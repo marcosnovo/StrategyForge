@@ -47,6 +47,8 @@ enum StrategyProgressReducer {
         switch event {
         case .phase(let ph):
             p.phase = ph; p.lastNarration = ph
+        case .rolePlanned:
+            break   // instance-count hint — arena progress tracks roles as they start
         case .roleStarted(let role, _, _, let task):
             if !p.activeRoles.contains(role) { p.activeRoles.append(role) }
             p.lastNarration = task.isEmpty ? role : "\(role): \(task)"

@@ -532,7 +532,7 @@ struct CostBreakdownView: View {
             FieldLabel(text: model.t("cost.byModel"))
             ForEach(cost.byModel.sorted { $0.value > $1.value }, id: \.key) { entry in
                 HStack {
-                    Text(entry.key.displayName).font(.sfCallout)
+                    Text(ClaudeModel(rawValue: entry.key)?.displayName ?? entry.key).font(.sfCallout)
                     Spacer()
                     Text(String(format: "$%.2f", entry.value)).font(.sfMono).foregroundStyle(.secondary)
                 }
