@@ -281,6 +281,12 @@ struct EvalsView: View {
                     switch event {
                     case .status(let s): improveLog.append(s)
                     case .probes(let n): improveLog.append(model.t("eval.improve.probes", n))
+                    case .scoring(let round, let done, let total):
+                        // Live per-probe progress so it never looks frozen mid-run. Replace the
+                        // last line when it's already a scoring line for this round.
+                        let line = model.t("eval.improve.scoring", round, done, total)
+                        if let last = improveLog.last, last.hasPrefix("⏱") { improveLog[improveLog.count - 1] = "⏱ " + line }
+                        else { improveLog.append("⏱ " + line) }
                     case .iteration(let i, let passed, let total):
                         improveLog.append(model.t("eval.improve.round", i, passed, total))
                     case .applied(let edit): improveLog.append("✏️ \(edit.roleName): \(edit.rationale)")

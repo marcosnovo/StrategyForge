@@ -19,6 +19,9 @@ struct NavRail: View {
     @Binding var showSidebar: Bool
     /// Drives the styled account popover (reference-style menu with icon rows).
     @State private var showAccountMenu = false
+    /// "Spotlight dock": one moving beam that slides to whichever section is active, so the
+    /// selection reads as a light being aimed — not a static pill (the founder's reference).
+    @Namespace private var spotlightNS
     /// Advanced destinations (Loops / Skills / Usage) collapse by default so a first-run
     /// rail is just Chats · Code · Team + account — power stays one disclosure away.
     /// The rail can EXPAND to a labeled sidebar or stay a minimal icon strip (persisted).
@@ -342,8 +345,21 @@ struct NavRail: View {
                 .padding(.vertical, 3)
             }
         }
-        .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
-            .fill(active ? Theme.coral.opacity(0.09) : .clear))
+        .background {
+            if active {
+                // Expanded → the calm coral pill + leading bar (a text list wants a quiet
+                // marker). Collapsed icon rail → the SPOTLIGHT beam, which slides between
+                // rows via matchedGeometry so the selection reads as "aim the light".
+                if railExpanded {
+                    RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+                        .fill(Theme.coral.opacity(0.09))
+                        .matchedGeometryEffect(id: "spotlight", in: spotlightNS)
+                } else {
+                    SpotlightBeam(tint: Theme.coral)
+                        .matchedGeometryEffect(id: "spotlight", in: spotlightNS)
+                }
+            }
+        }
         .overlay(alignment: .leading) {
             if active && railExpanded {
                 Capsule().fill(Theme.coral).frame(width: 3, height: 18).padding(.leading, 1)
@@ -532,6 +548,42 @@ struct NavRail: View {
         .help("Particle Lab (DEBUG)")
     }
     #endif
+}
+
+/// A "spotlight" behind the active icon-rail row: a lamp cap up top, a soft cone widening
+/// down onto the icon, and a warm pool of light — so the selected section looks lit, not
+/// boxed. Slid between rows by the caller's matchedGeometry. Purely decorative.
+private struct SpotlightBeam: View {
+    var tint: Color = Theme.coral
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            ZStack {
+                // The cone: narrow at the lamp (top), widening onto the icon (down).
+                Path { p in
+                    p.move(to: CGPoint(x: w * 0.5 - 4, y: 2))
+                    p.addLine(to: CGPoint(x: w * 0.5 + 4, y: 2))
+                    p.addLine(to: CGPoint(x: w * 0.84, y: h))
+                    p.addLine(to: CGPoint(x: w * 0.16, y: h))
+                    p.closeSubpath()
+                }
+                .fill(LinearGradient(colors: [tint.opacity(0.42), tint.opacity(0.04)],
+                                     startPoint: .top, endPoint: .bottom))
+                .blur(radius: 3)
+                // Pool of light where the icon sits.
+                Ellipse().fill(tint.opacity(0.20))
+                    .frame(width: w * 0.66, height: h * 0.5)
+                    .position(x: w * 0.5, y: h * 0.55)
+                    .blur(radius: 6)
+                // The lamp cap.
+                Capsule().fill(tint.opacity(0.9))
+                    .frame(width: 10, height: 3)
+                    .position(x: w * 0.5, y: 2)
+                    .shadow(color: tint.opacity(0.6), radius: 3)
+            }
+        }
+        .allowsHitTesting(false)
+    }
 }
 
 /// The rail's "work in flight elsewhere" indicator: a small teal dot (teal = the

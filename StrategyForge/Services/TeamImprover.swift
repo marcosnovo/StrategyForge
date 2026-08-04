@@ -36,6 +36,7 @@ struct TeamEdit: Sendable, Equatable, Identifiable {
 enum ImproveEvent: Sendable {
     case status(String)                              // a human line ("Deriving probes from usage…")
     case probes(Int)                                 // the suite has N probes
+    case scoring(round: Int, done: Int, total: Int)  // live: scoring probe done/total this round
     case iteration(Int, passed: Int, total: Int)     // round i finished with this pass count
     case applied(TeamEdit)                           // an edit was applied this round
     case finished(passRate: Double, iterations: Int)
@@ -166,10 +167,13 @@ enum TeamImprover {
         guard !suite.scenarios.isEmpty else { onEvent(.failed("Couldn't derive any probes to improve against.")); return nil }
         onEvent(.probes(suite.scenarios.count))
 
-        // 2) Baseline run.
+        // 2) Baseline run — stream per-probe progress so the UI never looks frozen.
         if Task.isCancelled { return nil }
+        onEvent(.status("Running the baseline suite…"))
         var run = await EvalRunner.run(team: team, suite: suite, cwd: cwd,
-                                       answerRunner: answerRunner, judgeRunner: judgeRunner)
+                                       answerRunner: answerRunner, judgeRunner: judgeRunner) { done, total in
+            onEvent(.scoring(round: 0, done: done, total: total))
+        }
         let startRate = run.passRate
         onEvent(.iteration(0, passed: run.passed, total: run.total))
 
@@ -196,8 +200,11 @@ enum TeamImprover {
             edits.append(edit)
             onEvent(.applied(edit))
             if Task.isCancelled { break }
+            let round = iteration
             run = await EvalRunner.run(team: team, suite: suite, cwd: cwd,
-                                       answerRunner: answerRunner, judgeRunner: judgeRunner)
+                                       answerRunner: answerRunner, judgeRunner: judgeRunner) { done, total in
+                onEvent(.scoring(round: round, done: done, total: total))
+            }
             onEvent(.iteration(iteration, passed: run.passed, total: run.total))
             _ = orch   // (kept for future per-round orchestrator-model checks)
         }

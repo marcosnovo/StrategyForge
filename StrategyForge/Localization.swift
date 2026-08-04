@@ -1748,6 +1748,7 @@ enum L10n {
         "eval.improve.help": ("Derive probes from real usage, run them, and edit one lever at a time until the team clears its threshold — judged independently. You review every change before it's applied.",
                               "Deriva probes del uso real, los ejecuta y edita una palanca cada vez hasta que el equipo supera su umbral — juzgado de forma independiente. Revisas cada cambio antes de aplicarlo."),
         "eval.improve.probes": ("Derived %lld probes.", "Derivadas %lld probes."),
+        "eval.improve.scoring": ("Round %lld · scoring %lld/%lld…", "Ronda %lld · puntuando %lld/%lld…"),
         "eval.improve.round": ("Round %lld — %lld/%lld passing.", "Ronda %lld — %lld/%lld pasan."),
         "eval.improve.finished": ("Converged at %lld%% after %lld round(s).", "Convergió al %lld%% tras %lld ronda(s)."),
         "eval.improve.failed": ("Auto-improve couldn't run — check the team's provider is connected.",

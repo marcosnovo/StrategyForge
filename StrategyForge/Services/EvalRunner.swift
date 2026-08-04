@@ -178,10 +178,39 @@ enum EvalRunner {
         return parseScenarios(result.text)
     }
 
-    /// Run every scenario: the team answers (orchestrator model), then an INDEPENDENT
-    /// read-only judge grades it. `onProgress(done, total)` fires after each scenario.
+    /// Score ONE scenario: the team answers (with the orchestrator's system prompt), then an
+    /// INDEPENDENT read-only judge grades the answer (and the PATH when asked). Pure of shared
+    /// state so scenarios can run concurrently.
+    static func scoreOne(scenario: EvalScenario, orchestrator: AgentRole, answerModel: String,
+                         systemPrefix: String, cwd: String?,
+                         answerRunner: OneShotRunner, judgeRunner: OneShotRunner) async -> EvalResult {
+        let gradesPath = !scenario.trajectoryExpectation.isEmpty
+        let base = systemPrefix.isEmpty ? scenario.prompt : systemPrefix + "\n\n---\n\n" + scenario.prompt
+        let answerPrompt = gradesPath ? base + pathReportInstruction : base
+        let answer = (try? await answerRunner.run(prompt: answerPrompt, provider: orchestrator.provider,
+                                                  model: answerModel, cwd: cwd))?.text ?? ""
+        let verdictText = (try? await judgeRunner.run(prompt: judgePrompt(scenario: scenario, answer: answer),
+                                                      provider: .claude, model: "", cwd: nil))?.text ?? ""
+        let verdict = parseVerdict(verdictText)
+        var result = EvalResult(scenarioID: scenario.id, passed: verdict.passed,
+                                reason: verdict.reason, scores: parseScores(verdictText))
+        if gradesPath {
+            let tText = (try? await judgeRunner.run(prompt: trajectoryJudgePrompt(scenario: scenario, answer: answer),
+                                                    provider: .claude, model: "", cwd: nil))?.text ?? ""
+            let tVerdict = parseVerdict(tText)
+            result.trajectoryPassed = tVerdict.passed
+            result.trajectoryReason = tVerdict.reason
+        }
+        return result
+    }
+
+    /// Run every scenario CONCURRENTLY (bounded), each answered by the team then graded by the
+    /// INDEPENDENT read-only judge. Concurrency both cuts wall-time (a sequential suite of 10
+    /// scenarios is ~20 CLI calls in a row — minutes of apparent freeze) and lets `onProgress`
+    /// tick after EACH scenario finishes, so the UI always shows movement.
     static func run(team: Strategy, suite: EvalSuite, cwd: String?,
                     answerRunner: OneShotRunner, judgeRunner: OneShotRunner,
+                    maxConcurrent: Int = 4,
                     onProgress: (@Sendable (Int, Int) -> Void)? = nil) async -> EvalRun {
         guard let orchestrator = team.orchestrator else {
             return EvalRun(results: [], threshold: suite.passThreshold)
@@ -191,33 +220,34 @@ enum EvalRunner {
         // eval tests the persona/rules the user actually set (and so auto-improvement's edits
         // to that prompt are observable in the score — without this, editing it is a no-op).
         let systemPrefix = orchestrator.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        var results: [EvalResult] = []
         let total = suite.scenarios.count
-        for (i, scenario) in suite.scenarios.enumerated() {
-            // When the scenario grades the PATH, ask the team to report it (the one-shot
-            // output carries no tool events, so the team self-reports on a `PATH:` line).
-            let gradesPath = !scenario.trajectoryExpectation.isEmpty
-            let base = systemPrefix.isEmpty ? scenario.prompt : systemPrefix + "\n\n---\n\n" + scenario.prompt
-            let answerPrompt = gradesPath ? base + pathReportInstruction : base
-            let answer = (try? await answerRunner.run(prompt: answerPrompt,
-                                                      provider: orchestrator.provider,
-                                                      model: answerModel, cwd: cwd))?.text ?? ""
-            // Judge on Claude (the independent read-only judge, same as the loop verifier).
-            let verdictText = (try? await judgeRunner.run(prompt: judgePrompt(scenario: scenario, answer: answer),
-                                                          provider: .claude, model: "", cwd: nil))?.text ?? ""
-            let verdict = parseVerdict(verdictText)
-            var result = EvalResult(scenarioID: scenario.id, passed: verdict.passed,
-                                    reason: verdict.reason, scores: parseScores(verdictText))
-            // A second, independent judge grades the PATH when the scenario asked for one.
-            if gradesPath {
-                let tText = (try? await judgeRunner.run(prompt: trajectoryJudgePrompt(scenario: scenario, answer: answer),
-                                                        provider: .claude, model: "", cwd: nil))?.text ?? ""
-                let tVerdict = parseVerdict(tText)
-                result.trajectoryPassed = tVerdict.passed
-                result.trajectoryReason = tVerdict.reason
+        var results: [EvalResult] = []
+        var done = 0
+        // Process in windows of `maxConcurrent` so a big suite doesn't spawn dozens of CLIs at
+        // once, while still overlapping the slow per-scenario answer+judge calls.
+        let cap = max(1, maxConcurrent)
+        var start = 0
+        while start < suite.scenarios.count {
+            if Task.isCancelled { break }
+            let window = Array(suite.scenarios[start..<min(start + cap, suite.scenarios.count)])
+            let batch = await withTaskGroup(of: EvalResult.self) { group -> [EvalResult] in
+                for scenario in window {
+                    group.addTask {
+                        await scoreOne(scenario: scenario, orchestrator: orchestrator, answerModel: answerModel,
+                                       systemPrefix: systemPrefix, cwd: cwd,
+                                       answerRunner: answerRunner, judgeRunner: judgeRunner)
+                    }
+                }
+                var out: [EvalResult] = []
+                for await r in group {
+                    out.append(r)
+                    done += 1
+                    onProgress?(done, total)
+                }
+                return out
             }
-            results.append(result)
-            onProgress?(i + 1, total)
+            results.append(contentsOf: batch)
+            start += cap
         }
         return EvalRun(results: results, threshold: suite.passThreshold)
     }
