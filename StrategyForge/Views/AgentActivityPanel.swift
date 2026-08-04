@@ -525,7 +525,7 @@ struct AgentActivityPanel: View {
                 agentRow(name: name, icon: role.role.icon, tint: role.role.tint, target: .sub(name),
                          objective: objective(forSubagent: name, fallback: role.description),
                          status: subagentStatus(name, hasWork: s.tools > 0), stats: s,
-                         liveLine: vm.roleLiveLine[role.name])
+                         liveLine: vm.roleLiveLine[role.name], running: vm.rolesRunning[role.name] ?? 0)
             }
         }
     }
@@ -858,7 +858,8 @@ struct AgentActivityPanel: View {
 
     private func agentRow(name: String, icon: String, tint: Color, target: AgentFocus,
                           objective: String, status: AgentStatus,
-                          stats: (tools: Int, span: String?), liveLine: String? = nil) -> some View {
+                          stats: (tools: Int, span: String?), liveLine: String? = nil,
+                          running: Int = 0) -> some View {
         let isOpen = focus == target
         return Button {
             focus = isOpen ? nil : target
@@ -875,6 +876,14 @@ struct AgentActivityPanel: View {
                         .foregroundStyle(status == .idle ? .secondary : .primary)
                         .lineLimit(1)
                     Spacer(minLength: Space.xs)
+                    // Fan-out: when several instances of this role run in parallel, show
+                    // "×N" so a researcher ×3 reads as 3 workers, not one stuck agent.
+                    if status == .active, running > 1 {
+                        Text(model.t("activity.running.count", running))
+                            .scaledFont(9, weight: .semibold).foregroundStyle(Theme.tealText)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Capsule().fill(Theme.tealSoft))
+                    }
                     statusBadge(status)
                     Image(systemName: "chevron.right")
                         .scaledFont(9, weight: .semibold)

@@ -297,6 +297,12 @@ final class ChatViewModel {
     /// no structured tool stream) — a rolling "what it's doing right now" shown on the
     /// active agent row so the run never reads as silent/frozen.
     var roleLiveLine: [String: String] = [:]
+    /// Meta path: how many INSTANCES of a role are running right now. A role with count>1
+    /// (e.g. researcher ×3) fans out to several parallel one-shot calls that all share the
+    /// role name; without a count the first to finish would mark the whole role done and
+    /// only one would ever look active. Increment on each instance start, decrement on each
+    /// finish/fail; the role stays "working" until it hits 0.
+    var rolesRunning: [String: Int] = [:]
     /// Meta path: a live, human-readable narration of what the team is doing, written
     /// into the assistant bubble as it happens (the one-shot legs don't token-stream,
     /// so without this the chat looks frozen until the final synthesis lands).
@@ -890,6 +896,7 @@ final class ChatViewModel {
         roleTasks = [:]
         roleStartedAt = [:]
         roleLiveLine = [:]
+        rolesRunning = [:]
         pendingCommands = [:]
         turnStartedAt = Date()
         lastStreamPersist = .distantPast
@@ -1217,12 +1224,17 @@ final class ChatViewModel {
                     && !brief.isEmpty && roleTasks[role] == brief
                 activeSubagent = role
                 rolesInProgress.insert(role)
+                // Count this instance — a role with count>1 fans out to several parallel
+                // calls sharing this name; the role is done only when the LAST one finishes.
+                rolesRunning[role, default: 0] += 1
                 roleModels[role] = model
                 if !brief.isEmpty { roleTasks[role] = brief }
                 if !agentsInvolved.contains(role) { agentsInvolved.append(role) }
                 if !alreadyRunning {
                     activity.append("→ \(role)")
-                    roleStartedAt[role] = Date()
+                    // Earliest instance's start drives the live timer (don't let a later
+                    // instance reset it), so the elapsed reflects the whole fan-out.
+                    if roleStartedAt[role] == nil { roleStartedAt[role] = Date() }
                     // The step DETAIL now carries the assigned task, so the timeline shows
                     // what each agent is actually doing — not just that it was delegated to.
                     timeline.append(ActivityStep(title: role, detail: shortTask(brief) ?? model, at: Date(),
@@ -1263,20 +1275,30 @@ final class ChatViewModel {
                 if let m = roleModels[role] { tokensByModel[m, default: 0] += tokens }
             }
             if role != orchName {
-                rolesInProgress.remove(role)
-                roleStartedAt[role] = nil
-                roleLiveLine[role] = nil
-                // Attribute a completed step to the agent so the panel marks it done.
+                // One instance finished — mark the ROLE done only when the LAST running
+                // instance completes, so a researcher ×3 stays "working" until all three do.
+                let remaining = max(0, (rolesRunning[role] ?? 1) - 1)
+                rolesRunning[role] = remaining
+                // Attribute a completed step to THIS instance so the timeline reflects it.
                 timeline.append(ActivityStep(title: "role.done", detail: role, at: Date(),
                                              isDelegation: false, agent: role))
-                markNarrationDone(role, assistantIndex: assistantIndex)
+                if remaining == 0 {
+                    rolesInProgress.remove(role)
+                    roleStartedAt[role] = nil
+                    roleLiveLine[role] = nil
+                    markNarrationDone(role, assistantIndex: assistantIndex)
+                }
             }
         case .roleFailed(let role, let message):
             // One worker failed but the run continues with the others — record it and
             // mark this agent's narration line as failed so the UI isn't left "working".
-            rolesInProgress.remove(role)
-            roleStartedAt[role] = nil
-            roleLiveLine[role] = nil
+            let remaining = max(0, (rolesRunning[role] ?? 1) - 1)
+            rolesRunning[role] = remaining
+            if remaining == 0 {
+                rolesInProgress.remove(role)
+                roleStartedAt[role] = nil
+                roleLiveLine[role] = nil
+            }
             DiagnosticsLog.record("meta worker “\(role)” failed — \(message)")
             if let i = metaNarration.lastIndex(where: { $0.contains(role) && $0.hasPrefix("▸") }) {
                 metaNarration[i] = "⚠ \(role)"
@@ -1391,7 +1413,7 @@ final class ChatViewModel {
         let repo = workingDirectory()
         deniedTools = []; errorText = nil; activity = []; activeSubagent = nil
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
-        roleLiveLine = [:]
+        roleLiveLine = [:]; rolesRunning = [:]
         turnSkillsUsed = []
         turnEditedFiles = []
         rolesInProgress = []; roleTasks = [:]

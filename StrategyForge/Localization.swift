@@ -1593,6 +1593,7 @@ enum L10n {
         "activity.team": ("TEAM", "EQUIPO"),
         "activity.agentDetail": ("Agent activity", "Actividad del agente"),
         "activity.back": ("Back", "Atrás"),
+        "activity.running.count": ("×%d", "×%d"),
         "activity.seeAll": ("See all", "Ver todos"),
         "activity.allSteps": ("All steps", "Todos los pasos"),
         "activity.tab.steps": ("Steps", "Pasos"),
