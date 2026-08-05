@@ -165,20 +165,30 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
                 ProviderModel(id: $0.rawValue, displayName: $0.displayName, tierKey: $0.tierNameKey)
             }
         case .openai:
-            // Codex CLI model slugs (passed as `codex exec --model <id>`). NOTE:
-            // `gpt-5-codex` is API-only — it errors with a ChatGPT (subscription)
-            // login ("not supported when using Codex with a ChatGPT account"), and
-            // this app authenticates via subscription, so the catalog uses the
-            // standard GPT-5 models that a ChatGPT account supports.
+            // Codex CLI model slugs (passed as `codex exec --model <id>`) that a ChatGPT
+            // (subscription) login supports. NOTE: `gpt-5-codex` is API-only — it errors on a
+            // ChatGPT account ("not supported when using Codex with a ChatGPT account"), so it
+            // is deliberately excluded. `codex` also accepts any custom slug via the role's
+            // free-text model field. Catalog current as of Aug 2026 (GPT-5.5 is the ChatGPT
+            // default; 5.6 Terra/Luna are the go-forward pair as 5.4 retires end of Aug 2026) —
+            // refresh per release; OpenAI rotates these roughly monthly.
             return [
-                ProviderModel(id: "gpt-5", displayName: "GPT-5", tierKey: "model.tier.expert"),
+                ProviderModel(id: "gpt-5.6-terra", displayName: "GPT-5.6 Terra", tierKey: "model.tier.expert"),
+                ProviderModel(id: "gpt-5.5", displayName: "GPT-5.5", tierKey: "model.tier.expert"),
+                ProviderModel(id: "gpt-5.6-luna", displayName: "GPT-5.6 Luna", tierKey: "model.tier.generalist"),
+                ProviderModel(id: "gpt-5", displayName: "GPT-5", tierKey: "model.tier.generalist"),
                 ProviderModel(id: "gpt-5-mini", displayName: "GPT-5 mini", tierKey: "model.tier.fast"),
             ]
         case .gemini:
-            // Real Gemini CLI model ids (passed as `gemini -m <id>`).
+            // Real Gemini CLI model ids (passed as `gemini -m <id>`). Catalog current as of
+            // Aug 2026: Gemini 3 (Pro/Flash) is live in the CLI, the 2.5 family runs until its
+            // Oct 2026 shutdown. Any other id works via the role's free-text model field.
             return [
+                ProviderModel(id: "gemini-3-pro-preview", displayName: "Gemini 3 Pro", tierKey: "model.tier.expert"),
+                ProviderModel(id: "gemini-3-flash-preview", displayName: "Gemini 3 Flash", tierKey: "model.tier.generalist"),
                 ProviderModel(id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", tierKey: "model.tier.expert"),
-                ProviderModel(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", tierKey: "model.tier.fast"),
+                ProviderModel(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", tierKey: "model.tier.generalist"),
+                ProviderModel(id: "gemini-2.5-flash-lite", displayName: "Gemini 2.5 Flash-Lite", tierKey: "model.tier.fast"),
             ]
         }
     }

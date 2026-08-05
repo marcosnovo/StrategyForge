@@ -46,37 +46,39 @@ enum ClaudeUsageAPI {
         // "Claude Code-credentials-<hash>"), and which item holds the currently-valid token
         // depends on how the CLI was last launched (Coral spawns it with its own config dir),
         // so guessing a hash misses it — the fresh token can sit under a hash we never compute.
-        // Enumerate EVERY "Claude Code-credentials"* item (attributes only → no prompt), try
-        // the most-recently-modified first (that's the live one), and stop at the first
-        // non-expired token. This is what fixes the "% never shows" bug when the guessed
-        // service names all point at stale/absent items.
-        for svc in claudeCredentialServices() {
-            if let data = keychainData(service: svc), let token = freshToken(from: data) { return token }
-        }
-        return nil
+        //
+        // CRITICAL: do this in ONE SecItemCopyMatching that returns BOTH attributes AND data
+        // for every "Claude Code-credentials"* item at once. A single call raises AT MOST ONE
+        // Keychain authorization prompt; the old code looped a per-service data read, so a user
+        // with N credential items (multiple installs / config dirs) got prompted N times in a
+        // row (the "me pidió las credenciales 8 veces" bug). We then pick the freshest
+        // non-expired token in memory — no further Keychain traffic.
+        return freshestKeychainToken()
     }
 
-    /// Every `Claude Code-credentials`* generic-password service in the Keychain, freshest
-    /// (most-recently-modified) first. Reads ATTRIBUTES only (no secret data), so it does not
-    /// trigger a Keychain access prompt — the prompt happens only when we then read the data
-    /// of the first candidate.
-    private static func claudeCredentialServices() -> [String] {
+    /// Every `Claude Code-credentials`* item's secret, fetched in a SINGLE Keychain query so
+    /// the OS shows at most one access prompt. Returns the most-recently-modified non-expired
+    /// access token, or nil.
+    private static func freshestKeychainToken() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecMatchLimit as String: kSecMatchLimitAll,
             kSecReturnAttributes as String: true,
+            kSecReturnData as String: true,
         ]
         var out: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
-              let items = out as? [[String: Any]] else { return ["Claude Code-credentials"] }
+              let items = out as? [[String: Any]] else { return nil }
         return items
-            .compactMap { item -> (svc: String, mod: Date)? in
+            .compactMap { item -> (mod: Date, data: Data)? in
                 guard let svc = item[kSecAttrService as String] as? String,
-                      svc.hasPrefix("Claude Code-credentials") else { return nil }
-                return (svc, (item[kSecAttrModificationDate as String] as? Date) ?? .distantPast)
+                      svc.hasPrefix("Claude Code-credentials"),
+                      let data = item[kSecValueData as String] as? Data else { return nil }
+                return ((item[kSecAttrModificationDate as String] as? Date) ?? .distantPast, data)
             }
             .sorted { $0.mod > $1.mod }   // the live token is in the most recently written item
-            .map(\.svc)
+            .lazy.compactMap { freshToken(from: $0.data) }
+            .first
     }
 
     /// Parse a Claude Code credentials blob (`{"claudeAiOauth":{"accessToken","expiresAt"}}`)
@@ -88,17 +90,6 @@ enum ClaudeUsageAPI {
               let token = oauth["accessToken"] as? String else { return nil }
         let ms = (oauth["expiresAt"] as? Double) ?? Double((oauth["expiresAt"] as? Int) ?? 0)
         return Date(timeIntervalSince1970: ms / 1000) > Date() ? token : nil
-    }
-
-    private static func keychainData(service: String) -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var out: CFTypeRef?
-        return SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess ? (out as? Data) : nil
     }
 
     /// Fetch the real percentages. nil on no token / network error / non-200.

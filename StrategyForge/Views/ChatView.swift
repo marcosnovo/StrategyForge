@@ -958,7 +958,13 @@ struct ChatView: View {
                         // own spinner (that was the redundant top sphere).
                         let streaming = vm.isRunning && message.role == .assistant
                             && message.id == vm.messages.last?.id
-                        if !(streaming && message.text.isEmpty) {
+                        // NEVER render an EMPTY assistant bubble — neither the live one
+                        // (activityRow covers it) nor the placeholders a failed/earlier
+                        // turn leaves behind. Those stranded avatars were the "orbs
+                        // parados de ejecuciones anteriores" scattered down the transcript.
+                        let emptyAssistant = message.role == .assistant
+                            && message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        if !emptyAssistant {
                         bubble(message, isStreaming: streaming)
                             .id(message.id)
                             // Extra breathing room above each new turn (user message),

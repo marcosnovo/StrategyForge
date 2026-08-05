@@ -271,10 +271,20 @@ struct CodeMapView: View {
     }
 
     private func loadRepos() async {
-        guard GitHubCLI.isInstalled, githubRepos.isEmpty, !loadingRepos else { return }
+        guard GitHubCLI.isInstalled else { return }
+        // Reuse the app-scoped cache (shared with the Code launcher) so opening this picker is
+        // instant and doesn't re-run `gh` on every navigation — the list lives on the model,
+        // not view @State, so it survives the view being recreated when leaving/returning.
+        if !model.cachedGitHubRepos.isEmpty { githubRepos = model.cachedGitHubRepos }
+        let fresh = model.gitHubReposLoadedAt.map { Date().timeIntervalSince($0) < 600 } ?? false
+        if fresh || loadingRepos { return }
         loadingRepos = true
-        githubRepos = await GitHubCLI.listRepos(limit: 100)
+        let fetched = await GitHubCLI.listRepos(limit: 100)
         loadingRepos = false
+        guard !fetched.isEmpty else { return }
+        githubRepos = fetched
+        model.cachedGitHubRepos = fetched
+        model.gitHubReposLoadedAt = Date()
     }
 
     private func startClone() {

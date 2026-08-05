@@ -150,9 +150,10 @@ struct NavRail: View {
                     SpotlightBeam(tint: Theme.coral)
                         .frame(width: r.width, height: r.height)
                         .position(x: r.midX, y: r.midY)
-                        // Snappy + a touch of bounce so the light darts to the new section the
-                        // instant it's picked (agile, not a slow glide that lags the click).
-                        .animation(reduceMotion ? nil : .spring(response: 0.26, dampingFraction: 0.68),
+                        // Smooth but alive: the light GLIDES to the new section (a soft spring
+                        // with a hint of settle), rather than darting — the founder found the
+                        // fast version "corre mucho". Snaps under Reduce Motion.
+                        .animation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.82),
                                    value: model.navSection)
                 }
             }
@@ -584,33 +585,52 @@ private struct SpotlightBeam: View {
             let w = geo.size.width, h = geo.size.height
             let iconY = h * 0.38          // the icon sits in the upper part of the cell
             ZStack {
-                // The cone: narrow at the lamp (left edge), fanning right across the icon.
-                Path { p in
-                    p.move(to: CGPoint(x: 0, y: iconY - h * 0.06))
-                    p.addLine(to: CGPoint(x: 0, y: iconY + h * 0.06))
-                    p.addLine(to: CGPoint(x: w * 0.9, y: iconY + h * 0.34))
-                    p.addLine(to: CGPoint(x: w * 0.9, y: iconY - h * 0.34))
-                    p.closeSubpath()
-                }
-                .fill(LinearGradient(colors: [tint.opacity(0.55), tint.opacity(0.16), .clear],
-                                     startPoint: .leading, endPoint: .trailing))
-                .blur(radius: 4)
-                // Pool of light where the icon sits.
-                RadialGradient(colors: [tint.opacity(0.5), tint.opacity(0.18), .clear],
-                               center: .center, startRadius: 0, endRadius: h * 0.5)
-                    .frame(width: h, height: h)
-                    .position(x: w * 0.5, y: iconY)
-                    .blur(radius: 3)
-                // The lamp on the leading edge — the source, a bright coral bulb.
+                // OUTER cone — a wide, very soft volumetric wash so the beam reads as light
+                // spilling into the cell (not a hard wedge). Fans from the lamp to the far edge.
+                cone(w: w, h: h, iconY: iconY, spreadTop: 0.10, spreadBottom: 0.62, reach: 1.0,
+                     colors: [tint.opacity(0.30), tint.opacity(0.10), .clear])
+                    .blur(radius: 9)
+                // INNER cone — the brighter core of the beam, narrower and tighter, giving the
+                // shaft of light its defined shape from the left edge across the icon.
+                cone(w: w, h: h, iconY: iconY, spreadTop: 0.05, spreadBottom: 0.34, reach: 0.82,
+                     colors: [tint.opacity(0.62), tint.opacity(0.22), .clear])
+                    .blur(radius: 3.5)
+                // Pool of light where the icon sits — the beam "landing" on the target.
+                RadialGradient(colors: [tint.opacity(0.55), tint.opacity(0.18), .clear],
+                               center: .center, startRadius: 0, endRadius: h * 0.52)
+                    .frame(width: h * 1.1, height: h * 1.1)
+                    .position(x: w * 0.52, y: iconY)
+                    .blur(radius: 4)
+                // The lamp on the leading edge — the source, a bright coral bulb with a halo.
+                Circle().fill(tint)
+                    .frame(width: 6, height: 6)
+                    .position(x: 2.5, y: iconY)
+                    .shadow(color: tint.opacity(0.95), radius: 7)
+                    .shadow(color: tint.opacity(0.6), radius: 3)
                 Capsule().fill(tint.opacity(0.95))
-                    .frame(width: 3.5, height: h * 0.3)
+                    .frame(width: 3, height: h * 0.34)
                     .position(x: 2, y: iconY)
-                    .shadow(color: tint.opacity(0.9), radius: 5)
-                    .shadow(color: tint.opacity(0.5), radius: 2)
+                    .blur(radius: 0.5)
             }
             .compositingGroup()
         }
         .allowsHitTesting(false)
+    }
+
+    /// A left-origin light cone: narrow at the lamp (x≈0), fanning right to `reach`·w. The
+    /// vertical half-spread grows from `spreadTop`·h at the source to `spreadBottom`·h at the
+    /// mouth, and the gradient fades left→right so the shaft dims as it travels.
+    private func cone(w: CGFloat, h: CGFloat, iconY: CGFloat,
+                      spreadTop: CGFloat, spreadBottom: CGFloat, reach: CGFloat,
+                      colors: [Color]) -> some View {
+        Path { p in
+            p.move(to: CGPoint(x: 0, y: iconY - h * spreadTop))
+            p.addLine(to: CGPoint(x: 0, y: iconY + h * spreadTop))
+            p.addLine(to: CGPoint(x: w * reach, y: iconY + h * spreadBottom))
+            p.addLine(to: CGPoint(x: w * reach, y: iconY - h * spreadBottom))
+            p.closeSubpath()
+        }
+        .fill(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing))
     }
 }
 
