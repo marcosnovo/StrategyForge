@@ -90,6 +90,14 @@ enum ProviderDiagnostics {
     /// `result` line). Keyword-based and tolerant of wording changes across versions.
     static func classify(message raw: String, provider: AIProvider) -> Finding {
         let m = raw.lowercased()
+        // Google retired the free `gemini` CLI (IneligibleTier / unsupported client) — a stale-
+        // login reconnect can't fix it; the user must move to Antigravity. Check FIRST because
+        // the message also contains "authenticate" and would otherwise read as "not signed in".
+        if provider == .gemini, CLIOneShotRunner.isAntigravityMigration(raw) {
+            return Finding(issue: .notInstalled,
+                           raw: "Google retired the free Gemini CLI for individuals. Install Antigravity (the agy CLI) from https://antigravity.google and sign in there — Coral uses it automatically — then retry.",
+                           fix: .connect)
+        }
         let authy = m.contains("401") || m.contains("invalid authentication")
             || m.contains("failed to authenticate") || m.contains("authenticate")
             || m.contains("please set an auth method") || m.contains("credentials")

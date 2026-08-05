@@ -165,6 +165,12 @@ struct CLIOneShotRunner: OneShotRunner {
                 stderr: \(msg.isEmpty ? "(empty)" : msg)
                 stdout: \(out.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
                 """)
+            // Google RETIRED the free Gemini CLI for individuals (IneligibleTierError /
+            // UNSUPPORTED_CLIENT). "Reconnect" can never fix it — the user must switch to
+            // Antigravity (`agy`). Say exactly that instead of the misleading "login expired".
+            if provider == .gemini, Self.isAntigravityMigration(out + "\n" + msg) {
+                throw OneShotError.failed("Google retired the free Gemini CLI for individuals. Install Antigravity (the `agy` CLI) from https://antigravity.google and sign in there — Coral picks it up automatically — then retry.")
+            }
             // A CLI can exit non-zero while printing a structured auth error to STDOUT
             // (Claude prints a 401 result JSON with an empty stderr). Turn that into a
             // typed auth error so any caller can offer a one-tap Reconnect.
@@ -353,6 +359,15 @@ struct CLIOneShotRunner: OneShotRunner {
     /// If the CLI output smells like an authentication failure (401 / "failed to
     /// authenticate"), return a per-provider, actionable message; else nil. Coral runs
     /// on each provider's own stored subscription login, so the fix is a re-sign-in.
+    /// Google's "the free `gemini` CLI is no longer supported — migrate to Antigravity" error.
+    /// A distinct case from a stale login: reconnecting the same CLI can never succeed.
+    static func isAntigravityMigration(_ text: String) -> Bool {
+        let h = text.lowercased()
+        return h.contains("antigravity") || h.contains("ineligibletier")
+            || h.contains("unsupported_client")
+            || (h.contains("no longer supported") && h.contains("gemini"))
+    }
+
     static func authFailureMessage(provider: AIProvider, stdout: String, stderr: String) -> String? {
         let hay = (stdout + "\n" + stderr).lowercased()
         let looksAuth = hay.contains("401")

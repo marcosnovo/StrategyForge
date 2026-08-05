@@ -1210,6 +1210,13 @@ struct ChatView: View {
                 .staggeredAppear(index: 2)
             strategyHook
                 .staggeredAppear(index: 3)
+            // For a chosen team, show its composition up front — each agent's provider + model
+            // — so you know exactly who will run before you send (minimal, but transparent).
+            if !config.strategyIsAuto, !config.strategy.subagentRoles.isEmpty {
+                agentsStrip
+                    .frame(maxWidth: .infinity)
+                    .staggeredAppear(index: 4)
+            }
             VStack(spacing: Space.s) {
                 ForEach(Array(["chat.suggest1", "chat.suggest2", "chat.suggest3"].enumerated()),
                         id: \.element) { index, key in
@@ -1295,8 +1302,12 @@ struct ChatView: View {
                         showActivity = true      // open the panel focused on this agent
                     } label: {
                         HStack(spacing: 5) {
-                            Image(systemName: role.role.icon).scaledFont(10).foregroundStyle(role.role.tint)
+                            // WHO runs this agent — the provider logo + its model — so a mixed
+                            // team is legible at a glance in the chat (founder: "se sepa de qué
+                            // modelo y proveedor es cada uno"). Role name + model, provider by mark.
+                            ProviderLogo(provider: role.provider, size: 12, templateTint: role.provider.tint)
                             Text(name).font(.sfCaption2.weight(.medium)).lineLimit(1)
+                            Text(role.modelDisplayName).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
                             if running {
                                 if count > 1 { Text("×\(count)").scaledFont(9, weight: .bold).foregroundStyle(Theme.tealText) }
                                 Circle().fill(Theme.teal).frame(width: 5, height: 5)
