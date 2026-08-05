@@ -271,8 +271,8 @@ struct ArenaView: View {
 
     private var header: some View {
         HStack(spacing: Space.m) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(model.t("arena.title")).font(.sfCardTitle)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.t("arena.title")).font(.sfDisplay)   // canonical full-page landing H1
                 Text(comboSubtitle).font(.sfCaption2).foregroundStyle(.secondary)
             }
             Spacer()

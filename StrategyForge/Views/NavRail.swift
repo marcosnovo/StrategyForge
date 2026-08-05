@@ -150,7 +150,7 @@ struct NavRail: View {
             VStack(spacing: 1) {
                 Image(systemName: "square.and.pencil").font(.system(size: 16, weight: .medium)).foregroundStyle(Theme.coral)
                     .frame(width: 40, height: 30)
-                Text(model.t("sidebar.newShort")).font(.system(size: 9, weight: .medium))
+                Text(model.t("sidebar.newShort")).scaledFont(10, weight: .medium)
                     .foregroundStyle(Theme.coral).lineLimit(1).minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 3)
@@ -197,7 +197,7 @@ struct NavRail: View {
                 .overlay(alignment: .topTrailing) {
                     if running && !active { RunningPulseDot().offset(x: -3, y: 3) }
                 }
-            Text(label).font(.system(size: 9, weight: .medium))
+            Text(label).scaledFont(10, weight: .medium)
                 .foregroundStyle(labelTint)
                 .lineLimit(1).minimumScaleFactor(0.75)
         }
@@ -232,7 +232,7 @@ struct NavRail: View {
                     .foregroundStyle(Theme.secondaryOnMaterial)
                     .frame(width: 40, height: 30)
                     .overlay(alignment: .topTrailing) { if hiddenRunning { RunningPulseDot().offset(x: -3, y: 3) } }
-                Text(model.t("rail.more")).font(.system(size: 9, weight: .medium))
+                Text(model.t("rail.more")).scaledFont(10, weight: .medium)
                     .foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1).minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 3)

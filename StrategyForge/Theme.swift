@@ -55,6 +55,10 @@ enum Theme {
     static let selectionFill = Color(
         light: Color.black.opacity(0.09),   // ~#E8E8E8 on white — visible-but-calm; the ONLY
         dark:  Color.white.opacity(0.085))  // selection cue now that borders are dropped.
+    /// The user chat bubble — soft off-white paper (~#F4F4F4), lighter than a selected row.
+    static let userBubbleChip = Color(
+        light: Color.black.opacity(0.04),
+        dark:  Color.white.opacity(0.06))
     /// Selected rows no longer carry a border — the grey wash alone marks selection.
     static let selectionBorder = Color.clear
     /// Focus ring stroke for text fields / focusable controls (visible only when focused).
@@ -164,12 +168,14 @@ enum Theme {
     /// Vertical gap between chat messages (Claude/Superhuman-like breathing room).
     static let messageSpacing: CGFloat = 20
     /// Extra gap added above a user message to separate conversation turns.
-    static let turnGap: CGFloat = 16
-    /// Extra line spacing for body copy so long replies read comfortably (1.55-ish).
-    static let bodyLineSpacing: CGFloat = 5
+    /// Air above each new user turn — larger than messageSpacing so turns read as distinct
+    /// units (were blurring together at 16 < 20).
+    static let turnGap: CGFloat = 28
+    /// Extra line spacing for body copy so long replies read comfortably (~1.55 line-height).
+    static let bodyLineSpacing: CGFloat = 7
     /// The comfortable reading measure the chat transcript + composer share (one named
     /// column instead of the literal 760 sprinkled through ChatView).
-    static let readingColumn: CGFloat = 760
+    static let readingColumn: CGFloat = 720
     /// The wider content measure for form-like sections (Arena, etc.), centered in the window.
     static let contentColumn: CGFloat = 1040
 }
@@ -455,14 +461,17 @@ private struct ElevationModifier: ViewModifier {
     static func params(level: Elevation, dark: Bool)
         -> (aA: Double, aR: CGFloat, aY: CGFloat, cA: Double, cR: CGFloat, cY: CGFloat) {
         switch (level, dark) {
+        // Light shadows are a WHISPER (not a gray halo): a 0.22-alpha ambient under every white
+        // card on near-white paper read as heavy gray. Claude/Things rest at ~0.06-0.08. (Dark
+        // keeps its cinematic depth.)
         case (.e1, true):  return (0.28, 14,  6, 0.22, 2, 1)
-        case (.e1, false): return (0.14, 10,  4, 0.10, 1.5, 1)
+        case (.e1, false): return (0.06,  8,  3, 0.05, 1.5, 1)
         case (.e2, true):  return (0.34, 22, 10, 0.26, 3, 1)
-        case (.e2, false): return (0.22, 18,  9, 0.12, 2.5, 1)
+        case (.e2, false): return (0.10, 14,  6, 0.07, 2.5, 1)
         case (.e3, true):  return (0.40, 30, 14, 0.30, 4, 2)
-        case (.e3, false): return (0.23, 26, 12, 0.13, 3, 1)
+        case (.e3, false): return (0.12, 20,  9, 0.08, 3, 1)
         case (.e4, true):  return (0.48, 40, 20, 0.34, 5, 2)
-        case (.e4, false): return (0.28, 34, 16, 0.15, 4, 2)
+        case (.e4, false): return (0.14, 26, 12, 0.10, 3.5, 2)
         }
     }
 }
@@ -484,7 +493,7 @@ private struct RestingShadow: ViewModifier {
     func body(content: Content) -> some View {
         content.background(alignment: .bottom) {
             Ellipse()
-                .fill(Color.black.opacity(scheme == .dark ? 0.38 : 0.14))
+                .fill(Color.black.opacity(scheme == .dark ? 0.38 : 0.09))
                 .frame(width: diameter * 0.66, height: diameter * 0.15)
                 .blur(radius: diameter * 0.13)
                 .offset(y: diameter * 0.16)

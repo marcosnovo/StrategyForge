@@ -79,7 +79,7 @@ struct SkillsView: View {
                 }
                 .labelsHidden().pickerStyle(.segmented).tint(Theme.coral).padding(.top, Space.xs)
             }
-            .padding(Space.m).background(.regularMaterial).zoomWindowOnDoubleClick()
+            .padding(Space.m).background(.bar).zoomWindowOnDoubleClick()
             Divider()
             filterBar
             Divider()
@@ -116,7 +116,7 @@ struct SkillsView: View {
             }
             .labelsHidden().pickerStyle(.segmented).tint(Theme.coral)
         }
-        .padding(.horizontal, Space.m).padding(.vertical, Space.s).background(.regularMaterial)
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s).background(.bar)
     }
 
     /// A curated entry's coarse type — code if its known slug ships scripts, else

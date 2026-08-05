@@ -734,8 +734,12 @@ struct ChatView: View {
                                 .scaledFont(9, weight: .semibold)
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(.horizontal, 9).padding(.vertical, 3)
-                        .glassEffect(.regular.interactive(), in: .capsule)
+                        // A plain text menu (like Claude's model picker), not a glass capsule —
+                        // it was the busiest object in a resting chat. The coral auto-team wand
+                        // above still marks the one live "we'll pick" state.
+                        .padding(.horizontal, 4).padding(.vertical, 3)
+                        .contentShape(Rectangle())
+                        .hoverTint(cornerRadius: Theme.rowCorner)
                     }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                     .help(model.t("chat.teamMenu.help"))
@@ -826,10 +830,10 @@ struct ChatView: View {
         }
         .frame(height: Theme.headerContentHeight)   // one fixed top-bar height (unified)
         .padding(.horizontal, Space.m).padding(.bottom, Space.m).padding(.top, model.titlebarTopInset)
-        .background {
-            Rectangle().fill(.bar)
-                .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
-        }
+        // A crisp 1px seam, not a soft black drop-shadow (which read as a gray smudge on the
+        // light paper). Claude/Cursor separate chrome from content with a hairline.
+        .background(.bar)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
         .zoomWindowOnDoubleClick()
         .zIndex(1)
     }
@@ -1047,18 +1051,13 @@ struct ChatView: View {
                     .lineSpacing(Theme.bodyLineSpacing)
                     .foregroundStyle(Theme.ink)
                     .textSelection(.enabled)
-                    .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+                    .padding(.horizontal, Space.m).padding(.vertical, Space.m)
                     .frame(maxWidth: 560, alignment: .trailing)
-                    // The user's turn: a QUIET chip — a whisper of coral tint over a neutral
-                    // fill with ink text, not a saturated coral slab. The old bright-coral
-                    // fill read as an alert/error and was the loudest thing on screen; calm
-                    // chat UIs keep the user's own words near-neutral (ChatGPT/Claude).
-                    // Coral is reclaimed for actions + the live agent moment, not chat history.
-                    // Neutral grey chip (like Claude/ChatGPT) — the user's own words are not a
-                    // brand moment. Coral is reclaimed for the live/primary things only.
+                    // Soft off-white paper chip (like Claude/ChatGPT) — the user's own words are
+                    // near-neutral, lighter than a selected row. Coral stays for actions only.
                     .background(
                         RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
-                            .fill(Theme.selectionFill))
+                            .fill(Theme.userBubbleChip))
                     .contextMenu {
                         copyButton(message.text)
                         Button { editMessage(message) } label: {
@@ -1069,13 +1068,18 @@ struct ChatView: View {
         } else {
             // Assistant: a soft rounded bubble (reference-style), with an avatar.
             HStack(alignment: .top, spacing: Space.s) {
+                // Assistant identity is shown ONCE (first reply) + while streaming — not a coral
+                // globe repeated down every turn (that competed with the send button for the one
+                // accent). Later replies reserve the 28pt gutter with clear space so prose stays
+                // aligned. (Claude/ChatGPT show the avatar once, not per turn.)
+                let isFirstAssistant = message.id == vm.messages.first(where: { $0.role == .assistant })?.id
                 Group {
                     if isStreaming {
                         WorkingLogo(size: 20)
-                    } else {
-                        // A finished bubble's globe holds still — no 30fps Canvas per
-                        // message for the whole transcript's lifetime.
+                    } else if isFirstAssistant {
                         CoralSphere(size: 28, animating: false)
+                    } else {
+                        Color.clear
                     }
                 }
                 .frame(width: 28, height: 28)

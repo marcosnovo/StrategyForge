@@ -330,7 +330,7 @@ struct GrainOverlay: View {
     var body: some View {
         // Lighter grain on the near-white light ground (halved) so the roomy surface stays
         // clean; dark keeps a touch more tooth.
-        let ceiling = scheme == .dark ? 0.05 : 0.025
+        let ceiling = scheme == .dark ? 0.05 : 0.012
         Canvas { ctx, size in
             var seed: UInt64 = 0x9E3779B97F4A7C15
             func rnd() -> Double {
@@ -394,7 +394,7 @@ struct AppAuroraBackground: View {
             LinearGradient(
                 colors: scheme == .dark
                     ? [.white.opacity(0.05), .clear, .black.opacity(0.10)]
-                    : [.white.opacity(0.45), .clear, .black.opacity(0.03)],
+                    : [.white.opacity(0.45), .clear, .clear],   // no bottom darkening on light — flat paper
                 startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
             GeometryReader { geo in
@@ -455,9 +455,9 @@ struct AppAuroraBackground: View {
             // Light: a whisper of coral in the far corners only — the reading area stays a
             // clean near-white (the ground should read as ONE light surface, not tinted).
             bloom(Theme.coral, at: CGPoint(x: w * 0.98, y: h * -0.02),
-                  size: d * 1.15, opacity: dark ? 0.10 : 0.06)
+                  size: d * 1.15, opacity: dark ? 0.10 : 0.035)
             bloom(Theme.coralDeep, at: CGPoint(x: w * 0.02, y: h * 1.02),
-                  size: d * 0.85, opacity: dark ? 0.05 : 0.03)
+                  size: d * 0.85, opacity: dark ? 0.05 : 0.015)
         }
         .blur(radius: 100)
         .drawingGroup()

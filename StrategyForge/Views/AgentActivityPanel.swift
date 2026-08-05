@@ -92,7 +92,7 @@ struct AgentActivityPanel: View {
             .padding(.horizontal, Space.m).padding(.bottom, Space.m).padding(.top, model.titlebarTopInset)
             .background {
                 Rectangle().fill(.bar)
-                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
+                    .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
             }
             .zoomWindowOnDoubleClick()
             .zIndex(1)
@@ -1304,7 +1304,7 @@ struct SubagentDetailPanel: View {
             .padding(Space.m)
             .background {
                 Rectangle().fill(.bar)
-                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
+                    .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
             }
             .zIndex(1)
 
