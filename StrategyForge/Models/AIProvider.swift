@@ -189,11 +189,11 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
             // Aug 2026: Gemini 3 (Pro/Flash) is live in the CLI, the 2.5 family runs until its
             // Oct 2026 shutdown. Any other id works via the role's free-text model field.
             return [
-                ProviderModel(id: "gemini-3-pro-preview", displayName: "Gemini 3 Pro", tierKey: "model.tier.expert"),
-                ProviderModel(id: "gemini-3-flash-preview", displayName: "Gemini 3 Flash", tierKey: "model.tier.generalist"),
+                ProviderModel(id: "gemini-3.1-pro", displayName: "Gemini 3.1 Pro", tierKey: "model.tier.expert"),
+                ProviderModel(id: "gemini-3.6-flash", displayName: "Gemini 3.6 Flash", tierKey: "model.tier.generalist"),
+                ProviderModel(id: "gemini-3.5-flash", displayName: "Gemini 3.5 Flash", tierKey: "model.tier.generalist"),
                 ProviderModel(id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", tierKey: "model.tier.expert"),
-                ProviderModel(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", tierKey: "model.tier.generalist"),
-                ProviderModel(id: "gemini-2.5-flash-lite", displayName: "Gemini 2.5 Flash-Lite", tierKey: "model.tier.fast"),
+                ProviderModel(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", tierKey: "model.tier.fast"),
             ]
         }
     }

@@ -679,11 +679,13 @@ struct CLIOneShotRunner: OneShotRunner {
     /// a non-existent "null" executable.
     static func resolveBinary(_ configured: String, provider: AIProvider) -> String? {
         let name = configured.isEmpty ? provider.binaryName : configured
-        if let p = ClaudeRunner.resolveBinary(name) { return p }
-        // Fall back to the provider's alternatives (e.g. Gemini CLI → Antigravity `agy`).
+        // PREFER the provider's alternative when it's installed: Google retired the free
+        // `gemini` CLI (IneligibleTier), so if Antigravity's `agy` is present we must use it —
+        // the dead `gemini` may still be on disk but can never authenticate. Only when no
+        // alternative resolves do we fall back to the configured/primary binary.
         for alt in provider.alternativeBinaries {
             if let p = ClaudeRunner.resolveBinary(alt) { return p }
         }
-        return nil
+        return ClaudeRunner.resolveBinary(name)
     }
 }

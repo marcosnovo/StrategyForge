@@ -2,9 +2,11 @@
 //  OnboardingView.swift
 //  StrategyForge
 //
-//  First-run welcome that explains, in plain language, what the app does and the three
-//  steps: it runs your AI coding agents on your own plan, and asks before making changes
-//  (you choose how much autonomy to grant — see `onboard.note`).
+//  First-run onboarding as a clean, centered, PAGED flow (Antigravity-style):
+//   1. Welcome — what Coral is + the wedge (yours, not rented).
+//   2. Appearance — System / Light / Dark.
+//   3. Connect — sign in to your providers (your plans, no keys) + GitHub.
+//  Previous / Next / Finish with page dots. Calm and minimal, like the mainstream AI apps.
 //
 
 import SwiftUI
@@ -17,188 +19,229 @@ struct OnboardingView: View {
     /// The primary path: describe a task and let AI build the team (onboarding gate).
     var onDescribeTask: () -> Void = {}
 
+    @State private var step = 0
+    @State private var theme = ThemeStore.shared
+    /// A provider whose connect sheet is open (sheet-over-sheet).
+    @State private var connecting: AIProvider?
+    private let stepCount = 3
+
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.xl) {
-            HStack(spacing: Space.m) {
-                Image(systemName: "square.stack.3d.up.fill")
-                    .font(.largeTitle)
-                    .foregroundStyle(Theme.accent)
-                    .breathingGlow(color: Theme.coral)
-                Text(model.t("onboard.title")).font(.sfDisplay)
-            }
-            .staggeredAppear(index: 0)
-
-            Text(model.t("onboard.intro"))
-                .font(.sfBodyM)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .staggeredAppear(index: 1)
-
-            // Show — not just tell — what "a team of agents" means: a live,
-            // animated topology of a real sample strategy.
-            VStack(alignment: .leading, spacing: Space.xs) {
-                StrategyDiagramView(strategy: StrategyLibrary.orchestratorWorkers())
-                    .frame(height: 188)
-                    .padding(Space.s)
-                    // Soft rounded glass frame — the topology floats over the aurora.
-                    .glassPanel(cornerRadius: Theme.corner)
-                Text(model.t("onboard.diagramCaption"))
-                    .font(.sfCaption2).foregroundStyle(.secondary)
-            }
-            .staggeredAppear(index: 2)
-
-            // The wedge — before the how-to, say what makes Coral different from the
-            // metered, closed, cloud tools: it runs on plans you own, nothing leaves the
-            // Mac, and it mixes providers. This is the anti-"rent-an-agent" pitch.
-            wedgeStrip.staggeredAppear(index: 3)
-
-            VStack(alignment: .leading, spacing: Space.l) {
-                step(1, "onboard.step1.title", "onboard.step1.desc")
-                step(2, "onboard.step2.title", "onboard.step2.desc")
-                step(3, "onboard.step3.title", "onboard.step3.desc")
-            }
-            .staggeredAppear(index: 4)
-
-            Label(model.t("onboard.note"), systemImage: "info.circle.fill")
-                .font(.sfCallout)
-                .foregroundStyle(.secondary)
-                .padding(Space.m)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.accentSoft))
-                .fixedSize(horizontal: false, vertical: true)
-                .staggeredAppear(index: 5)
-
-            // Readiness before value: surface what the app needs to actually run
-            // (a connected CLI) up front, not after the user has built a team — the
-            // #1 activation gate for a tool that drives external CLIs.
-            readinessStrip.staggeredAppear(index: 6)
-
-            HStack {
-                Button(model.t("onboard.skip")) {
-                    Analytics.log(.onboardingPathSelected(path: "skip"))
-                    Analytics.log(.onboardingSkipped)
-                    dismiss()
+        VStack(spacing: 0) {
+            Group {
+                switch step {
+                case 0: welcomeStep
+                case 1: appearanceStep
+                default: connectStep
                 }
-                Spacer()
-                Button(model.t("onboard.browse")) {
-                    Analytics.log(.onboardingPathSelected(path: "browse"))
-                    Analytics.log(.onboardingCompleted)
-                    dismiss()
-                    onCreate()
-                }
-                Button {
-                    Analytics.log(.onboardingPathSelected(path: "describe"))
-                    Analytics.log(.onboardingCompleted)
-                    dismiss()
-                    onDescribeTask()
-                } label: {
-                    Label(model.t("onboard.describeTask"), systemImage: "sparkles")
-                }
-                .buttonStyle(.moon)
-                .controlSize(.large)
-                .keyboardShortcut(.defaultAction)
             }
-            .staggeredAppear(index: 6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .transition(.opacity)
+            footer
         }
-        .padding(Space.xl + Space.s)
-        .frame(width: 560)
-        // Static ambient wash — always mounted (never inserted/removed with an
-        // animation; see the TimelineView-over-material note in ChatView).
-        .background(AuroraBackground(intensity: 0.9))
+        .frame(width: 640, height: 600)
+        .background(AuroraBackground(intensity: 0.55))
+        .sheet(item: $connecting) { p in
+            ProviderConnectSheet(provider: p) { Task { await model.refreshConnectedProviders() } }
+        }
         .task { Analytics.log(.onboardingStarted) }
     }
 
-    /// The differentiator strip: three compact badges (no metering · your keys, your Mac ·
-    /// mix providers) + an open-source line. This is what sets Coral apart from the metered,
-    /// account-gated, closed cloud tools — said up front, before the how-to.
-    private var wedgeStrip: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            HStack(alignment: .top, spacing: Space.m) {
+    // MARK: Steps
+
+    private var welcomeStep: some View {
+        VStack(spacing: Space.l) {
+            Spacer()
+            CoralSphere(size: 84)
+            Text(model.t("onboard.title")).font(.sfDisplay).multilineTextAlignment(.center)
+            Text(model.t("onboard.intro"))
+                .font(.sfBodyM).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 460)
+            HStack(alignment: .top, spacing: Space.l) {
                 wedgeBadge("bolt.slash.fill", "onboard.wedge.byo.title", "onboard.wedge.byo.desc")
                 wedgeBadge("lock.laptopcomputer", "onboard.wedge.private.title", "onboard.wedge.private.desc")
                 wedgeBadge("square.stack.3d.up.fill", "onboard.wedge.mix.title", "onboard.wedge.mix.desc")
             }
-            Label(model.t("onboard.wedge.open"), systemImage: "checkmark.seal")
-                .font(.sfCaption2).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: 500)
+            .padding(.top, Space.s)
+            Spacer()
         }
-        .padding(Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassPanel(cornerRadius: Theme.innerCorner)
+        .padding(.horizontal, Space.xl)
     }
 
     private func wedgeBadge(_ icon: String, _ titleKey: String, _ descKey: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Image(systemName: icon).font(.system(size: 15)).foregroundStyle(Theme.accent)
-            Text(model.t(titleKey)).font(.sfCaption2.weight(.semibold))
+        VStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 16)).foregroundStyle(Theme.accent)
+            Text(model.t(titleKey)).font(.sfCaption2.weight(.semibold)).multilineTextAlignment(.center)
             Text(model.t(descKey)).font(.sfCaption2).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
-    /// Environment-readiness spine: a Gatekeeper pre-empt + a per-provider status
-    /// row, so the user knows what's needed to run before they invest in a team.
-    private var readinessStrip: some View {
-        let ready = model.connectedProviders.contains(.claude)
-        return VStack(alignment: .leading, spacing: Space.s) {
-            HStack(spacing: Space.s) {
-                Image(systemName: ready ? "checkmark.seal.fill" : "sparkles")
-                    .foregroundStyle(ready ? Theme.success : Theme.accent)
-                Text(model.t(ready ? "onboard.ready.title" : "onboard.ready.setup"))
-                    .font(.sfCardTitle)
-                Spacer()
+    private var appearanceStep: some View {
+        VStack(spacing: Space.l) {
+            Spacer()
+            stepTitle("onboard.step.appearance.title", "onboard.step.appearance.desc")
+            HStack(spacing: Space.l) {
+                appearanceCard(.auto)
+                appearanceCard(.light)
+                appearanceCard(.dark)
             }
-            // The single thing a new user MUST do: connect Claude. When it isn't there
-            // yet, this is the loud, primary blocker — a coral CTA, not a caption link.
-            if !ready {
-                Text(model.t("onboard.ready.setupDesc"))
-                    .font(.sfCallout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button {
-                    dismiss()
-                    model.navSection = .services
-                } label: {
-                    Label(model.t("onboard.ready.connectCTA"), systemImage: "bolt.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.moon)
-                .controlSize(.large)
-                .padding(.top, 2)
-            }
-            // Per-provider status (Claude is the default engine; the others are
-            // optional and unlock cross-provider teams).
-            HStack(spacing: Space.m) {
-                ForEach(AIProvider.allCases) { p in
-                    let on = model.isConnected(p)
-                    HStack(spacing: 5) {
-                        Image(systemName: on ? "circle.fill" : "circle")
-                            .scaledFont(8)
-                            .foregroundStyle(on ? Theme.success : Theme.secondaryOnMaterial)
-                        Text(p.displayName).font(.sfCaption2)
-                            .foregroundStyle(on ? .primary : .secondary)
-                    }
-                }
-            }
-            Label(model.t("onboard.gatekeeper"), systemImage: "lock.shield")
-                .font(.sfCaption2).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, Space.s)
+            Spacer()
         }
-        .padding(Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // Translucent glass so the readiness strip floats over the aurora wash.
+        .padding(.horizontal, Space.xl)
+    }
+
+    private func appearanceCard(_ a: AppAppearance) -> some View {
+        let selected = theme.appearance == a
+        return Button {
+            withAnimation(.easeInOut(duration: 0.25)) { theme.appearance = a }
+        } label: {
+            VStack(spacing: Space.s) {
+                themePreview(a)
+                    .frame(width: 132, height: 84)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(selected ? Theme.coral : Theme.hairline, lineWidth: selected ? 2 : 1))
+                Text(model.t(a.labelKey))
+                    .font(.sfCaption2.weight(selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? Theme.ink : .secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// A tiny window mockup: white (light), near-black (dark), or a split (system).
+    @ViewBuilder private func themePreview(_ a: AppAppearance) -> some View {
+        switch a {
+        case .light: mockWindow(dark: false)
+        case .dark:  mockWindow(dark: true)
+        case .auto:
+            HStack(spacing: 0) {
+                mockWindow(dark: false).frame(width: 66)
+                mockWindow(dark: true).frame(width: 66)
+            }
+        }
+    }
+
+    private func mockWindow(dark: Bool) -> some View {
+        let bg = dark ? Color(red: 0.08, green: 0.09, blue: 0.10) : Color.white
+        let line = dark ? Color.white.opacity(0.25) : Color.black.opacity(0.12)
+        return ZStack(alignment: .topLeading) {
+            bg
+            VStack(alignment: .leading, spacing: 5) {
+                RoundedRectangle(cornerRadius: 2).fill(Theme.coral.opacity(0.9)).frame(width: 26, height: 4)
+                RoundedRectangle(cornerRadius: 2).fill(line).frame(width: 44, height: 4)
+                RoundedRectangle(cornerRadius: 2).fill(line).frame(width: 36, height: 4)
+            }
+            .padding(10)
+        }
+    }
+
+    private var connectStep: some View {
+        VStack(spacing: Space.m) {
+            Spacer(minLength: Space.m)
+            stepTitle("onboard.step.connect.title", "onboard.step.connect.desc")
+            VStack(spacing: Space.s) {
+                ForEach(AIProvider.allCases) { p in providerRow(p) }
+                githubRow
+            }
+            .frame(maxWidth: 460)
+            Spacer(minLength: Space.m)
+        }
+        .padding(.horizontal, Space.xl)
+    }
+
+    private func providerRow(_ p: AIProvider) -> some View {
+        let on = model.isConnected(p)
+        return HStack(spacing: Space.s) {
+            ProviderLogo(provider: p, size: 20, templateTint: p.tint)
+            Text(p.displayName).font(.sfBodyM.weight(.medium))
+            Spacer()
+            if on {
+                Label(model.t("onboard.connected"), systemImage: "checkmark.circle.fill")
+                    .font(.sfCaption2).foregroundStyle(Theme.success).labelStyle(.titleAndIcon)
+            } else {
+                Button(model.t("onboard.connect.action")) { connecting = p }
+                    .buttonStyle(.moon).controlSize(.small)
+            }
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
         .glassPanel(cornerRadius: Theme.innerCorner)
     }
 
-    private func step(_ number: Int, _ titleKey: String, _ descKey: String) -> some View {
-        HStack(alignment: .top, spacing: Space.m) {
-            StepBadge(number: number)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.t(titleKey)).font(.sfCardTitle)
-                Text(model.t(descKey)).font(.sfCallout).foregroundStyle(.secondary)
+    private var githubRow: some View {
+        HStack(spacing: Space.s) {
+            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                .font(.system(size: 15)).foregroundStyle(.secondary).frame(width: 20)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(model.t("onboard.github.title")).font(.sfBodyM.weight(.medium))
+                Text(model.t("onboard.github.desc")).font(.sfCaption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            Spacer()
+            if GitHubCLI.isInstalled {
+                Label(model.t("onboard.connected"), systemImage: "checkmark.circle.fill")
+                    .font(.sfCaption2).foregroundStyle(Theme.success).labelStyle(.titleAndIcon)
+            } else {
+                Button(model.t("onboard.connect.action")) { dismiss(); model.navSection = .services }
+                    .buttonStyle(.bordered).controlSize(.small)
+            }
         }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+        .glassPanel(cornerRadius: Theme.innerCorner)
+    }
+
+    private func stepTitle(_ titleKey: String, _ descKey: String) -> some View {
+        VStack(spacing: Space.xs) {
+            Text(model.t(titleKey)).font(.sfCardTitle).multilineTextAlignment(.center)
+            Text(model.t(descKey)).font(.sfCallout).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 460)
+        }
+    }
+
+    // MARK: Footer (Previous · Next/Finish · dots)
+
+    private var footer: some View {
+        VStack(spacing: Space.s) {
+            Button(model.t("onboard.previous")) {
+                withAnimation(.easeInOut(duration: 0.2)) { step = max(0, step - 1) }
+            }
+            .buttonStyle(.plain)
+            .font(.sfCaption2)
+            .foregroundStyle(step == 0 ? Color.secondary.opacity(0.4) : Color.secondary)
+            .disabled(step == 0)
+
+            Button {
+                if step < stepCount - 1 { withAnimation(.easeInOut(duration: 0.2)) { step += 1 } }
+                else { finish() }
+            } label: {
+                Text(model.t(step < stepCount - 1 ? "onboard.next" : "onboard.finish"))
+                    .frame(maxWidth: 300)
+            }
+            .buttonStyle(.moon).controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+
+            HStack(spacing: 6) {
+                ForEach(0..<stepCount, id: \.self) { i in
+                    Circle()
+                        .fill(i == step ? Theme.coral : Theme.secondaryOnMaterial.opacity(0.3))
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .padding(.top, 2)
+        }
+        .padding(.bottom, Space.xl)
+    }
+
+    private func finish() {
+        Analytics.log(.onboardingPathSelected(path: "describe"))
+        Analytics.log(.onboardingCompleted)
+        dismiss()
+        onDescribeTask()
     }
 }
 
