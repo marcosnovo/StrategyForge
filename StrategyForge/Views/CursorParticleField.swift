@@ -62,35 +62,44 @@ private final class CursorFieldState {
         }
     }
 
-    /// One physics step: idle shimmer around home, a strong PUSH away from the cursor within a
-    /// radius (the bubble), damping, integrate.
-    func step(size: CGSize, time: Double) {
-        guard seeded else { return }
+    /// One physics step. The field is STILL at rest (scattered confetti — no idle wander, which
+    /// read as "crawling bugs"); specks only move when the cursor PUSHES them away within a
+    /// radius, then ease smoothly back to their fixed home. Returns whether anything moved, so a
+    /// fully-settled field can skip redraws.
+    @discardableResult
+    func step(size: CGSize) -> Bool {
+        guard seeded else { return false }
         let radius: CGFloat = 200
+        var moved = false
         for i in specks.indices {
             var p = specks[i]
-            // Home target with a slow sinusoidal wander, so the field breathes even at rest.
-            let driftX = CGFloat(cos(time * 0.5 + p.phase)) * 6
-            let driftY = CGFloat(sin(time * 0.42 + p.phase)) * 6
-            let homeX = CGFloat(p.hx) * size.width + driftX
-            let homeY = CGFloat(p.hy) * size.height + driftY
-            p.vx += (homeX - p.x) * 0.028
-            p.vy += (homeY - p.y) * 0.028
+            let homeX = CGFloat(p.hx) * size.width
+            let homeY = CGFloat(p.hy) * size.height
+            p.vx += (homeX - p.x) * 0.045          // firmer pull home → settles, doesn't jitter
+            p.vy += (homeY - p.y) * 0.045
             if hasCursor {
                 let dx = p.x - cursor.x, dy = p.y - cursor.y
                 let d2 = dx * dx + dy * dy
                 if d2 < radius * radius {
                     let d = max(sqrt(d2), 0.01)
                     let falloff = 1 - d / radius
-                    let push = falloff * falloff * 9.0        // strong, smooth (quadratic) shove
+                    let push = falloff * falloff * 9.0     // strong, smooth (quadratic) shove
                     p.vx += dx / d * push
                     p.vy += dy / d * push
                 }
             }
-            p.vx *= 0.88; p.vy *= 0.88
-            p.x += p.vx; p.y += p.vy
+            p.vx *= 0.82; p.vy *= 0.82
+            // Snap to rest once it's essentially home (kills the last few pixels of drift).
+            if abs(p.vx) < 0.02 && abs(p.vy) < 0.02
+                && abs(p.x - homeX) < 0.3 && abs(p.y - homeY) < 0.3 {
+                p.x = homeX; p.y = homeY; p.vx = 0; p.vy = 0
+            } else {
+                p.x += p.vx; p.y += p.vy
+                moved = true
+            }
             specks[i] = p
         }
+        return moved
     }
 }
 
@@ -122,10 +131,10 @@ struct CursorParticleField: View {
         if reduceMotion {
             Color.clear
         } else {
-            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in
                 Canvas { ctx, size in
                     field.seed(count: count, size: size)
-                    field.step(size: size, time: timeline.date.timeIntervalSinceReferenceDate)
+                    field.step(size: size)
                     // GLOW pass: the same dashes, thicker + blurred into a soft bloom layer.
                     ctx.drawLayer { layer in
                         layer.addFilter(.blur(radius: 3.5))
