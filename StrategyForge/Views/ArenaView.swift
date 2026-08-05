@@ -278,7 +278,7 @@ struct ArenaView: View {
             Spacer()
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-        .background(.bar)
+        .background(Theme.chromeBg)
         .zoomWindowOnDoubleClick()
     }
 

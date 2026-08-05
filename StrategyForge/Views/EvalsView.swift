@@ -317,7 +317,7 @@ struct EvalsView: View {
                         .font(.sfMono)
                         .foregroundStyle(outcome.endPassRate >= outcome.startPassRate ? Theme.success : Theme.warning)
                 }
-                .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(.bar)
+                .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(Theme.chromeBg)
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: Space.m) {

@@ -23,7 +23,7 @@ struct ServicesListColumn: View {
                 Spacer()
             }
             .padding(.horizontal, Space.m).padding(.top, Space.m).padding(.bottom, Space.s)
-            .background(.bar)
+            .background(Theme.chromeBg)
             .zoomWindowOnDoubleClick()
             Divider()
 
@@ -309,6 +309,12 @@ struct ProviderConfigView: View {
     }
 
     private var connected: Bool { model.isConnected(provider) }
+    /// The CLI is present on disk but its login is expired / no longer accepted (e.g. Google
+    /// retired the free Gemini CLI) — so "present" is NOT "working". Drives an honest amber
+    /// state instead of a false green "Connected".
+    private var staleLogin: Bool { connected && model.staleAuth.contains(provider) }
+    /// A genuinely usable connection: present AND its login still holds.
+    private var working: Bool { connected && !staleLogin }
 
     var body: some View {
         ScrollView {
@@ -347,14 +353,20 @@ struct ProviderConfigView: View {
     /// connected, coral CTA when not) and elevated — a clear focal point instead of one of
     /// several equal cards (premium verdict A3).
     private var statusCard: some View {
-        HStack(spacing: Space.m) {
-            Image(systemName: connected ? "checkmark.circle.fill" : "bolt.horizontal.circle")
+        // Three honest states — working (green), present-but-stale (amber), absent (coral CTA).
+        let tint: Color = working ? Theme.success : (staleLogin ? Theme.warning : Theme.accent)
+        let icon = working ? "checkmark.circle.fill"
+                 : (staleLogin ? "exclamationmark.triangle.fill" : "bolt.horizontal.circle")
+        let label = working ? "provider.connected"
+                  : (staleLogin ? "provider.needsSetup" : "provider.notFound")
+        return HStack(spacing: Space.m) {
+            Image(systemName: icon)
                 .font(.system(size: 26))
-                .foregroundStyle(connected ? Theme.success : Theme.accent)
-            Text(model.t(connected ? "provider.connected" : "provider.notFound"))
+                .foregroundStyle(tint)
+            Text(model.t(label))
                 .font(.sfCardTitle).foregroundStyle(Theme.ink)
             Spacer(minLength: Space.s)
-            if connected {
+            if working {
                 // Already connected — offer a discreet re-auth (web sign-in).
                 Button(model.t("provider.reconnect")) { connecting = true }
                     .buttonStyle(.plain).font(.sfCaption2).foregroundStyle(.secondary)
@@ -366,9 +378,10 @@ struct ProviderConfigView: View {
         .padding(Space.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-            .fill(connected ? Theme.success.opacity(0.08) : Theme.accentSoft).elevation(.e3))
+            .fill(working ? Theme.success.opacity(0.08)
+                          : (staleLogin ? Theme.warning.opacity(0.10) : Theme.accentSoft)).elevation(.e3))
         .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-            .strokeBorder((connected ? Theme.success : Theme.accent).opacity(0.25), lineWidth: 1))
+            .strokeBorder(tint.opacity(0.25), lineWidth: 1))
     }
 
     /// Where this provider is actually used — the chats bound to it (and, quietly, the

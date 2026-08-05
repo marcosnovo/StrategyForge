@@ -189,9 +189,12 @@ struct NavRail: View {
     private func rowBody(icon: String, label: String, active: Bool, running: Bool) -> some View {
         let iconTint = active ? Theme.coral : Theme.secondaryOnMaterial
         let labelTint = active ? Theme.ink : Theme.secondaryOnMaterial
+        // Fill is reserved for the ACTIVE row — at rest every glyph is its lighter outline,
+        // which is the single biggest cut to the rail's ink weight (the "reads dark" note).
+        let resolvedIcon = active ? icon : (icon.hasSuffix(".fill") ? String(icon.dropLast(5)) : icon)
         return VStack(spacing: 1) {
-            Image(systemName: icon)
-                .font(.system(size: 17))
+            Image(systemName: resolvedIcon)
+                .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(iconTint)
                 .frame(width: 40, height: 30)
                 .overlay(alignment: .topTrailing) {
@@ -228,7 +231,7 @@ struct NavRail: View {
         } label: {
             VStack(spacing: 1) {
                 Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 15, weight: .regular))
                     .foregroundStyle(Theme.secondaryOnMaterial)
                     .frame(width: 40, height: 30)
                     .overlay(alignment: .topTrailing) { if hiddenRunning { RunningPulseDot().offset(x: -3, y: 3) } }

@@ -46,7 +46,7 @@ struct TrajectoryCompareView: View {
                 Spacer()
                 Button(model.t("common.done")) { dismiss() }.keyboardShortcut(.defaultAction)
             }
-            .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(.bar)
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(Theme.chromeBg)
 
             if redundant > 0 {
                 Label(model.t("trajectory.redone", redundant), systemImage: "arrow.triangle.2.circlepath")

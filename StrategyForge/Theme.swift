@@ -55,10 +55,19 @@ enum Theme {
     static let selectionFill = Color(
         light: Color.black.opacity(0.09),   // ~#E8E8E8 on white — visible-but-calm; the ONLY
         dark:  Color.white.opacity(0.085))  // selection cue now that borders are dropped.
-    /// The user chat bubble — soft off-white paper (~#F4F4F4), lighter than a selected row.
+    /// The user chat bubble — a faint WARM CORAL blush (identity, not grime). Light = coral at
+    /// ~6% over paper (~#FFF1ED); dark keeps the subtle white lift. Text stays AA 10:1+.
     static let userBubbleChip = Color(
-        light: Color.black.opacity(0.04),
+        light: coral.opacity(0.07),
         dark:  Color.white.opacity(0.06))
+
+    /// Flat, OPAQUE chrome for headers / footers / column strips — replaces the `.bar`
+    /// NSVisualEffect vibrancy, a translucent GRAY that made every strip read grayer than the
+    /// near-white paper (the founder's "demasiado gris" note). Light = bright near-white; dark =
+    /// a solid chrome a step off the ground.
+    static let chromeBg = Color(
+        light: Color(red: 0.960, green: 0.960, blue: 0.953),   // ~#F5F5F3 bright near-white
+        dark:  Color(red: 0.070, green: 0.110, blue: 0.126))   // ~#121C20 solid dark chrome
     /// Selected rows no longer carry a border — the grey wash alone marks selection.
     static let selectionBorder = Color.clear
     /// Focus ring stroke for text fields / focusable controls (visible only when focused).

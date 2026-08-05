@@ -399,7 +399,7 @@ struct CodeMapView: View {
             Text(model.t("map.zoomHint")).font(.sfCaption2).foregroundStyle(.tertiary)
         }
         .padding(.horizontal, Space.l).padding(.vertical, Space.s)
-        .background(.bar)
+        .background(Theme.chromeBg)
     }
 
     /// (community index, display name) for the top clusters, for the filter menu.
@@ -765,7 +765,7 @@ private struct MapTextSheet: View {
                 Button(model.t("common.done")) { dismiss() }.keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal, Space.l).padding(.vertical, Space.m)
-            .background(.bar)
+            .background(Theme.chromeBg)
             ScrollView {
                 Text(text.isEmpty ? "—" : text).font(.sfCode).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(Space.l)

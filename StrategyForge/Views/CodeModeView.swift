@@ -530,7 +530,7 @@ struct CodeModeView: View {
             }
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-        .background(.bar)
+        .background(Theme.chromeBg)
     }
 
     @ViewBuilder private func severityMarker(_ s: ReviewSeverity) -> some View {
@@ -597,7 +597,7 @@ struct CodeModeView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .background(.bar)
+        .background(Theme.chromeBg)
         .onAppear { if commitMessage.isEmpty { commitMessage = draftMessage() } }
     }
 
@@ -763,7 +763,7 @@ struct CodeModeView: View {
                 }
             }
             .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-            .background(.bar)
+            .background(Theme.chromeBg)
         }
     }
 

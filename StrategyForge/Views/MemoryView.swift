@@ -50,7 +50,7 @@ struct MemoryView: View {
                     .buttonStyle(.plain).help(model.t("memory.import"))
             }
             .padding(.horizontal, Space.m).padding(.top, Space.m).padding(.bottom, Space.s)
-            .background(.bar)
+            .background(Theme.chromeBg)
 
             filterBar
             Divider()

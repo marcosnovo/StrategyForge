@@ -223,7 +223,7 @@ struct ChatView: View {
     /// Honest note when the team mixes providers that don't run yet.
     private var mixedProvidersStrip: some View {
         HStack(alignment: .top, spacing: Space.s) {
-            Image(systemName: "info.circle.fill").foregroundStyle(Theme.warningText).font(.system(size: 11))
+            Image(systemName: "info.circle").foregroundStyle(Theme.warningText).font(.system(size: 11))
             Text(model.t("chat.mixedProviders")).font(.sfCaption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Space.s)
@@ -327,7 +327,7 @@ struct ChatView: View {
                 }
                 inputBar
             }
-            .background(.bar)
+            .background(Theme.chromeBg)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82), value: vm.deniedTools)
@@ -832,7 +832,7 @@ struct ChatView: View {
         .padding(.horizontal, Space.m).padding(.bottom, Space.m).padding(.top, model.titlebarTopInset)
         // A crisp 1px seam, not a soft black drop-shadow (which read as a gray smudge on the
         // light paper). Claude/Cursor separate chrome from content with a hairline.
-        .background(.bar)
+        .background(Theme.chromeBg)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
         .zoomWindowOnDoubleClick()
         .zIndex(1)
@@ -858,7 +858,7 @@ struct ChatView: View {
             }
             Divider()
         }
-        .background(.bar)
+        .background(Theme.chromeBg)
     }
 
     /// Which AI back-end this chat runs on — a menu to switch providers.
@@ -1085,6 +1085,21 @@ struct ChatView: View {
                 .frame(width: 28, height: 28)
                 .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 4) {
+                    // Author row on the FIRST reply only: provider mark + name + model, so a mixed
+                    // team's lead is legible and each answer carries a warm branded mark (not a
+                    // lone gray sphere). Later turns stay label-less under the reserved gutter.
+                    if isFirstAssistant {
+                        let lead = config.strategy.orchestrator
+                        let prov = lead?.provider ?? config.provider
+                        HStack(spacing: 5) {
+                            ProviderLogo(provider: prov, size: 16, templateTint: prov.tint)
+                            Text(prov.displayName).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.ink)
+                            if let m = lead?.modelDisplayName {
+                                Text(m).font(.sfCaption2).foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.bottom, 1)
+                    }
                     // No bubble for the assistant — it writes directly on the ambient
                     // background (only the user's messages are boxed). While streaming
                     // we render PLAIN text (re-parsing Markdown on every token is what
@@ -1320,8 +1335,10 @@ struct ChatView: View {
                             }
                         }
                         .padding(.horizontal, Space.s).padding(.vertical, 4)
-                        .background(Capsule().fill(running ? role.role.tint.opacity(0.14) : Theme.hairline.opacity(0.5)))
-                        .overlay(Capsule().strokeBorder(running ? role.role.tint.opacity(0.5) : .clear, lineWidth: 1))
+                        // Live agents keep their role wash; resting ones become a crisp WHITE pill
+                        // with a hairline — not the muddiest gray lozenge in the strip.
+                        .background(Capsule().fill(running ? role.role.tint.opacity(0.14) : Theme.cardBg))
+                        .overlay(Capsule().strokeBorder(running ? role.role.tint.opacity(0.5) : Theme.hairline, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                     .help(model.t("chat.agent.open", name))
@@ -1633,14 +1650,14 @@ struct ChatView: View {
             composerFooter
         }
         // Center the composer on the SAME reading measure as the messages, so the whole
-        // conversation reads as one centred document; the `.bar` still spans full width.
-        .frame(maxWidth: 760)
+        // conversation reads as one centred document; the chrome strip still spans full width.
+        .frame(maxWidth: Theme.readingColumn)
         .frame(maxWidth: .infinity, alignment: .center)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: mentionMatches.count)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: slashMatches.count)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: branchStat)
         .padding(Space.m)
-        .background(.bar)
+        .background(Theme.chromeBg)
         .sensoryFeedback(.impact(weight: .medium), trigger: sendPulse)
         // Load the repo's file list once (and when the repo changes) for @-mentions.
         .task(id: config.repoPath) { await loadRepoFiles() }
@@ -1660,7 +1677,7 @@ struct ChatView: View {
                     Spacer()
                     Button(model.t("common.done")) { showIsolationDiff = false }.keyboardShortcut(.defaultAction)
                 }
-                .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(.bar)
+                .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(Theme.chromeBg)
                 ScrollView {
                     Text(isolationDiffText.isEmpty ? "—" : isolationDiffText)
                         .font(.sfCode).textSelection(.enabled)
@@ -2141,7 +2158,7 @@ struct ChatView: View {
                 }
                 Button(model.t("common.done")) { showShipResult = false }.keyboardShortcut(.defaultAction)
             }
-            .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(.bar)
+            .padding(.horizontal, Space.l).padding(.vertical, Space.m).background(Theme.chromeBg)
             if shipping {
                 VStack(spacing: Space.s) {
                     WorkingLine(label: model.t("ship.deploying", shipTool?.displayName ?? ""))

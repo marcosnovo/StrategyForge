@@ -91,7 +91,7 @@ struct AgentActivityPanel: View {
             .frame(height: Theme.headerContentHeight)   // same fixed height as the chat header → one bar
             .padding(.horizontal, Space.m).padding(.bottom, Space.m).padding(.top, model.titlebarTopInset)
             .background {
-                Rectangle().fill(.bar)
+                Rectangle().fill(Theme.chromeBg)
                     .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
             }
             .zoomWindowOnDoubleClick()
@@ -1303,7 +1303,7 @@ struct SubagentDetailPanel: View {
             }
             .padding(Space.m)
             .background {
-                Rectangle().fill(.bar)
+                Rectangle().fill(Theme.chromeBg)
                     .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
             }
             .zIndex(1)

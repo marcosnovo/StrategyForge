@@ -43,7 +43,7 @@ struct MissionReportView: View {
             }
             .padding(.horizontal, Space.l).padding(.vertical, Space.m)
             .background {
-                Rectangle().fill(.bar)
+                Rectangle().fill(Theme.chromeBg)
                     .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 1)
             }
             .zIndex(1)
@@ -74,7 +74,7 @@ struct MissionReportView: View {
             }
             .padding(.horizontal, Space.l).padding(.vertical, Space.m)
             .background {
-                Rectangle().fill(.bar)
+                Rectangle().fill(Theme.chromeBg)
                     .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: -1)
             }
         }

@@ -314,7 +314,7 @@ struct SidebarView: View {
             Spacer()
         }
         .padding(.horizontal, Space.s).padding(.top, Space.s).padding(.bottom, 2)
-        .background(.bar)
+        .background(Theme.chromeBg)
     }
 
     /// A conversation row: a rounded strategy-diagram avatar, the chat title, a

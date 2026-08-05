@@ -1052,6 +1052,7 @@ enum L10n {
         "provider.checking": ("Checking…", "Comprobando…"),
         "provider.connected": ("Connected", "Conectado"),
         "provider.notFound": ("Not found", "No encontrado"),
+        "provider.needsSetup": ("Needs setup", "Necesita configuración"),
         "services.group.ai": ("AI PROVIDERS", "PROVEEDORES DE IA"),
         "services.group.tools": ("DEVELOPER TOOLS", "HERRAMIENTAS"),
         "services.group.soon": ("COMING SOON · VOTE", "PRÓXIMAMENTE · VOTA"),

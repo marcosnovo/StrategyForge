@@ -104,7 +104,10 @@ struct MarkdownView: View {
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.insetBg))
+        // A WHITE card defined by a hairline — not the grayest gray in the transcript.
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner)
+            .strokeBorder(Theme.hairline, lineWidth: 1))
     }
 
     /// Inline markdown (bold/italic/code/links) with newlines preserved.
@@ -261,7 +264,8 @@ private struct CodeBlockView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.insetBg))
+        // White card + hairline — stops the transcript's largest surface being the grayest.
+        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.cardBg))
         .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
             .strokeBorder(Theme.hairline, lineWidth: 1))
     }

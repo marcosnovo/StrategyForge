@@ -247,7 +247,7 @@ struct StrategyEditorView: View {
         }
         .padding(Space.l)
         .frame(maxWidth: .infinity)
-        .background(.bar)
+        .background(Theme.chromeBg)
         .overlay(alignment: .top) { Divider() }
     }
 
