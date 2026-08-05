@@ -1354,8 +1354,13 @@ final class ChatViewModel {
                 narrationStepSince = Date()
                 renderNarration(assistantIndex)
             }
-            timeline.append(ActivityStep(title: "role.failed", detail: role, at: Date(),
-                                         isDelegation: false, agent: role))
+            // Record ONE failed step per role — a fanned-out role (researcher ×8) whose provider
+            // login expired fails every instance, but the timeline should show a single "⚠"
+            // line, not eight identical ones stacked at the same second.
+            if !timeline.contains(where: { $0.title == "role.failed" && $0.detail == role }) {
+                timeline.append(ActivityStep(title: "role.failed", detail: role, at: Date(),
+                                             isDelegation: false, agent: role))
+            }
         case .assistantText(let text):
             // The final synthesis replaces the live narration. The answer stays in the
             // transcript only — it is NOT written to disk as a file (a plain response is

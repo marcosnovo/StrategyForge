@@ -40,6 +40,16 @@ struct MetaOrchestrator {
         let task: String
     }
 
+    /// Tracks which providers have reported an expired login during a delegation fan-out, so
+    /// the Reconnect prompt is raised once per provider and doomed siblings skip their launch.
+    actor AuthGate {
+        private var tripped: Set<AIProvider> = []
+        /// Records `p` as auth-failed; returns true only the FIRST time (so the caller emits
+        /// the reconnect prompt exactly once per provider).
+        func trip(_ p: AIProvider) -> Bool { tripped.insert(p).inserted }
+        func isTripped(_ p: AIProvider) -> Bool { tripped.contains(p) }
+    }
+
     // MARK: - Model resolution
 
     /// The model id to pass to the CLI for a role, honoring its provider.
@@ -253,6 +263,12 @@ struct MetaOrchestrator {
             // then awaits them — a stuck/slow subprocess would block the whole run.) Each
             // worker catches its own error; we synthesize from whatever succeeded and only
             // fail the turn if EVERY worker failed.
+            // When a provider's login is expired, EVERY instance of it will fail the same way.
+            // Without this gate a "researcher ×8" on an expired Gemini login launched 8 doomed
+            // subprocesses and emitted 8 identical failures (the "8× ⚠ researcher" the founder
+            // saw). The gate lets the FIRST auth failure surface the Reconnect prompt once, and
+            // its still-pending siblings skip their subprocess — they just decrement the count.
+            let authGate = AuthGate()
             let collected = await withTaskGroup(of: WorkerResult?.self) { group -> [WorkerResult] in
                 var order = 0
                 for sub in subtasks {
@@ -266,10 +282,19 @@ struct MetaOrchestrator {
                             break
                         }
                         let thisOrder = order; order += 1
+                        let providerName = role.provider.displayName   // capture off-actor for the @Sendable task
                         let prompt = workerPrompt(role: role, task: sub.task, instance: inst, of: instances)
                         let taskPreview = sub.task.prefix(60).trimmingCharacters(in: .whitespacesAndNewlines)
                         DiagnosticsLog.record("meta start #\(thisOrder + 1): \(role.name) inst \(inst + 1)/\(instances) · \(role.provider.displayName)·\(m.isEmpty ? "default" : m) · task=\(taskPreview)")
                         group.addTask {
+                            // A sibling of this provider already reported an expired login —
+                            // don't launch another doomed subprocess. Still emit roleFailed so
+                            // the UI's instance count decrements (the role won't hang "working").
+                            if await authGate.isTripped(role.provider) {
+                                onEvent(.roleFailed(role: role.name,
+                                                    message: "\(providerName) needs you to sign in again — reconnect and retry."))
+                                return nil
+                            }
                             onEvent(.roleStarted(role: role.name, provider: role.provider, model: m, task: sub.task))
                             do {
                                 let r = try await runStep(runner, role: role.name, provider: role.provider, model: m, prompt: prompt, cwd: cwd,
@@ -280,10 +305,11 @@ struct MetaOrchestrator {
                                 return WorkerResult(order: thisOrder, role: role.name, text: r.text, tokens: r.tokens, cost: r.costUSD)
                             } catch {
                                 if Task.isCancelled { return nil }
-                                // A stale login surfaces as a typed auth error → tell the UI
-                                // which provider to reconnect (one-tap), not just "failed".
+                                // A stale login surfaces as a typed auth error → tell the UI which
+                                // provider to reconnect (one-tap), but ONLY the first time for that
+                                // provider so its fanned-out siblings don't each raise the prompt.
                                 if case .authRequired(let p)? = (error as? OneShotError) {
-                                    onEvent(.authRequired(p))
+                                    if await authGate.trip(p) { onEvent(.authRequired(p)) }
                                 }
                                 // Report the failure (logged + marked done on the main
                                 // actor via .roleFailed) and keep the other workers going.
