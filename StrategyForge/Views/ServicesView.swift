@@ -146,7 +146,7 @@ struct ServicesListColumn: View {
                         subtitle: connected ? model.providerPlan(p) : nil,
                         selected: selected,
                         leading: { ProviderLogo(provider: p, size: 20, templateTint: p.tint) },
-                        trailing: { statusDot(connected) })
+                        trailing: { statusDot(connected, stale: model.staleAuth.contains(p)) })
             .onTapGesture { model.selectedService = p; model.selectedTool = nil }
     }
 
@@ -161,13 +161,17 @@ struct ServicesListColumn: View {
         .padding(.horizontal, Space.xs).padding(.bottom, 2)
     }
 
-    /// A 6pt status dot — success when live, quiet reef otherwise. Replaces the wordy
-    /// per-row "Connected / Not found" label so the whole column scans at a glance.
-    private func statusDot(_ connected: Bool) -> some View {
-        Circle().fill(connected ? Theme.success : Color.secondary.opacity(0.4))
+    /// A 6pt status dot — success when live, AMBER when installed but the stored login looks
+    /// expired/missing (reconnect needed), quiet reef when not found. Replaces the wordy
+    /// per-row label so the whole column scans at a glance.
+    private func statusDot(_ connected: Bool, stale: Bool = false) -> some View {
+        let color: Color = !connected ? Color.secondary.opacity(0.4)
+            : (stale ? Theme.warning : Theme.success)
+        return Circle().fill(color)
             .frame(width: 6, height: 6)
             .padding(.trailing, 2)
-            .help(model.t(connected ? "provider.connected" : "provider.notFound"))
+            .help(model.t(!connected ? "provider.notFound"
+                          : (stale ? "provider.reconnect" : "provider.connected")))
     }
 
     /// A developer-tool row (GitHub / Git) — status is resolved live.

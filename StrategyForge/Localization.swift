@@ -296,6 +296,7 @@ enum L10n {
         "rail.map": ("Map", "Mapa"),
         "splash.tagline": ("Preparing your workspace…", "Preparando tu espacio…"),
         "splash.providers": ("Checking connected providers…", "Comprobando proveedores conectados…"),
+        "splash.verify": ("Verifying logins…", "Verificando conexiones…"),
         "splash.usage": ("Loading usage…", "Cargando uso…"),
         "splash.repos": ("Loading your repositories…", "Cargando tus repositorios…"),
         "map.title": ("Code Map", "Mapa del código"),

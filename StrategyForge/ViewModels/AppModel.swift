@@ -100,6 +100,22 @@ final class AppModel {
     /// Whether a provider can be selected right now (its CLI is installed).
     func isConnected(_ provider: AIProvider) -> Bool { providerRegistry.isConnected(provider) }
 
+    /// Connected providers whose STORED LOGIN looks expired or missing (a stronger signal than
+    /// "CLI installed"). Surfaced as a "reconnect" hint so a stale login is caught BEFORE a run
+    /// fails on it — this is what "Gemini conectado pero caducado" needed. Transient.
+    var staleAuth: Set<AIProvider> = []
+
+    /// Verify each connected provider's login freshness from disk (no subprocess, no Keychain
+    /// prompt) and record which ones need reconnecting. Called at launch (splash) and on demand.
+    func verifyConnections() async {
+        let states = await ProviderAuth.verify(connectedProviders)
+        let stale = Set(states.filter { $0.value == .expired || $0.value == .missing }.keys)
+        staleAuth = stale
+        for (p, s) in states where s == .expired || s == .missing {
+            DiagnosticsLog.record("connection check: \(p.displayName) login \(s == .expired ? "expired" : "missing")", level: "WARN")
+        }
+    }
+
     /// Providers currently near their usage limit. The recommender steers role
     /// assignment AWAY from these when a comparable alternative exists (it never hard-
     /// excludes them — a capped provider is still used when it's the only real fit).
