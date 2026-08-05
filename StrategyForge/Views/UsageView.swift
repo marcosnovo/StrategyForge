@@ -318,6 +318,14 @@ struct UsageView: View {
             Image(systemName: "chart.bar.xaxis").font(.title2).foregroundStyle(.secondary)
             Text(model.t("usage.empty")).font(.sfCallout).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+            // The exact 5-hour / week % needs a one-time Keychain read; opening Usage no
+            // longer does that on its own, so offer the deliberate fetch right here.
+            Button {
+                Task { await model.refreshExactUsage(force: true) }
+            } label: {
+                Label(model.t("usage.loadExact"), systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.moon).controlSize(.small)
         }
         .frame(maxWidth: .infinity, alignment: .center).padding(Space.l)
     }

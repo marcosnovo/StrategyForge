@@ -46,43 +46,30 @@ final class UsageStore {
     /// UserDefaults key for the cached exact-usage snapshot.
     private static let exactCacheKey = "claude.exactUsage.cache.v1"
 
-    /// The last fetched exact usage, if it was cached recently enough to still be a
-    /// useful "last known" figure (windows are 5h / weekly, so we cap staleness at 12h).
+    /// The last fetched exact usage as a "last known" figure. We keep showing it for a
+    /// generous window (14 days) so opening Usage always has SOMETHING to display without
+    /// touching the Keychain — a fresh number is one ↻ tap away.
     private static func loadCachedExact() -> ClaudeUsageAPI.Exact? {
         guard let data = UserDefaults.standard.data(forKey: exactCacheKey),
               let exact = try? JSONDecoder().decode(ClaudeUsageAPI.Exact.self, from: data),
-              Date().timeIntervalSince(exact.computedAt) < 12 * 3600 else { return nil }
+              Date().timeIntervalSince(exact.computedAt) < 14 * 86_400 else { return nil }
         return exact
     }
 
-    /// Whether we've already attempted the Keychain-backed exact-usage fetch this session
-    /// — so a missing/expired token prompts (or no-ops) at most ONCE, never repeatedly.
-    @ObservationIgnored private var didAttemptExactUsage = false
-
-    /// How fresh a cached exact-usage snapshot must be for the AUTO path (opening Usage) to
-    /// reuse it instead of touching the Keychain. The rate-limit windows are 5h/weekly, so a
-    /// snapshot up to 3h old is still a useful figure — and reusing it means opening Usage
-    /// never re-prompts for Keychain access once the first fetch has been granted.
-    private static let exactAutoInterval: TimeInterval = 3 * 3600
-
     /// Fetch Claude's authoritative rate-limit % from its usage endpoint. This reads the
-    /// Claude Code login token from the Keychain, which prompts for access the first time
-    /// (and every time in a debug build, whose ad-hoc signature makes "Always Allow" not
-    /// stick). So the AUTO path (opening Usage) reuses a fresh cached snapshot and does NOT
-    /// touch the Keychain — the prompt happens only on the first-ever fetch or an explicit
-    /// `force` refresh (the ↻ button). Once granted, the result is cached and shown for
-    /// `exactAutoInterval` with no further prompts, across launches.
+    /// Claude Code login token from the Keychain, which PROMPTS for access — and on a debug
+    /// build (ad-hoc signature) "Always Allow" doesn't stick, so it would prompt on every
+    /// launch. To honour "don't ask unless I ask", the AUTO path (opening Usage, the nav card,
+    /// the ambient rail pill) NEVER touches the Keychain: it only shows the last cached
+    /// snapshot. The Keychain — and thus the prompt — is reached ONLY on an explicit `force`
+    /// refresh (the ↻ button in Usage). A signed release build then persists "Always Allow"
+    /// so even that asks just once.
     func refreshExactUsage(force: Bool = false) async {
-        if !force {
-            // A fresh cached snapshot on hand → show it, skip the Keychain entirely.
-            if let cached = claudeExact ?? Self.loadCachedExact(),
-               Date().timeIntervalSince(cached.computedAt) < Self.exactAutoInterval {
-                claudeExact = cached
-                return
-            }
-            guard !didAttemptExactUsage else { return }
+        guard force else {
+            // AUTO: show the last known figure from cache; do NOT read the Keychain.
+            if claudeExact == nil { claudeExact = Self.loadCachedExact() }
+            return
         }
-        didAttemptExactUsage = true
         if let exact = await Task.detached(priority: .utility, operation: { await ClaudeUsageAPI.fetch() }).value {
             claudeExact = exact
             // Cache it so the next launch can show the % immediately, no Keychain touch.

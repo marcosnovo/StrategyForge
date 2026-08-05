@@ -23,8 +23,6 @@ struct NavRail: View {
     /// rail is just Chats · Code · Team + account — power stays one disclosure away.
     /// The rail can EXPAND to a labeled sidebar or stay a minimal icon strip (persisted).
     @AppStorage("nav.railExpanded") private var railExpanded = false
-    /// Live design-system selection (the swatch picker below Lab).
-    @State private var theme = ThemeStore.shared
 
     private var railWidth: CGFloat { railExpanded ? 208 : 76 }
 
@@ -119,8 +117,7 @@ struct NavRail: View {
             // .task refreshes local/cached only), tap → Usage. Hidden until the % is known.
             ClaudeUsagePill(style: .tile)
 
-            themePicker
-
+            // Theme/appearance moved to Settings (the rail stays a clean nav strip).
             item("gearshape.fill", "sidebar.settings", active: model.navSection == .settings) {
                 model.guardedLeave { model.navSection = .settings }
             }
@@ -173,60 +170,6 @@ struct NavRail: View {
         // exact 5-hour / week rate-limit % (which needs the Keychain token) is fetched
         // only on deliberate intent — when the user opens the Usage section.
         .task { await model.refreshUsage() }
-    }
-
-    /// Live design-system switcher — a menu of the four visual directions, each with a
-    /// brand-coral swatch; picking one re-skins the whole app instantly.
-    private var themePicker: some View {
-        Menu {
-            Section(model.t("rail.theme")) {
-                ForEach(DesignSystem.allCases) { ds in
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) { theme.active = ds }
-                    } label: {
-                        if theme.active == ds { Label(ds.displayName, systemImage: "checkmark") }
-                        else { Text(ds.displayName) }
-                    }
-                }
-            }
-            Section(model.t("appearance.title")) {
-                ForEach(AppAppearance.allCases) { ap in
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) { theme.appearance = ap }
-                    } label: {
-                        if theme.appearance == ap { Label(model.t(ap.labelKey), systemImage: "checkmark") }
-                        else { Text(model.t(ap.labelKey)) }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: Space.s) {
-                Image(systemName: "paintpalette")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Theme.secondaryOnMaterial)
-                    .frame(width: 40, height: 34)
-                    .overlay(alignment: .bottomTrailing) {
-                        if !railExpanded {
-                            Circle().fill(theme.active.palette.coral).frame(width: 8, height: 8)
-                                .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 0.5))
-                                .offset(x: -6, y: -5)
-                        }
-                    }
-                if railExpanded {
-                    Text(theme.active.displayName).font(.sfCaption2.weight(.medium))
-                        .foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1)
-                    Spacer(minLength: 0)
-                    Circle().fill(theme.active.palette.coral).frame(width: 10, height: 10)
-                        .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 0.5))
-                }
-            }
-            .padding(.trailing, railExpanded ? Space.s : 0)
-            .frame(maxWidth: railExpanded ? .infinity : 40, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden)
-        .help(model.t("rail.theme"))
-        .accessibilityLabel(model.t("rail.theme"))
     }
 
     /// Brand mark: just the coral glyph (matches the app icon) — the wordmark is dropped

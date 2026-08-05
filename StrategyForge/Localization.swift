@@ -302,6 +302,7 @@ enum L10n {
         "map.group.github": ("GitHub", "GitHub"),
         "map.filter.kind": ("Type", "Tipo"),
         "map.filter.kind.all": ("All types", "Todos los tipos"),
+        "usage.loadExact": ("Load exact %", "Cargar % exacto"),
         "splash.usage": ("Loading usage…", "Cargando uso…"),
         "splash.repos": ("Loading your repositories…", "Cargando tus repositorios…"),
         "map.title": ("Code Map", "Mapa del código"),

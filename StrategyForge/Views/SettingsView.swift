@@ -19,6 +19,8 @@ struct SettingsView: View {
     @State private var showChangelog = false
     /// True while a manual update check is in flight.
     @State private var checkingUpdate = false
+    /// Live design-system + light/dark selection (moved here from the nav rail).
+    @State private var theme = ThemeStore.shared
     /// True when shown as an in-app section (fills the content area) vs the ⌘, window.
     var embedded = false
 
@@ -37,6 +39,8 @@ struct SettingsView: View {
                     Text(model.t("settings.language.es")).tag(AppLanguage.es)
                 }
             }
+
+            appearanceSection
 
             Section(model.t("settings.repos")) {
                 LabeledContent(model.t("settings.defaultFolder")) {
@@ -139,6 +143,25 @@ struct SettingsView: View {
 
     /// App updates: current version, a proactive "download" row when a newer release
     /// exists, a manual re-check, and the full per-version changelog.
+    /// Design system + light/dark appearance — moved here from the nav rail so the rail stays
+    /// a clean nav strip. Re-skins the whole app instantly.
+    private var appearanceSection: some View {
+        Section(model.t("rail.theme")) {
+            Picker(model.t("rail.theme"), selection: Binding(
+                get: { theme.active },
+                set: { v in withAnimation(.easeInOut(duration: 0.25)) { theme.active = v } }
+            )) {
+                ForEach(DesignSystem.allCases) { ds in Text(ds.displayName).tag(ds) }
+            }
+            Picker(model.t("appearance.title"), selection: Binding(
+                get: { theme.appearance },
+                set: { v in withAnimation(.easeInOut(duration: 0.25)) { theme.appearance = v } }
+            )) {
+                ForEach(AppAppearance.allCases) { ap in Text(model.t(ap.labelKey)).tag(ap) }
+            }
+        }
+    }
+
     private var updatesSection: some View {
         Section(model.t("settings.updates")) {
             LabeledContent(model.t("settings.updates.current"), value: UpdateChecker.currentVersion())

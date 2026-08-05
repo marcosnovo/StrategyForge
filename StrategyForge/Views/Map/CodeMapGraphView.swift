@@ -104,24 +104,26 @@ struct CodeMapGraphView: View {
     /// (not a cool grey), so even "other" stays in the coral world.
     private static let clusterAnchors: [Color] = [
         Theme.coral,                                              // 0  brand coral
-        Color(hue: 0.015, saturation: 0.62, brightness: 0.70),   // 1  deep terracotta
-        Color(hue: 0.085, saturation: 0.60, brightness: 0.93),   // 2  apricot
-        Color(hue: 0.975, saturation: 0.42, brightness: 0.86),   // 3  soft rose
-        Color(hue: 0.115, saturation: 0.60, brightness: 0.88),   // 4  amber
-        Color(hue: 0.045, saturation: 0.40, brightness: 0.80),   // 5  dusty coral
-        Color(hue: 0.060, saturation: 0.55, brightness: 0.97),   // 6  peach
-        Color(hue: 0.005, saturation: 0.55, brightness: 0.64),   // 7  brick
-        Color(hue: 0.100, saturation: 0.34, brightness: 0.84),   // 8  warm sand
-        Color(hue: 0.940, saturation: 0.34, brightness: 0.74),   // 9  mauve
-        Color(hue: 0.130, saturation: 0.52, brightness: 0.86),   // 10 honey
-        Color(hue: 0.990, saturation: 0.50, brightness: 0.70),   // 11 rosewood
+        Color(hue: 0.010, saturation: 0.95, brightness: 1.00),   // 1  neon coral-red
+        Color(hue: 0.090, saturation: 0.95, brightness: 1.00),   // 2  electric orange
+        Color(hue: 0.960, saturation: 0.85, brightness: 1.00),   // 3  hot pink
+        Color(hue: 0.135, saturation: 0.92, brightness: 1.00),   // 4  fluor gold
+        Color(hue: 0.055, saturation: 0.95, brightness: 1.00),   // 5  bright tangerine
+        Color(hue: 0.045, saturation: 0.70, brightness: 1.00),   // 6  neon peach
+        Color(hue: 0.000, saturation: 1.00, brightness: 0.95),   // 7  vivid red
+        Color(hue: 0.155, saturation: 0.88, brightness: 1.00),   // 8  warm yellow
+        Color(hue: 0.915, saturation: 0.80, brightness: 1.00),   // 9  fuchsia
+        Color(hue: 0.110, saturation: 0.85, brightness: 1.00),   // 10 bright honey
+        Color(hue: 0.985, saturation: 0.90, brightness: 0.98),   // 11 rose-red
     ]
-    /// Colour for a cluster by its SIZE RANK (0 = biggest → coral). Anchors for the top ~12
-    /// clusters; the long tail collapses to a warm taupe (still in the coral world).
+    /// Colour for a cluster by its SIZE RANK (0 = biggest → coral). Vivid, fluorescent warm
+    /// tones so the graph reads like the app's glowing coral orbs (the depth-fade toward the
+    /// backdrop keeps far nodes from overwhelming). The long tail is a soft warm coral so it
+    /// recedes but stays in the same family.
     static func clusterColor(rank: Int) -> Color {
         if rank <= 0 { return Theme.coral }
         if rank < clusterAnchors.count { return clusterAnchors[rank] }
-        return Color(hue: 0.05, saturation: 0.12, brightness: 0.62)   // "other" — warm long tail
+        return Color(hue: 0.04, saturation: 0.35, brightness: 0.80)   // "other" — soft warm coral
     }
 
     /// The per-graph derived collections (sorts, dictionaries, sets). These depend ONLY on the
