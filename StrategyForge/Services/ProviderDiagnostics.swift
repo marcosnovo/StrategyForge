@@ -52,6 +52,14 @@ enum ProviderDiagnostics {
         guard CLIOneShotRunner.resolveBinary(binary, provider: provider) != nil else {
             return (Finding(issue: .notInstalled, raw: "", fix: .connect), "")
         }
+        // 1b. A missing/expired stored login makes the real round-trip HANG (Gemini especially)
+        // — the "diagnóstico se queda pensando" bug. Short-circuit to "not signed in" instantly
+        // from the on-disk creds instead of waiting out a stall.
+        let fresh = ProviderAuth.freshness(provider)
+        if fresh == .missing || fresh == .expired {
+            let raw = "Saved \(provider.displayName) login looks \(fresh == .expired ? "expired" : "missing")."
+            return (Finding(issue: .notSignedIn, raw: raw, fix: .connect), "")
+        }
         // 2. One real round-trip — the honest end-to-end test.
         let runner = CLIOneShotRunner(binaries: [provider: binary],
                                       apiKeys: apiKeys, reasoningEffort: reasoningEffort)
@@ -69,6 +77,10 @@ enum ProviderDiagnostics {
     static func classify(error: Error, provider: AIProvider) -> Finding {
         if case OneShotError.notInstalled = error {
             return Finding(issue: .notInstalled, raw: error.localizedDescription, fix: .connect)
+        }
+        // A silent stall is almost always a stuck/expired login → treat as "sign in again".
+        if case OneShotError.stalled = error {
+            return Finding(issue: .notSignedIn, raw: error.localizedDescription, fix: .connect)
         }
         let raw = (error as? OneShotError)?.errorDescription ?? error.localizedDescription
         return classify(message: raw, provider: provider)

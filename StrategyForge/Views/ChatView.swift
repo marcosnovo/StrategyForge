@@ -293,26 +293,36 @@ struct ChatView: View {
             // The chat always stays here; Code Mode now opens in the right-side panel
             // (see body) instead of replacing the conversation.
             messagesList
-            // STATE strips keep their tinted treatment — these are things to resolve, not
-            // suggestions. Color is reserved for state (design review, wave B).
-            if engineMissing { engineMissingCard }
-            if let p = vm.needsReauth { reauthBanner(p) }
-            if vm.mixedProvidersNote { mixedProvidersStrip }
-            if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
-            if !vm.editedFiles.isEmpty { changedFilesStrip }
-            if let error = vm.errorText { errorBanner(error) }
-            // SUGGESTIONS collapse to ONE neutral coach at a time: the rich advisor card,
-            // else a single CoachChip (team-fit / loop / repo), else a saving tip.
-            if advisorCardVisible { advisorCard }
-            coachSlot
-            if let tip = saverTip, !advisorCardVisible, !hasCoachSuggestion {
-                TokenSaverBanner(tip: tip,
-                                 onAction: { saverAction(tip) },
-                                 onDismiss: { dismissedTips.insert(tip.kind) })
-                    .padding(.horizontal, Space.m)
-                    .padding(.top, Space.s)
+        }
+        // The composer + its banners are pinned to the BOTTOM as a safe-area inset, so the
+        // conversation scrolls behind them and the text box is ALWAYS visible — a tall team
+        // recommendation card can no longer push the composer off-screen (the founder's bug).
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                // STATE strips keep their tinted treatment — things to resolve, not suggestions.
+                if engineMissing { engineMissingCard }
+                if let p = vm.needsReauth { reauthBanner(p) }
+                if vm.mixedProvidersNote { mixedProvidersStrip }
+                if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
+                if !vm.editedFiles.isEmpty { changedFilesStrip }
+                if let error = vm.errorText { errorBanner(error) }
+                // SUGGESTIONS collapse to ONE neutral coach at a time: the rich advisor card,
+                // else a single CoachChip (team-fit / loop / repo), else a saving tip. Bounded
+                // so a big card scrolls internally instead of shoving the composer down.
+                Group {
+                    if advisorCardVisible { advisorCard }
+                    coachSlot
+                    if let tip = saverTip, !advisorCardVisible, !hasCoachSuggestion {
+                        TokenSaverBanner(tip: tip,
+                                         onAction: { saverAction(tip) },
+                                         onDismiss: { dismissedTips.insert(tip.kind) })
+                            .padding(.horizontal, Space.m)
+                            .padding(.top, Space.s)
+                    }
+                }
+                inputBar
             }
-            inputBar
+            .background(.bar)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82), value: vm.deniedTools)
