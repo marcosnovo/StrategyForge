@@ -56,6 +56,9 @@ private struct CursorTracker: NSViewRepresentable {
         private var monitor: Any?
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            // Without this, AppKit never GENERATES .mouseMoved events, so the trail would sit
+            // frozen (the "no veo las partículas" bug).
+            window?.acceptsMouseMovedEvents = true
             if monitor == nil {
                 monitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
                     guard let self, let window = self.window, event.window === window else { return event }
@@ -97,9 +100,15 @@ struct CursorParticleField: View {
             Color.clear   // no ambient motion when the user asked for none
         } else {
             TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in
-                Canvas { ctx, _ in
+                Canvas { ctx, size in
+                    // Seed at the centre so the comet is visible immediately, even before the
+                    // first mouse move; the tracker then steers `target` to the cursor.
+                    if !trail.hasTarget {
+                        trail.target = CGPoint(x: size.width / 2, y: size.height / 2)
+                        trail.hasTarget = true
+                    }
                     trail.step(count: count)
-                    guard trail.hasTarget, trail.nodes.count == count else { return }
+                    guard trail.nodes.count == count else { return }
 
                     // Soft connecting veins between consecutive nodes (the wake).
                     for i in 1..<trail.nodes.count {
@@ -107,16 +116,16 @@ struct CursorParticleField: View {
                         let t = Double(i) / Double(count)
                         var path = Path()
                         path.move(to: a); path.addLine(to: b)
-                        ctx.stroke(path, with: .color(Theme.coral.opacity(0.10 * (1 - t))),
-                                   style: StrokeStyle(lineWidth: 2.2 * (1 - CGFloat(t)), lineCap: .round))
+                        ctx.stroke(path, with: .color(Theme.coral.opacity(0.16 * (1 - t))),
+                                   style: StrokeStyle(lineWidth: 2.6 * (1 - CGFloat(t)), lineCap: .round))
                     }
                     // The particles themselves: coral → warm gold along the tail, each a small
                     // glow (a tiered stack of discs = a cheap gaussian), fading toward the tip.
                     for (i, node) in trail.nodes.enumerated() {
                         let t = Double(i) / Double(count)
-                        let r = CGFloat(7.5 * (1 - t) + 1.5)
+                        let r = CGFloat(9.0 * (1 - t) + 1.8)
                         let tint = Theme.coral.mix(with: Theme.warning, by: t * 0.5)
-                        for (mult, op): (CGFloat, Double) in [(2.6, 0.05), (1.6, 0.10), (1.0, 0.22)] {
+                        for (mult, op): (CGFloat, Double) in [(2.8, 0.07), (1.7, 0.14), (1.0, 0.32)] {
                             let gr = r * mult
                             ctx.fill(Path(ellipseIn: CGRect(x: node.pos.x - gr, y: node.pos.y - gr,
                                                             width: 2 * gr, height: 2 * gr)),

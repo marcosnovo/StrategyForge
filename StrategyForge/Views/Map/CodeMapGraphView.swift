@@ -186,7 +186,7 @@ struct CodeMapGraphView: View {
             tapTargets(nodes: nodes)
         }
         .overlay(alignment: .topLeading) {
-            VStack(spacing: 6) { modeToggle; canvasToggle }.padding(Space.m)
+            VStack(spacing: 6) { layoutPicker; canvasToggle }.padding(Space.m)
         }
         .overlay(alignment: .bottomTrailing) { zoomControls }
         .background(ScrollZoomInstaller { factor in setZoom(scale * factor) })
@@ -219,21 +219,37 @@ struct CodeMapGraphView: View {
         }
     }
 
-    /// Cycles the three visualizations: globe → flat lobes → force constellation → globe. Planar
-    /// modes reset to head-on (0 tilt); all then rotate on drag.
-    private var modeToggle: some View {
-        let (icon, help): (String, String) = switch layout {
-        case .sphere: ("globe", "Globe — tap for flat")
-        case .flat:   ("square.grid.2x2", "Flat — tap for constellation")
-        case .force:  ("point.3.filled.connected.trianglepath.dotted", "Constellation — tap for globe")
+    /// Three explicit, always-visible layout buttons — globe, flat lobes, force constellation —
+    /// so each visualization has its OWN discoverable control (the active one is tinted coral),
+    /// instead of one cryptic cycling icon.
+    private var layoutPicker: some View {
+        VStack(spacing: 2) {
+            layoutButton(.sphere, "globe", "Globe")
+            layoutButton(.flat, "square.grid.2x2", "Flat lobes")
+            layoutButton(.force, "point.3.filled.connected.trianglepath.dotted", "Constellation")
         }
-        return cornerButton(icon, help: help) {
+        .padding(3)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.hairline, lineWidth: 0.5))
+    }
+    private func layoutButton(_ mode: GraphLayout, _ icon: String, _ help: String) -> some View {
+        let active = layout == mode
+        return Button {
             withAnimation(.easeInOut(duration: 0.25)) {
-                layout = layout == .sphere ? .flat : (layout == .flat ? .force : .sphere)
-                let rx = layout == .sphere ? 0.5 : 0.0
+                layout = mode
+                let rx = mode == .sphere ? 0.5 : 0.0
                 rotX = rx; lastRotX = rx; rotY = 0; lastRotY = 0
+                resetView()
             }
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
+                .frame(width: 24, height: 24)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(active ? Theme.coral.opacity(0.16) : Color.clear))
         }
+        .buttonStyle(.plain).help(help)
     }
     /// Dark ⇄ light canvas background (overrides the app-appearance default).
     private var canvasToggle: some View {
@@ -347,15 +363,18 @@ struct CodeMapGraphView: View {
                 for e in edges {
                     let cs = byID[e.source]?.community, ct = byID[e.target]?.community
                     let cross = cs != ct
-                    // Declutter: at rest, SKIP leaf↔leaf intra-cluster edges — they're smog
-                    // inside a lobe you already read as a coloured glow. Keep cross-cluster
-                    // couplings + anything touching a hub (the informative connections).
-                    guard cross || hubIDs.contains(e.source) || hubIDs.contains(e.target) else { continue }
-                    // Cross-cluster = the interesting lines → neutral white, brighter/thicker
-                    // (coral now belongs to cluster 0, so coral edges would read as membership).
-                    let col = cross ? neutral.opacity(edgeAlpha(e, 0.16))
-                                    : color(cs ?? 0).opacity(edgeAlpha(e, 0.10))
-                    curve(e, frames: pos, color: col, width: cross ? 0.9 : 0.55, ctx: &ctx)
+                    // Declutter (globe/flat only): SKIP leaf↔leaf intra-cluster edges — smog inside
+                    // a lobe you already read as a coloured glow. The CONSTELLATION is all about the
+                    // wiring, so it draws every edge (brighter) — that's what makes the web read.
+                    if layout != .force {
+                        guard cross || hubIDs.contains(e.source) || hubIDs.contains(e.target) else { continue }
+                    }
+                    let crossA = layout == .force ? 0.28 : 0.16
+                    let intraA = layout == .force ? 0.16 : 0.10
+                    let col = cross ? neutral.opacity(edgeAlpha(e, crossA))
+                                    : color(cs ?? 0).opacity(edgeAlpha(e, intraA))
+                    let w: CGFloat = layout == .force ? (cross ? 1.1 : 0.75) : (cross ? 0.9 : 0.55)
+                    curve(e, frames: pos, color: col, width: w, ctx: &ctx)
                 }
                 if time > 0 {
                     // Pulses only on the FRONT cross-cluster ropes — the ones you can see.
@@ -402,7 +421,17 @@ struct CodeMapGraphView: View {
     /// focus + its neighbours. Front-face only on the sphere.
     private func drawLabels(nodes: [CodeGraph.Node], pos: [String: CGPoint], depth: [String: Double],
                             focus: String?, neighbors: Set<String>, ctx: inout GraphicsContext) {
-        if focus == nil {
+        if focus == nil && layout == .force {
+            // The constellation is one web, not lobes — so label the biggest HUBS (nodes is
+            // degree-sorted) instead of cluster centroids. That's what names the structure here.
+            for node in nodes.prefix(16) {
+                guard let p = pos[node.id] else { continue }
+                let r = radius(node.degree) * scale
+                var tctx = ctx
+                drawText(&tctx, Text(String(node.label.prefix(20))).font(.system(size: 9.5, weight: .medium)),
+                         at: CGPoint(x: p.x, y: p.y + r + 7), color: neutral.opacity(0.75))
+            }
+        } else if focus == nil {
             var sum: [Int: (x: CGFloat, y: CGFloat, n: CGFloat, d: Double)] = [:]
             for node in nodes {
                 guard let p = pos[node.id] else { continue }
@@ -656,9 +685,9 @@ struct CodeMapGraphView: View {
         var es: [(Int, Int)] = []
         es.reserveCapacity(edges.count)
         for e in edges { if let a = idx[e.source], let b = idx[e.target] { es.append((a, b)) } }
-        let k = 1.6                                   // ideal edge length (normalized units)
-        var temp = 0.9 * Double(n).squareRoot()       // max node move per iteration, cooled each pass
-        let iters = n > 160 ? 120 : 240
+        let k = 2.6                                   // ideal edge length — bigger = more open/legible
+        var temp = 1.1 * Double(n).squareRoot()       // max node move per iteration, cooled each pass
+        let iters = n > 160 ? 180 : 320
         var dx = [Double](repeating: 0, count: n)
         var dy = [Double](repeating: 0, count: n)
         for _ in 0..<iters {
@@ -685,7 +714,7 @@ struct CodeMapGraphView: View {
                 dx[b] += ux * f; dy[b] += uy * f
             }
             // Gravity toward the origin — keeps disconnected pieces from drifting to infinity.
-            for i in 0..<n { dx[i] -= px[i] * 0.03; dy[i] -= py[i] * 0.03 }
+            for i in 0..<n { dx[i] -= px[i] * 0.018; dy[i] -= py[i] * 0.018 }
             // Apply, capped by the cooling temperature.
             for i in 0..<n {
                 let len = Swift.max((dx[i] * dx[i] + dy[i] * dy[i]).squareRoot(), 0.0001)

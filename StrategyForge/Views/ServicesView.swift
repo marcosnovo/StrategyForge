@@ -602,11 +602,17 @@ struct ProviderConfigView: View {
                 Button(model.t("common.save")) {
                     model.setGeminiAPIKey(geminiKeyDraft)
                     model.flashSuccess(model.t("provider.gemini.key.saved"))
-                    Task { await model.refreshConnectedProviders() }
+                    // Clear the stale "CLI retired" finding and re-test with the key, so the
+                    // diagnose card can't keep asking for a CLI after the key is in.
+                    diag = .idle
+                    Task { await model.refreshConnectedProviders(); runDiagnose() }
                 }
                 .disabled(geminiKeyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                 if model.hasGeminiAPIKey {
-                    Button(role: .destructive) { model.setGeminiAPIKey(nil); geminiKeyDraft = "" } label: {
+                    Button(role: .destructive) {
+                        model.setGeminiAPIKey(nil); geminiKeyDraft = ""; diag = .idle
+                        Task { await model.refreshConnectedProviders() }
+                    } label: {
                         Image(systemName: "trash")
                     }
                 }
