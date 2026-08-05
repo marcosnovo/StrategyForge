@@ -31,6 +31,40 @@ final class SkillStore {
     private(set) var isLoadingTop = false
     @ObservationIgnored private var didLoadTop = false
 
+    /// Extra curated skills pulled from the repo-hosted `skills.json` at launch — so the
+    /// Discover catalog can grow BEYOND the bundled Anthropic set (community collections,
+    /// other providers' skills) without shipping an app release. Merged with `curated`.
+    private(set) var remoteCurated: [CuratedSkill] = []
+
+    /// The Discover catalog: the bundled set plus any repo-hosted additions, de-duplicated by
+    /// slug (a remote entry with a new slug is appended; bundled entries always remain).
+    var allCurated: [CuratedSkill] {
+        var seen = Set(curated.map(\.slug))
+        return curated + remoteCurated.filter { seen.insert($0.slug).inserted }
+    }
+
+    /// The repo-hosted extra-skills catalog (public repo, no auth).
+    private static let catalogURL = URL(string:
+        "https://raw.githubusercontent.com/marcosnovo/StrategyForge/main/skills.json")!
+
+    private struct RemoteCatalog: Decodable {
+        struct Entry: Decodable {
+            let slug, name, description, category, owner, repo, ref, path: String
+        }
+        let skills: [Entry]
+    }
+
+    /// Fetch the repo-hosted extra skills (cached via HTTPCache → instant/offline later) and
+    /// merge them into the Discover catalog. Best-effort: any failure leaves the bundled set.
+    func refreshCatalog() async {
+        guard let data = try? await HTTPCache.data(from: Self.catalogURL),
+              let decoded = try? JSONDecoder().decode(RemoteCatalog.self, from: data) else { return }
+        remoteCurated = decoded.skills.map {
+            CuratedSkill(slug: $0.slug, name: $0.name, description: $0.description, category: $0.category,
+                         owner: $0.owner, repo: $0.repo, ref: $0.ref, path: $0.path, verified: true)
+        }
+    }
+
     /// Load the Top list once (community-by-stars via gh, else the official catalog) and
     /// cache it. No-ops on later calls unless `force` (the manual refresh). A failed load
     /// leaves the cache empty so the next visit retries.

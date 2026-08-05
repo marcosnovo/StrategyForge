@@ -172,7 +172,7 @@ struct SkillsView: View {
                 Label(e, systemImage: "exclamationmark.triangle.fill").font(.sfCaption2)
                     .foregroundStyle(Theme.warningText).fixedSize(horizontal: false, vertical: true)
             }
-            let shown = store.curated.filter(matchesFilters)
+            let shown = store.allCurated.filter(matchesFilters)
             if shown.isEmpty && kindFilter == .knowledge {
                 Text(model.t("skills.discover.noKnowledge")).font(.sfCaption2)
                     .foregroundStyle(.tertiary).padding(.vertical, Space.s)

@@ -1,0 +1,4 @@
+{
+  "_comment": "Coral's EXTRA Discover skills — merged on top of the app's bundled set at launch (cached, offline-safe). Add entries here to surface skills from ANY GitHub source — other providers, community collections, your own org — for every user on their next launch, no app release needed. A skill is just a folder with a SKILL.md, so it's provider-agnostic. Each entry: slug (folder name), name, description, category, owner, repo, ref (branch), path (repo-relative folder holding SKILL.md). Only add entries you've verified resolve (owner/repo/ref/path → a real SKILL.md), or the install will 404.",
+  "skills": []
+}
