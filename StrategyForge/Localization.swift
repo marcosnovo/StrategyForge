@@ -299,6 +299,7 @@ enum L10n {
         "rail.arena.help": ("Race models or teams on one task", "Compite modelos o equipos en una tarea"),
         "rail.memory.help": ("What Coral remembers across runs", "Lo que Coral recuerda entre ejecuciones"),
         "rail.skills.help": ("Reusable playbooks for your agents", "Guías reutilizables para tus agentes"),
+        "rail.usage.help": ("Your plan usage & rate limits", "Tu uso del plan y límites"),
         "rail.team.help": ("Design and save your agent teams", "Diseña y guarda tus equipos de agentes"),
         "sidebar.chats.help": ("Multi-agent team chat", "Chat de equipo multi-agente"),
         "splash.tagline": ("Preparing your workspace…", "Preparando tu espacio…"),

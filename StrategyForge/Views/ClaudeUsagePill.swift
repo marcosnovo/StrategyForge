@@ -53,6 +53,25 @@ struct ClaudeUsagePill: View {
             .buttonStyle(.plain)
             .help(tooltip(e))
             .accessibilityLabel(a11y(pct))
+        } else if style == .tile {
+            // No % cached yet (cold start) — the rail tile is STILL the single "Usage" door
+            // (we merged the separate Usage nav row into this pill). Neutral until a % loads.
+            Button {
+                model.navSection = .usage
+                Task { await model.refreshUsage(includeExact: true) }
+            } label: {
+                VStack(spacing: 1) {
+                    Image(systemName: "gauge.with.needle")
+                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.secondaryOnMaterial)
+                    Text(model.t("rail.usage")).font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1).minimumScaleFactor(0.75)
+                }
+                .frame(maxWidth: .infinity).padding(.vertical, 3)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(model.t("rail.usage.help"))
+            .accessibilityLabel(model.t("rail.usage"))
         }
     }
 

@@ -31,7 +31,7 @@ struct NavRail: View {
     /// Sections that live under "More" — used to auto-open the group when one is active.
     /// (Team is now a top-level WORK item; Code Map + Arena moved DOWN into More.)
     private var moreSectionActive: Bool {
-        [.map, .arena, .loops, .memory, .skills, .usage, .services].contains(model.navSection)
+        [.map, .arena, .loops, .memory, .skills, .services].contains(model.navSection)
     }
     private var moreShown: Bool { showMore || moreSectionActive }
 
@@ -99,12 +99,9 @@ struct NavRail: View {
                              help: "rail.skills.help") {
                             model.guardedLeave { model.navSection = .skills }
                         }
-                        item("gauge.with.dots.needle.bottom.50percent", "rail.usage", active: model.navSection == .usage) {
-                            model.guardedLeave {
-                                model.navSection = .usage
-                                Task { await model.refreshUsage(includeExact: true) }
-                            }
-                        }
+                        // Usage lives ONLY in the rail-foot ClaudeUsagePill now (it shows the %
+                        // AND opens Usage) — one door for usage, not two. (Founder: "no 2 botones
+                        // para lo mismo.")
                         item("point.3.connected.trianglepath.dotted", "rail.connected", active: model.navSection == .services) {
                             model.guardedLeave { model.navSection = .services }
                         }
