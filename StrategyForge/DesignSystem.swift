@@ -67,12 +67,14 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
             // recessed (not near-black) rail. Foregrounds retuned to clear WCAG AA on the new,
             // non-white ground. (Design pass 2, 2026-08-05 — verified ratios in the tokens.)
             return Palette(
-                // Warm PAPER ramp (R>=G>=B — no green/slate cast) lifted brighter so appBg reads
-                // as bright paper and columns/wells sit a whisper below it, not a gray gutter.
-                // (Design pass 3, 2026-08-05 — the "demasiado gris" fix.)
-                appBg: hex("FBFAF8", "0C1315"), columnBg: hex("F6F5F2", "121E21"),
-                cardBg: hex("FFFFFF", "16262A"), insetBg: hex("F2F0EC", "1B2E33"),
-                railBg: hex("EFEDE8", "081014"),
+                // Near-WHITE warm paper ramp (R>=G>=B — no green/slate cast). appBg is almost
+                // white so the app reads clean; columns/rail sit a whisper below and wells a
+                // touch deeper, with #FFF cards still reading as lifted sheets. The flat tokens
+                // ARE the surface now (glass materials dropped on light), so this is what shows.
+                // (Design pass 4, 2026-08-05 — the "más blanco / más limpio" fix.)
+                appBg: hex("FCFCFB", "0C1315"), columnBg: hex("F7F6F4", "121E21"),
+                cardBg: hex("FFFFFF", "16262A"), insetBg: hex("EFEEEA", "1B2E33"),
+                railBg: hex("F2F1EE", "081014"),
                 ink: hex("1A2426", "EAF3F1"), secondary: hex("6B6660", "86A0A0"),
                 tertiary: hex("928C84", "7E9A9A"), hairline: hex("E6E5E1", "1D2D32"),
                 coral: hex("FF6B54", "FF6B54"), coralDeep: hex("E24029", "E24029"),

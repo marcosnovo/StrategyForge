@@ -66,7 +66,7 @@ enum Theme {
     /// near-white paper (the founder's "demasiado gris" note). Light = bright near-white; dark =
     /// a solid chrome a step off the ground.
     static let chromeBg = Color(
-        light: Color(red: 0.960, green: 0.960, blue: 0.953),   // ~#F5F5F3 bright near-white
+        light: Color(red: 0.988, green: 0.988, blue: 0.984),   // ~#FCFCFB — seamless with appBg
         dark:  Color(red: 0.070, green: 0.110, blue: 0.126))   // ~#121C20 solid dark chrome
     /// Selected rows no longer carry a border — the grey wash alone marks selection.
     static let selectionBorder = Color.clear
@@ -606,8 +606,12 @@ extension View {
 private struct TranslucentColumnModifier: ViewModifier {
     var tint: Double
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var scheme
     func body(content: Content) -> some View {
-        if reduceTransparency || !Theme.P.usesGlass {
+        // On LIGHT the vibrancy material reads as a gray gutter (the founder's "muy gris")
+        // — so light columns are flat near-white paper; glass is kept only on dark, where it
+        // adds depth without graying anything.
+        if reduceTransparency || !Theme.P.usesGlass || scheme == .light {
             content.background(Theme.columnBg)                       // solid paper, no material
         } else {
             content.background(Theme.columnBg.opacity(tint)).background(.ultraThinMaterial)
@@ -622,12 +626,18 @@ private struct TranslucentColumnModifier: ViewModifier {
 /// Reduce Transparency.
 private struct RailColumnModifier: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var scheme
     func body(content: Content) -> some View {
         if reduceTransparency || !Theme.P.usesGlass {
             // Solid paper rail: `insetBg` (the darkest neutral) reads as a subtle darker paper
             // strip distinct from the columns, while keeping ink text legible (railBg is near-
             // black and would swallow the ink-colored rail labels).
             content.background(Theme.insetBg)
+        } else if scheme == .light {
+            // Light: a flat warm-paper rail — `.regularMaterial` was the single grayest slab in
+            // the window. Separation now comes from width + the brand mark + the coral New chat,
+            // not from a dense gray material.
+            content.background(Theme.railBg)
         } else {
             content.background(Theme.columnBg.opacity(0.30)).background(.regularMaterial)
         }

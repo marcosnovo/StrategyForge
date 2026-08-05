@@ -28,13 +28,16 @@ enum ProviderDiagnostics {
     enum Fix: Sendable, Equatable {
         case connect        // open the install → web sign-in flow (fixes notInstalled + notSignedIn)
         case useAPIKey      // Codex model choice needs an API key (or just drop the model)
-        case getAntigravity // open antigravity.google to install the `agy` CLI (Gemini's successor)
+        case addGeminiKey   // Google retired the free Gemini CLI → paste a GEMINI_API_KEY (the one path that runs)
+        case getAntigravity // open antigravity.google (the GUI IDE successor — not a headless CLI Coral can drive)
         case exportLog      // last resort: hand the user the full log
         case none
     }
 
     /// Where to send a user to install Antigravity (the successor to the free Gemini CLI).
     static let antigravityURL = URL(string: "https://antigravity.google")!
+    /// Where to mint a Gemini API key — the working headless path now that the free CLI is gone.
+    static let geminiKeyURL = URL(string: "https://aistudio.google.com/apikey")!
 
     /// The outcome of a check: healthy, or an issue with its raw detail + remedy.
     struct Finding: Sendable, Equatable {
@@ -58,15 +61,19 @@ enum ProviderDiagnostics {
         // gone → point at Antigravity, not a futile reinstall of the retired `gemini`.
         guard CLIOneShotRunner.resolveBinary(binary, provider: provider) != nil else {
             if provider == .gemini {
-                return (Finding(issue: .migrateAntigravity, raw: "", fix: .getAntigravity), "")
+                return (Finding(issue: .migrateAntigravity, raw: "", fix: .addGeminiKey), "")
             }
             return (Finding(issue: .notInstalled, raw: "", fix: .connect), "")
         }
+        // Gemini with an API key set: skip the Google-login freshness gate entirely — the key is
+        // its own auth path (GEMINI_API_KEY), so a missing/dead CLI login is irrelevant. Go
+        // straight to the real round-trip, which exercises the key.
+        let hasGeminiKey = provider == .gemini && (apiKeys[.gemini]?.isEmpty == false)
         // 1b. A missing/expired stored login makes the real round-trip HANG (Gemini especially)
         // — the "diagnóstico se queda pensando" bug. Short-circuit to "not signed in" instantly
         // from the on-disk creds instead of waiting out a stall.
         let fresh = ProviderAuth.freshness(provider)
-        if fresh == .missing || fresh == .expired {
+        if !hasGeminiKey, fresh == .missing || fresh == .expired {
             let raw = "Saved \(provider.displayName) login looks \(fresh == .expired ? "expired" : "missing")."
             return (Finding(issue: .notSignedIn, raw: raw, fix: .connect), "")
         }
@@ -104,7 +111,7 @@ enum ProviderDiagnostics {
         // login reconnect can't fix it; the user must move to Antigravity. Check FIRST because
         // the message also contains "authenticate" and would otherwise read as "not signed in".
         if provider == .gemini, CLIOneShotRunner.isAntigravityMigration(raw) {
-            return Finding(issue: .migrateAntigravity, raw: raw, fix: .getAntigravity)
+            return Finding(issue: .migrateAntigravity, raw: raw, fix: .addGeminiKey)
         }
         let authy = m.contains("401") || m.contains("invalid authentication")
             || m.contains("failed to authenticate") || m.contains("authenticate")

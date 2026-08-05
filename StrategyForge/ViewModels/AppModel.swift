@@ -173,11 +173,32 @@ final class AppModel {
         else { KeychainStore.set(Data(trimmed.utf8), for: Self.openAIKeyItem) }
     }
 
-    /// API keys to hand the provider runner — only OpenAI's, and only when the user
-    /// opted into API-key mode (which re-enables explicit model selection for Codex).
+    // MARK: Gemini API key (Keychain)
+
+    private static let geminiKeyItem = "gemini.apiKey"
+
+    /// The stored Gemini API key (nil if none). Google retired the free `gemini` CLI login,
+    /// so a `GEMINI_API_KEY` from AI Studio is the one path that actually runs Gemini
+    /// headless in Coral — kept in the Keychain, never on disk.
+    var geminiAPIKey: String? {
+        KeychainStore.data(for: Self.geminiKeyItem).flatMap { String(data: $0, encoding: .utf8) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
+    var hasGeminiAPIKey: Bool { geminiAPIKey != nil }
+    func setGeminiAPIKey(_ key: String?) {
+        let trimmed = key?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmed.isEmpty { KeychainStore.delete(Self.geminiKeyItem) }
+        else { KeychainStore.set(Data(trimmed.utf8), for: Self.geminiKeyItem) }
+    }
+
+    /// API keys to hand the provider runner: OpenAI's (only in opt-in API mode, which re-enables
+    /// Codex model choice) and Gemini's (always used when set — the retired free CLI has no other
+    /// working headless path).
     func providerAPIKeys() -> [AIProvider: String] {
-        guard settings.openaiUseAPIKey, let key = openAIAPIKey else { return [:] }
-        return [.openai: key]
+        var keys: [AIProvider: String] = [:]
+        if settings.openaiUseAPIKey, let key = openAIAPIKey { keys[.openai] = key }
+        if let g = geminiAPIKey { keys[.gemini] = g }
+        return keys
     }
 
     /// CLI binary paths to hand a runner, read live from settings — the binaries

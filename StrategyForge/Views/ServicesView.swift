@@ -140,13 +140,18 @@ struct ServicesListColumn: View {
     private func row(_ p: AIProvider) -> some View {
         let selected = model.selectedService == p && model.selectedTool == nil
         let connected = model.isConnected(p)
+        // Gemini's free CLI is retired — a present binary isn't a working connection; only an
+        // API key is. So the dot is green only with the key, amber (needs setup) without it.
+        let needsKey = p == .gemini && !model.hasGeminiAPIKey
+        let live = p == .gemini ? model.hasGeminiAPIKey : connected
+        let needsSetup = needsKey || (connected && model.staleAuth.contains(p))
         // Connected providers show their declared plan as a subtitle (quiet context);
         // status is carried by a single dot, not a text label (scans down the column).
         return CoralRow(title: p.displayName,
-                        subtitle: connected ? model.providerPlan(p) : nil,
+                        subtitle: live ? model.providerPlan(p) : nil,
                         selected: selected,
                         leading: { ProviderLogo(provider: p, size: 20, templateTint: p.tint) },
-                        trailing: { statusDot(connected, stale: model.staleAuth.contains(p)) })
+                        trailing: { statusDot(live: live, needsSetup: needsSetup) })
             .onTapGesture { model.selectedService = p; model.selectedTool = nil }
     }
 
@@ -164,14 +169,14 @@ struct ServicesListColumn: View {
     /// A 6pt status dot — success when live, AMBER when installed but the stored login looks
     /// expired/missing (reconnect needed), quiet reef when not found. Replaces the wordy
     /// per-row label so the whole column scans at a glance.
-    private func statusDot(_ connected: Bool, stale: Bool = false) -> some View {
-        let color: Color = !connected ? Color.secondary.opacity(0.4)
-            : (stale ? Theme.warning : Theme.success)
+    private func statusDot(live: Bool, needsSetup: Bool = false) -> some View {
+        let color: Color = live ? Theme.success
+            : (needsSetup ? Theme.warning : Color.secondary.opacity(0.4))
         return Circle().fill(color)
             .frame(width: 6, height: 6)
             .padding(.trailing, 2)
-            .help(model.t(!connected ? "provider.notFound"
-                          : (stale ? "provider.reconnect" : "provider.connected")))
+            .help(model.t(live ? "provider.connected"
+                          : (needsSetup ? "provider.needsSetup" : "provider.notFound")))
     }
 
     /// A developer-tool row (GitHub / Git) — status is resolved live.
@@ -301,6 +306,8 @@ struct ProviderConfigView: View {
     @State private var showAdvanced = false
     /// Draft for the OpenAI API-key field (loaded from the Keychain on appear).
     @State private var apiKeyDraft = ""
+    /// Draft for the Gemini API-key field (loaded from the Keychain on appear).
+    @State private var geminiKeyDraft = ""
 
     private enum DiagState: Equatable {
         case idle, running
@@ -309,21 +316,29 @@ struct ProviderConfigView: View {
     }
 
     private var connected: Bool { model.isConnected(provider) }
-    /// The CLI is present on disk but its login is expired / no longer accepted (e.g. Google
-    /// retired the free Gemini CLI) — so "present" is NOT "working". Drives an honest amber
-    /// state instead of a false green "Connected".
+    /// The CLI is present on disk but its login is expired / no longer accepted — so "present"
+    /// is NOT "working". Drives an honest amber state instead of a false green "Connected".
     private var staleLogin: Bool { connected && model.staleAuth.contains(provider) }
-    /// A genuinely usable connection: present AND its login still holds.
-    private var working: Bool { connected && !staleLogin }
+    /// Google retired the free `gemini` CLI, so a present binary is meaningless on its own —
+    /// only a GEMINI_API_KEY actually runs Gemini in Coral. Missing key ⇒ not usable.
+    private var geminiNeedsKey: Bool { provider == .gemini && !model.hasGeminiAPIKey }
+    /// A genuinely usable connection.
+    private var working: Bool {
+        if provider == .gemini { return model.hasGeminiAPIKey }
+        return connected && !staleLogin
+    }
+    /// Amber "needs setup": a present-but-stale login, or Gemini missing its API key.
+    private var needsSetup: Bool { !working && (staleLogin || geminiNeedsKey) }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.l) {
                 header
                 statusCard
+                if provider == .gemini { geminiKeyCard }
                 planCard
                 usedByCard
-                if connected { diagnoseCard }
+                if connected || provider == .gemini { diagnoseCard }
                 advancedDisclosure
                 if !provider.isExecutable { soonNote }
             }
@@ -353,12 +368,12 @@ struct ProviderConfigView: View {
     /// connected, coral CTA when not) and elevated — a clear focal point instead of one of
     /// several equal cards (premium verdict A3).
     private var statusCard: some View {
-        // Three honest states — working (green), present-but-stale (amber), absent (coral CTA).
-        let tint: Color = working ? Theme.success : (staleLogin ? Theme.warning : Theme.accent)
+        // Three honest states — working (green), present-but-needs-setup (amber), absent (coral).
+        let tint: Color = working ? Theme.success : (needsSetup ? Theme.warning : Theme.accent)
         let icon = working ? "checkmark.circle.fill"
-                 : (staleLogin ? "exclamationmark.triangle.fill" : "bolt.horizontal.circle")
+                 : (needsSetup ? "exclamationmark.triangle.fill" : "bolt.horizontal.circle")
         let label = working ? "provider.connected"
-                  : (staleLogin ? "provider.needsSetup" : "provider.notFound")
+                  : (needsSetup ? "provider.needsSetup" : "provider.notFound")
         return HStack(spacing: Space.m) {
             Image(systemName: icon)
                 .font(.system(size: 26))
@@ -379,7 +394,7 @@ struct ProviderConfigView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
             .fill(working ? Theme.success.opacity(0.08)
-                          : (staleLogin ? Theme.warning.opacity(0.10) : Theme.accentSoft)).elevation(.e3))
+                          : (needsSetup ? Theme.warning.opacity(0.10) : Theme.accentSoft)).elevation(.e3))
         .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
             .strokeBorder(tint.opacity(0.25), lineWidth: 1))
     }
@@ -552,9 +567,12 @@ struct ProviderConfigView: View {
                 model.flashSuccess(model.t("provider.fix.useKey.done"))
             }
             .buttonStyle(.bordered).controlSize(.small)
+        case .addGeminiKey:
+            // Google retired the free Gemini CLI; the only working headless path is a
+            // GEMINI_API_KEY. Send the user to mint one — the field lives in the card above.
+            Link(model.t("provider.fix.geminiKey"), destination: ProviderDiagnostics.geminiKeyURL)
+                .buttonStyle(.moon).controlSize(.small)
         case .getAntigravity:
-            // Google retired the free Gemini CLI — the real remedy is Antigravity (`agy`), not
-            // a reinstall of the dead CLI. Open the download page; Coral resolves `agy` after.
             Link(model.t("provider.fix.antigravity"), destination: ProviderDiagnostics.antigravityURL)
                 .buttonStyle(.moon).controlSize(.small)
         case .exportLog:
@@ -563,6 +581,41 @@ struct ProviderConfigView: View {
         case .none:
             EmptyView()
         }
+    }
+
+    /// Gemini's ONE working path: an API key. Google retired the free `gemini` CLI login, and
+    /// Antigravity is a GUI IDE Coral can't drive headless — so we say that plainly and offer the
+    /// key field + a link to mint one. Shown prominently (not behind Advanced) for Gemini only.
+    private var geminiKeyCard: some View {
+        VStack(alignment: .leading, spacing: Space.s) {
+            Text(model.t("provider.gemini.key.title")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+            Text(model.t("provider.gemini.key.note")).font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Space.s) {
+                SecureField("AIza…", text: $geminiKeyDraft)
+                    .textFieldStyle(.roundedBorder).font(.sfCode)
+                Button(model.t("common.save")) {
+                    model.setGeminiAPIKey(geminiKeyDraft)
+                    model.flashSuccess(model.t("provider.gemini.key.saved"))
+                    Task { await model.refreshConnectedProviders() }
+                }
+                .disabled(geminiKeyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                if model.hasGeminiAPIKey {
+                    Button(role: .destructive) { model.setGeminiAPIKey(nil); geminiKeyDraft = "" } label: {
+                        Image(systemName: "trash")
+                    }
+                }
+            }
+            HStack(spacing: Space.m) {
+                Text(model.t(model.hasGeminiAPIKey ? "provider.gemini.key.present" : "provider.gemini.key.hint"))
+                    .font(.sfCaption2).foregroundStyle(model.hasGeminiAPIKey ? Theme.success : .secondary)
+                Spacer()
+                Link(model.t("provider.fix.geminiKey"), destination: ProviderDiagnostics.geminiKeyURL)
+                    .font(.sfCaption2)
+            }
+        }
+        .card()
+        .onAppear { if model.hasGeminiAPIKey, geminiKeyDraft.isEmpty { geminiKeyDraft = model.geminiAPIKey ?? "" } }
     }
 
     /// OpenAI/Codex model control: honest note about the subscription constraint, plus
