@@ -255,6 +255,10 @@ final class AppModel {
     enum NavSection { case chats, services, team, usage, loops, particleLab, code, map, skills, memory, arena, images, settings }
     var navSection: NavSection = .chats
 
+    /// A prompt handed to the Image Studio from elsewhere (e.g. the chat composer's "Generate
+    /// image" action) — consumed once on appear so opening Images pre-fills what you were typing.
+    var imageStudioPrompt: String = ""
+
     /// The chat that should open directly in Code Mode (set by the Code launcher;
     /// ChatView consumes it once on appear).
     var openInCodeMode: Configuration.ID?

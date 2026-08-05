@@ -2071,6 +2071,13 @@ struct ChatView: View {
                 }
                 .disabled(vm.isolationBusy)
             }
+            Divider()
+            // Jump to the Image Studio, carrying whatever's in the composer as the prompt — the
+            // coding CLIs can't make images, so this hands off to the image APIs.
+            Button {
+                model.imageStudioPrompt = vm.input.trimmingCharacters(in: .whitespacesAndNewlines)
+                model.navSection = .images
+            } label: { Label(model.t("images.generate.menu"), systemImage: "photo.on.rectangle.angled") }
         } label: {
             Image(systemName: "plus.circle")
                 .font(.system(size: 13))

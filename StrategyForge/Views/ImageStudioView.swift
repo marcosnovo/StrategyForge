@@ -56,7 +56,14 @@ struct ImageStudioView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
-        .onAppear { if let first = readyProviders.first, keyFor(provider) == nil { provider = first } }
+        .onAppear {
+            if let first = readyProviders.first, keyFor(provider) == nil { provider = first }
+            // Carry a prompt handed over from the chat composer (consumed once).
+            if !model.imageStudioPrompt.isEmpty {
+                prompt = model.imageStudioPrompt
+                model.imageStudioPrompt = ""
+            }
+        }
     }
 
     // MARK: Header

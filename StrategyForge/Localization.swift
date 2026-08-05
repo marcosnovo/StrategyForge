@@ -327,6 +327,7 @@ enum L10n {
         "images.aspect.landscape": ("Landscape", "Horizontal"),
         "images.aspect.portrait": ("Portrait", "Vertical"),
         "images.generate": ("Generate", "Generar"),
+        "images.generate.menu": ("Generate image…", "Generar imagen…"),
         "images.generating": ("Generating image…", "Generando imagen…"),
         "images.save": ("Save", "Guardar"),
         "images.copy": ("Copy", "Copiar"),
