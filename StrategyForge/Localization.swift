@@ -465,6 +465,8 @@ enum L10n {
         "code.cloned": ("Cloned %@", "Clonado %@"),
         "code.hero.crosslink": ("For orchestrated multi-agent runs, use Chats.",
                                 "Para ejecuciones multi-agente orquestadas, usa Chats."),
+        "chat.empty.using": ("Team: %@", "Equipo: %@"),
+        "chat.empty.autoTeam": ("Auto team — we'll pick the agents", "Equipo automático — elegimos los agentes"),
         "code.pick.title": ("Open a folder", "Abrir una carpeta"),
         "code.pick.subtitle": ("Pick a local project folder on your Mac.",
                                "Elige una carpeta de proyecto local en tu Mac."),

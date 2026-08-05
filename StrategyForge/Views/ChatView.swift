@@ -1224,29 +1224,23 @@ struct ChatView: View {
         .padding(.horizontal, Space.l)
     }
 
-    /// A crafted suggestion card: a coral IconBadge + the prompt + a quiet insert arrow, on
-    /// an elevated card — reads as an invitation, not a triplicated list row.
+    /// A quiet example-prompt row: a small leading glyph + the prompt, no card/elevation/border
+    /// — plain tappable text that inserts the prompt (ChatGPT/Agentastic-minimal empty state).
     private func suggestionCard(key: String, icon: String) -> some View {
         Button { vm.input = model.t(key) } label: {
-            HStack(spacing: Space.m) {
-                IconBadge(systemName: icon)
+            HStack(spacing: Space.s) {
+                Image(systemName: icon).font(.system(size: 12))
+                    .foregroundStyle(Theme.tertiaryOnMaterial).frame(width: 18)
                 Text(model.t(key)).font(.sfCallout).foregroundStyle(Theme.ink)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: Space.s)
-                Image(systemName: "arrow.up").font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.tertiaryOnMaterial)
             }
-            .padding(.horizontal, Space.m).padding(.vertical, Space.m)
+            .padding(.horizontal, Space.s).padding(.vertical, Space.s)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(Theme.cardBg).elevation(.e1))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .strokeBorder(Theme.hairline, lineWidth: 1))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .hoverLift()
+        .hoverTint(cornerRadius: Theme.rowCorner)
     }
 
     /// A casual, time-of-day-aware greeting for this empty chat. Seeded by the chat's
@@ -1261,68 +1255,26 @@ struct ChatView: View {
         return DaypartGreeting.line(langCode: model.langCode, hour: hour, seed: seed, name: first)
     }
 
-    /// The differentiator, front and center on an empty chat: this chat is driven
-    /// by the team you designed — show it (diagram + name + size + what it's for).
-    /// When the team is still "auto", we instead invite the user to just describe
-    /// their task (we'll pick the agents) — so nothing looks pre-decided.
+    /// The team this chat will use — a single quiet line under the greeting (not a big glass
+    /// card), tappable to customize. The team menu in the header carries the full detail;
+    /// the empty state stays minimal so the example prompts are the clear next action.
     @ViewBuilder
     private var strategyHook: some View {
-        if config.strategyIsAuto {
-            autoTeamHook
-        } else {
-            chosenTeamHook
-        }
-    }
-
-    private var autoTeamHook: some View {
-        HStack(spacing: Space.m) {
-            Image(systemName: "wand.and.stars")
-                .font(.system(size: 26)).foregroundStyle(Theme.accent)
-                .frame(width: 104, height: 64)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Theme.accentSoft))
-                .breathingGlow(color: Theme.coral, enabled: false)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.t("chat.autoTeam.badge"))
-                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
-                Text(model.t("chat.autoTeam.title")).font(.sfCardTitle)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(model.t("chat.autoTeam.desc"))
+        Button { showInspector = true } label: {
+            HStack(spacing: 6) {
+                Image(systemName: config.strategyIsAuto ? "wand.and.stars" : "person.3.sequence.fill")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(config.strategyIsAuto
+                     ? model.t("chat.empty.autoTeam")
+                     : model.t("chat.empty.using", model.strategyDisplayName(config.strategy)))
                     .font(.sfCaption2).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
             }
-            Spacer(minLength: 0)
+            .contentShape(Rectangle())
         }
-        .padding(Space.m)
-        .frame(maxWidth: 560, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
-    }
-
-    private var chosenTeamHook: some View {
-        let teammates = config.strategy.subagentRoles.reduce(0) { $0 + max(1, $1.count) }
-        return HStack(spacing: Space.m) {
-            StrategyThumbnail(strategy: config.strategy)
-                .frame(width: 104, height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.hairline, lineWidth: 1))
-                // A subtle coral breath on the team diagram — the hero of the empty
-                // state — quiet enough to invite, stilled under Reduce Motion.
-                .breathingGlow(color: Theme.coral, enabled: false)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.t("chat.team.ready"))
-                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
-                Text(model.strategyDisplayName(config.strategy)).font(.sfCardTitle)
-                Text(teammates == 0 ? model.t("chat.team.solo") : model.t("chat.team.count", teammates))
-                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
-                    .help(model.t("glossary.worker"))
-                Text(model.strategyGoodFor(config.strategy))
-                    .font(.sfCaption2).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(Space.m)
-        .frame(maxWidth: 560, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: Theme.innerCorner))
+        .buttonStyle(.plain)
+        .help(model.t("chat.customizeTeam"))
     }
 
     /// A horizontal, tappable strip of the team's agents — tap one to open its live activity
@@ -2007,10 +1959,11 @@ struct ChatView: View {
     private var currentMode: ModeOption { modeOptions.first { $0.raw == vm.permissionMode } ?? modeOptions[0] }
 
     private var composerFooter: some View {
-        // On a brand-new chat (no messages yet), keep the box clean: just a subtle "…" to
-        // reveal the controls. Sensible defaults (auto team, default effort/mode) apply.
+        // Keep the composer clean in EVERY chat (not just new ones): box + send + a quiet "…";
+        // mode / model·effort / the "+" menu live behind that one disclosure (sticky once
+        // opened). Matches the ChatGPT/Codex resting composer. Sensible defaults apply meanwhile.
         Group {
-            if !vm.messages.isEmpty || showComposerControls {
+            if showComposerControls {
                 HStack(spacing: Space.s) {
                     modeMenu
                     composerOverflowMenu   // Grill · Approaches · Isolate — one click away
