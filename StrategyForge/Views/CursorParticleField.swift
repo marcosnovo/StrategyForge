@@ -64,24 +64,25 @@ private final class CursorFieldState {
     /// radius (the bubble), damp, integrate. Frame-rate-agnostic enough at ~60fps.
     func step(size: CGSize) {
         guard seeded else { return }
-        let radius: CGFloat = 150
+        let radius: CGFloat = 200                              // big bubble → an obvious wake
         for i in specks.indices {
             var p = specks[i]
             let homeX = CGFloat(p.hx) * size.width
             let homeY = CGFloat(p.hy) * size.height
-            p.vx += (homeX - p.x) * 0.020
-            p.vy += (homeY - p.y) * 0.020
+            p.vx += (homeX - p.x) * 0.026                      // snappier return home
+            p.vy += (homeY - p.y) * 0.026
             if hasCursor {
                 let dx = p.x - cursor.x, dy = p.y - cursor.y
                 let d2 = dx * dx + dy * dy
                 if d2 < radius * radius {
                     let d = max(sqrt(d2), 0.01)
-                    let push = (1 - d / radius) * 3.2          // stronger the closer it is
+                    let falloff = 1 - d / radius
+                    let push = falloff * falloff * 9.0         // strong, smooth (quadratic) shove
                     p.vx += dx / d * push
                     p.vy += dy / d * push
                 }
             }
-            p.vx *= 0.90; p.vy *= 0.90
+            p.vx *= 0.88; p.vy *= 0.88
             p.x += p.vx; p.y += p.vy
             specks[i] = p
         }
@@ -134,6 +135,8 @@ private struct FieldTracker: NSViewRepresentable {
             field?.hasCursor = true
         }
         override func mouseExited(with event: NSEvent) { field?.hasCursor = false }
+        // Never be the hit target — clicks/taps pass straight through to the chat behind.
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
         deinit { if let m = monitor { NSEvent.removeMonitor(m) } }
     }
 }
@@ -151,24 +154,29 @@ struct CursorParticleField: View {
         if reduceMotion {
             Color.clear
         } else {
-            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in
-                Canvas { ctx, size in
-                    field.seed(count: count, size: size)
-                    field.step(size: size)
-                    for p in field.specks {
-                        let c = Self.palette[p.colorIndex % Self.palette.count]
-                        let hx = CGFloat(cos(p.ang)) * p.len
-                        let hy = CGFloat(sin(p.ang)) * p.len
-                        var path = Path()
-                        path.move(to: CGPoint(x: p.x - hx, y: p.y - hy))
-                        path.addLine(to: CGPoint(x: p.x + hx, y: p.y + hy))
-                        ctx.stroke(path, with: .color(c.opacity(0.55)),
-                                   style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
+            ZStack {
+                // The tracker is a STABLE sibling (created once) — not inside the TimelineView,
+                // which rebuilds every frame and was tearing the mouse monitor down each tick
+                // (why nothing reacted). It's click-through, so it never eats a tap.
+                FieldTracker(field: field)
+                TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in
+                    Canvas { ctx, size in
+                        field.seed(count: count, size: size)
+                        field.step(size: size)
+                        for p in field.specks {
+                            let c = Self.palette[p.colorIndex % Self.palette.count]
+                            let hx = CGFloat(cos(p.ang)) * p.len
+                            let hy = CGFloat(sin(p.ang)) * p.len
+                            var path = Path()
+                            path.move(to: CGPoint(x: p.x - hx, y: p.y - hy))
+                            path.addLine(to: CGPoint(x: p.x + hx, y: p.y + hy))
+                            ctx.stroke(path, with: .color(c.opacity(0.6)),
+                                       style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
+                        }
                     }
                 }
-                .background(FieldTracker(field: field))
-                .allowsHitTesting(false)   // purely decorative — never eat clicks
             }
+            .allowsHitTesting(false)   // purely decorative — never eat clicks
         }
     }
 }
