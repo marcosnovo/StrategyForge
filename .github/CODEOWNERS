@@ -1,0 +1,9 @@
+# Default: the macOS app and everything else.
+*                   @marcosnovo
+
+# Windows port — routed to whoever owns it, not the macOS maintainer.
+/windows/           @pedalbacklog
+
+# Cross-platform data contracts both apps read — both should weigh in.
+/models.json        @marcosnovo @pedalbacklog
+/skills.json        @marcosnovo @pedalbacklog
