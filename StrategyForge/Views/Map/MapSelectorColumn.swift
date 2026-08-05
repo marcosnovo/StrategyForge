@@ -16,13 +16,59 @@ struct MapSelectorColumn: View {
     private var store: CodeMapStore { .shared }
     @State private var query = ""
     @State private var showImporter = false
+    // Group / sort / filter the map list, mirroring the Chats sidebar — so a big list of
+    // repositories stays ordered. Persisted, like the chat list's preferences.
+    @AppStorage("map.groupBy") private var groupBy = "date"       // date | kind | none
+    @AppStorage("map.sortBy")  private var sortBy = "recency"     // recency | name | oldest
+    @AppStorage("map.kind")    private var kindFilter = "all"     // all | local | github
 
-    private var maps: [SavedMap] {
+    /// The maps to show: kind filter → sort → search. (Grouping happens in `sections`.)
+    private var visibleMaps: [SavedMap] {
+        var list = MapStore.shared.maps
+        if kindFilter != "all" { list = list.filter { $0.kind.rawValue == kindFilter } }
+        switch sortBy {
+        case "name":   list.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case "oldest": list.sort { $0.createdAt < $1.createdAt }
+        default:       list.sort { $0.updatedAt > $1.updatedAt }   // recency
+        }
         let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return MapStore.shared.maps }
-        return MapStore.shared.maps.filter {
+        guard !q.isEmpty else { return list }
+        return list.filter {
             $0.name.localizedCaseInsensitiveContains(q) || $0.subtitle.localizedCaseInsensitiveContains(q)
         }
+    }
+
+    /// The list split into titled sections per the group-by choice (empty when grouping is off).
+    private var sections: [(id: String, title: String, items: [SavedMap])] {
+        switch groupBy {
+        case "kind":
+            return grouped(visibleMaps) { $0.kind == .github ? model.t("map.group.github") : model.t("map.group.local") }
+        case "date":
+            return grouped(visibleMaps) { dateBucket($0.updatedAt) }
+        default:
+            return []   // "none" → flat list
+        }
+    }
+
+    private func grouped(_ items: [SavedMap], key: (SavedMap) -> String)
+        -> [(id: String, title: String, items: [SavedMap])] {
+        var order: [String] = []
+        var buckets: [String: [SavedMap]] = [:]
+        for m in items {
+            let k = key(m)
+            if buckets[k] == nil { buckets[k] = []; order.append(k) }
+            buckets[k]?.append(m)
+        }
+        return order.map { (id: $0, title: $0, items: buckets[$0] ?? []) }
+    }
+
+    private func dateBucket(_ date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return model.t("chat.group.today") }
+        if cal.isDateInYesterday(date) { return model.t("chat.group.yesterday") }
+        if let week = cal.dateInterval(of: .weekOfYear, for: Date()), week.contains(date) { return model.t("chat.group.thisWeek") }
+        if let month = cal.dateInterval(of: .month, for: Date()), month.contains(date) { return model.t("chat.group.thisMonth") }
+        return model.t("chat.group.older")
     }
 
     var body: some View {
@@ -34,8 +80,18 @@ struct MapSelectorColumn: View {
             } else {
                 searchField
                 ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(maps) { row($0) }
+                    LazyVStack(spacing: 2, pinnedViews: [.sectionHeaders]) {
+                        if groupBy == "none" || !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                            ForEach(visibleMaps) { row($0) }
+                        } else {
+                            ForEach(sections, id: \.id) { sec in
+                                Section {
+                                    ForEach(sec.items) { row($0) }
+                                } header: {
+                                    sectionHeader(sec.title)
+                                }
+                            }
+                        }
                     }
                     .padding(.horizontal, Space.s).padding(.vertical, Space.xs)
                 }
@@ -56,10 +112,48 @@ struct MapSelectorColumn: View {
         HStack {
             Text(model.t("map.column.title")).font(.sfCardTitle)
             Spacer()
+            filterMenu
             Button { showImporter = true } label: { Image(systemName: "plus") }
                 .buttonStyle(.plain).help(model.t("map.pick.repo"))
         }
         .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+    }
+
+    /// Filter (by type) + group-by + sort, mirroring the Chats list's menu. The icon fills
+    /// when a non-default filter is active so it reads as "on".
+    private var filterMenu: some View {
+        Menu {
+            Picker(model.t("map.filter.kind"), selection: $kindFilter) {
+                Text(model.t("map.filter.kind.all")).tag("all")
+                Text(model.t("map.group.local")).tag("local")
+                Text(model.t("map.group.github")).tag("github")
+            }
+            Divider()
+            Picker(model.t("chat.groupBy"), selection: $groupBy) {
+                Text(model.t("chat.group.date")).tag("date")
+                Text(model.t("map.group.kind")).tag("kind")
+                Text(model.t("chat.group.none")).tag("none")
+            }
+            Picker(model.t("chat.sortBy"), selection: $sortBy) {
+                Text(model.t("chat.sort.recency")).tag("recency")
+                Text(model.t("chat.sort.name")).tag("name")
+                Text(model.t("chat.sort.oldest")).tag("oldest")
+            }
+        } label: {
+            Image(systemName: kindFilter != "all"
+                  ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .help(model.t("chat.filter.help"))
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title).font(.sfFieldLabel).foregroundStyle(.tertiary).textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.horizontal, Space.s).padding(.top, Space.s).padding(.bottom, 2)
+        .background(Theme.appBg)
     }
 
     private var searchField: some View {

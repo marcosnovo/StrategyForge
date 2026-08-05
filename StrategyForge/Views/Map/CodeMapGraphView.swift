@@ -96,32 +96,32 @@ struct CodeMapGraphView: View {
     /// and the target colour that far nodes fade toward (depth haze).
     static let darkBg = Color(red: 0.035, green: 0.06, blue: 0.075)
 
-    /// A HAND-TUNED categorical palette (design-panel result): coral leads the biggest cluster
-    /// (the brand); the rest are a warm-coral→teal→violet arc, ORDERED so sequential (largest)
-    /// clusters are far apart in BOTH hue and lightness — families read as clearly different yet
-    /// cohesive/premium (not a golden-angle rainbow), and the lightness spread keeps them
-    /// separable for colour-blind viewers. Beyond the anchors the long tail collapses to grey
-    /// (the eye can't track >~10 categories — pretending otherwise is what looked messy).
+    /// A CORAL-FAMILY palette so the graph reads like the app's coral thinking-orbs — warm and
+    /// on-brand, not a rainbow — while still separating clusters by hue+lightness within the
+    /// warm band (coral → terracotta → apricot → rose → amber → peach → mauve …). Coral leads
+    /// the biggest cluster (the brand). Ordered so sequential (largest) clusters are far apart
+    /// in lightness, keeping them distinguishable. The long tail collapses to a WARM muted taupe
+    /// (not a cool grey), so even "other" stays in the coral world.
     private static let clusterAnchors: [Color] = [
         Theme.coral,                                              // 0  brand coral
-        Color(hue: 0.55, saturation: 0.52, brightness: 0.82),    // 1  teal
-        Color(hue: 0.11, saturation: 0.62, brightness: 0.92),    // 2  amber
-        Color(hue: 0.72, saturation: 0.42, brightness: 0.80),    // 3  violet
-        Color(hue: 0.34, saturation: 0.48, brightness: 0.72),    // 4  sage
-        Color(hue: 0.02, saturation: 0.50, brightness: 0.86),    // 5  rose
-        Color(hue: 0.50, saturation: 0.55, brightness: 0.78),    // 6  cyan
-        Color(hue: 0.13, saturation: 0.35, brightness: 0.80),    // 7  sand
-        Color(hue: 0.63, saturation: 0.45, brightness: 0.82),    // 8  periwinkle
-        Color(hue: 0.42, saturation: 0.45, brightness: 0.70),    // 9  jade
-        Color(hue: 0.83, saturation: 0.40, brightness: 0.82),    // 10 orchid
-        Color(hue: 0.07, saturation: 0.55, brightness: 0.88),    // 11 apricot
+        Color(hue: 0.015, saturation: 0.62, brightness: 0.70),   // 1  deep terracotta
+        Color(hue: 0.085, saturation: 0.60, brightness: 0.93),   // 2  apricot
+        Color(hue: 0.975, saturation: 0.42, brightness: 0.86),   // 3  soft rose
+        Color(hue: 0.115, saturation: 0.60, brightness: 0.88),   // 4  amber
+        Color(hue: 0.045, saturation: 0.40, brightness: 0.80),   // 5  dusty coral
+        Color(hue: 0.060, saturation: 0.55, brightness: 0.97),   // 6  peach
+        Color(hue: 0.005, saturation: 0.55, brightness: 0.64),   // 7  brick
+        Color(hue: 0.100, saturation: 0.34, brightness: 0.84),   // 8  warm sand
+        Color(hue: 0.940, saturation: 0.34, brightness: 0.74),   // 9  mauve
+        Color(hue: 0.130, saturation: 0.52, brightness: 0.86),   // 10 honey
+        Color(hue: 0.990, saturation: 0.50, brightness: 0.70),   // 11 rosewood
     ]
     /// Colour for a cluster by its SIZE RANK (0 = biggest → coral). Anchors for the top ~12
-    /// clusters; the long tail collapses to grey (the eye can't track more than that anyway).
+    /// clusters; the long tail collapses to a warm taupe (still in the coral world).
     static func clusterColor(rank: Int) -> Color {
         if rank <= 0 { return Theme.coral }
         if rank < clusterAnchors.count { return clusterAnchors[rank] }
-        return Color(hue: 0.5, saturation: 0.05, brightness: 0.6)   // "other" — the long tail
+        return Color(hue: 0.05, saturation: 0.12, brightness: 0.62)   // "other" — warm long tail
     }
 
     /// The per-graph derived collections (sorts, dictionaries, sets). These depend ONLY on the
