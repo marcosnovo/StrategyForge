@@ -230,8 +230,12 @@ struct ArenaView: View {
                         if !arena.teamOrder.isEmpty { teamsResultsSection }
                     }
                 }
-                .padding(Space.xl).frame(maxWidth: 900, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                // ChatGPT-calm content column: a comfortable max width CENTERED in the window,
+                // instead of hugging the top-left with a wide dead gutter on the right. When
+                // results appear the adaptive grids below fill this width. (Same rule the chat
+                // transcript uses — the general "center the content column" pass.)
+                .padding(Space.xl).frame(maxWidth: 1040, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -41,7 +41,7 @@ struct StrategyForgeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()   // launch splash → warms provider/usage/repo caches, then reveals ContentView
                 .environment(model)
                 .environment(auth)
                 .tint(Theme.accent)
