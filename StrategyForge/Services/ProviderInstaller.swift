@@ -314,10 +314,18 @@ enum ProviderInstaller {
         }
     }
 
-    /// The first http(s) URL in a line of CLI output (the OAuth link).
+    /// The first http(s) URL in a line of CLI output (the OAuth link). Gemini/Codex wrap the
+    /// link in ANSI colour codes, so we STRIP those first — otherwise a trailing escape like
+    /// `…/tos-privacy\u{1B}[39m` gets swallowed into the URL and opens as
+    /// `…/tos-privacy%1B%5B39m` → 404 (the "reconnect opened an error page" bug). We also trim
+    /// trailing punctuation the CLI sometimes appends after the link.
     static func firstURL(in line: String) -> URL? {
-        guard let r = line.range(of: "https?://[^\\s\"'<>]+", options: .regularExpression) else { return nil }
-        return URL(string: String(line[r]))
+        let clean = line.replacingOccurrences(of: "\u{1B}\\[[0-9;]*[A-Za-z]", with: "",
+                                              options: .regularExpression)
+        guard let r = clean.range(of: "https?://[^\\s\"'<>]+", options: .regularExpression) else { return nil }
+        var s = String(clean[r])
+        while let last = s.last, ".,;:)]}>".contains(last) { s.removeLast() }
+        return URL(string: s)
     }
 
     /// Fallback: launch the provider's sign-in in Terminal (for CLIs whose login needs
