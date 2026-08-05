@@ -955,7 +955,7 @@ struct AgentActivityPanel: View {
                             .padding(.horizontal, 5).padding(.vertical, 1)
                             .background(Capsule().fill(Theme.tealSoft))
                     }
-                    statusBadge(status)
+                    statusBadge(status).fixedSize().layoutPriority(1)
                     Image(systemName: "chevron.right")
                         .scaledFont(9, weight: .semibold)
                         .foregroundStyle(isOpen ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
@@ -1030,11 +1030,13 @@ struct AgentActivityPanel: View {
         case .done:
             Label(model.t("activity.done"), systemImage: "checkmark.circle.fill")
                 .scaledFont(9, weight: .medium).foregroundStyle(Theme.success)
+                .lineLimit(1)
                 .padding(.horizontal, 6).padding(.vertical, 2)
                 .background(Capsule().fill(Theme.success.opacity(0.14)))
         case .idle:
             Label(model.t("activity.idle"), systemImage: "hourglass")
                 .scaledFont(9, weight: .medium).foregroundStyle(Theme.secondaryOnMaterial)
+                .lineLimit(1)
         }
     }
 
