@@ -539,6 +539,11 @@ struct ProviderConfigView: View {
                 model.flashSuccess(model.t("provider.fix.useKey.done"))
             }
             .buttonStyle(.bordered).controlSize(.small)
+        case .getAntigravity:
+            // Google retired the free Gemini CLI — the real remedy is Antigravity (`agy`), not
+            // a reinstall of the dead CLI. Open the download page; Coral resolves `agy` after.
+            Link(model.t("provider.fix.antigravity"), destination: ProviderDiagnostics.antigravityURL)
+                .buttonStyle(.moon).controlSize(.small)
         case .exportLog:
             Button(model.t("provider.fix.exportLog")) { model.exportDiagnostics() }
                 .buttonStyle(.bordered).controlSize(.small)

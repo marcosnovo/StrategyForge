@@ -576,14 +576,17 @@ struct AgentActivityPanel: View {
             agentRow(name: orchestratorName, icon: RoleKind.orchestrator.icon,
                      tint: RoleKind.orchestrator.tint, target: .orchestrator,
                      objective: orchestratorObjective, status: orchestratorStatus, stats: agg.orch,
-                     liveLine: shownStrategy.orchestrator.flatMap { vm.roleLiveLine[$0.name] })
+                     liveLine: shownStrategy.orchestrator.flatMap { vm.roleLiveLine[$0.name] },
+                     provider: shownStrategy.orchestrator?.provider,
+                     modelName: shownStrategy.orchestrator?.modelDisplayName)
             ForEach(shownStrategy.subagentRoles) { role in
                 let name = titleCase(role.name)
                 let s = agg.subs[name] ?? (0, nil)
                 agentRow(name: name, icon: role.role.icon, tint: role.role.tint, target: .sub(name),
                          objective: objective(forSubagent: name, fallback: role.description),
                          status: subagentStatus(name, hasWork: s.tools > 0), stats: s,
-                         liveLine: vm.roleLiveLine[role.name], running: vm.rolesRunning[role.name] ?? 0)
+                         liveLine: vm.roleLiveLine[role.name], running: vm.rolesRunning[role.name] ?? 0,
+                         provider: role.provider, modelName: role.modelDisplayName)
             }
         }
     }
@@ -917,7 +920,8 @@ struct AgentActivityPanel: View {
     private func agentRow(name: String, icon: String, tint: Color, target: AgentFocus,
                           objective: String, status: AgentStatus,
                           stats: (tools: Int, span: String?), liveLine: String? = nil,
-                          running: Int = 0) -> some View {
+                          running: Int = 0,
+                          provider: AIProvider? = nil, modelName: String? = nil) -> some View {
         let isOpen = focus == target
         return Button {
             focus = isOpen ? nil : target
@@ -933,6 +937,15 @@ struct AgentActivityPanel: View {
                         .font(.sfCaption2.weight(status == .active || isOpen ? .semibold : .medium))
                         .foregroundStyle(status == .idle ? .secondary : .primary)
                         .lineLimit(1)
+                    // WHO runs this agent — provider mark + model — so a mixed team is legible at
+                    // a glance right in the roster (founder: "no veo ni el proveedor ni el modelo").
+                    if let provider {
+                        ProviderLogo(provider: provider, size: 11, templateTint: provider.tint)
+                    }
+                    if let modelName, !modelName.isEmpty {
+                        Text(modelName).font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(Theme.tertiaryOnMaterial).lineLimit(1)
+                    }
                     Spacer(minLength: Space.xs)
                     // Fan-out: when several instances of this role run in parallel, show
                     // "×N" so a researcher ×3 reads as 3 workers, not one stuck agent.

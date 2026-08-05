@@ -17,19 +17,24 @@ enum ProviderDiagnostics {
 
     /// The concrete cause of a provider failure.
     enum Issue: String, Sendable, Equatable {
-        case notInstalled       // the CLI binary can't be found
-        case notSignedIn        // 401 / "failed to authenticate" / "set an auth method"
-        case modelUnsupported   // ChatGPT-account login rejects an explicit model
-        case unknown            // anything else — surface raw + offer the log
+        case notInstalled        // the CLI binary can't be found
+        case notSignedIn         // 401 / "failed to authenticate" / "set an auth method"
+        case modelUnsupported    // ChatGPT-account login rejects an explicit model
+        case migrateAntigravity  // Google retired the free Gemini CLI → Antigravity (agy)
+        case unknown             // anything else — surface raw + offer the log
     }
 
     /// The recommended one-click remedy for an issue.
     enum Fix: Sendable, Equatable {
-        case connect     // open the install → web sign-in flow (fixes notInstalled + notSignedIn)
-        case useAPIKey   // Codex model choice needs an API key (or just drop the model)
-        case exportLog   // last resort: hand the user the full log
+        case connect        // open the install → web sign-in flow (fixes notInstalled + notSignedIn)
+        case useAPIKey      // Codex model choice needs an API key (or just drop the model)
+        case getAntigravity // open antigravity.google to install the `agy` CLI (Gemini's successor)
+        case exportLog      // last resort: hand the user the full log
         case none
     }
+
+    /// Where to send a user to install Antigravity (the successor to the free Gemini CLI).
+    static let antigravityURL = URL(string: "https://antigravity.google")!
 
     /// The outcome of a check: healthy, or an issue with its raw detail + remedy.
     struct Finding: Sendable, Equatable {
@@ -48,8 +53,13 @@ enum ProviderDiagnostics {
         apiKeys: [AIProvider: String],
         reasoningEffort: String
     ) async -> (finding: Finding?, greeting: String) {
-        // 1. Is the CLI even there? (resolveBinary validates it's executable.)
+        // 1. Is the CLI even there? (resolveBinary validates it's executable — and for Gemini
+        // it also tries the `agy` fallback.) For Gemini, "not found" now means the free CLI is
+        // gone → point at Antigravity, not a futile reinstall of the retired `gemini`.
         guard CLIOneShotRunner.resolveBinary(binary, provider: provider) != nil else {
+            if provider == .gemini {
+                return (Finding(issue: .migrateAntigravity, raw: "", fix: .getAntigravity), "")
+            }
             return (Finding(issue: .notInstalled, raw: "", fix: .connect), "")
         }
         // 1b. A missing/expired stored login makes the real round-trip HANG (Gemini especially)
@@ -94,9 +104,7 @@ enum ProviderDiagnostics {
         // login reconnect can't fix it; the user must move to Antigravity. Check FIRST because
         // the message also contains "authenticate" and would otherwise read as "not signed in".
         if provider == .gemini, CLIOneShotRunner.isAntigravityMigration(raw) {
-            return Finding(issue: .notInstalled,
-                           raw: "Google retired the free Gemini CLI for individuals. Install Antigravity (the agy CLI) from https://antigravity.google and sign in there — Coral uses it automatically — then retry.",
-                           fix: .connect)
+            return Finding(issue: .migrateAntigravity, raw: raw, fix: .getAntigravity)
         }
         let authy = m.contains("401") || m.contains("invalid authentication")
             || m.contains("failed to authenticate") || m.contains("authenticate")

@@ -208,6 +208,18 @@ enum ProviderInstaller {
                     guard !data.isEmpty else { handle.readabilityHandler = nil; return }
                     for line in buffer.append(data) {
                         continuation.yield(.log(line))
+                        // Google retired the free Gemini CLI (IneligibleTier / "migrate to
+                        // Antigravity"): the login can NEVER complete, so don't let the creds-
+                        // mtime detector below report a false success. Fail with the real remedy,
+                        // open the Antigravity page, and stop (finish() makes later yields no-ops).
+                        if provider == .gemini, CLIOneShotRunner.isAntigravityMigration(line) {
+                            continuation.yield(.failed("Google retired the free Gemini CLI for individuals. Install Antigravity (the agy CLI) from antigravity.google and sign in there — Coral uses it automatically."))
+                            continuation.finish()
+                            handle.readabilityHandler = nil
+                            DispatchQueue.main.async { NSWorkspace.shared.open(ProviderDiagnostics.antigravityURL) }
+                            if process.isRunning { process.terminate() }
+                            return
+                        }
                         if !openedURL, let url = firstURL(in: line) {
                             openedURL = true
                             DispatchQueue.main.async { NSWorkspace.shared.open(url) }
