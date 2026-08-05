@@ -1249,6 +1249,10 @@ struct ChatView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .padding(.horizontal, Space.l)
+        // Ambient Coral comet that trails the cursor behind the greeting — a living first
+        // impression (Antigravity-style), retuned to the brand and kept faint so the prompts
+        // stay the focus. Blank under Reduce Motion.
+        .background(CursorParticleField().ignoresSafeArea())
     }
 
     /// A quiet example-prompt row: a small leading glyph + the prompt, no card/elevation/border
