@@ -385,6 +385,11 @@ struct ProviderConfigView: View {
                 // Already connected — offer a discreet re-auth (web sign-in).
                 Button(model.t("provider.reconnect")) { connecting = true }
                     .buttonStyle(.plain).font(.sfCaption2).foregroundStyle(.secondary)
+            } else if provider == .gemini {
+                // Gemini's interactive "Sign in with Google" is dead for the free tier — don't
+                // send the user back into it. The API-key card right below is the real action.
+                Link(model.t("provider.fix.geminiKey"), destination: ProviderDiagnostics.geminiKeyURL)
+                    .buttonStyle(.moon)
             } else {
                 Button(model.t("provider.connect")) { connecting = true }
                     .buttonStyle(.moon)
