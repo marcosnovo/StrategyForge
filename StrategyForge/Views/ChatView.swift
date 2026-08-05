@@ -792,17 +792,10 @@ struct ChatView: View {
                 .buttonStyle(.plain)
                 .help(model.t("chat.fullAccessOn.help"))
             }
-            // Context weight: the token count colored by how heavy every further
-            // re-read of this conversation has become (Token Saver).
-            HStack(spacing: 6) {
-                ContextWeightPill(tokens: vm.totalTokens)
-                if vm.totalCostUSD > 0 {
-                    Text(String(format: "\(vm.costEstimated ? "~" : "")$%.2f", vm.totalCostUSD))
-                        .font(.sfCaption2)
-                        .foregroundStyle(.secondary)
-                        .help(vm.costEstimated ? model.t("usage.estimated.help") : "")
-                }
-            }
+            // Context weight: the token count colored by how heavy every further re-read of
+            // this conversation has become (Token Saver). The running $cost lives in the Usage
+            // section + the per-turn completion beat — one less always-on number in the header.
+            ContextWeightPill(tokens: vm.totalTokens)
             // Plan headroom: your live Claude 5-hour rate-limit %, always visible while you
             // work (chat AND Code Mode share this header) — calm until you near the cap, then
             // amber/red. Tap → the Usage section. Renders nothing until the % is available.
@@ -1195,18 +1188,11 @@ struct ChatView: View {
     private var emptyState: some View {
         VStack(spacing: Space.l) {
             Spacer(minLength: Space.xl)
-            // The hero coral mark, seated in its OWN glow so it reads as emitting light into
-            // the reef, not a thumbnail floating in a void — the app's "logo in motion".
-            CoralSphere(size: 112)
-                .background {
-                    Circle()
-                        .fill(RadialGradient(colors: [Theme.coral.opacity(0.22), .clear],
-                                             center: .center, startRadius: 0, endRadius: 140))
-                        .frame(width: 280, height: 280)
-                        .blur(radius: 14)
-                        .breathingGlow(color: Theme.coral)
-                }
-                .restingShadow(diameter: 112)
+            // The hero coral mark — smaller and calmer (ChatGPT/Agentastic-minimal): the
+            // example prompts below are the real next action, so the logo shouldn't dominate
+            // the screen with a 280pt breathing halo.
+            CoralSphere(size: 72)
+                .restingShadow(diameter: 72)
                 .staggeredAppear(index: 0)
             // Hero greeting — big + tight so it dwarfs the body copy (a designed moment).
             (Text(chatGreeting).foregroundStyle(Theme.ink)
@@ -2029,12 +2015,8 @@ struct ChatView: View {
             if !vm.messages.isEmpty || showComposerControls {
                 HStack(spacing: Space.s) {
                     modeMenu
-                    grillToggle
-                    approachesToggle
-                    if config.repoPath?.isEmpty == false { isolateToggle }
+                    composerOverflowMenu   // Grill · Approaches · Isolate — one click away
                     Spacer(minLength: Space.s)
-                    ContextWindowChip(breakdown: ContextBreakdown.estimate(
-                        transcript: vm.messages, strategy: config.strategy))
                     modelEffortChip
                 }
             } else {
@@ -2054,59 +2036,32 @@ struct ChatView: View {
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: vm.permissionMode)
     }
 
-    /// "Grill me first" — the agent interrogates you on edge cases before implementing.
-    /// A calm toggle: coral when armed, neutral otherwise.
-    private var grillToggle: some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.15)) { vm.grillMe.toggle() }
+    /// The power toggles — Grill · Approaches · Isolate — folded behind ONE "+" menu with
+    /// checkmarks (ChatGPT/Codex pattern), so the resting composer stays clean. The trigger
+    /// tints coral when any option is armed; a live worktree still surfaces via isolationBar.
+    private var composerOverflowMenu: some View {
+        let armed = vm.grillMe || vm.proposeApproaches || vm.isolation != nil
+        return Menu {
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { vm.grillMe.toggle() }
+            } label: { Label(model.t("grill.label"), systemImage: vm.grillMe ? "checkmark" : "checklist") }
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { vm.proposeApproaches.toggle() }
+            } label: { Label(model.t("approaches.label"), systemImage: vm.proposeApproaches ? "checkmark" : "square.grid.2x2") }
+            if config.repoPath?.isEmpty == false {
+                Button { vm.requestIsolation() } label: {
+                    Label(model.t("isolate.label"), systemImage: vm.isolation != nil ? "checkmark" : "shield")
+                }
+                .disabled(vm.isolationBusy)
+            }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "checklist").font(.system(size: 10))
-                Text(model.t("grill.label")).font(.sfCaption2.weight(.medium))
-            }
-            .foregroundStyle(vm.grillMe ? Theme.coral : .secondary)
-            .padding(.horizontal, 7).padding(.vertical, 2)
-            .background(Capsule().fill(vm.grillMe ? Theme.accentSoft : .clear))
+            Image(systemName: "plus.circle")
+                .font(.system(size: 13))
+                .foregroundStyle(armed ? Theme.coral : .secondary)
         }
-        .buttonStyle(.plain)
-        .help(model.t("grill.help"))
-        .accessibilityLabel(model.t("grill.label"))
-    }
-
-    /// "Approaches" — the agent proposes N distinct approaches to compare before implementing.
-    private var approachesToggle: some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.15)) { vm.proposeApproaches.toggle() }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "square.grid.2x2").font(.system(size: 10))
-                Text(model.t("approaches.label")).font(.sfCaption2.weight(.medium))
-            }
-            .foregroundStyle(vm.proposeApproaches ? Theme.coral : .secondary)
-            .padding(.horizontal, 7).padding(.vertical, 2)
-            .background(Capsule().fill(vm.proposeApproaches ? Theme.accentSoft : .clear))
-        }
-        .buttonStyle(.plain)
-        .help(model.t("approaches.help"))
-        .accessibilityLabel(model.t("approaches.label"))
-    }
-
-    /// "Aislar" — run in a git worktree so autonomous edits don't touch the live tree until
-    /// you review + merge. Coral when armed.
-    private var isolateToggle: some View {
-        Button { vm.requestIsolation() } label: {
-            HStack(spacing: 4) {
-                if vm.isolationBusy { ProgressView().controlSize(.mini).scaleEffect(0.7) }
-                else { Image(systemName: vm.isolation != nil ? "shield.lefthalf.filled" : "shield").font(.system(size: 10)) }
-                Text(model.t("isolate.label")).font(.sfCaption2.weight(.medium))
-            }
-            .foregroundStyle(vm.isolation != nil ? Theme.coral : .secondary)
-            .padding(.horizontal, 7).padding(.vertical, 2)
-            .background(Capsule().fill(vm.isolation != nil ? Theme.accentSoft : .clear))
-        }
-        .buttonStyle(.plain)
-        .help(model.t("isolate.help"))
-        .accessibilityLabel(model.t("isolate.label"))
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .help(model.t("composer.options"))
+        .accessibilityLabel(model.t("composer.options"))
     }
 
     /// The banner shown while a run is isolated: review the diff, merge it into the working

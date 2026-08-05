@@ -29,8 +29,9 @@ struct NavRail: View {
     /// The power-tools group under "More" is collapsed by default (persisted).
     @AppStorage("nav.showMore") private var showMore = false
     /// Sections that live under "More" — used to auto-open the group when one is active.
+    /// (Team is now a top-level WORK item; Code Map + Arena moved DOWN into More.)
     private var moreSectionActive: Bool {
-        [.team, .loops, .memory, .skills, .usage, .services].contains(model.navSection)
+        [.map, .arena, .loops, .memory, .skills, .usage, .services].contains(model.navSection)
     }
     private var moreShown: Bool { showMore || moreSectionActive }
 
@@ -65,26 +66,25 @@ struct NavRail: View {
                          help: "rail.code.help") {
                         model.guardedLeave { model.navSection = .code }
                     }
-                    item("circle.hexagongrid.fill", "rail.map", active: model.navSection == .map,
-                         help: "rail.map.help") {
-                        model.guardedLeave { model.navSection = .map }
-                    }
-
-                    railSection("rail.section.compare")
-                    item("flag.checkered", "rail.arena", active: model.navSection == .arena,
-                         help: "rail.arena.help") {
-                        model.guardedLeave { model.navSection = .arena }
+                    // Team is the headline "design a team" capability — promoted into WORK.
+                    item("person.3.sequence.fill", "rail.team", active: model.navSection == .team,
+                         help: "rail.team.help") {
+                        model.guardedLeave { model.navSection = .team }
                     }
 
                     railDivider
 
                     // POWER TOOLS + setup, behind one disclosure so the resting rail stays
-                    // scannable. Auto-expands when one of its sections is active.
+                    // scannable (Chats · Code · Team). Auto-expands when one is active.
                     moreTile
                     if moreShown {
-                        item("person.3.sequence.fill", "rail.team", active: model.navSection == .team,
-                             help: "rail.team.help") {
-                            model.guardedLeave { model.navSection = .team }
+                        item("circle.hexagongrid.fill", "rail.map", active: model.navSection == .map,
+                             help: "rail.map.help") {
+                            model.guardedLeave { model.navSection = .map }
+                        }
+                        item("flag.checkered", "rail.arena", active: model.navSection == .arena,
+                             help: "rail.arena.help") {
+                            model.guardedLeave { model.navSection = .arena }
                         }
                         item("arrow.triangle.2.circlepath", "rail.loops",
                              active: model.navSection == .loops,
