@@ -30,6 +30,12 @@ struct CodeMapView: View {
     @State private var query = ""
     @State private var filterCommunity: Int?
 
+    /// Which map to show: the static CODE knowledge graph, or the LIVE agent graph (the same
+    /// fan-out/fan-in visualization used in the activity panel, promoted to a selectable Map
+    /// view so you can watch a team execute on a big canvas).
+    private enum MapMode: Hashable { case code, agents }
+    @State private var mapMode: MapMode = .code
+
     // graphify explain / path results
     @State private var explainText: String?
     @State private var explaining = false
@@ -46,8 +52,10 @@ struct CodeMapView: View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.4)
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Group {
+                if mapMode == .agents { agentGraphPane } else { content }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Theme.appBg)
         .onAppear {
@@ -89,6 +97,14 @@ struct CodeMapView: View {
             recentMenu
 
             Spacer()
+
+            // Switch the canvas between the static code graph and the live agent graph.
+            Picker("", selection: $mapMode) {
+                Text(model.t("map.mode.code")).tag(MapMode.code)
+                Text(model.t("map.mode.agents")).tag(MapMode.agents)
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            .help(model.t("map.mode.help"))
 
             if store.isRefreshing {
                 HStack(spacing: 4) {
@@ -316,6 +332,45 @@ struct CodeMapView: View {
             } else {
                 readyState
             }
+        }
+    }
+
+    // MARK: Agent graph mode
+
+    /// The live snapshot to render: prefer a chat that's actually running (so the Map becomes a
+    /// big-canvas live monitor), else the selected chat if it has a graph, else nil (idle).
+    private var liveSnapshot: LiveGraphSnapshot? {
+        for id in model.runningChatIDs {
+            if let vm = model.chatViewModel(for: id) {
+                let g = vm.liveGraph
+                if !g.nodes.isEmpty { return g }
+            }
+        }
+        if let id = model.selectedConfigID, let vm = model.chatViewModel(for: id) {
+            let g = vm.liveGraph
+            if !g.nodes.isEmpty { return g }
+        }
+        return nil
+    }
+
+    /// The live agent graph promoted to a full Map canvas. When nothing is executing it shows a
+    /// calm idle state (this view watches runs; it doesn't start them).
+    @ViewBuilder
+    private var agentGraphPane: some View {
+        if let snap = liveSnapshot {
+            LiveAgentGraphView(snapshot: snap)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(Space.l)
+        } else {
+            VStack(spacing: Space.s) {
+                Image(systemName: "point.3.connected.trianglepath.dotted")
+                    .font(.system(size: 30)).foregroundStyle(.tertiary)
+                Text(model.t("map.agents.idle.title")).font(.sfCardTitle).foregroundStyle(Theme.ink)
+                Text(model.t("map.agents.idle.detail")).font(.sfCallout).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 360)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
