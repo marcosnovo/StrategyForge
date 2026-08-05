@@ -49,7 +49,7 @@ private final class CursorFieldState {
                     }
                 }
                 return Speck(hx: hx, hy: hy,
-                             len: CGFloat.random(in: 1.6...3.2),
+                             len: CGFloat.random(in: 1.2...2.6),
                              ang: Double.random(in: 0..<(2 * .pi)),
                              phase: Double.random(in: 0..<(2 * .pi)),
                              colorIndex: Int.random(in: 0..<4))
@@ -97,11 +97,26 @@ private final class CursorFieldState {
 struct CursorParticleField: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// How many specks fill the field. Cheap enough to be generous.
-    var count: Int = 160
+    var count: Int = 210
     @State private var field = CursorFieldState()
 
     /// Coral-family palette — warm, on-brand (no cool blues like the reference).
     private static let palette: [Color] = [Theme.coral, Theme.coralDeep, Theme.warning, Theme.accent]
+
+    /// One speck as a short dash — oriented along its VELOCITY when it's moving (so shoved
+    /// specks streak outward like the reference), else along its resting angle.
+    private func dashPath(_ p: CursorFieldState.Speck) -> Path {
+        let speed = sqrt(p.vx * p.vx + p.vy * p.vy)
+        let moving = speed > 0.5
+        let ang = moving ? atan2(Double(p.vy), Double(p.vx)) : p.ang
+        let len = moving ? Swift.min(p.len + speed * 1.1, 12) : p.len   // streak with speed
+        let hx = CGFloat(cos(ang)) * len
+        let hy = CGFloat(sin(ang)) * len
+        var path = Path()
+        path.move(to: CGPoint(x: p.x - hx, y: p.y - hy))
+        path.addLine(to: CGPoint(x: p.x + hx, y: p.y + hy))
+        return path
+    }
 
     var body: some View {
         if reduceMotion {
@@ -111,15 +126,20 @@ struct CursorParticleField: View {
                 Canvas { ctx, size in
                     field.seed(count: count, size: size)
                     field.step(size: size, time: timeline.date.timeIntervalSinceReferenceDate)
+                    // GLOW pass: the same dashes, thicker + blurred into a soft bloom layer.
+                    ctx.drawLayer { layer in
+                        layer.addFilter(.blur(radius: 3.5))
+                        for p in field.specks {
+                            let c = Self.palette[p.colorIndex % Self.palette.count]
+                            layer.stroke(dashPath(p), with: .color(c.opacity(0.45)),
+                                         style: StrokeStyle(lineWidth: 4.0, lineCap: .round))
+                        }
+                    }
+                    // CRISP pass on top: the bright core of each speck.
                     for p in field.specks {
                         let c = Self.palette[p.colorIndex % Self.palette.count]
-                        let hx = CGFloat(cos(p.ang)) * p.len
-                        let hy = CGFloat(sin(p.ang)) * p.len
-                        var path = Path()
-                        path.move(to: CGPoint(x: p.x - hx, y: p.y - hy))
-                        path.addLine(to: CGPoint(x: p.x + hx, y: p.y + hy))
-                        ctx.stroke(path, with: .color(c.opacity(0.6)),
-                                   style: StrokeStyle(lineWidth: 1.9, lineCap: .round))
+                        ctx.stroke(dashPath(p), with: .color(c.opacity(0.9)),
+                                   style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
                     }
                 }
             }
