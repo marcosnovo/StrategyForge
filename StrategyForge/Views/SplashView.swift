@@ -47,6 +47,8 @@ struct RootView: View {
     }
 
     @MainActor private func runSteps() async {
+        step = model.t("splash.models")
+        await ModelCatalog.refresh()   // pull the latest add/deprecate list (repo-hosted, cached)
         step = model.t("splash.providers")
         await model.refreshConnectedProviders()
         step = model.t("splash.verify")

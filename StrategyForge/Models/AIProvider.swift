@@ -156,9 +156,14 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// The models this provider exposes (tier-based; exact ids are resolved by the
-    /// provider's own CLI/login, so these stay general on purpose).
-    var models: [ProviderModel] {
+    /// The models this provider exposes — merged from the repo-hosted catalog when it's been
+    /// fetched (so new/deprecated models land WITHOUT an app release), falling back to the
+    /// built-in list below. See `ModelCatalog`.
+    var models: [ProviderModel] { ModelCatalog.models(for: self) }
+
+    /// The compiled-in default model list — the fallback when no remote catalog is available.
+    /// Exact ids are resolved by the provider's own CLI/login, so these stay general on purpose.
+    var builtInModels: [ProviderModel] {
         switch self {
         case .claude:
             return ClaudeModel.allCases.map {
@@ -196,7 +201,7 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable, Hashable {
 
 /// A selectable model within a provider. Kept provider-agnostic so the picker can
 /// list any back-end's models uniformly.
-struct ProviderModel: Identifiable, Hashable {
+struct ProviderModel: Identifiable, Hashable, Codable {
     let id: String
     let displayName: String
     /// Localization key for the capability tier (Expert / Generalist / Fast…).

@@ -1,0 +1,19 @@
+{
+  "_comment": "Coral's live model catalog. Edit this file (on main) to add new models or drop deprecated ones for every user on their next launch — no app release needed. A provider omitted from 'providers' keeps the app's built-in list. tierKey is a localization key: model.tier.expert | model.tier.generalist | model.tier.fast | model.tier.specialist.",
+  "providers": {
+    "openai": [
+      { "id": "gpt-5.6-terra", "displayName": "GPT-5.6 Terra", "tierKey": "model.tier.expert" },
+      { "id": "gpt-5.5", "displayName": "GPT-5.5", "tierKey": "model.tier.expert" },
+      { "id": "gpt-5.6-luna", "displayName": "GPT-5.6 Luna", "tierKey": "model.tier.generalist" },
+      { "id": "gpt-5", "displayName": "GPT-5", "tierKey": "model.tier.generalist" },
+      { "id": "gpt-5-mini", "displayName": "GPT-5 mini", "tierKey": "model.tier.fast" }
+    ],
+    "gemini": [
+      { "id": "gemini-3-pro-preview", "displayName": "Gemini 3 Pro", "tierKey": "model.tier.expert" },
+      { "id": "gemini-3-flash-preview", "displayName": "Gemini 3 Flash", "tierKey": "model.tier.generalist" },
+      { "id": "gemini-2.5-pro", "displayName": "Gemini 2.5 Pro", "tierKey": "model.tier.expert" },
+      { "id": "gemini-2.5-flash", "displayName": "Gemini 2.5 Flash", "tierKey": "model.tier.generalist" },
+      { "id": "gemini-2.5-flash-lite", "displayName": "Gemini 2.5 Flash-Lite", "tierKey": "model.tier.fast" }
+    ]
+  }
+}
