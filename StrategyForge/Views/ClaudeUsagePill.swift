@@ -46,6 +46,8 @@ struct ClaudeUsagePill: View {
                     case .tile:
                         VStack(spacing: 1) { gauge(tint).font(.system(size: 15)); percentText(pct, tint) }
                             .frame(maxWidth: .infinity).padding(.vertical, 3)
+                            .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+                                .fill(model.navSection == .usage ? Theme.selectionFill : .clear))
                     }
                 }
                 .contentShape(Rectangle())
@@ -67,6 +69,8 @@ struct ClaudeUsagePill: View {
                         .foregroundStyle(Theme.secondaryOnMaterial).lineLimit(1).minimumScaleFactor(0.75)
                 }
                 .frame(maxWidth: .infinity).padding(.vertical, 3)
+                .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+                    .fill(model.navSection == .usage ? Theme.selectionFill : .clear))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

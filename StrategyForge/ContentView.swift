@@ -48,7 +48,6 @@ struct ContentView: View {
             // in full when there's no active chat (so New chat stays reachable).
             // Always-present dark navigation rail (brand + actions + settings).
             NavRail(showSidebar: $model.showSidebar)
-            Rectangle().fill(Theme.hairline.opacity(0.5)).frame(width: 1)
 
             // Second column: the chat list, the services list, or (in Team) the
             // strategy picker so you can swap the whole team.
@@ -65,11 +64,9 @@ struct ContentView: View {
             } else if model.navSection == .loops {
                 // Loops section leads with the loop list (mirrors Team).
                 LoopSelectorColumn(store: LoopStore.shared)
-                Rectangle().fill(Theme.hairline.opacity(0.5)).frame(width: 1)
             } else if model.navSection == .map {
                 // Map section leads with the list of generated maps.
                 MapSelectorColumn()
-                Rectangle().fill(Theme.hairline.opacity(0.5)).frame(width: 1)
             } else if model.navSection == .usage
                         || model.navSection == .particleLab || model.navSection == .code
                         || model.navSection == .skills || model.navSection == .memory
@@ -329,7 +326,11 @@ struct ContentView: View {
 /// (no TimelineView, so no per-frame cost). Deterministic xorshift seed → no flicker on the
 /// occasional redraw. Subtle enough to read as texture, not noise.
 struct GrainOverlay: View {
+    @Environment(\.colorScheme) private var scheme
     var body: some View {
+        // Lighter grain on the near-white light ground (halved) so the roomy surface stays
+        // clean; dark keeps a touch more tooth.
+        let ceiling = scheme == .dark ? 0.05 : 0.025
         Canvas { ctx, size in
             var seed: UInt64 = 0x9E3779B97F4A7C15
             func rnd() -> Double {
@@ -341,7 +342,7 @@ struct GrainOverlay: View {
                 let x = rnd() * size.width, y = rnd() * size.height
                 // Mostly bright specks (catch the light) with a few dark ones for tooth.
                 let bright = rnd() > 0.35
-                let a = rnd() * (bright ? 0.05 : 0.045)
+                let a = rnd() * (bright ? ceiling : ceiling * 0.9)
                 ctx.fill(Path(CGRect(x: x, y: y, width: 1, height: 1)),
                          with: .color((bright ? Color.white : Color.black).opacity(a)))
             }
@@ -451,10 +452,12 @@ struct AppAuroraBackground: View {
     private func reefSunrise(w: CGFloat, h: CGFloat, d: CGFloat) -> some View {
         let dark = scheme == .dark
         return ZStack {
+            // Light: a whisper of coral in the far corners only — the reading area stays a
+            // clean near-white (the ground should read as ONE light surface, not tinted).
             bloom(Theme.coral, at: CGPoint(x: w * 0.98, y: h * -0.02),
-                  size: d * 1.15, opacity: dark ? 0.10 : 0.17)
+                  size: d * 1.15, opacity: dark ? 0.10 : 0.06)
             bloom(Theme.coralDeep, at: CGPoint(x: w * 0.02, y: h * 1.02),
-                  size: d * 0.85, opacity: dark ? 0.05 : 0.09)
+                  size: d * 0.85, opacity: dark ? 0.05 : 0.03)
         }
         .blur(radius: 100)
         .drawingGroup()

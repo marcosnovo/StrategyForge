@@ -53,8 +53,8 @@ enum Theme {
     /// Soft NEUTRAL wash for a selected list row / card — ChatGPT-calm: selection reads as
     /// a quiet grey background, not a coral block (coral stays for actions, not state).
     static let selectionFill = Color(
-        light: Color.black.opacity(0.055),
-        dark:  Color.white.opacity(0.085))
+        light: Color.black.opacity(0.09),   // ~#E8E8E8 on white — visible-but-calm; the ONLY
+        dark:  Color.white.opacity(0.085))  // selection cue now that borders are dropped.
     /// Selected rows no longer carry a border — the grey wash alone marks selection.
     static let selectionBorder = Color.clear
     /// Focus ring stroke for text fields / focusable controls (visible only when focused).
@@ -105,7 +105,7 @@ enum Theme {
 
     // MARK: Status (aligned to the Coral identity)
     static let success = Color(
-        light: Color(red: 0.090, green: 0.518, blue: 0.263),   // #178443 (was #35B06A ≈2.5:1 as text)
+        light: Color(red: 0.082, green: 0.478, blue: 0.243),   // #157A3E — AA on the real ground (≥4.4:1)
         dark:  Color(red: 0.306, green: 0.796, blue: 0.557))   // #4ECB8E
     static let warning = Color(
         light: Color(red: 0.898, green: 0.631, blue: 0.227),   // #E5A13A amber (fills/icons)
@@ -118,7 +118,7 @@ enum Theme {
     /// Danger repainted off the coral hue (was #F03E27 ≈ coral): a cooler crimson so error
     /// reads unmistakably "not-brand" and stays distinct for red-blind users.
     static let danger = Color(
-        light: Color(red: 0.831, green: 0.176, blue: 0.247),   // #D42D3F crimson (AA 4.9:1, hue ~353°)
+        light: Color(red: 0.788, green: 0.165, blue: 0.235),   // #C92A3C — AA on the real ground (≥5.0:1)
         dark:  Color(red: 1.000, green: 0.361, blue: 0.424))   // #FF5C6C
 
     // Semantic strip fills — ONE learnable shade per severity for the banners above the
@@ -496,6 +496,7 @@ private struct RestingShadow: ViewModifier {
 
 private struct CardModifier: ViewModifier {
     var padding: CGFloat
+    @Environment(\.colorScheme) private var scheme
     func body(content: Content) -> some View {
         content
             .padding(padding)
@@ -504,11 +505,14 @@ private struct CardModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(Theme.cardBg)
                     // A soft contact shadow so the card reads as a LIT object resting on the
-                    // (now darker) ground — a hairline alone left every panel flat on white.
+                    // ground — material + shadow carry separation.
                     .elevation(.e1))
+            // On LIGHT the white card lifts off the near-white ground by material + shadow
+            // (Claude/Things) — the near-invisible-but-noisy border is the "bordery" feeling,
+            // so it's dropped. On DARK the hairline still helps define the edge.
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .strokeBorder(Theme.hairline, lineWidth: 1))
+                    .strokeBorder(scheme == .dark ? Theme.hairline : Color.clear, lineWidth: 1))
     }
 }
 

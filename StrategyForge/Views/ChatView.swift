@@ -722,9 +722,12 @@ struct ChatView: View {
                                 Text(model.t("chat.autoTeam.badge"))
                                     .font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.accent)
                             } else {
+                                // A chosen team is a RESTING label, not the live moment — neutral
+                                // ink so the only coral in the chat is the send button (+ the
+                                // auto-team wand above, a genuine "we'll pick" state).
                                 Text(model.strategyDisplayName(config.strategy))
                                     .font(.sfCaption2.weight(.medium))
-                                    .foregroundStyle(Theme.accent)
+                                    .foregroundStyle(Theme.ink)
                             }
                             // Explicit disclosure cue: the capsule is a menu, not a label.
                             Image(systemName: "chevron.down")
@@ -732,8 +735,7 @@ struct ChatView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, 9).padding(.vertical, 3)
-                        .glassEffect(.regular.tint(Theme.accent.opacity(0.18)).interactive(),
-                                     in: .capsule)
+                        .glassEffect(.regular.interactive(), in: .capsule)
                     }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                     .help(model.t("chat.teamMenu.help"))
@@ -792,13 +794,9 @@ struct ChatView: View {
                 .buttonStyle(.plain)
                 .help(model.t("chat.fullAccessOn.help"))
             }
-            // Context weight: the token count colored by how heavy every further re-read of
-            // this conversation has become (Token Saver). The running $cost lives in the Usage
-            // section + the per-turn completion beat — one less always-on number in the header.
-            ContextWeightPill(tokens: vm.totalTokens)
-            // Plan headroom: your live Claude 5-hour rate-limit %, always visible while you
-            // work (chat AND Code Mode share this header) — calm until you near the cap, then
-            // amber/red. Tap → the Usage section. Renders nothing until the % is available.
+            // ONE status chip: plan headroom (live Claude 5h rate-limit %). The context-weight
+            // gauge was a second, near-identical gauge pill — its bloat signal still fires via
+            // the TokenSaverBanner at threshold, so the resting header carries one chip, not two.
             ClaudeUsagePill(style: .chip)
             // Mission report — the shareable summary of the finished run.
             if vm.hasFinishedActivity {

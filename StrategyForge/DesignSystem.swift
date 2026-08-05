@@ -62,16 +62,18 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
     var palette: Palette {
         switch self {
         case .classic:
-            // A real ~12 L* value ladder so cards read as LIT objects on a darker ground
-            // (the old F A F 9 F 6 → F F F F F F cluster was all within ~3%, so nothing popped).
+            // A COOL near-white light ground (was warm greige #F1EFEA) with a real elevation
+            // staircase appBg < columnBg < cardBg(#FFF) so cards read as lit sheets, and a
+            // recessed (not near-black) rail. Foregrounds retuned to clear WCAG AA on the new,
+            // non-white ground. (Design pass 2, 2026-08-05 — verified ratios in the tokens.)
             return Palette(
-                appBg: hex("F1EFEA", "0C1315"), columnBg: hex("EAE8E2", "121E21"),
-                cardBg: hex("FFFFFF", "16262A"), insetBg: hex("E3E1D9", "1B2E33"),
-                railBg: hex("081014", "081014"),
-                ink: hex("1A2426", "EAF3F1"), secondary: hex("5D6A67", "86A0A0"),
-                tertiary: hex("736A5F", "7E9A9A"), hairline: hex("D8D4CB", "1D2D32"),
+                appBg: hex("F7F7F5", "0C1315"), columnBg: hex("F2F2F0", "121E21"),
+                cardBg: hex("FFFFFF", "16262A"), insetBg: hex("ECECEA", "1B2E33"),
+                railBg: hex("E4E2DC", "081014"),
+                ink: hex("1A2426", "EAF3F1"), secondary: hex("5A6563", "86A0A0"),
+                tertiary: hex("63696B", "7E9A9A"), hairline: hex("E6E5E1", "1D2D32"),
                 coral: hex("FF6B54", "FF6B54"), coralDeep: hex("E24029", "E24029"),
-                accent: hex("C33A22", "FF6B54"), glow: 0.22,
+                accent: hex("BE3A22", "FF6B54"), glow: 0.22,
                 backdrop: .auroraCoral, usesGlass: true, hero: .standard)
 
         case .reefPaper:
@@ -81,7 +83,7 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
             return Palette(
                 appBg: hex("EFEDE8", "0E1114"), columnBg: hex("E7E5DF", "141A1E"),
                 cardBg: hex("FFFFFF", "1A2227"), insetBg: hex("E0DED7", "10161A"),
-                railBg: hex("0C0E12", "080B0E"),
+                railBg: hex("E1DFD9", "080B0E"),
                 ink: hex("1C1D1F", "ECEFF1"), secondary: hex("63656A", "98A0A6"),
                 tertiary: hex("8A8C92", "6E767C"), hairline: hex("D6D4CC", "242E33"),
                 coral: hex("F5573C", "FF6E56"), coralDeep: hex("E0432B", "E8482E"),
@@ -104,7 +106,7 @@ enum DesignSystem: String, CaseIterable, Identifiable, Sendable {
             return Palette(
                 appBg: hex("EFEDF2", "0D0B12"), columnBg: hex("E8E5EE", "141221"),
                 cardBg: hex("FFFFFF", "181521"), insetBg: hex("E2DEEA", "1E1A2A"),
-                railBg: hex("0A0810", "0A0810"),
+                railBg: hex("E4E1EA", "0A0810"),
                 ink: hex("141118", "F0ECF4"), secondary: hex("615A6C", "A79FB4"),
                 tertiary: hex("7C7488", "8A8398"), hairline: hex("D6D2DE", "241F2E"),
                 coral: hex("FF6B54", "FF6B54"), coralDeep: hex("E5397E", "FF3D8A"),
