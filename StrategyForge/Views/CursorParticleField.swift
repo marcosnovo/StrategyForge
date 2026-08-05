@@ -2,161 +2,109 @@
 //  CursorParticleField.swift
 //  StrategyForge
 //
-//  The Antigravity landing-page background, retuned to Coral: a whole FIELD of tiny drifting
-//  specks that SCATTER AWAY from the cursor — the pointer opens a calm bubble in the field and
-//  the specks ease back home when it leaves. Mouse tracking uses SwiftUI's native
-//  `.onContinuousHover` (reliable, no NSEvent-monitor lifecycle to get wrong — the earlier miss);
-//  the specks also drift gently so the field is alive even before you move. One cheap Canvas.
-//  Blank/static under Reduce Motion.
+//  A living Coral ORB behind the empty chat: a centred cloud of soft glowing dots that slowly
+//  rotate as one body (a galaxy, not a swarm of bugs — every position is analytic from angle+time,
+//  so there's no per-dot jitter). As the cursor nears, the dots around it ARE DRAWN TOWARD it and
+//  fade out — they approach and disappear — then reappear as it moves on. Glow via a blurred bloom
+//  pass. Blank under Reduce Motion.
 //
 
 import SwiftUI
 
-/// The mutable field state — a reference type so hover updates and the per-frame step mutate it
-/// without churning SwiftUI @State (the Canvas reads it each frame).
-private final class CursorFieldState {
-    struct Speck {
-        var hx: Double            // home position, as a fraction of the canvas (0…1)
-        var hy: Double
-        var x: CGFloat = 0        // live pixel position
-        var y: CGFloat = 0
-        var vx: CGFloat = 0
-        var vy: CGFloat = 0
-        var len: CGFloat          // half-length of the little dash
-        var ang: Double           // orientation
-        var phase: Double         // per-speck offset for the idle shimmer
+/// Immutable-ish dot definition + the live cursor. A reference type so hover updates don't churn
+/// SwiftUI @State; the Canvas reads it each frame.
+private final class OrbFieldState {
+    struct Dot {
+        var angle: Double        // base angle around the orb centre
+        var radius: Double       // 0…1 fraction of the orb radius (denser toward the middle)
+        var size: CGFloat        // dot radius in points
+        var spin: Double         // per-dot angular-speed multiplier (parallax)
         var colorIndex: Int
     }
-    var specks: [Speck] = []
+    var dots: [Dot] = []
     var cursor: CGPoint = .zero
     var hasCursor = false
     private var seeded = false
-    private var size: CGSize = .zero
 
-    /// Lay `count` specks with homes biased AWAY from the centre (so they don't crowd the hero
-    /// text) — sampled once. Pixel positions start at home.
-    func seed(count: Int, size: CGSize) {
-        guard size.width > 1, size.height > 1 else { return }
-        if seeded, self.size == size { return }
-        self.size = size
-        if !seeded {
-            specks = (0..<count).map { _ in
-                var hx = Double.random(in: 0...1), hy = Double.random(in: 0...1)
-                for _ in 0..<2 {                              // thin the centre so text stays clean
-                    let dx = hx - 0.5, dy = hy - 0.5
-                    if (dx * dx) / (0.30 * 0.30) + (dy * dy) / (0.22 * 0.22) < 1 {
-                        hx = Double.random(in: 0...1); hy = Double.random(in: 0...1)
-                    }
-                }
-                return Speck(hx: hx, hy: hy,
-                             len: CGFloat.random(in: 1.2...2.6),
-                             ang: Double.random(in: 0..<(2 * .pi)),
-                             phase: Double.random(in: 0..<(2 * .pi)),
-                             colorIndex: Int.random(in: 0..<4))
-            }
-            seeded = true
+    func seed(count: Int) {
+        guard !seeded else { return }
+        dots = (0..<count).map { _ in
+            Dot(angle: Double.random(in: 0..<(2 * .pi)),
+                radius: pow(Double.random(in: 0...1), 0.62),   // bias inward → reads as an orb
+                size: CGFloat.random(in: 1.3...3.0),
+                spin: Double.random(in: 0.6...1.4),
+                colorIndex: Int.random(in: 0..<4))
         }
-        for i in specks.indices {
-            specks[i].x = CGFloat(specks[i].hx) * size.width
-            specks[i].y = CGFloat(specks[i].hy) * size.height
-        }
-    }
-
-    /// One physics step. The field is STILL at rest (scattered confetti — no idle wander, which
-    /// read as "crawling bugs"); specks only move when the cursor PUSHES them away within a
-    /// radius, then ease smoothly back to their fixed home. Returns whether anything moved, so a
-    /// fully-settled field can skip redraws.
-    @discardableResult
-    func step(size: CGSize) -> Bool {
-        guard seeded else { return false }
-        let radius: CGFloat = 200
-        var moved = false
-        for i in specks.indices {
-            var p = specks[i]
-            let homeX = CGFloat(p.hx) * size.width
-            let homeY = CGFloat(p.hy) * size.height
-            p.vx += (homeX - p.x) * 0.045          // firmer pull home → settles, doesn't jitter
-            p.vy += (homeY - p.y) * 0.045
-            if hasCursor {
-                let dx = p.x - cursor.x, dy = p.y - cursor.y
-                let d2 = dx * dx + dy * dy
-                if d2 < radius * radius {
-                    let d = max(sqrt(d2), 0.01)
-                    let falloff = 1 - d / radius
-                    let push = falloff * falloff * 9.0     // strong, smooth (quadratic) shove
-                    p.vx += dx / d * push
-                    p.vy += dy / d * push
-                }
-            }
-            p.vx *= 0.82; p.vy *= 0.82
-            // Snap to rest once it's essentially home (kills the last few pixels of drift).
-            if abs(p.vx) < 0.02 && abs(p.vy) < 0.02
-                && abs(p.x - homeX) < 0.3 && abs(p.y - homeY) < 0.3 {
-                p.x = homeX; p.y = homeY; p.vx = 0; p.vy = 0
-            } else {
-                p.x += p.vx; p.y += p.vy
-                moved = true
-            }
-            specks[i] = p
-        }
-        return moved
+        seeded = true
     }
 }
 
 struct CursorParticleField: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// How many specks fill the field. Cheap enough to be generous.
-    var count: Int = 210
-    @State private var field = CursorFieldState()
+    var count: Int = 170
+    @State private var orb = OrbFieldState()
 
-    /// Coral-family palette — warm, on-brand (no cool blues like the reference).
+    /// Coral-family palette — warm, on-brand.
     private static let palette: [Color] = [Theme.coral, Theme.coralDeep, Theme.warning, Theme.accent]
-
-    /// One speck as a short dash — oriented along its VELOCITY when it's moving (so shoved
-    /// specks streak outward like the reference), else along its resting angle.
-    private func dashPath(_ p: CursorFieldState.Speck) -> Path {
-        let speed = sqrt(p.vx * p.vx + p.vy * p.vy)
-        let moving = speed > 0.5
-        let ang = moving ? atan2(Double(p.vy), Double(p.vx)) : p.ang
-        let len = moving ? Swift.min(p.len + speed * 1.1, 12) : p.len   // streak with speed
-        let hx = CGFloat(cos(ang)) * len
-        let hy = CGFloat(sin(ang)) * len
-        var path = Path()
-        path.move(to: CGPoint(x: p.x - hx, y: p.y - hy))
-        path.addLine(to: CGPoint(x: p.x + hx, y: p.y + hy))
-        return path
-    }
 
     var body: some View {
         if reduceMotion {
             Color.clear
         } else {
-            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
                 Canvas { ctx, size in
-                    field.seed(count: count, size: size)
-                    field.step(size: size)
-                    // GLOW pass: the same dashes, thicker + blurred into a soft bloom layer.
+                    orb.seed(count: count)
+                    let t = timeline.date.timeIntervalSinceReferenceDate
+                    let cx = size.width / 2, cy = size.height / 2
+                    let R = min(size.width, size.height) * 0.46
+                    let influence: CGFloat = 160
+
+                    // Resolve every dot's screen position + alpha + size ONCE (shared by both passes).
+                    var frame: [(p: CGPoint, r: CGFloat, a: Double, c: Color)] = []
+                    frame.reserveCapacity(orb.dots.count)
+                    for dot in orb.dots {
+                        let ang = dot.angle + t * 0.05 * dot.spin                 // slow galaxy spin
+                        let breathe = 1 + 0.03 * sin(t * 0.5 + dot.angle)          // gentle life
+                        let rad = dot.radius * Double(R) * breathe
+                        var x = cx + CGFloat(cos(ang)) * CGFloat(rad)
+                        var y = cy + CGFloat(sin(ang)) * CGFloat(rad)
+                        var alpha = 0.85
+                        var r = dot.size
+                        if orb.hasCursor {
+                            let dx = orb.cursor.x - x, dy = orb.cursor.y - y
+                            let dist = max(sqrt(dx * dx + dy * dy), 0.01)
+                            if dist < influence {
+                                let ease = pow(1 - dist / influence, 1.6)          // 0…1, near→1
+                                x += dx * ease * 0.8                                // approach cursor
+                                y += dy * ease * 0.8
+                                alpha *= Double(1 - ease)                           // …and fade away
+                                r *= (1 - 0.6 * ease)
+                            }
+                        }
+                        frame.append((CGPoint(x: x, y: y), r, alpha,
+                                      Self.palette[dot.colorIndex % Self.palette.count]))
+                    }
+
+                    // GLOW pass — larger, blurred discs form a soft bloom.
                     ctx.drawLayer { layer in
-                        layer.addFilter(.blur(radius: 3.5))
-                        for p in field.specks {
-                            let c = Self.palette[p.colorIndex % Self.palette.count]
-                            layer.stroke(dashPath(p), with: .color(c.opacity(0.45)),
-                                         style: StrokeStyle(lineWidth: 4.0, lineCap: .round))
+                        layer.addFilter(.blur(radius: 4))
+                        for f in frame where f.a > 0.02 {
+                            let gr = f.r * 2.6
+                            layer.fill(Path(ellipseIn: CGRect(x: f.p.x - gr, y: f.p.y - gr, width: 2 * gr, height: 2 * gr)),
+                                       with: .color(f.c.opacity(f.a * 0.5)))
                         }
                     }
-                    // CRISP pass on top: the bright core of each speck.
-                    for p in field.specks {
-                        let c = Self.palette[p.colorIndex % Self.palette.count]
-                        ctx.stroke(dashPath(p), with: .color(c.opacity(0.9)),
-                                   style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
+                    // CRISP cores on top.
+                    for f in frame where f.a > 0.02 {
+                        ctx.fill(Path(ellipseIn: CGRect(x: f.p.x - f.r, y: f.p.y - f.r, width: 2 * f.r, height: 2 * f.r)),
+                                 with: .color(f.c.opacity(f.a)))
                     }
                 }
             }
-            // Native hover tracking — fires reliably in the view's own coordinate space.
             .onContinuousHover(coordinateSpace: .local) { phase in
                 switch phase {
-                case .active(let p): field.cursor = p; field.hasCursor = true
-                case .ended:         field.hasCursor = false
+                case .active(let p): orb.cursor = p; orb.hasCursor = true
+                case .ended:         orb.hasCursor = false
                 }
             }
         }
