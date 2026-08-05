@@ -498,13 +498,8 @@ struct SidebarView: View {
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             .help(model.t("import.repo"))
-            // Quick "new chat" right where the chats live.
-            Button { model.addConfiguration() } label: {
-                Image(systemName: "square.and.pencil")
-            }
-            .buttonStyle(.borderless)
-            .help(model.t("sidebar.new"))
-            .accessibilityLabel(model.t("sidebar.new"))
+            // New-chat lives in the NavRail (the single persistent create affordance) + the
+            // empty-state CTA — one create entry point, matching Claude/ChatGPT. (No pencil here.)
         }
         .padding(.horizontal, Space.m)
         .padding(.top, model.titlebarTopInset).padding(.bottom, Space.s)

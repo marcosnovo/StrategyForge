@@ -217,7 +217,7 @@ struct ChatView: View {
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.accentSoft)
+        .background(Theme.infoStripFill)
     }
 
     /// Honest note when the team mixes providers that don't run yet.
@@ -235,7 +235,7 @@ struct ChatView: View {
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.warning.opacity(0.10))
+        .background(Theme.warnStripFill)
     }
 
     private func checkEngine() async {
@@ -299,25 +299,30 @@ struct ChatView: View {
         // recommendation card can no longer push the composer off-screen (the founder's bug).
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
-                // STATE strips keep their tinted treatment — things to resolve, not suggestions.
-                if engineMissing { engineMissingCard }
-                if let p = vm.needsReauth { reauthBanner(p) }
-                if vm.mixedProvidersNote { mixedProvidersStrip }
-                if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
-                if !vm.editedFiles.isEmpty { changedFilesStrip }
+                // ONE state banner at a time, priority-ordered (most urgent first) — the six
+                // used to be able to STACK into a tower above the composer. changedFiles is
+                // content (not a must-resolve state), so it shows only when no state banner is up.
+                let hasStateBanner = vm.errorText != nil || vm.needsReauth != nil
+                    || (!vm.deniedTools.isEmpty && !vm.isRunning) || engineMissing || vm.mixedProvidersNote
                 if let error = vm.errorText { errorBanner(error) }
-                // SUGGESTIONS collapse to ONE neutral coach at a time: the rich advisor card,
-                // else a single CoachChip (team-fit / loop / repo), else a saving tip. Bounded
-                // so a big card scrolls internally instead of shoving the composer down.
-                Group {
-                    if advisorCardVisible { advisorCard }
-                    coachSlot
-                    if let tip = saverTip, !advisorCardVisible, !hasCoachSuggestion {
-                        TokenSaverBanner(tip: tip,
-                                         onAction: { saverAction(tip) },
-                                         onDismiss: { dismissedTips.insert(tip.kind) })
-                            .padding(.horizontal, Space.m)
-                            .padding(.top, Space.s)
+                else if let p = vm.needsReauth { reauthBanner(p) }
+                else if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
+                else if engineMissing { engineMissingCard }
+                else if vm.mixedProvidersNote { mixedProvidersStrip }
+                else if !vm.editedFiles.isEmpty { changedFilesStrip }
+                // SUGGESTIONS collapse to ONE coach at a time, and never show while a state
+                // banner is up (don't compete with a must-resolve message for attention).
+                if !hasStateBanner {
+                    Group {
+                        if advisorCardVisible { advisorCard }
+                        coachSlot
+                        if let tip = saverTip, !advisorCardVisible, !hasCoachSuggestion {
+                            TokenSaverBanner(tip: tip,
+                                             onAction: { saverAction(tip) },
+                                             onDismiss: { dismissedTips.insert(tip.kind) })
+                                .padding(.horizontal, Space.m)
+                                .padding(.top, Space.s)
+                        }
                     }
                 }
                 inputBar
@@ -739,7 +744,7 @@ struct ChatView: View {
                         if MapStore.shared.maps.contains(where: { $0.repoPath == path }) {
                             Button { model.navSection = .map } label: {
                                 Image(systemName: "circle.hexagongrid.fill")
-                                    .font(.system(size: 11)).foregroundStyle(Theme.coral)
+                                    .font(.system(size: 11)).foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
                             .help(model.t("map.injected.help"))
@@ -1003,7 +1008,7 @@ struct ChatView: View {
                 .padding(Space.l)
                 // ChatGPT-calm: a centered reading column with generous gutters, instead
                 // of hugging the left edge.
-                .frame(maxWidth: 760)
+                .frame(maxWidth: Theme.readingColumn)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: vm.messages.count)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: vm.isRunning)
@@ -1058,11 +1063,11 @@ struct ChatView: View {
                     // fill read as an alert/error and was the loudest thing on screen; calm
                     // chat UIs keep the user's own words near-neutral (ChatGPT/Claude).
                     // Coral is reclaimed for actions + the live agent moment, not chat history.
+                    // Neutral grey chip (like Claude/ChatGPT) — the user's own words are not a
+                    // brand moment. Coral is reclaimed for the live/primary things only.
                     .background(
                         RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
-                            .fill(Theme.coral.opacity(0.10))
-                            .overlay(RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
-                                .strokeBorder(Theme.coral.opacity(0.16), lineWidth: 1)))
+                            .fill(Theme.selectionFill))
                     .contextMenu {
                         copyButton(message.text)
                         Button { editMessage(message) } label: {
@@ -1133,7 +1138,7 @@ struct ChatView: View {
                                         Label(model.t("artifact.open"), systemImage: "rectangle.on.rectangle.angled")
                                             .font(.sfCaption2)
                                     }
-                                    .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                                    .buttonStyle(.plain).foregroundStyle(.secondary)
                                 }
                             }
                             Spacer(minLength: 0)
@@ -1161,7 +1166,7 @@ struct ChatView: View {
                                             Label(model.t("chat.secondOpinion", other.displayName), systemImage: "arrow.triangle.branch")
                                                 .font(.sfCaption2.weight(.medium))
                                         }
-                                        .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                                        .buttonStyle(.plain).foregroundStyle(.secondary)
                                         .help(model.t("chat.secondOpinion.help", other.displayName))
                                     }
                                 }
@@ -1505,7 +1510,7 @@ struct ChatView: View {
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.warning.opacity(0.12))
+        .background(Theme.warnStripFill)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
@@ -1543,7 +1548,7 @@ struct ChatView: View {
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.warning.opacity(0.12))
+        .background(Theme.warnStripFill)
         // Reconnect the SPECIFIC provider (worker or orchestrator) then re-run the turn.
         .sheet(item: $reconnectingProvider) { p in
             ProviderConnectSheet(provider: p) {
@@ -1583,7 +1588,7 @@ struct ChatView: View {
         }
         .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.danger.opacity(0.10))
+        .background(Theme.dangerStripFill)
         // Reconnect flow (install if needed → web sign-in) then auto-retry the turn.
         .sheet(isPresented: $reconnecting) {
             ProviderConnectSheet(provider: config.provider) {

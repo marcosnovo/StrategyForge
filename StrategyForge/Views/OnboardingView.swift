@@ -2,8 +2,9 @@
 //  OnboardingView.swift
 //  StrategyForge
 //
-//  First-run welcome that explains, in plain language, what the app does and the
-//  three steps — and, crucially, that it only writes files (it does not run agents).
+//  First-run welcome that explains, in plain language, what the app does and the three
+//  steps: it runs your AI coding agents on your own plan, and asks before making changes
+//  (you choose how much autonomy to grant — see `onboard.note`).
 //
 
 import SwiftUI

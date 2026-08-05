@@ -221,6 +221,10 @@ struct CodeLauncherView: View {
                 Text(model.t("code.launcher.subtitle"))
                     .font(.sfCallout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                // Signpost the headline value (multi-agent Chats) against the commodity value
+                // (solo Code) so the two primary doors read differently.
+                Button(model.t("code.hero.crosslink")) { model.navSection = .chats }
+                    .buttonStyle(.plain).font(.sfCaption2).foregroundStyle(.secondary)
             }
         }
     }

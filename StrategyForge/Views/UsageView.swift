@@ -57,20 +57,20 @@ struct UsageView: View {
         let ctx = CodeMapContext.shared
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: Space.s) {
-                Image(systemName: "circle.hexagongrid.fill").font(.system(size: 13)).foregroundStyle(Theme.coral)
+                Image(systemName: "circle.hexagongrid.fill").font(.system(size: 13)).foregroundStyle(.secondary)
                 Text(model.t("usage.map.title")).font(.sfCardTitle)
                 Spacer()
                 Button(model.t("rail.map")) { model.navSection = .map }
-                    .buttonStyle(.plain).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.coral)
+                    .buttonStyle(.plain).font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
             }
             Text(model.t("usage.map.saved", Self.tokensShort(ctx.sessionSavedTokens)))
                 .font(.sfBodyM).foregroundStyle(Theme.ink)
             Text(model.t("usage.map.detail", ctx.sessionInjections, Self.usdShort(ctx.sessionSavedUSD)))
                 .font(.sfCaption2).foregroundStyle(.secondary)
         }
-        .padding(Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous).fill(Theme.cardBg))
+        // Share the one standard card surface (corner + cardBg + hairline + elevation) instead
+        // of a bare flat rectangle, so it matches its sibling cards.
+        .card()
     }
 
     /// Compact token count: 1_234 → "1.2k", 2_500_000 → "2.5M".

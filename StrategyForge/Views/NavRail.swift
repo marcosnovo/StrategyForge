@@ -51,7 +51,8 @@ struct NavRail: View {
                     railSection("rail.section.work")
                     item("bubble.left.and.bubble.right.fill", "sidebar.chats",
                          active: model.navSection == .chats,
-                         running: !model.runningChatIDs.isEmpty || !model.attentionChatIDs.isEmpty) {
+                         running: !model.runningChatIDs.isEmpty || !model.attentionChatIDs.isEmpty,
+                         help: "sidebar.chats.help") {
                         model.guardedLeave {
                             model.navSection = .chats
                             // Rail = "where am I" (reveal the list); the chat HEADER's toggle is
@@ -60,15 +61,18 @@ struct NavRail: View {
                             else { withAnimation(.easeInOut(duration: 0.18)) { showSidebar = true } }
                         }
                     }
-                    item("chevron.left.forwardslash.chevron.right", "rail.code", active: model.navSection == .code) {
+                    item("chevron.left.forwardslash.chevron.right", "rail.code", active: model.navSection == .code,
+                         help: "rail.code.help") {
                         model.guardedLeave { model.navSection = .code }
                     }
-                    item("circle.hexagongrid.fill", "rail.map", active: model.navSection == .map) {
+                    item("circle.hexagongrid.fill", "rail.map", active: model.navSection == .map,
+                         help: "rail.map.help") {
                         model.guardedLeave { model.navSection = .map }
                     }
 
                     railSection("rail.section.compare")
-                    item("flag.checkered", "rail.arena", active: model.navSection == .arena) {
+                    item("flag.checkered", "rail.arena", active: model.navSection == .arena,
+                         help: "rail.arena.help") {
                         model.guardedLeave { model.navSection = .arena }
                     }
 
@@ -78,7 +82,8 @@ struct NavRail: View {
                     // scannable. Auto-expands when one of its sections is active.
                     moreTile
                     if moreShown {
-                        item("person.3.sequence.fill", "rail.team", active: model.navSection == .team) {
+                        item("person.3.sequence.fill", "rail.team", active: model.navSection == .team,
+                             help: "rail.team.help") {
                             model.guardedLeave { model.navSection = .team }
                         }
                         item("arrow.triangle.2.circlepath", "rail.loops",
@@ -86,10 +91,12 @@ struct NavRail: View {
                              running: !LoopStore.shared.runningLoopIDs.isEmpty) {
                             model.guardedLeave { model.navSection = .loops }
                         }
-                        item("brain", "rail.memory", active: model.navSection == .memory) {
+                        item("brain", "rail.memory", active: model.navSection == .memory,
+                             help: "rail.memory.help") {
                             model.guardedLeave { model.navSection = .memory }
                         }
-                        item("puzzlepiece.extension.fill", "rail.skills", active: model.navSection == .skills) {
+                        item("puzzlepiece.extension.fill", "rail.skills", active: model.navSection == .skills,
+                             help: "rail.skills.help") {
                             model.guardedLeave { model.navSection = .skills }
                         }
                         item("gauge.with.dots.needle.bottom.50percent", "rail.usage", active: model.navSection == .usage) {
@@ -232,12 +239,15 @@ struct NavRail: View {
     /// ramp and the active accent is coral.
     private func item(_ icon: String, _ labelKey: String,
                       active: Bool = false, running: Bool = false,
+                      help helpKey: String? = nil,
                       action: @escaping () -> Void) -> some View {
+        // The tooltip TEACHES what the destination does (verb-first) rather than echoing the
+        // label — so a newcomer can tell the sections apart on hover. Falls back to the label.
         Button(action: action) {
             rowBody(icon: icon, label: model.t(labelKey), active: active, running: running)
         }
         .buttonStyle(.plain)
-        .help(model.t(labelKey))
+        .help(model.t(helpKey ?? labelKey))
         .accessibilityLabel(model.t(labelKey))
     }
 

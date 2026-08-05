@@ -121,6 +121,13 @@ enum Theme {
         light: Color(red: 0.831, green: 0.176, blue: 0.247),   // #D42D3F crimson (AA 4.9:1, hue ~353°)
         dark:  Color(red: 1.000, green: 0.361, blue: 0.424))   // #FF5C6C
 
+    // Semantic strip fills — ONE learnable shade per severity for the banners above the
+    // composer, so a passive info nudge no longer floods the screen with brand coral and
+    // every state reads at a glance. (Design review, 2026-08-05.)
+    static var infoStripFill: Color { accentSoft.opacity(0.625) }   // ≈ coral @ 0.10, calm
+    static var warnStripFill: Color { warning.opacity(0.12) }
+    static var dangerStripFill: Color { danger.opacity(0.10) }
+
     // MARK: Team spectrum (governed) — muted, cool-leaning teammate hues so the coral
     // ORCHESTRATOR stays the unmistakable hero in any topology. Desaturated ~25% from the
     // old full-strength set; reviewer/researcher no longer collide with warning/success.
@@ -160,8 +167,11 @@ enum Theme {
     static let turnGap: CGFloat = 16
     /// Extra line spacing for body copy so long replies read comfortably (1.55-ish).
     static let bodyLineSpacing: CGFloat = 5
-    /// The comfortable reading measure (~72 chars at body size) — narrower than before.
-    static let readingColumn: CGFloat = 680
+    /// The comfortable reading measure the chat transcript + composer share (one named
+    /// column instead of the literal 760 sprinkled through ChatView).
+    static let readingColumn: CGFloat = 760
+    /// The wider content measure for form-like sections (Arena, etc.), centered in the window.
+    static let contentColumn: CGFloat = 1040
 }
 
 // MARK: - Coral brand mark
