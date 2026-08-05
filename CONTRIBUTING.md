@@ -5,6 +5,10 @@ designs and runs multi-agent AI teams on your own AI subscriptions. This guide g
 building, tells you where the guardrails are, and shows the single highest-value
 contribution: **adding a new AI provider.**
 
+**Contributing to the Windows port?** It lives entirely under [`windows/`](windows/README.md)
+and has no shared code with the macOS app below — see that folder's README instead. The
+rest of this file (prerequisites, first build, code style, guardrails) is macOS-specific.
+
 ## Prerequisites
 
 - **macOS 14+ (Sonoma)** and **Xcode**. This is an Apple-platform app — it can't be

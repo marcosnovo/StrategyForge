@@ -30,6 +30,7 @@ on:
       - 'Branding/**'
       - 'LICENSE'
       - '.gitignore'
+      - 'windows/**'
   pull_request:
     branches: [main]
     paths-ignore:
@@ -38,6 +39,7 @@ on:
       - 'Branding/**'
       - 'LICENSE'
       - '.gitignore'
+      - 'windows/**'
   workflow_dispatch:
 
 concurrency:

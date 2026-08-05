@@ -1,0 +1,27 @@
+# CI for the Windows port (windows/). Independent of tests.yml (the macOS gate):
+# this only triggers on windows/** changes, and macOS-only changes never trigger this.
+name: windows-tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'windows/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'windows/**'
+  workflow_dispatch:
+
+concurrency:
+  group: windows-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  placeholder:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No project yet
+        run: echo "windows/ has no solution to build yet. Replace this job with an actual build+test step once the Windows project is scaffolded (see windows/README.md)."
