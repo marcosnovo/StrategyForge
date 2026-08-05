@@ -100,6 +100,7 @@ y ahora, con 5+ apps nativas Mac nuevas en el nicho, **la ventana para plantar b
 - **Lente de coste nodo/arista** — separa pensamiento (nodos) de enrutado evitable (aristas). *(Graph Engineering.)*
 - **Countdowns de reset** (5h + semana) + **filtrar/agrupar/ordenar chats**. *(CodexBar.)*
 - **Uso sin fricción de llavero (nuevo):** abrir "Uso" **nunca** toca el Keychain (muestra el % cacheado); el prompt solo aparece bajo ↻ deliberado.
+- **Pasada de diseño "limpio" (nuevo, ago-2026):** revisión con 6 agentes especializados vs. las tendencias limpias (Claude/ChatGPT/Codex/**Agentastic**/Cursor) → aplicado: **un solo acento** (coral solo en lo vivo/primario), **un banner de estado a la vez**, rail plano (Chats·Code·Team + More), composer con menú "+" (Grill/Approaches/Isolate ocultos), cabecera y empty-state más calmados, copy de seguridad en lenguaje llano ("qué tan difícil de deshacer"). Norte de diseño fijado como ley del producto. *(Respuesta directa a "Coral se ha complicado" y al listón de UI de Agentastic.)*
 
 ---
 
