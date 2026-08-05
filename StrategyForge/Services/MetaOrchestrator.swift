@@ -172,12 +172,28 @@ struct MetaOrchestrator {
                     task: String,
                     cwd: String?,
                     runner: OneShotRunner,
+                    authCheck: @escaping @Sendable (AIProvider) -> ProviderAuth.State = { ProviderAuth.freshness($0) },
                     onEvent: @escaping @Sendable (MetaEvent) -> Void) async -> String? {
         guard let orchestrator = strategy.orchestrator else {
             onEvent(.failed("This team has no orchestrator.")); return nil
         }
         let orchModel = modelID(for: orchestrator)
         let workers = strategy.subagentRoles
+
+        // PRE-FLIGHT auth. A provider whose stored login is MISSING or EXPIRED makes its CLI
+        // HANG (Gemini especially) instead of failing fast — so launching its workers would
+        // burn the FULL 10-minute watchdog per instance. That's the "se tiró 10 minutos y
+        // falló, gastando tokens a lo tonto" bug. Detect stale logins up front (cheap, on-disk,
+        // no subprocess, no Keychain), surface Reconnect immediately, and treat those providers
+        // as unavailable: their workers are skipped (never launched), and if the ORCHESTRATOR
+        // itself can't authenticate we fail in seconds, not minutes.
+        let staleProviders: Set<AIProvider> = Set(([orchestrator] + workers).map(\.provider))
+            .filter { let s = authCheck($0); return s == .missing || s == .expired }
+        for p in staleProviders { onEvent(.authRequired(p)) }
+        if staleProviders.contains(orchestrator.provider) {
+            onEvent(.failed("\(orchestrator.provider.displayName) needs you to sign in again — reconnect it in Providers, then retry."))
+            return nil
+        }
 
         // Map a role's live one-shot events onto MetaEvents, so the timeline fills with
         // each agent's tool steps AS they happen (Claude workers/orchestrator stream via
@@ -269,6 +285,9 @@ struct MetaOrchestrator {
             // saw). The gate lets the FIRST auth failure surface the Reconnect prompt once, and
             // its still-pending siblings skip their subprocess — they just decrement the count.
             let authGate = AuthGate()
+            // Pre-trip the gate for providers we already know are signed out, so their workers
+            // skip the (doomed, hang-prone) subprocess launch entirely.
+            for p in staleProviders { _ = await authGate.trip(p) }
             let collected = await withTaskGroup(of: WorkerResult?.self) { group -> [WorkerResult] in
                 var order = 0
                 for sub in subtasks {
@@ -308,7 +327,12 @@ struct MetaOrchestrator {
                                 // A stale login surfaces as a typed auth error → tell the UI which
                                 // provider to reconnect (one-tap), but ONLY the first time for that
                                 // provider so its fanned-out siblings don't each raise the prompt.
+                                // Both a fast auth prompt AND a silent stall mean "this provider
+                                // won't answer" — trip the gate so siblings skip, and surface
+                                // Reconnect once per provider.
                                 if case .authRequired(let p)? = (error as? OneShotError) {
+                                    if await authGate.trip(p) { onEvent(.authRequired(p)) }
+                                } else if case .stalled(let p)? = (error as? OneShotError) {
                                     if await authGate.trip(p) { onEvent(.authRequired(p)) }
                                 }
                                 // Report the failure (logged + marked done on the main
@@ -331,7 +355,12 @@ struct MetaOrchestrator {
             // Every worker failed → nothing to synthesize. Fail with actionable guidance
             // instead of feeding the orchestrator an empty result set.
             if collected.isEmpty {
-                onEvent(.failed("Every agent failed to produce a result — check each provider is signed in and supports its model (see the diagnostics log), then retry."))
+                if !staleProviders.isEmpty {
+                    let names = staleProviders.map(\.displayName).sorted().joined(separator: ", ")
+                    onEvent(.failed("No agent could run — \(names) needs you to sign in again. Reconnect it in Providers, then retry."))
+                } else {
+                    onEvent(.failed("Every agent failed to produce a result — check each provider is signed in and supports its model (see the diagnostics log), then retry."))
+                }
                 return nil
             }
             let results: [(role: String, text: String)] = collected.map { ($0.role, $0.text) }

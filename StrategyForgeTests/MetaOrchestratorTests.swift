@@ -159,7 +159,7 @@ struct MetaOrchestratorRunTests {
         let box = EventBox()
 
         let final = await MetaOrchestrator.run(strategy: strategy, task: "Do the thing", cwd: nil,
-                                               runner: runner) { box.append($0) }
+                                               runner: runner, authCheck: { _ in .ok }) { box.append($0) }
 
         // Final synthesized answer.
         #expect(final == "FINAL ANSWER")
@@ -211,7 +211,7 @@ struct MetaOrchestratorRunTests {
                                    provider: .claude, systemPrompt: "", description: "Investigate", count: 1)
         let strategy = Strategy(name: "T", description: "", roles: [orch, researcher], orchestrationNotes: "")
         let box = EventBox()
-        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: StreamingRunner()) { box.append($0) }
+        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: StreamingRunner(), authCheck: { _ in .ok }) { box.append($0) }
 
         // The researcher's Read step surfaced live, attributed to it.
         #expect(box.events.contains(.roleActivity(role: "researcher", title: "Read", detail: "App.swift")))
@@ -234,7 +234,7 @@ struct MetaOrchestratorRunTests {
         let runner = MockRunner()
         runner.planJSON = #"[{"role":"researcher","task":"a"},{"role":"researcher","task":"b"},{"role":"researcher","task":"c"}]"#
         let box = EventBox()
-        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: runner) { box.append($0) }
+        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: runner, authCheck: { _ in .ok }) { box.append($0) }
         // researcher (Sonnet) ran exactly 3 times — one per subtask, not 9.
         let researcherCalls = runner.calls.filter { $0 == .init(provider: .claude, model: "claude-sonnet-5") }.count
         #expect(researcherCalls == 3)
@@ -251,7 +251,7 @@ struct MetaOrchestratorRunTests {
         let runner = MockRunner()
         runner.planJSON = #"[{"role":"worker","task":"only one"}]"#
         let box = EventBox()
-        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: runner) { box.append($0) }
+        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: runner, authCheck: { _ in .ok }) { box.append($0) }
         let workerCalls = runner.calls.filter { $0 == .init(provider: .claude, model: "claude-sonnet-5") }.count
         #expect(workerCalls == 3)
     }
@@ -277,7 +277,26 @@ struct MetaOrchestratorRunTests {
         researcher.providerModelID = "gemini-flash"
         let strategy = Strategy(name: "T", description: "", roles: [orch, researcher], orchestrationNotes: "")
         let box = EventBox()
-        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: AuthFailRunner()) { box.append($0) }
+        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: AuthFailRunner(), authCheck: { _ in .ok }) { box.append($0) }
+        #expect(box.events.contains(.authRequired(.gemini)))
+    }
+
+    @Test func staleProviderWorkersAreSkippedNotLaunched() async {
+        // PRE-FLIGHT: a provider whose stored login is missing/expired must have its workers
+        // SKIPPED (never launched), so the turn fails in seconds instead of each doomed
+        // instance hanging to the 10-minute watchdog. No Gemini call is made; Reconnect fires.
+        let orch = AgentRole(name: "orchestrator", role: .orchestrator, model: .opus48,
+                             systemPrompt: "", description: "Lead", count: 1, isOrchestrator: true)
+        var researcher = AgentRole(name: "researcher", role: .researcher, model: .sonnet5,
+                                   systemPrompt: "", description: "Dig", count: 3)
+        researcher.provider = .gemini
+        let strategy = Strategy(name: "T", description: "", roles: [orch, researcher], orchestrationNotes: "")
+        let runner = MockRunner()
+        runner.planJSON = #"[{"role":"researcher","task":"dig"}]"#
+        let box = EventBox()
+        _ = await MetaOrchestrator.run(strategy: strategy, task: "go", cwd: nil, runner: runner,
+                                       authCheck: { $0 == .gemini ? .missing : .ok }) { box.append($0) }
+        #expect(runner.calls.filter { $0.provider == .gemini }.isEmpty)   // never launched
         #expect(box.events.contains(.authRequired(.gemini)))
     }
 
@@ -288,7 +307,7 @@ struct MetaOrchestratorRunTests {
         let runner = MockRunner()
         let box = EventBox()
         let final = await MetaOrchestrator.run(strategy: strategy, task: "Just answer", cwd: nil,
-                                               runner: runner) { box.append($0) }
+                                               runner: runner, authCheck: { _ in .ok }) { box.append($0) }
         #expect(final == "result:claude-opus-4-8")
         #expect(runner.calls.count == 1)   // no plan/synthesize, just one answer
     }

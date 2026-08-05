@@ -63,6 +63,10 @@ enum OneShotError: Error, LocalizedError, Equatable {
     /// moment it prints an auth prompt, so the run fails fast with a Reconnect affordance
     /// instead of hanging on a prompt no one can answer.
     case authRequired(AIProvider)
+    /// The CLI produced NO output at all within the stall window — almost always a stuck
+    /// login/handshake (esp. Gemini) that won't ever answer. Killed early so the user gets a
+    /// fast, actionable failure instead of waiting out the full call watchdog.
+    case stalled(AIProvider)
 
     var errorDescription: String? {
         switch self {
@@ -72,6 +76,8 @@ enum OneShotError: Error, LocalizedError, Equatable {
             return "The model didn't finish within \(s / 60) minutes — the task or the combined agent output may be too large. Try splitting the task, using fewer agents, or a faster model."
         case .authRequired(let p):
             return "\(p.displayName) needs you to sign in again — its saved login looks expired. Reconnect \(p.displayName) and retry."
+        case .stalled(let p):
+            return "\(p.displayName) didn't respond at all — its login is likely expired or it's stuck. Reconnect \(p.displayName) (Providers) and retry."
         }
     }
 }
@@ -438,6 +444,8 @@ struct CLIOneShotRunner: OneShotRunner {
         private var cancelled = false
         private var timedOut = false
         private var auth = false
+        private var stalled = false
+        private var sawOutput = false
         /// Returns false when the run was already cancelled — the caller must NOT
         /// launch the process then (terminate() on a never-launched Process raises
         /// NSInvalidArgumentException, and launching would leak an ownerless CLI).
@@ -456,6 +464,15 @@ struct CLIOneShotRunner: OneShotRunner {
         func tripAuth() { lock.lock(); defer { lock.unlock() }
             auth = true; cancelled = true; if let p = process, p.isRunning { p.terminate() } }
         func didTripAuth() -> Bool { lock.lock(); defer { lock.unlock() }; return auth }
+        /// Record that the child has produced at least one byte — cancels the stall watchdog's
+        /// grounds for firing.
+        func markOutput() { lock.lock(); defer { lock.unlock() }; sawOutput = true }
+        /// The stall watchdog fired: if the child is STILL silent, kill it and remember why
+        /// (so the caller throws `.stalled`). No-op once any output has arrived.
+        func stallIfSilent() { lock.lock(); defer { lock.unlock() }
+            guard !sawOutput else { return }
+            stalled = true; cancelled = true; if let p = process, p.isRunning { p.terminate() } }
+        func didStall() -> Bool { lock.lock(); defer { lock.unlock() }; return stalled }
     }
 
     /// Launch under a PTY so a CLI that block-buffers when its stdout is a pipe (Codex,
@@ -506,12 +523,18 @@ struct CLIOneShotRunner: OneShotRunner {
                     defer { LiveProcesses.deregister(p) }
                     let watchdog = DispatchWorkItem { box.timeOut() }
                     DispatchQueue.global().asyncAfter(deadline: .now() + Self.callTimeout, execute: watchdog)
+                    // A PTY worker (Codex/Gemini) streams as it thinks — so producing ZERO bytes
+                    // for a whole stall window means it's stuck (almost always an expired login /
+                    // hung handshake). Kill it early instead of waiting out the 10-minute cap.
+                    let stallWatch = DispatchWorkItem { box.stallIfSilent() }
+                    DispatchQueue.global().asyncAfter(deadline: .now() + Self.stallTimeout, execute: stallWatch)
                     let buf = LineBuffer()
                     var outData = Data()
                     var raw = [UInt8](repeating: 0, count: 4096)
                     while true {
                         let n = read(master, &raw, raw.count)
                         if n <= 0 { break }   // 0 = EOF, -1 = EIO after slave close
+                        box.markOutput()      // first bytes → the stall watchdog can't fire
                         let chunk = Data(raw[0..<n])
                         outData.append(chunk)
                         var tripped = false
@@ -524,12 +547,15 @@ struct CLIOneShotRunner: OneShotRunner {
                     for line in buf.drain() { onOutLine(line) }
                     p.waitUntilExit()
                     watchdog.cancel()
+                    stallWatch.cancel()
                     close(master); masterOpen = false
                     // Auth is checked BEFORE timeout: if a stale-login prompt tripped the
                     // fast-fail, surface .authRequired even if the watchdog also fired in the
                     // same window (a killed process can look "timed out"), so the user gets a
                     // one-tap Reconnect rather than a misleading timeout.
                     if box.didTripAuth() { cont.resume(throwing: OneShotError.authRequired(provider)); return }
+                    // A silent stall is a faster, more specific signal than the 10-minute cap.
+                    if box.didStall() { cont.resume(throwing: OneShotError.stalled(provider)); return }
                     if box.didTimeOut() { cont.resume(throwing: OneShotError.timedOut(Int(Self.callTimeout))); return }
                     cont.resume(returning: (String(data: outData, encoding: .utf8) ?? "", p.terminationStatus))
                 }
@@ -544,6 +570,11 @@ struct CLIOneShotRunner: OneShotRunner {
     /// the former 5-minute cap was killing real syntheses with a SIGTERM (exit 143).
     /// Still a backstop against a genuinely hung CLI.
     static let callTimeout: TimeInterval = 600
+
+    /// First-output stall window for PTY (Codex/Gemini) workers. They stream as they think,
+    /// so total silence this long means a stuck login/handshake — fail in ~2 min, not 10.
+    /// (Claude uses the pipe path and emits stream-json almost immediately, so this is PTY-only.)
+    static let stallTimeout: TimeInterval = 120
 
     private static func launch(bin: String, args: [String], cwd: String?,
                                extraEnv: [String: String] = [:],
