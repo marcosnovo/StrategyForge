@@ -2,138 +2,171 @@
 //  CursorParticleField.swift
 //  StrategyForge
 //
-//  An ambient background that trails the cursor with a soft comet of Coral particles — the
-//  Antigravity landing-page feel, retuned to Coral's palette. A chain of nodes eases toward the
-//  pointer (head follows the cursor, each node follows the one ahead), drawn as fading coral
-//  glows with faint connecting veins, so moving the mouse leaves a warm, living wake. Purely
-//  decorative and cheap (a handful of points, one Canvas). Static/blank under Reduce Motion.
+//  The Antigravity landing-page background, retuned to Coral: a whole FIELD of tiny drifting
+//  specks scattered across the view that SCATTER AWAY from the cursor — the pointer opens a
+//  calm bubble in the field, and the specks ease back to their home spots when it leaves. Not a
+//  comet glued to the cursor (that was the earlier miss); an ambient constellation that reacts.
+//  Coral-family colours, faint, one cheap Canvas. Blank/static under Reduce Motion.
 //
 
 import SwiftUI
 import AppKit
 
-/// The mutable trail state. A reference type so the mouse monitor and the per-frame step can
-/// mutate it without churning SwiftUI @State (the Canvas just reads it each frame).
-private final class CursorTrail {
-    struct Node { var pos: CGPoint }
-    var nodes: [Node] = []
-    var target: CGPoint = .zero
-    var hasTarget = false
+/// The mutable field state — a reference type so the mouse monitor and the per-frame step mutate
+/// it without churning SwiftUI @State (the Canvas just reads it each frame).
+private final class CursorFieldState {
+    struct Speck {
+        var hx: Double            // home position, as a fraction of the canvas (0…1)
+        var hy: Double
+        var x: CGFloat = 0        // live pixel position
+        var y: CGFloat = 0
+        var vx: CGFloat = 0
+        var vy: CGFloat = 0
+        var len: CGFloat          // half-length of the little dash
+        var ang: Double           // orientation
+        var colorIndex: Int
+    }
+    var specks: [Speck] = []
+    var cursor: CGPoint = .zero
+    var hasCursor = false
     private var seeded = false
+    private var size: CGSize = .zero
 
-    /// Advance the comet one frame: the head eases toward the cursor, each following node eases
-    /// toward the one ahead — a smooth, self-damping tail with no springy overshoot.
-    func step(count: Int) {
-        guard hasTarget else { return }
-        if !seeded || nodes.count != count {
-            nodes = Array(repeating: Node(pos: target), count: count)
+    /// Lay `count` specks with homes biased AWAY from the centre (so they don't crowd the hero
+    /// text) — sampled once. Pixel positions start at home.
+    func seed(count: Int, size: CGSize) {
+        guard !seeded || self.size != size else { return }
+        self.size = size
+        if !seeded {
+            specks = (0..<count).map { _ in
+                // Reject a central ellipse a couple of times so density thins toward the middle.
+                var hx = Double.random(in: 0...1), hy = Double.random(in: 0...1)
+                for _ in 0..<2 {
+                    let dx = hx - 0.5, dy = hy - 0.5
+                    if (dx * dx) / (0.30 * 0.30) + (dy * dy) / (0.24 * 0.24) < 1 {
+                        hx = Double.random(in: 0...1); hy = Double.random(in: 0...1)
+                    }
+                }
+                return Speck(hx: hx, hy: hy,
+                             len: CGFloat.random(in: 1.4...3.0),
+                             ang: Double.random(in: 0..<(2 * .pi)),
+                             colorIndex: Int.random(in: 0..<4))
+            }
             seeded = true
         }
-        let follow: CGFloat = 0.30
-        nodes[0].pos.x += (target.x - nodes[0].pos.x) * follow
-        nodes[0].pos.y += (target.y - nodes[0].pos.y) * follow
-        for i in 1..<nodes.count {
-            nodes[i].pos.x += (nodes[i - 1].pos.x - nodes[i].pos.x) * follow
-            nodes[i].pos.y += (nodes[i - 1].pos.y - nodes[i].pos.y) * follow
+        for i in specks.indices {
+            specks[i].x = CGFloat(specks[i].hx) * size.width
+            specks[i].y = CGFloat(specks[i].hy) * size.height
+        }
+    }
+
+    /// One physics step: spring gently toward home, get PUSHED away from the cursor within a
+    /// radius (the bubble), damp, integrate. Frame-rate-agnostic enough at ~60fps.
+    func step(size: CGSize) {
+        guard seeded else { return }
+        let radius: CGFloat = 150
+        for i in specks.indices {
+            var p = specks[i]
+            let homeX = CGFloat(p.hx) * size.width
+            let homeY = CGFloat(p.hy) * size.height
+            p.vx += (homeX - p.x) * 0.020
+            p.vy += (homeY - p.y) * 0.020
+            if hasCursor {
+                let dx = p.x - cursor.x, dy = p.y - cursor.y
+                let d2 = dx * dx + dy * dy
+                if d2 < radius * radius {
+                    let d = max(sqrt(d2), 0.01)
+                    let push = (1 - d / radius) * 3.2          // stronger the closer it is
+                    p.vx += dx / d * push
+                    p.vy += dy / d * push
+                }
+            }
+            p.vx *= 0.90; p.vy *= 0.90
+            p.x += p.vx; p.y += p.vy
+            specks[i] = p
         }
     }
 }
 
-/// Installs a scoped mouse-moved/dragged monitor so the field follows the cursor while it's over
-/// this view — without stealing SwiftUI's gestures (a local NSEvent monitor, like the Map's
-/// scroll-zoom installer). Coordinates are converted to the view's SwiftUI (top-left) space.
-private struct CursorTracker: NSViewRepresentable {
-    let trail: CursorTrail
-    func makeNSView(context: Context) -> NSView {
-        let v = TrackingView()
-        v.trail = trail
-        return v
-    }
+/// Installs a scoped mouse monitor + tracking area so the field follows the cursor while it's over
+/// this view (and forgets it on exit → specks drift home), without stealing SwiftUI gestures.
+private struct FieldTracker: NSViewRepresentable {
+    let field: CursorFieldState
+    func makeNSView(context: Context) -> NSView { TrackingView(field: field) }
     func updateNSView(_ nsView: NSView, context: Context) {}
 
     final class TrackingView: NSView {
-        weak var trail: CursorTrail?
+        weak var field: CursorFieldState?
         private var monitor: Any?
+        init(field: CursorFieldState) { self.field = field; super.init(frame: .zero) }
+        required init?(coder: NSCoder) { nil }
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            // Without this, AppKit never GENERATES .mouseMoved events, so the trail would sit
-            // frozen (the "no veo las partículas" bug).
+            // Without this AppKit never generates .mouseMoved, so nothing would react.
             window?.acceptsMouseMovedEvents = true
             if monitor == nil {
                 monitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
                     guard let self, let window = self.window, event.window === window else { return event }
                     let p = self.convert(event.locationInWindow, from: nil)
-                    if self.bounds.contains(p), let trail = self.trail {
-                        // AppKit is bottom-left; SwiftUI Canvas is top-left → flip y.
-                        trail.target = CGPoint(x: p.x, y: self.bounds.height - p.y)
-                        trail.hasTarget = true
+                    if let field = self.field {
+                        if self.bounds.contains(p) {
+                            field.cursor = CGPoint(x: p.x, y: self.bounds.height - p.y)   // AppKit→SwiftUI y-flip
+                            field.hasCursor = true
+                        } else {
+                            field.hasCursor = false
+                        }
                     }
                     return event
                 }
             }
         }
-        // Also catch passive moves even when another view is first responder.
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
             trackingAreas.forEach(removeTrackingArea)
             addTrackingArea(NSTrackingArea(rect: bounds,
-                                           options: [.mouseMoved, .activeAlways, .inVisibleRect],
+                                           options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
                                            owner: self, userInfo: nil))
         }
         override func mouseMoved(with event: NSEvent) {
             let p = convert(event.locationInWindow, from: nil)
-            trail?.target = CGPoint(x: p.x, y: bounds.height - p.y)
-            trail?.hasTarget = true
+            field?.cursor = CGPoint(x: p.x, y: bounds.height - p.y)
+            field?.hasCursor = true
         }
+        override func mouseExited(with event: NSEvent) { field?.hasCursor = false }
         deinit { if let m = monitor { NSEvent.removeMonitor(m) } }
     }
 }
 
 struct CursorParticleField: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Length of the comet (head + tail nodes). Short enough to stay cheap and calm.
-    var count: Int = 18
-    @State private var trail = CursorTrail()
+    /// How many specks fill the field. Cheap enough to be generous.
+    var count: Int = 150
+    @State private var field = CursorFieldState()
+
+    /// Coral-family palette — warm, on-brand (no cool blues like the reference).
+    private static let palette: [Color] = [Theme.coral, Theme.coralDeep, Theme.warning, Theme.accent]
 
     var body: some View {
         if reduceMotion {
-            Color.clear   // no ambient motion when the user asked for none
+            Color.clear
         } else {
             TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in
                 Canvas { ctx, size in
-                    // Seed at the centre so the comet is visible immediately, even before the
-                    // first mouse move; the tracker then steers `target` to the cursor.
-                    if !trail.hasTarget {
-                        trail.target = CGPoint(x: size.width / 2, y: size.height / 2)
-                        trail.hasTarget = true
-                    }
-                    trail.step(count: count)
-                    guard trail.nodes.count == count else { return }
-
-                    // Soft connecting veins between consecutive nodes (the wake).
-                    for i in 1..<trail.nodes.count {
-                        let a = trail.nodes[i - 1].pos, b = trail.nodes[i].pos
-                        let t = Double(i) / Double(count)
+                    field.seed(count: count, size: size)
+                    field.step(size: size)
+                    for p in field.specks {
+                        let c = Self.palette[p.colorIndex % Self.palette.count]
+                        let hx = CGFloat(cos(p.ang)) * p.len
+                        let hy = CGFloat(sin(p.ang)) * p.len
                         var path = Path()
-                        path.move(to: a); path.addLine(to: b)
-                        ctx.stroke(path, with: .color(Theme.coral.opacity(0.16 * (1 - t))),
-                                   style: StrokeStyle(lineWidth: 2.6 * (1 - CGFloat(t)), lineCap: .round))
-                    }
-                    // The particles themselves: coral → warm gold along the tail, each a small
-                    // glow (a tiered stack of discs = a cheap gaussian), fading toward the tip.
-                    for (i, node) in trail.nodes.enumerated() {
-                        let t = Double(i) / Double(count)
-                        let r = CGFloat(9.0 * (1 - t) + 1.8)
-                        let tint = Theme.coral.mix(with: Theme.warning, by: t * 0.5)
-                        for (mult, op): (CGFloat, Double) in [(2.8, 0.07), (1.7, 0.14), (1.0, 0.32)] {
-                            let gr = r * mult
-                            ctx.fill(Path(ellipseIn: CGRect(x: node.pos.x - gr, y: node.pos.y - gr,
-                                                            width: 2 * gr, height: 2 * gr)),
-                                     with: .color(tint.opacity(op * (1 - t * 0.7))))
-                        }
+                        path.move(to: CGPoint(x: p.x - hx, y: p.y - hy))
+                        path.addLine(to: CGPoint(x: p.x + hx, y: p.y + hy))
+                        ctx.stroke(path, with: .color(c.opacity(0.55)),
+                                   style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
                     }
                 }
-                .background(CursorTracker(trail: trail))
+                .background(FieldTracker(field: field))
                 .allowsHitTesting(false)   // purely decorative — never eat clicks
             }
         }

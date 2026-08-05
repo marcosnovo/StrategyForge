@@ -21,6 +21,7 @@ enum ProviderDiagnostics {
         case notSignedIn         // 401 / "failed to authenticate" / "set an auth method"
         case modelUnsupported    // ChatGPT-account login rejects an explicit model
         case migrateAntigravity  // Google retired the free Gemini CLI → Antigravity (agy)
+        case invalidKey          // a Gemini API key was set but the REST check rejected it
         case unknown             // anything else — surface raw + offer the log
     }
 
@@ -56,6 +57,12 @@ enum ProviderDiagnostics {
         apiKeys: [AIProvider: String],
         reasoningEffort: String
     ) async -> (finding: Finding?, greeting: String) {
+        // Gemini with an API key: verify the KEY directly against the REST API. This is the only
+        // working Gemini path, and it's independent of the retired `gemini` CLI — so the diagnosis
+        // tests the key and NEVER mentions a CLI (the founder's "sigue hablando de CLI" bug).
+        if provider == .gemini, let key = apiKeys[.gemini], !key.isEmpty {
+            return await verifyGeminiKey(key)
+        }
         // 1. Is the CLI even there? (resolveBinary validates it's executable — and for Gemini
         // it also tries the `agy` fallback.) For Gemini, "not found" now means the free CLI is
         // gone → point at Antigravity, not a futile reinstall of the retired `gemini`.
@@ -86,6 +93,26 @@ enum ProviderDiagnostics {
             return (nil, r.text.trimmingCharacters(in: .whitespacesAndNewlines))
         } catch {
             return (classify(error: error, provider: provider), "")
+        }
+    }
+
+    /// Validate a Gemini API key by listing models over REST (a light, auth-only round-trip) —
+    /// no CLI, no interactive login. 200 ⇒ healthy; anything else ⇒ the key is bad/expired.
+    private static func verifyGeminiKey(_ key: String) async -> (finding: Finding?, greeting: String) {
+        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models") else {
+            return (Finding(issue: .invalidKey, raw: "", fix: .addGeminiKey), "")
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 12
+        req.setValue(key, forHTTPHeaderField: "x-goog-api-key")   // key in a header, never logged in the URL
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            if code == 200 { return (nil, "") }                    // healthy → view shows the localized OK
+            let body = String(data: data, encoding: .utf8) ?? ""
+            return (Finding(issue: .invalidKey, raw: "HTTP \(code): \(body.prefix(240))", fix: .addGeminiKey), "")
+        } catch {
+            return (Finding(issue: .unknown, raw: error.localizedDescription, fix: .exportLog), "")
         }
     }
 

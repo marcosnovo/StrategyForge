@@ -214,7 +214,7 @@ struct CodeMapGraphView: View {
             norm = n
             flat3D = Self.normalize3D(n)
             sphere3D = Self.layout3D(nodes: derived.nodes)
-            force3D = Self.normalize3D(Self.layoutForce(nodes: derived.nodes, edges: derived.edges))
+            force3D = Self.normalize3D(Self.layoutRadial(nodes: derived.nodes, edges: derived.edges))
             rankOf = graph.communityRank()
         }
     }
@@ -659,74 +659,53 @@ struct CodeMapGraphView: View {
         return pos
     }
 
-    // MARK: Layout — force-directed constellation (one relaxed web)
+    // MARK: Layout — radial constellation (hub-centred concentric rings)
 
-    /// A Fruchterman–Reingold spring-electrical layout: every node repels every other, edges pull
-    /// their endpoints together, and a gentle gravity keeps the whole thing compact so the highest-
-    /// degree hubs settle near the centre and leaves splay out — the organic "graph" look. Runs
-    /// once when the graph loads (n ≤ 240 so the O(n²) repulsion is fine). Coords are arbitrary
-    /// scale; `normalize3D` re-centres them to ~[-1,1] like the other layouts.
-    private static func layoutForce(nodes: [CodeGraph.Node], edges: [CodeGraph.Edge]) -> [String: CGPoint] {
-        let n = nodes.count
-        guard n > 0 else { return [:] }
-        let sorted = nodes.sorted { $0.degree > $1.degree }
-        let ids = sorted.map { $0.id }
-        var idx: [String: Int] = [:]
-        for (i, id) in ids.enumerated() { idx[id] = i }
-        // Seed on a phyllotaxis spiral (hubs first, near the middle) so the sim starts untangled.
-        let golden = 2.399963229728653
-        var px = [Double](repeating: 0, count: n)
-        var py = [Double](repeating: 0, count: n)
-        for i in 0..<n {
-            let rr = (Double(i) + 0.5).squareRoot()
-            px[i] = rr * cos(Double(i) * golden)
-            py[i] = rr * sin(Double(i) * golden)
+    /// A hub-centred RADIAL layout: the highest-degree node sits at the centre, and every other
+    /// node lands on a concentric ring by its hop-distance (BFS depth) from that hub — so the
+    /// codebase fans out in clear rings ("filas") like the reference, instead of a force-directed
+    /// hairball. Within a ring, nodes are ordered by community so families stay in angular
+    /// sectors, and each ring is rotated a little so spokes don't line up into hard spikes.
+    /// Coords are arbitrary scale; `normalize3D` re-centres them to ~[-1,1].
+    private static func layoutRadial(nodes: [CodeGraph.Node], edges: [CodeGraph.Edge]) -> [String: CGPoint] {
+        guard !nodes.isEmpty else { return [:] }
+        let ids = Set(nodes.map { $0.id })
+        var adj: [String: [String]] = [:]
+        for e in edges where ids.contains(e.source) && ids.contains(e.target) {
+            adj[e.source, default: []].append(e.target)
+            adj[e.target, default: []].append(e.source)
         }
-        var es: [(Int, Int)] = []
-        es.reserveCapacity(edges.count)
-        for e in edges { if let a = idx[e.source], let b = idx[e.target] { es.append((a, b)) } }
-        let k = 2.6                                   // ideal edge length — bigger = more open/legible
-        var temp = 1.1 * Double(n).squareRoot()       // max node move per iteration, cooled each pass
-        let iters = n > 160 ? 180 : 320
-        var dx = [Double](repeating: 0, count: n)
-        var dy = [Double](repeating: 0, count: n)
-        for _ in 0..<iters {
-            for i in 0..<n { dx[i] = 0; dy[i] = 0 }
-            // Repulsion (all pairs).
-            for a in 0..<n {
-                for b in (a + 1)..<n {
-                    var ex = px[a] - px[b], ey = py[a] - py[b]
-                    var dist = (ex * ex + ey * ey).squareRoot()
-                    if dist < 0.001 { ex = Double(a - b) * 0.001 + 0.001; ey = 0.001; dist = (ex * ex + ey * ey).squareRoot() }
-                    let f = k * k / dist
-                    let ux = ex / dist, uy = ey / dist
-                    dx[a] += ux * f; dy[a] += uy * f
-                    dx[b] -= ux * f; dy[b] -= uy * f
-                }
-            }
-            // Attraction (edges).
-            for (a, b) in es {
-                let ex = px[a] - px[b], ey = py[a] - py[b]
-                let dist = Swift.max((ex * ex + ey * ey).squareRoot(), 0.001)
-                let f = dist * dist / k
-                let ux = ex / dist, uy = ey / dist
-                dx[a] -= ux * f; dy[a] -= uy * f
-                dx[b] += ux * f; dy[b] += uy * f
-            }
-            // Gravity toward the origin — keeps disconnected pieces from drifting to infinity.
-            for i in 0..<n { dx[i] -= px[i] * 0.018; dy[i] -= py[i] * 0.018 }
-            // Apply, capped by the cooling temperature.
-            for i in 0..<n {
-                let len = Swift.max((dx[i] * dx[i] + dy[i] * dy[i]).squareRoot(), 0.0001)
-                let cap = Swift.min(len, temp)
-                px[i] += dx[i] / len * cap
-                py[i] += dy[i] / len * cap
-            }
-            temp *= 0.97
+        // Centre = the biggest hub. BFS out from it to assign each node a ring (hop distance).
+        let center = nodes.max { $0.degree < $1.degree }!.id
+        var depth: [String: Int] = [center: 0]
+        var queue = [center]; var qi = 0
+        while qi < queue.count {
+            let cur = queue[qi]; qi += 1
+            let d = depth[cur]!
+            for nb in adj[cur] ?? [] where depth[nb] == nil { depth[nb] = d + 1; queue.append(nb) }
         }
-        var pos: [String: CGPoint] = [:]
-        pos.reserveCapacity(n)
-        for i in 0..<n { pos[ids[i]] = CGPoint(x: px[i], y: py[i]) }
+        let maxReached = depth.values.max() ?? 0
+        for n in nodes where depth[n.id] == nil { depth[n.id] = maxReached + 1 }   // islands → outer ring
+        var byDepth: [Int: [CodeGraph.Node]] = [:]
+        for n in nodes { byDepth[depth[n.id]!, default: []].append(n) }
+
+        var pos: [String: CGPoint] = [center: .zero]
+        let rings = (byDepth.keys.max() ?? 0)
+        guard rings >= 1 else { return pos }
+        for d in 1...rings {
+            guard let members = byDepth[d], !members.isEmpty else { continue }
+            // Group by community (families in sectors), biggest hubs first within each family.
+            let ring = members.sorted { a, b in
+                a.community != b.community ? a.community < b.community : a.degree > b.degree
+            }
+            let count = ring.count
+            let radius = Double(d)
+            let phase = Double(d) * 0.35
+            for (k, node) in ring.enumerated() {
+                let ang = 2 * Double.pi * Double(k) / Double(count) + phase
+                pos[node.id] = CGPoint(x: radius * cos(ang), y: radius * sin(ang))
+            }
+        }
         return pos
     }
 
