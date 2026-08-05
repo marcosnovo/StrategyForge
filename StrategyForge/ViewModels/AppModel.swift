@@ -100,6 +100,24 @@ final class AppModel {
     /// Whether a provider can be selected right now (its CLI is installed).
     func isConnected(_ provider: AIProvider) -> Bool { providerRegistry.isConnected(provider) }
 
+    /// Whether a provider is actually USABLE for a run right now — a stronger bar than "installed".
+    /// Gemini's free CLI login is retired, so it needs an API key; the others need an installed CLI
+    /// whose stored login isn't known-stale. This is the gate the chat/team launcher checks so a
+    /// run never starts on a provider that will just fail.
+    func providerUsable(_ provider: AIProvider) -> Bool {
+        if provider == .gemini { return hasGeminiAPIKey }
+        guard isConnected(provider) else { return false }
+        return !staleAuth.contains(provider)
+    }
+
+    /// The providers a chat/team needs (its own provider + every role's) that AREN'T usable — so
+    /// the UI can block launching and name exactly what to fix. Empty ⇒ good to go.
+    func unusableProviders(for config: Configuration) -> [AIProvider] {
+        var needed: Set<AIProvider> = [config.provider]
+        for role in config.strategy.roles { needed.insert(role.provider) }
+        return needed.filter { !providerUsable($0) }.sorted { $0.rawValue < $1.rawValue }
+    }
+
     /// Connected providers whose STORED LOGIN looks expired or missing (a stronger signal than
     /// "CLI installed"). Surfaced as a "reconnect" hint so a stale login is caught BEFORE a run
     /// fails on it — this is what "Gemini conectado pero caducado" needed. Transient.

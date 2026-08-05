@@ -63,7 +63,11 @@ struct CodeMapGraphView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
-    @State private var sphere = true
+    /// The three visualizations: clusters as a rotating globe, the same lobes flat, or a single
+    /// force-directed CONSTELLATION (spring-electrical) where the whole codebase relaxes into one
+    /// organic hub-and-spoke web — the classic "graph" look.
+    enum GraphLayout { case sphere, flat, force }
+    @State private var layout: GraphLayout = .sphere
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -80,6 +84,7 @@ struct CodeMapGraphView: View {
     @State private var norm: [String: CGPoint] = [:]
     @State private var sphere3D: [String: V3] = [:]
     @State private var flat3D: [String: V3] = [:]
+    @State private var force3D: [String: V3] = [:]
     /// community id → size rank (0 = biggest), so colouring uses the DOMINANT clusters.
     @State private var rankOf: [Int: Int] = [:]
 
@@ -209,16 +214,23 @@ struct CodeMapGraphView: View {
             norm = n
             flat3D = Self.normalize3D(n)
             sphere3D = Self.layout3D(nodes: derived.nodes)
+            force3D = Self.normalize3D(Self.layoutForce(nodes: derived.nodes, edges: derived.edges))
             rankOf = graph.communityRank()
         }
     }
 
-    /// Sphere ⇄ flat toggle. Flat resets to head-on (0 tilt); both then rotate on drag.
+    /// Cycles the three visualizations: globe → flat lobes → force constellation → globe. Planar
+    /// modes reset to head-on (0 tilt); all then rotate on drag.
     private var modeToggle: some View {
-        cornerButton(sphere ? "globe" : "square.grid.2x2", help: sphere ? "Flat" : "Sphere") {
+        let (icon, help): (String, String) = switch layout {
+        case .sphere: ("globe", "Globe — tap for flat")
+        case .flat:   ("square.grid.2x2", "Flat — tap for constellation")
+        case .force:  ("point.3.filled.connected.trianglepath.dotted", "Constellation — tap for globe")
+        }
+        return cornerButton(icon, help: help) {
             withAnimation(.easeInOut(duration: 0.25)) {
-                sphere.toggle()
-                let rx = sphere ? 0.5 : 0.0
+                layout = layout == .sphere ? .flat : (layout == .flat ? .force : .sphere)
+                let rx = layout == .sphere ? 0.5 : 0.0
                 rotX = rx; lastRotX = rx; rotY = 0; lastRotY = 0
             }
         }
@@ -244,7 +256,7 @@ struct CodeMapGraphView: View {
     private func resetView() {
         withAnimation(.easeOut(duration: 0.2)) {
             scale = 1; lastScale = 1; offset = .zero; lastOffset = .zero
-            let rx = sphere ? 0.5 : 0.0
+            let rx = layout == .sphere ? 0.5 : 0.0
             rotX = rx; lastRotX = rx; rotY = 0; lastRotY = 0
         }
     }
@@ -289,7 +301,7 @@ struct CodeMapGraphView: View {
         // globe coords, the flat map uses its 2D layout laid on a plane (z=0). At rest the flat
         // map is head-on (rot 0 → looks 2D); dragging tilts it in 3D, exactly like the sphere.
         let R = min(size.width, size.height) * 0.42 * scale
-        let src = sphere ? sphere3D : flat3D
+        let src = layout == .sphere ? sphere3D : (layout == .force ? force3D : flat3D)
         // Hoist the rotation's trig OUT of the per-node loop — cos/sin(rotX,rotY) are constant
         // for the whole frame, so this drops ~4 transcendental calls PER NODE to 4 per frame.
         let cy = cos(rotY), sy = sin(rotY), cx = cos(rotX), sx = sin(rotX)
@@ -307,8 +319,9 @@ struct CodeMapGraphView: View {
         return (pos, depth)
     }
 
-    /// Is the flat map lying head-on (no tilt)? Then it's a pure 2D view — no depth cueing.
-    private var flatHeadOn: Bool { !sphere && abs(rotX) < 0.04 && abs(rotY) < 0.04 }
+    /// Is a PLANAR map (flat or force) lying head-on (no tilt)? Then it's a pure 2D view — no
+    /// depth cueing. The globe always has depth.
+    private var flatHeadOn: Bool { layout != .sphere && abs(rotX) < 0.04 && abs(rotY) < 0.04 }
 
     // MARK: One frame
 
@@ -320,7 +333,11 @@ struct CodeMapGraphView: View {
             let dimming = focus != nil || matchIDs != nil
             let glowPulse = time == 0 ? 1.0 : (0.82 + 0.18 * sin(time * 0.5))
 
-            drawClusterGlows(nodes: nodes, frames: pos, dimmed: dimming, pulse: glowPulse, ctx: &ctx)
+            // Cluster glows read as lobes; in the single-web constellation they'd be scattered
+            // blobs, so the constellation stays clean (structure carried by edges, not haze).
+            if layout != .force {
+                drawClusterGlows(nodes: nodes, frames: pos, dimmed: dimming, pulse: glowPulse, ctx: &ctx)
+            }
 
             func edgeAlpha(_ e: CodeGraph.Edge, _ a: Double) -> Double {
                 let d = ((depth[e.source] ?? 1) + (depth[e.target] ?? 1)) / 2
@@ -610,6 +627,77 @@ struct CodeMapGraphView: View {
                 pos[node.id] = CGPoint(x: cx[i] + rr * cos(th), y: cy[i] + rr * sin(th))
             }
         }
+        return pos
+    }
+
+    // MARK: Layout — force-directed constellation (one relaxed web)
+
+    /// A Fruchterman–Reingold spring-electrical layout: every node repels every other, edges pull
+    /// their endpoints together, and a gentle gravity keeps the whole thing compact so the highest-
+    /// degree hubs settle near the centre and leaves splay out — the organic "graph" look. Runs
+    /// once when the graph loads (n ≤ 240 so the O(n²) repulsion is fine). Coords are arbitrary
+    /// scale; `normalize3D` re-centres them to ~[-1,1] like the other layouts.
+    private static func layoutForce(nodes: [CodeGraph.Node], edges: [CodeGraph.Edge]) -> [String: CGPoint] {
+        let n = nodes.count
+        guard n > 0 else { return [:] }
+        let sorted = nodes.sorted { $0.degree > $1.degree }
+        let ids = sorted.map { $0.id }
+        var idx: [String: Int] = [:]
+        for (i, id) in ids.enumerated() { idx[id] = i }
+        // Seed on a phyllotaxis spiral (hubs first, near the middle) so the sim starts untangled.
+        let golden = 2.399963229728653
+        var px = [Double](repeating: 0, count: n)
+        var py = [Double](repeating: 0, count: n)
+        for i in 0..<n {
+            let rr = (Double(i) + 0.5).squareRoot()
+            px[i] = rr * cos(Double(i) * golden)
+            py[i] = rr * sin(Double(i) * golden)
+        }
+        var es: [(Int, Int)] = []
+        es.reserveCapacity(edges.count)
+        for e in edges { if let a = idx[e.source], let b = idx[e.target] { es.append((a, b)) } }
+        let k = 1.6                                   // ideal edge length (normalized units)
+        var temp = 0.9 * Double(n).squareRoot()       // max node move per iteration, cooled each pass
+        let iters = n > 160 ? 120 : 240
+        var dx = [Double](repeating: 0, count: n)
+        var dy = [Double](repeating: 0, count: n)
+        for _ in 0..<iters {
+            for i in 0..<n { dx[i] = 0; dy[i] = 0 }
+            // Repulsion (all pairs).
+            for a in 0..<n {
+                for b in (a + 1)..<n {
+                    var ex = px[a] - px[b], ey = py[a] - py[b]
+                    var dist = (ex * ex + ey * ey).squareRoot()
+                    if dist < 0.001 { ex = Double(a - b) * 0.001 + 0.001; ey = 0.001; dist = (ex * ex + ey * ey).squareRoot() }
+                    let f = k * k / dist
+                    let ux = ex / dist, uy = ey / dist
+                    dx[a] += ux * f; dy[a] += uy * f
+                    dx[b] -= ux * f; dy[b] -= uy * f
+                }
+            }
+            // Attraction (edges).
+            for (a, b) in es {
+                let ex = px[a] - px[b], ey = py[a] - py[b]
+                let dist = Swift.max((ex * ex + ey * ey).squareRoot(), 0.001)
+                let f = dist * dist / k
+                let ux = ex / dist, uy = ey / dist
+                dx[a] -= ux * f; dy[a] -= uy * f
+                dx[b] += ux * f; dy[b] += uy * f
+            }
+            // Gravity toward the origin — keeps disconnected pieces from drifting to infinity.
+            for i in 0..<n { dx[i] -= px[i] * 0.03; dy[i] -= py[i] * 0.03 }
+            // Apply, capped by the cooling temperature.
+            for i in 0..<n {
+                let len = Swift.max((dx[i] * dx[i] + dy[i] * dy[i]).squareRoot(), 0.0001)
+                let cap = Swift.min(len, temp)
+                px[i] += dx[i] / len * cap
+                py[i] += dy[i] / len * cap
+            }
+            temp *= 0.97
+        }
+        var pos: [String: CGPoint] = [:]
+        pos.reserveCapacity(n)
+        for i in 0..<n { pos[ids[i]] = CGPoint(x: px[i], y: py[i]) }
         return pos
     }
 

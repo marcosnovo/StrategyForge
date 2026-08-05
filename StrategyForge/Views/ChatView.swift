@@ -302,9 +302,10 @@ struct ChatView: View {
                 // ONE state banner at a time, priority-ordered (most urgent first) — the six
                 // used to be able to STACK into a tower above the composer. changedFiles is
                 // content (not a must-resolve state), so it shows only when no state banner is up.
-                let hasStateBanner = vm.errorText != nil || vm.needsReauth != nil
+                let hasStateBanner = !blockedProviders.isEmpty || vm.errorText != nil || vm.needsReauth != nil
                     || (!vm.deniedTools.isEmpty && !vm.isRunning) || engineMissing || vm.mixedProvidersNote
-                if let error = vm.errorText { errorBanner(error) }
+                if !blockedProviders.isEmpty { providerBlockedBanner(blockedProviders) }
+                else if let error = vm.errorText { errorBanner(error) }
                 else if let p = vm.needsReauth { reauthBanner(p) }
                 else if !vm.deniedTools.isEmpty && !vm.isRunning { deniedStrip }
                 else if engineMissing { engineMissingCard }
@@ -1526,6 +1527,27 @@ struct ChatView: View {
         }
     }
 
+    /// Launch is blocked because a provider this chat/team needs isn't usable (e.g. Gemini with
+    /// no API key, or a CLI whose login is stale). Names them and jumps straight to Services to
+    /// fix — the composer's send button is disabled until they're all good.
+    private func providerBlockedBanner(_ providers: [AIProvider]) -> some View {
+        let names = providers.map(\.displayName).joined(separator: ", ")
+        return HStack(spacing: Space.s) {
+            Label(model.t("chat.blocked", names), systemImage: "exclamationmark.triangle.fill")
+                .font(.sfCaption2).foregroundStyle(Theme.warningText)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button(model.t("banner.fix")) {
+                if let first = providers.first { model.selectedService = first }
+                model.navSection = .services
+            }
+            .buttonStyle(.moon).controlSize(.small)
+        }
+        .padding(Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.warnStripFill)
+    }
+
     private func errorBanner(_ error: String) -> some View {
         VStack(alignment: .leading, spacing: Space.s) {
             Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -1622,13 +1644,13 @@ struct ChatView: View {
                 // sends automatically when the current turn finishes. Stop stays available.
                 if vm.hasComposerContent {
                     circularSendButton(system: "arrow.up", accessibility: model.t("chat.queue"),
-                                       enabled: !engineMissing) { send() }
+                                       enabled: !engineMissing && blockedProviders.isEmpty) { send() }
                 }
                 circularSendButton(system: "stop.fill", accessibility: model.t("chat.stop"),
                                    enabled: true) { vm.stop() }
             } else {
                 circularSendButton(system: "arrow.up", accessibility: model.t("chat.send"),
-                                   enabled: vm.canSend && !engineMissing) { send() }
+                                   enabled: vm.canSend && !engineMissing && blockedProviders.isEmpty) { send() }
                     .keyboardShortcut(.return, modifiers: .command)
             }
             }
@@ -2336,8 +2358,13 @@ struct ChatView: View {
         send()
     }
 
+    /// Providers this chat/team needs that aren't usable right now (Gemini without a key, a CLI
+    /// that's missing or whose login is stale). Non-empty ⇒ launching is blocked with a banner,
+    /// so a run never starts on a provider that will just fail.
+    private var blockedProviders: [AIProvider] { model.unusableProviders(for: config) }
+
     private func send() {
-        guard vm.hasComposerContent, !engineMissing else { return }
+        guard vm.hasComposerContent, !engineMissing, blockedProviders.isEmpty else { return }
         sendPulse += 1          // tactile confirmation the message left (or queued)
         vm.submit()             // sends now, or queues behind the running turn
         saveDraft("")           // sent → clear the persisted draft
