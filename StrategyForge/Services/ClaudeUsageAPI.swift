@@ -47,38 +47,77 @@ enum ClaudeUsageAPI {
         // depends on how the CLI was last launched (Coral spawns it with its own config dir),
         // so guessing a hash misses it — the fresh token can sit under a hash we never compute.
         //
-        // CRITICAL: do this in ONE SecItemCopyMatching that returns BOTH attributes AND data
-        // for every "Claude Code-credentials"* item at once. A single call raises AT MOST ONE
-        // Keychain authorization prompt; the old code looped a per-service data read, so a user
-        // with N credential items (multiple installs / config dirs) got prompted N times in a
-        // row (the "me pidió las credenciales 8 veces" bug). We then pick the freshest
-        // non-expired token in memory — no further Keychain traffic.
-        return freshestKeychainToken()
+        // Prefer ONE batch read that returns attributes AND data for every generic-password
+        // item at once — in the happy path that's a single Keychain prompt for all the
+        // "Claude Code-credentials"* items (the old code looped a per-service data read and
+        // prompted N times: the "me pidió las credenciales 8 veces" bug). BUT a match-all
+        // query that includes item data can fail WHOLESALE when any item in the chain is
+        // inaccessible (errSecAuthFailed / errSecInteractionNotAllowed), which returned nil
+        // and left the Claude % blank. So fall back to a resilient path: list the Claude
+        // services with an attributes-only query (never prompts), then read the FRESHEST
+        // one's data first and stop at the first non-expired token.
+        if let items = keychainItems(returnData: true),
+           let token = freshestToken(in: items) { return token }
+        return freshestKeychainTokenResilient()
     }
 
-    /// Every `Claude Code-credentials`* item's secret, fetched in a SINGLE Keychain query so
-    /// the OS shows at most one access prompt. Returns the most-recently-modified non-expired
-    /// access token, or nil.
-    private static func freshestKeychainToken() -> String? {
-        let query: [String: Any] = [
+    /// A generic-password lookup for every item, optionally including secret data. Returns nil
+    /// only when the query genuinely fails (not merely "no items").
+    private static func keychainItems(returnData: Bool) -> [[String: Any]]? {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecMatchLimit as String: kSecMatchLimitAll,
             kSecReturnAttributes as String: true,
-            kSecReturnData as String: true,
         ]
+        if returnData { query[kSecReturnData as String] = true }
         var out: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
-              let items = out as? [[String: Any]] else { return nil }
-        return items
+        let status = SecItemCopyMatching(query as CFDictionary, &out)
+        guard status == errSecSuccess else { return nil }
+        return out as? [[String: Any]]
+    }
+
+    /// The freshest non-expired Claude token among already-fetched items (each carrying data).
+    private static func freshestToken(in items: [[String: Any]]) -> String? {
+        items
             .compactMap { item -> (mod: Date, data: Data)? in
                 guard let svc = item[kSecAttrService as String] as? String,
                       svc.hasPrefix("Claude Code-credentials"),
                       let data = item[kSecValueData as String] as? Data else { return nil }
                 return ((item[kSecAttrModificationDate as String] as? Date) ?? .distantPast, data)
             }
-            .sorted { $0.mod > $1.mod }   // the live token is in the most recently written item
+            .sorted { $0.mod > $1.mod }
             .lazy.compactMap { freshToken(from: $0.data) }
             .first
+    }
+
+    /// Resilient fallback: list Claude services (attributes only → no prompt), then read data
+    /// one item at a time, freshest first, stopping at the first non-expired token. A single
+    /// inaccessible item can't sink the whole lookup here.
+    private static func freshestKeychainTokenResilient() -> String? {
+        guard let attrs = keychainItems(returnData: false) else { return nil }
+        let services = attrs
+            .compactMap { item -> (svc: String, mod: Date)? in
+                guard let svc = item[kSecAttrService as String] as? String,
+                      svc.hasPrefix("Claude Code-credentials") else { return nil }
+                return (svc, (item[kSecAttrModificationDate as String] as? Date) ?? .distantPast)
+            }
+            .sorted { $0.mod > $1.mod }
+        for s in services {
+            if let data = itemData(service: s.svc), let token = freshToken(from: data) { return token }
+        }
+        return nil
+    }
+
+    /// The secret bytes of one specific credential service (a single, targeted read).
+    private static func itemData(service: String) -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var out: CFTypeRef?
+        return SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess ? (out as? Data) : nil
     }
 
     /// Parse a Claude Code credentials blob (`{"claudeAiOauth":{"accessToken","expiresAt"}}`)

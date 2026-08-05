@@ -1596,8 +1596,9 @@ struct ChatView: View {
             }
             if !vm.queued.isEmpty { queuedChips }
             if !vm.attachments.isEmpty { attachmentChips }
-            // .bottom so the buttons sit level with the LAST line as the field grows.
-            HStack(alignment: .bottom, spacing: Space.s) {
+            // .top so the text sits at the TOP of the box and the field grows DOWNWARD from
+            // there (the founder found bottom-aligned text read as "stuck to the bottom").
+            HStack(alignment: .top, spacing: Space.s) {
             // Attach files for Claude to review.
             Button {
                 pickAttachments()

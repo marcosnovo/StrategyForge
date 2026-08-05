@@ -23,6 +23,11 @@ struct RootView: View {
         ContentView()
             .opacity(ready ? 1 : 0)
             .overlay { if !ready { SplashView(step: step).transition(.opacity) } }
+            // Floor the window size so the three-column layout (rail · list · content ·
+            // panels) never collapses into the overlapping mess the founder hit when
+            // shrinking the window — with `.windowResizability(.contentMinSize)` this min
+            // becomes the window's minimum, so it can't be dragged smaller.
+            .frame(minWidth: 880, minHeight: 600)
             .task { await preload() }
     }
 

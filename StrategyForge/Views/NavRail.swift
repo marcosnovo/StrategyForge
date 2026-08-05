@@ -601,15 +601,13 @@ private struct SpotlightBeam: View {
                     .frame(width: h * 1.1, height: h * 1.1)
                     .position(x: w * 0.52, y: iconY)
                     .blur(radius: 4)
-                // The lamp on the leading edge — the source, a bright coral bulb with a halo.
-                Circle().fill(tint)
-                    .frame(width: 6, height: 6)
-                    .position(x: 2.5, y: iconY)
-                    .shadow(color: tint.opacity(0.95), radius: 7)
-                    .shadow(color: tint.opacity(0.6), radius: 3)
+                // The lamp on the leading edge — a bright coral BAR (the light source), with a
+                // soft halo. No round bulb: the founder wants a clean line, no dot in the middle.
                 Capsule().fill(tint.opacity(0.95))
-                    .frame(width: 3, height: h * 0.34)
+                    .frame(width: 3, height: h * 0.4)
                     .position(x: 2, y: iconY)
+                    .shadow(color: tint.opacity(0.85), radius: 6)
+                    .shadow(color: tint.opacity(0.5), radius: 2)
                     .blur(radius: 0.5)
             }
             .compositingGroup()
