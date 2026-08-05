@@ -1205,7 +1205,6 @@ struct ChatView: View {
 
     private var emptyState: some View {
         VStack(spacing: Space.l) {
-            Spacer(minLength: Space.xl)
             // The hero coral mark — smaller and calmer (ChatGPT/Agentastic-minimal): the
             // example prompts below are the real next action, so the logo shouldn't dominate
             // the screen with a 280pt breathing halo.
@@ -1219,14 +1218,14 @@ struct ChatView: View {
                 .tracking(-1.2)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 640)
+                .frame(maxWidth: 560)
                 .staggeredAppear(index: 1)
             Text(model.t("chat.empty"))
                 .font(.sfSubtitle)
                 .foregroundStyle(Theme.secondaryOnMaterial)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 520)
+                .frame(maxWidth: 480)
                 .staggeredAppear(index: 2)
             strategyHook
                 .staggeredAppear(index: 3)
@@ -1244,14 +1243,19 @@ struct ChatView: View {
                         .staggeredAppear(index: index + 4)
                 }
             }
-            .frame(maxWidth: 520)
-            Spacer(minLength: Space.xl)
+            .frame(maxWidth: .infinity)
         }
+        // The content sits on a SOLID centred panel, so the particle orb shows only AROUND it —
+        // never behind the words (founder: "el texto en cajas / que nunca haya partículas detrás").
+        .frame(maxWidth: 520)
+        .padding(Space.xl)
+        .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .fill(Theme.cardBg).elevation(.e2))
+        .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .strokeBorder(Theme.hairline, lineWidth: 1))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .padding(.horizontal, Space.l)
-        // Ambient Coral comet that trails the cursor behind the greeting — a living first
-        // impression (Antigravity-style), retuned to the brand and kept faint so the prompts
-        // stay the focus. Blank under Reduce Motion.
+        .padding(Space.xl)
+        // The living Coral orb — behind and AROUND the panel only. Blank under Reduce Motion.
         .background(CursorParticleField().ignoresSafeArea())
     }
 
@@ -1266,8 +1270,12 @@ struct ChatView: View {
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: Space.s)
             }
-            .padding(.horizontal, Space.s).padding(.vertical, Space.s)
+            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Boxed rows (founder: "el texto mejor en cajas, como estaba antes").
+            .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous).fill(Theme.insetBg))
+            .overlay(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+                .strokeBorder(Theme.hairline, lineWidth: 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

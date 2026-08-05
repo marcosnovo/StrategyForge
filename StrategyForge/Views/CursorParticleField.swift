@@ -85,19 +85,23 @@ struct CursorParticleField: View {
                                       Self.palette[dot.colorIndex % Self.palette.count]))
                     }
 
-                    // GLOW pass — larger, blurred discs form a soft bloom.
+                    // GLOW pass — a TIGHT coloured halo (small blur, brighter) so it reads as a
+                    // luminous point, not a muddy cloud.
                     ctx.drawLayer { layer in
-                        layer.addFilter(.blur(radius: 4))
+                        layer.addFilter(.blur(radius: 2.5))
                         for f in frame where f.a > 0.02 {
-                            let gr = f.r * 2.6
+                            let gr = f.r * 2.1
                             layer.fill(Path(ellipseIn: CGRect(x: f.p.x - gr, y: f.p.y - gr, width: 2 * gr, height: 2 * gr)),
-                                       with: .color(f.c.opacity(f.a * 0.5)))
+                                       with: .color(f.c.opacity(f.a * 0.7)))
                         }
                     }
-                    // CRISP cores on top.
+                    // CRISP core + a small hot white centre → a real "spark" of brightness.
                     for f in frame where f.a > 0.02 {
                         ctx.fill(Path(ellipseIn: CGRect(x: f.p.x - f.r, y: f.p.y - f.r, width: 2 * f.r, height: 2 * f.r)),
-                                 with: .color(f.c.opacity(f.a)))
+                                 with: .color(f.c.opacity(min(1, f.a * 1.1))))
+                        let wr = f.r * 0.45
+                        ctx.fill(Path(ellipseIn: CGRect(x: f.p.x - wr, y: f.p.y - wr, width: 2 * wr, height: 2 * wr)),
+                                 with: .color(Color.white.opacity(f.a * 0.7)))
                     }
                 }
             }
