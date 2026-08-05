@@ -26,7 +26,7 @@ struct NavRail: View {
     @AppStorage("nav.showMore") private var showMore = false
     /// Sections that live under "More" — used to auto-open the group when one is active.
     private var moreSectionActive: Bool {
-        [.map, .arena, .loops, .memory, .skills, .services].contains(model.navSection)
+        [.map, .arena, .loops, .memory, .skills, .images, .services].contains(model.navSection)
     }
     private var moreShown: Bool { showMore || moreSectionActive }
 
@@ -84,6 +84,10 @@ struct NavRail: View {
                         item("puzzlepiece.extension.fill", "rail.skills", active: model.navSection == .skills,
                              help: "rail.skills.help") {
                             model.guardedLeave { model.navSection = .skills }
+                        }
+                        item("photo.on.rectangle.angled", "rail.images", active: model.navSection == .images,
+                             help: "rail.images.help") {
+                            model.guardedLeave { model.navSection = .images }
                         }
                         item("point.3.connected.trianglepath.dotted", "rail.connected", active: model.navSection == .services) {
                             model.guardedLeave { model.navSection = .services }

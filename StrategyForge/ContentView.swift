@@ -70,7 +70,8 @@ struct ContentView: View {
             } else if model.navSection == .usage
                         || model.navSection == .particleLab || model.navSection == .code
                         || model.navSection == .skills || model.navSection == .memory
-                        || model.navSection == .arena || model.navSection == .settings {
+                        || model.navSection == .arena || model.navSection == .images
+                        || model.navSection == .settings {
                 // Single full-width surfaces — no second column (no chat list here).
                 EmptyView()
             } else if model.showSidebar || model.selectedConfiguration == nil {
@@ -150,6 +151,9 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .arena {
                 ArenaView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.navSection == .images {
+                ImageStudioView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .settings {
                 SettingsView(embedded: true)
