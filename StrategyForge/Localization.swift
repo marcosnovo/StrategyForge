@@ -16,7 +16,7 @@ import Foundation
 
 /// A casual, time-of-day-aware greeting for a fresh, empty chat. Picks a playful
 /// line from a per-language, per-daypart pool, deterministically seeded by the chat
-/// (so each new chat gets its own greeting, stable across redraws — it won't flicker).
+/// (so each new chat gets its own greeting, stable across redraws — it won't flicker).sigue
 /// Weaves in the user's first name when we have it. English + Spanish, resolved from
 /// the app's `langCode`. This is generated content, so it lives here rather than in
 /// the `L10n` key table, but it still honors the live language switch.
@@ -1677,6 +1677,7 @@ enum L10n {
         "code.view": ("Mark as viewed", "Marcar como visto"),
         "code.unview": ("Mark as not viewed", "Marcar como no visto"),
         "review.jump": ("Jump to this line in the diff", "Ir a esta línea en el diff"),
+        "review.tier.all": ("All", "Todos"),
         "code.hunk.prev": ("Previous change", "Cambio anterior"),
         "code.hunk.next": ("Next change", "Cambio siguiente"),
         "code.hunk.stage": ("Stage just this change", "Preparar solo este cambio"),

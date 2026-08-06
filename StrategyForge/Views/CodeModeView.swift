@@ -64,6 +64,8 @@ struct CodeModeView: View {
     /// you can watch the agents work AND read their diff at once (they used to be mutually
     /// exclusive right-hand columns). Collapsed to a pill; persisted.
     @AppStorage("code.agentsExpanded") private var agentsExpanded = true
+    /// Active review-severity filter (nil = show every tier). Tapping a tier chip focuses it.
+    @State private var reviewFilter: ReviewSeverity?
 
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
@@ -748,7 +750,21 @@ struct CodeModeView: View {
                 Button { model.diffReview = nil } label: { Image(systemName: "xmark").font(.system(size: 10)) }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
             }
-            ForEach(review.findings) { f in
+            // Severity tier chips — counts per tier, tap to focus one tier (tap again = all).
+            if review.error == nil, review.findings.count > 1 {
+                HStack(spacing: Space.xs) {
+                    ForEach(ReviewSeverity.allCases, id: \.self) { sev in
+                        let n = review.findings.filter { $0.severity == sev }.count
+                        if n > 0 { tierChip(sev, count: n) }
+                    }
+                    if reviewFilter != nil {
+                        Button(model.t("review.tier.all")) { reviewFilter = nil }
+                            .buttonStyle(.plain).font(.sfFieldLabel).foregroundStyle(Theme.coral)
+                    }
+                    Spacer()
+                }
+            }
+            ForEach(review.findings.filter { reviewFilter == nil || $0.severity == reviewFilter }) { f in
                 let jumpable = f.line != nil && !f.file.isEmpty
                 HStack(alignment: .top, spacing: Space.s) {
                     // Severity marker by shape+color (colorblind-safe).
@@ -788,6 +804,26 @@ struct CodeModeView: View {
         case .medium: Circle().fill(Theme.warning)
         case .low:    Circle().strokeBorder(Theme.inkDim, lineWidth: 1.5)
         }
+    }
+
+    /// A tappable severity-tier chip: dot + tier label + count. Active tier is filled; tapping
+    /// toggles the filter between "this tier only" and "all".
+    private func tierChip(_ sev: ReviewSeverity, count: Int) -> some View {
+        let active = reviewFilter == sev
+        return Button {
+            reviewFilter = active ? nil : sev
+        } label: {
+            HStack(spacing: 4) {
+                severityMarker(sev).frame(width: 8, height: 8)
+                Text(model.t(sev.labelKey)).font(.sfFieldLabel)
+                Text("\(count)").font(.sfFieldLabel.weight(.semibold)).monospacedDigit()
+            }
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .background(Capsule().fill(active ? sev.tint.opacity(0.16) : Theme.insetBg))
+            .overlay(Capsule().strokeBorder(active ? sev.tint.opacity(0.5) : .clear, lineWidth: 1))
+            .foregroundStyle(Theme.ink)
+        }
+        .buttonStyle(.plain)
     }
 
     /// Commit staged/working changes with an editable, auto-drafted message.
