@@ -67,6 +67,11 @@ struct CodeModeView: View {
     /// Active review-severity filter (nil = show every tier). Tapping a tier chip focuses it.
     @State private var reviewFilter: ReviewSeverity?
 
+    /// Above this many diff lines we don't auto-render the (word-diffed, min-width-pinned) diff —
+    /// the reviewer opts in per file, so a giant generated file can't jank the workspace.
+    static let largeDiffThreshold = 2500
+    @State private var forceRenderLargeDiff = false
+
     /// Session checkpoints: non-destructive snapshots (git stash create) you can rewind to.
     @State private var checkpoints: [Checkpoint] = []
     @State private var confirmRestore: Checkpoint?
@@ -121,7 +126,7 @@ struct CodeModeView: View {
                 }
             }
         }
-        .onChange(of: selected) { currentHunk = 0; Task { await loadDiff() } }
+        .onChange(of: selected) { currentHunk = 0; forceRenderLargeDiff = false; Task { await loadDiff() } }
         .confirmationDialog(model.t("code.revertConfirm"), isPresented: revertBinding, titleVisibility: .visible) {
             Button(model.t("code.revert"), role: .destructive) { performRevert() }
             Button(model.t("common.cancel"), role: .cancel) { confirmRevert = nil }
@@ -528,6 +533,25 @@ struct CodeModeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity).padding(Space.l)
     }
 
+    /// Shown instead of a very large diff — render is opt-in so a huge generated file doesn't
+    /// build a giant lazy stack + word-diff on open. Opening the file directly is always offered.
+    private func largeDiffNotice(_ lineCount: Int) -> some View {
+        VStack(spacing: Space.s) {
+            Image(systemName: "doc.badge.ellipsis").font(.title2).foregroundStyle(.tertiary)
+            Text(model.t("code.largeDiff", lineCount)).font(.sfCaption2).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: Space.s) {
+                Button(model.t("code.largeDiff.show")) { forceRenderLargeDiff = true }
+                    .buttonStyle(.bordered).controlSize(.small)
+                if let path = selected {
+                    Button(model.t("filepreview.open")) { NSWorkspace.shared.open(URL(fileURLWithPath: path)) }
+                        .buttonStyle(.bordered).controlSize(.small)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity).padding(Space.l)
+    }
+
     // MARK: Right — file viewer
 
     private var fileViewer: some View {
@@ -607,7 +631,9 @@ struct CodeModeView: View {
                     .padding(Space.m)
                     Divider()
                     if let diff = diffLines, viewMode == .diff {
-                        if diffSplit {
+                        if diff.count > Self.largeDiffThreshold && !forceRenderLargeDiff {
+                            largeDiffNotice(diff.count)
+                        } else if diffSplit {
                             SplitDiffScrollView(lines: diff,
                                                 fileExtension: ((selected ?? "") as NSString).pathExtension)
                         } else {
