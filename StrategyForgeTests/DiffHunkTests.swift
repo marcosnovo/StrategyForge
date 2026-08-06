@@ -76,6 +76,34 @@ struct DiffHunkTests {
     @Test func emptyDiffYieldsNoHunks() {
         #expect(DiffHunks.group([]).isEmpty)
     }
+
+    @Test func unifiedPatchRoundTripsPrefixesAndHeaders() {
+        let hunks = DiffHunks.group(CodeGit.parse(twoHunkDiff))
+        let patch = hunks[0].unifiedPatch(relPath: "foo.swift")
+        #expect(patch != nil)
+        let p = patch ?? ""
+        // File headers with a/ b/ paths for `git apply -p1`.
+        #expect(p.contains("diff --git a/foo.swift b/foo.swift"))
+        #expect(p.contains("--- a/foo.swift"))
+        #expect(p.contains("+++ b/foo.swift"))
+        // The @@ header is preserved verbatim.
+        #expect(p.contains("@@ -1,3 +1,3 @@"))
+        // Line prefixes are restored: context=space, del=-, add=+.
+        #expect(p.contains("\n let a = 1\n"))
+        #expect(p.contains("\n-let b = 2\n"))
+        #expect(p.contains("\n+let b = 20\n"))
+    }
+
+    @Test func unifiedPatchRefusesContextOnlyOrHeaderless() {
+        // A context-only hunk has no change to apply.
+        let ctx = DiffHunk(id: 0, header: "@@ -1,1 +1,1 @@",
+                           lines: [DiffLine(id: 0, kind: .context, oldNumber: 1, newNumber: 1, text: "x")])
+        #expect(ctx.unifiedPatch(relPath: "a.txt") == nil)
+        // A headerless (stub) hunk can't be reconstructed into a valid patch.
+        let headerless = DiffHunk(id: 0, header: "",
+                                  lines: [DiffLine(id: 0, kind: .add, oldNumber: nil, newNumber: 1, text: "y")])
+        #expect(headerless.unifiedPatch(relPath: "a.txt") == nil)
+    }
 }
 
 @MainActor

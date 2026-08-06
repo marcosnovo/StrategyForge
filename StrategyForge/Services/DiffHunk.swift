@@ -32,6 +32,27 @@ struct DiffHunk: Identifiable, Equatable {
     }
     /// The header line's own id (for scroll targeting the @@ row when present).
     var headerLineID: DiffLine.ID?
+
+    /// Reconstruct a standalone, `git apply`-able unified-diff patch for JUST this hunk. Re-adds
+    /// the per-line prefixes the parser stripped (context=" ", add="+", del="-") and prepends the
+    /// `diff --git` / `---` / `+++` file headers with `a/`/`b/` paths (so `git apply -p1` works).
+    /// Pure, so it's unit-tested; the working tree must still match the hunk's context for apply
+    /// to succeed (git verifies this and fails cleanly otherwise).
+    func unifiedPatch(relPath: String) -> String? {
+        guard !header.isEmpty, hasChange else { return nil }
+        var out = "diff --git a/\(relPath) b/\(relPath)\n"
+        out += "--- a/\(relPath)\n+++ b/\(relPath)\n"
+        out += header + "\n"
+        for l in lines {
+            switch l.kind {
+            case .add:     out += "+" + l.text + "\n"
+            case .del:     out += "-" + l.text + "\n"
+            case .context: out += " " + l.text + "\n"
+            case .hunk:    break   // never present in a hunk body
+            }
+        }
+        return out
+    }
 }
 
 enum DiffHunks {

@@ -1679,6 +1679,8 @@ enum L10n {
         "review.jump": ("Jump to this line in the diff", "Ir a esta línea en el diff"),
         "code.hunk.prev": ("Previous change", "Cambio anterior"),
         "code.hunk.next": ("Next change", "Cambio siguiente"),
+        "code.hunk.stage": ("Stage just this change", "Preparar solo este cambio"),
+        "code.hunk.revert": ("Discard just this change", "Descartar solo este cambio"),
         "code.agents": ("Agents", "Agentes"),
         "code.agents.hide": ("Hide the agents view", "Ocultar la vista de agentes"),
         "code.agents.show": ("Show the agents view", "Mostrar la vista de agentes"),

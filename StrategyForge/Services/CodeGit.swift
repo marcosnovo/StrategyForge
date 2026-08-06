@@ -228,6 +228,46 @@ enum CodeGit {
                 .map { (repo as NSString).appendingPathComponent(String($0)) })
         }.value
     }
+    /// Apply a single-hunk patch (reconstructed by `DiffHunk.unifiedPatch`) to the working
+    /// tree via `git apply`, piping the patch on stdin. `reverse` discards the hunk (revert);
+    /// otherwise it's applied (used here to stage a single hunk with `--cached`). Returns
+    /// (ok, output) so the UI can surface git's own error if the context no longer matches.
+    nonisolated static func applyHunkPatch(repo: String, patch: String,
+                                           reverse: Bool, cached: Bool) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, "git not found") }
+            var args = ["-C", repo, "apply", "-p1"]
+            if cached { args.append("--cached") }
+            if reverse { args.append("--reverse") }
+            args.append("-")   // read the patch from stdin
+            return runWithStdin(git, args, stdin: patch)
+        }.value
+    }
+
+    /// Run git with data piped to stdin (git apply reads the patch there). Kept separate from
+    /// `runStatus`, which nulls stdin to avoid credential-prompt hangs.
+    private static func runWithStdin(_ path: String, _ args: [String], stdin: String) -> (ok: Bool, out: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: path)
+        p.arguments = args
+        let out = Pipe(); p.standardOutput = out; p.standardError = out
+        let input = Pipe(); p.standardInput = input
+        var env = ProcessInfo.processInfo.environment
+        env["GIT_TERMINAL_PROMPT"] = "0"; env["GIT_ASKPASS"] = "/usr/bin/true"; env["GCM_INTERACTIVE"] = "never"
+        p.environment = env
+        do { try p.run() } catch { return (false, "git \(args.joined(separator: " ")) failed") }
+        LiveProcesses.register(p)
+        let watchdog = DispatchWorkItem { if p.isRunning { p.terminate() } }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 20, execute: watchdog)
+        input.fileHandleForWriting.write(Data(stdin.utf8))
+        try? input.fileHandleForWriting.close()
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        watchdog.cancel()
+        LiveProcesses.deregister(p)
+        return (p.terminationStatus == 0, String(data: data, encoding: .utf8) ?? "")
+    }
+
     /// Commit only what's already staged (no `add -A`).
     nonisolated static func commitStaged(repo: String, message: String) async -> (ok: Bool, out: String) {
         await Task.detached(priority: .userInitiated) {

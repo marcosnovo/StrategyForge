@@ -211,6 +211,35 @@ struct CodeModeView: View {
         if let line = hunks[currentHunk].anchorNewLine { scrollRequest = line }
     }
 
+    /// Repo-relative path of the selected file (git apply needs `a/<rel>` paths).
+    private func relPath(for absPath: String) -> String? {
+        guard let repo = vm.config.repoPath, absPath.hasPrefix(repo) else { return nil }
+        return String(absPath.dropFirst(repo.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    /// Stage (cached) or discard (reverse, working tree) just the current hunk via a
+    /// reconstructed single-hunk patch. On failure, surface git's own message.
+    private func applyCurrentHunk(reverse: Bool) {
+        let hunks = changedHunks
+        guard hunks.indices.contains(currentHunk),
+              let sel = selected, let rel = relPath(for: sel),
+              let patch = hunks[currentHunk].unifiedPatch(relPath: rel),
+              let repo = vm.config.repoPath else { return }
+        gitBusy = true; gitError = nil
+        Task {
+            let r = await CodeGit.applyHunkPatch(repo: repo, patch: patch, reverse: reverse, cached: !reverse)
+            if r.ok {
+                if reverse { await loadDiff() }          // working tree changed → re-read
+                staged = await CodeGit.stagedFiles(repo: repo)
+                await loadChangeStats()
+                currentHunk = min(currentHunk, max(0, changedHunks.count - 1))
+            } else {
+                gitError = r.out.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            gitBusy = false
+        }
+    }
+
     /// Jump the diff to a finding: switch to its file if needed (scroll applies once the diff
     /// loads), otherwise scroll straight away.
     private func jumpToFinding(_ f: ReviewFinding) {
@@ -493,6 +522,19 @@ struct CodeModeView: View {
                                     Button { stepHunk(1) } label: { Image(systemName: "chevron.down") }
                                         .buttonStyle(.plain).foregroundStyle(.secondary)
                                         .help(model.t("code.hunk.next"))
+                                    // Stage / discard JUST the current hunk (single-hunk patch).
+                                    if isRepo, relPath(for: selected ?? "") != nil {
+                                        Button { applyCurrentHunk(reverse: false) } label: {
+                                            Image(systemName: "plus.circle")
+                                        }
+                                        .buttonStyle(.plain).foregroundStyle(Theme.success)
+                                        .disabled(gitBusy).help(model.t("code.hunk.stage"))
+                                        Button { applyCurrentHunk(reverse: true) } label: {
+                                            Image(systemName: "arrow.uturn.backward.circle")
+                                        }
+                                        .buttonStyle(.plain).foregroundStyle(Theme.danger)
+                                        .disabled(gitBusy).help(model.t("code.hunk.revert"))
+                                    }
                                 }
                             }
                         }
