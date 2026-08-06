@@ -60,6 +60,10 @@ struct CodeModeView: View {
     @State private var pendingScroll: Int?
     /// Index into the current file's changed hunks, for prev/next-hunk navigation.
     @State private var currentHunk = 0
+    /// The floating "agents" companion over the diff — expanded shows the live team graph, so
+    /// you can watch the agents work AND read their diff at once (they used to be mutually
+    /// exclusive right-hand columns). Collapsed to a pill; persisted.
+    @AppStorage("code.agentsExpanded") private var agentsExpanded = true
 
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
@@ -448,6 +452,13 @@ struct CodeModeView: View {
     // MARK: Right — file viewer
 
     private var fileViewer: some View {
+        ZStack(alignment: .topTrailing) {
+            fileViewerBody
+            agentsCompanion   // floating team graph, top-right, over the diff
+        }
+    }
+
+    private var fileViewerBody: some View {
         Group {
             if let path = selected {
                 VStack(alignment: .leading, spacing: 0) {
@@ -538,6 +549,51 @@ struct CodeModeView: View {
             }
         }
         .background(Theme.appBg)
+    }
+
+    /// A floating, collapsible companion that keeps the live team graph in view while you read
+    /// the diff — the diff stays the full-width primary surface; the agents view is a quiet,
+    /// dismissible overlay instead of a column that evicts it. Only shown when there's a team
+    /// (or a live run), so solo/idle code sessions keep quiet chrome.
+    @ViewBuilder private var agentsCompanion: some View {
+        let hasTeam = !vm.config.strategy.subagentRoles.isEmpty
+        if hasTeam || vm.isRunning {
+            VStack(alignment: .trailing, spacing: 0) {
+                Button { withAnimation(.easeInOut(duration: 0.2)) { agentsExpanded.toggle() } } label: {
+                    HStack(spacing: 6) {
+                        Circle().fill(vm.isRunning ? Theme.teal : Theme.inkDim)
+                            .frame(width: 6, height: 6)
+                        Text(model.t("code.agents")).font(.sfCaption2.weight(.semibold))
+                            .foregroundStyle(Theme.ink)
+                        Image(systemName: agentsExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(model.t(agentsExpanded ? "code.agents.hide" : "code.agents.show"))
+                if agentsExpanded {
+                    Divider().frame(width: 300)
+                    Group {
+                        if vm.isRunning {
+                            LiveAgentGraphView(snapshot: vm.liveGraph).frame(width: 300, height: 210)
+                        } else {
+                            StrategyDiagramView(strategy: vm.config.strategy,
+                                                activeAgent: vm.activeSubagent,
+                                                isLive: false, compact: true)
+                                .frame(width: 300, height: 210)
+                        }
+                    }
+                    .padding(8)
+                }
+            }
+            .glassPanel(cornerRadius: Theme.corner)
+            .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                .strokeBorder(Theme.hairline, lineWidth: 1))
+            .elevation(.e3)
+            .padding(Space.m)
+        }
     }
 
     /// Collapsible terminal: the shell commands the agent ran + their output.

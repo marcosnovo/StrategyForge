@@ -405,6 +405,11 @@ final class ChatViewModel {
     /// A provider whose saved login looks expired (detected mid-run) — the UI shows a
     /// one-tap "Reconnect" banner so a stale session self-heals instead of hanging.
     var needsReauth: AIProvider?
+    /// Providers already surfaced for reconnect THIS turn. `.authRequired` is emitted from
+    /// more than one place — the pre-flight login check AND the in-flight orchestrator/worker
+    /// failure catch (MetaOrchestrator) — so without this guard the same provider prompts the
+    /// user to sign in twice in a single run. Reset at the start of each turn/retry.
+    private var authPromptedThisTurn: Set<AIProvider> = []
     /// Running token total + cost for this chat, grows per turn.
     var totalTokens = 0
     var totalCostUSD = 0.0
@@ -980,6 +985,7 @@ final class ChatViewModel {
         rolesRunning = [:]
         pendingCommands = [:]
         turnStartedAt = Date()
+        authPromptedThisTurn = []
         lastStreamPersist = .distantPast
         runTask?.cancel()   // never leave a prior run's subprocess orphaned
         if messages.isEmpty {
@@ -1353,7 +1359,10 @@ final class ChatViewModel {
                                     isDelegation: false, agent: isOrch ? nil : role))
         case .authRequired(let provider):
             // A provider's login is stale — surface a one-tap Reconnect (the run fails fast
-            // rather than hanging on a prompt no one can answer).
+            // rather than hanging on a prompt no one can answer). Only once per provider per
+            // turn: the pre-flight check and the in-flight failure both emit this, and we must
+            // not ask the user to sign in twice for the same provider in one run.
+            guard authPromptedThisTurn.insert(provider).inserted else { break }
             needsReauth = provider
         case .roleNarration(let role, let text):
             // Rolling "what it's doing now" for a provider with no structured tool stream.
@@ -1515,6 +1524,7 @@ final class ChatViewModel {
         guard !isRunning, !prompt.isEmpty else { return }
         let repo = workingDirectory()
         deniedTools = []; errorText = nil; needsReauth = nil; activity = []; activeSubagent = nil
+        authPromptedThisTurn = []
         agentsInvolved = []; timeline = []; todos = []; turnStartedAt = Date()
         roleLiveLine = [:]; rolesRunning = [:]
         turnSkillsUsed = []
