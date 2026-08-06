@@ -97,15 +97,27 @@ enum AdvisorEngine {
 
     /// Q1 — does the task need more than a quick answer?
     private static let depthGroups: [SignalGroup] = [
-        // Stems on purpose: "implement" covers implementa(r), "investiga" covers
-        // investigate/investigar, "disen" covers diseña(r) once diacritics fold.
+        // Stems on purpose so a stem catches every conjugation once diacritics fold:
+        // "implement" covers implementa(r), "investiga" covers investigate/investigar,
+        // "disen" covers diseña(r). Broadened to how people actually phrase build-type work
+        // (create, make, add, fix, improve, write, plan, analyze, review…), EN + ES, so the
+        // advisor isn't brittle to exact wording. (Image "crea/genera" is caught earlier.)
         SignalGroup(evidenceKey: "advisor.ev.multistep", keywords: [
-            "migrate", "migrar", "refactor", "audit", "build", "construir",
-            "implement", "investiga", "design", "disen",
+            "migrate", "migrar", "refactor", "refactoriza", "audit", "audita",
+            "build", "construir", "construye", "implement", "implementa", "investiga",
+            "design", "disen", "develop", "desarrolla", "desarrollar", "program", "programa",
+            "code", "codifica", "create", "crea", "crear", "make", "haz", "hazme", "monta",
+            "montar", "add", "anade", "anadir", "agrega", "agregar", "integra", "integrar",
+            "optimiz", "optimiza", "improve", "mejora", "mejorar", "fix", "arregla", "arreglar",
+            "soluciona", "resuelve", "analyze", "analiza", "analizar", "review", "revisa",
+            "revisar", "write", "escribe", "escribir", "redacta", "redactar", "genera", "generar",
+            "plan ", "planifica", "planificar", "report", "informe", "document", "documenta",
         ]),
         SignalGroup(evidenceKey: "advisor.ev.scope", keywords: [
             "repo", "test", "multiple files", "varios archivos", "muchos archivos",
             "all files", "todos los archivos", "en todo", "dias", "days", "hours", "horas",
+            "project", "proyecto", "codebase", "base de codigo", "whole app", "toda la app",
+            "sistema", "system", "pipeline", "backend", "frontend", "app entera", "aplicacion",
         ]),
         // Explicit breadth ("from several fronts", "exhaustive", "in parallel", a
         // "prioritized backlog") is real depth: it warrants a strong model + a team,
@@ -122,6 +134,9 @@ enum AdvisorEngine {
         SignalGroup(evidenceKey: "advisor.ev.speedWords", keywords: [
             "summar", "resum", "translat", "traduc", "list", "short", "corto",
             "quick", "rapid", "classif", "clasific",
+            // Natural "just a quick question" phrasings → a light, fast single model.
+            "tldr", "tl;dr", "brevemente", "en breve", "quick question", "pregunta rapida",
+            "dame", "dime", "que es", "what is", "what's", "explica", "explain", "define",
         ]),
     ]
 
@@ -130,6 +145,8 @@ enum AdvisorEngine {
         SignalGroup(evidenceKey: "advisor.ev.ambition", keywords: [
             "architecture", "arquitectura", "multi-day", "varios dias", "deep research",
             "investigacion profunda", "end to end", "end-to-end", "de punta a punta",
+            "from scratch", "desde cero", "sistema completo", "whole system", "ambitious",
+            "ambicioso", "gran proyecto", "big project", "complejo de verdad",
         ]),
         SignalGroup(evidenceKey: "advisor.ev.migration", keywords: [
             "migration", "migracion",

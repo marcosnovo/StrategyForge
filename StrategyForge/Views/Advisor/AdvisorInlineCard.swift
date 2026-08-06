@@ -39,6 +39,8 @@ struct AdvisorInlineCard: View {
     @State private var sliderPos: Double = 0
     /// Chip hover cue (a tint, not motion) so it reads as an interactive control.
     @State private var chipHovering = false
+    /// Drives the entrance (spring rise + settle scale) and the one-shot badge sparkle.
+    @State private var appeared = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var selected: AdvisorEngine.Tier? {
@@ -65,8 +67,16 @@ struct AdvisorInlineCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         // Airy translucent glass so the composer's suggestion reads as a floating pane.
         .glassPanel(cornerRadius: Theme.innerCorner)
+        // Entrance: a soft spring rise + settle-in scale (not a hard pop). The "wink" is the
+        // sparkle on the Apple Intelligence badge firing once — see sourceBadge.
+        .scaleEffect(appeared ? 1 : 0.97, anchor: .bottom)
+        .opacity(appeared ? 1 : 0)
         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity),
                                 removal: .opacity))
+        .onAppear {
+            guard !reduceMotion else { appeared = true; return }
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) { appeared = true }
+        }
     }
 
     // MARK: - Rows
@@ -204,55 +214,61 @@ struct AdvisorInlineCard: View {
         let idx = tierIndex(selectedID)
         let lastIndex = max(tiers.count - 1, 1)
         let frac = Double(idx) / Double(lastIndex)
-        return HStack(spacing: Space.l) {
-            // LEFT: the info, given room to breathe (founder: "muy junta, no se entiende").
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(model.t("advisor.tier.title").uppercased())
-                        .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.7).lineLimit(1)
-                    Text(model.t(sel.labelKey))
-                        .font(.sfDisplay).foregroundStyle(Theme.accent).lineLimit(1).minimumScaleFactor(0.7)
-                }
-                VStack(spacing: 5) {
-                    modernBar(lastIndex: lastIndex, frac: frac)
-                    HStack {
-                        Text(model.t("advisor.tier.faster")).font(.system(size: 10)).foregroundStyle(.tertiary)
-                        Spacer()
-                        Text(model.t("advisor.tier.max")).font(.system(size: 10))
-                            .foregroundStyle(idx == lastIndex ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
+        return VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: Space.l) {
+                // LEFT: the info, given room to breathe (founder: "muy junta, no se entiende").
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(model.t("advisor.tier.title").uppercased())
+                            .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.7).lineLimit(1)
+                        Text(model.t(sel.labelKey))
+                            .font(.sfDisplay).foregroundStyle(Theme.accent).lineLimit(1).minimumScaleFactor(0.7)
                     }
+                    VStack(spacing: 5) {
+                        modernBar(lastIndex: lastIndex, frac: frac)
+                        HStack {
+                            Text(model.t("advisor.tier.faster")).font(.system(size: 10)).foregroundStyle(.tertiary)
+                            Spacer()
+                            Text(model.t("advisor.tier.max")).font(.system(size: 10))
+                                .foregroundStyle(idx == lastIndex ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
+                        }
+                    }
+                    HStack(spacing: 6) {
+                        Text(sel.advice.estimatedCost.headline)
+                            .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.ink)
+                        Text("·").foregroundStyle(.tertiary)
+                        Text(model.t(sel.noteKey)).font(.sfCaption2).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.tail)
+                    }
+                    Spacer(minLength: 0)
                 }
-                HStack(spacing: 6) {
-                    Text(sel.advice.estimatedCost.headline)
-                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.ink)
-                    Text("·").foregroundStyle(.tertiary)
-                    Text(model.t(sel.noteKey)).font(.sfCaption2).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.tail)
-                }
-                Spacer(minLength: 0)
-                // Point to where the full roster lives — it updates live as you change the tier.
-                Label(model.t("advisor.tier.seeInPanel"), systemImage: "arrow.right")
-                    .font(.system(size: 10)).foregroundStyle(.tertiary)
-                    .labelStyle(.titleAndIcon)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            // RIGHT: the hero orb + a tiny team schematic — together they say "the team grows and
-            // gets stronger" as you raise the level (founder's ask).
-            VStack(spacing: 8) {
-                Spacer(minLength: 0)
-                ThinkingOrb(state: orbState(forIndex: idx), size: 68, tint: Theme.accent)
-                    .frame(width: 68, height: 68)
-                    .scaleEffect(1.0 + 0.06 * frac)
-                    .background {
-                        Circle().fill(Theme.accentGlow.opacity(0.12 + 0.4 * frac))
-                            .frame(width: 74, height: 74).blur(radius: 10)
-                    }
-                teamGrowRow(count: teamSize(sel))
+                // RIGHT: the hero orb + a tiny team schematic — together they say "the team grows and
+                // gets stronger" as you raise the level (founder's ask).
+                VStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    ThinkingOrb(state: orbState(forIndex: idx), size: 68, tint: Theme.accent)
+                        .frame(width: 68, height: 68)
+                        .scaleEffect(1.0 + 0.06 * frac)
+                        .background {
+                            Circle().fill(Theme.accentGlow.opacity(0.12 + 0.4 * frac))
+                                .frame(width: 74, height: 74).blur(radius: 10)
+                        }
+                    teamGrowRow(count: teamSize(sel))
+                    Spacer(minLength: 0)
+                }
+                .frame(width: 96)
+            }
+            // Full-width footer note (spans the whole modal, so it never truncates): where the
+            // live roster shows. Sits on a hairline so it reads as a quiet caption.
+            Divider().opacity(0.4)
+            HStack(spacing: 5) {
+                Image(systemName: "arrow.right").font(.system(size: 9, weight: .semibold))
+                Text(model.t("advisor.tier.seeInPanel")).font(.system(size: 10.5))
                 Spacer(minLength: 0)
             }
-            .frame(width: 96)
+            .foregroundStyle(.secondary)
         }
         .padding(Space.l)
         .frame(width: 340, height: 176)   // CONSTANT size — never resizes with tier or note length
@@ -401,12 +417,16 @@ struct AdvisorInlineCard: View {
     /// "local engine" one, so it's obvious when the AI is driving the recommendation.
     private var sourceBadge: some View {
         let ai = selected?.advice.usedAI ?? false
-        return Label(model.t(ai ? "advisor.source.ai.full" : "advisor.source.local.full"),
-                     systemImage: ai ? "sparkles" : "cpu")
-            .font(.sfCaption2.weight(.semibold))
-            .foregroundStyle(ai ? Theme.onAccent : .secondary)
-            .padding(.horizontal, 8).padding(.vertical, 2)
-            .background(Capsule().fill(ai ? AnyShapeStyle(Theme.primaryFill) : AnyShapeStyle(Theme.inkDim.opacity(0.18))))
+        return HStack(spacing: 4) {
+            Image(systemName: ai ? "sparkles" : "cpu")
+                // The wink: the sparkles do one bounce when the card appears (nonRepeating).
+                .symbolEffect(.bounce, options: .nonRepeating, value: appeared)
+            Text(model.t(ai ? "advisor.source.ai.full" : "advisor.source.local.full"))
+        }
+        .font(.sfCaption2.weight(.semibold))
+        .foregroundStyle(ai ? Theme.onAccent : .secondary)
+        .padding(.horizontal, 8).padding(.vertical, 2)
+        .background(Capsule().fill(ai ? AnyShapeStyle(Theme.primaryFill) : AnyShapeStyle(Theme.inkDim.opacity(0.18))))
     }
 
     /// "Opus 4.8 · Domain Specialists · Turn-based" — the option, one line.
