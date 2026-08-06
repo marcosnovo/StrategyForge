@@ -85,6 +85,7 @@ struct CodeModeView: View {
         HStack(spacing: 0) {
             fileList
                 .frame(width: 240)
+                .background(keyboardShortcuts)
             Divider()
             fileViewer
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -230,6 +231,34 @@ struct CodeModeView: View {
         guard !hunks.isEmpty else { return }
         currentHunk = (currentHunk + delta + hunks.count) % hunks.count
         if let line = hunks[currentHunk].anchorNewLine { scrollRequest = line }
+    }
+
+    /// Invisible buttons that carry the diff-review keyboard shortcuts. All use ⌥ (Option) so
+    /// they never fire while the user is typing in the commit field. Active only while Code mode
+    /// is on screen (this view is mounted). ⌥[ / ⌥] file · ⌥↑ / ⌥↓ hunk · ⌥V viewed · ⌥D split.
+    private var keyboardShortcuts: some View {
+        Group {
+            Button("") { stepFile(-1) }.keyboardShortcut("[", modifiers: [.option])
+            Button("") { stepFile(1) }.keyboardShortcut("]", modifiers: [.option])
+            Button("") { stepHunk(-1) }.keyboardShortcut(.upArrow, modifiers: [.option])
+            Button("") { stepHunk(1) }.keyboardShortcut(.downArrow, modifiers: [.option])
+            Button("") { toggleViewedSelected() }.keyboardShortcut("v", modifiers: [.option])
+            Button("") { diffSplit.toggle() }.keyboardShortcut("d", modifiers: [.option])
+        }
+        .opacity(0).frame(width: 0, height: 0).accessibilityHidden(true)
+    }
+
+    /// Step selection to the previous/next changed file (⌥[ / ⌥]).
+    private func stepFile(_ delta: Int) {
+        guard !files.isEmpty else { return }
+        let idx = files.firstIndex(of: selected ?? "") ?? 0
+        let next = (idx + delta + files.count) % files.count
+        selected = files[next]
+    }
+
+    /// Toggle "viewed" on the currently-selected file (⌥V).
+    private func toggleViewedSelected() {
+        if let sel = selected { toggleViewed(sel) }
     }
 
     /// Repo-relative path of the selected file (git apply needs `a/<rel>` paths).
