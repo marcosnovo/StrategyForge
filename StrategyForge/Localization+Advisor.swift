@@ -48,6 +48,9 @@ extension L10n {
         "advisor.tier.max": ("Max quality", "Máxima calidad"),
         "advisor.tier.max.note": ("Better results, higher cost", "Mejores resultados, más coste"),
         "advisor.tier.caption": ("Options", "Opciones"),
+        "advisor.tier.solo": ("One model", "Un modelo"),
+        "advisor.tier.solo.note": ("Image generation runs on a single model — no team needed",
+                                   "Generar imágenes va con un solo modelo — no hace falta equipo"),
 
         // MARK: Decision path
         "advisor.path.title": ("How we decided", "Cómo lo decidimos"),
@@ -148,6 +151,9 @@ extension L10n {
         "advisor.rationale.solo": (
             "One agent is enough — no coordination overhead.",
             "Con un solo agente basta — sin sobrecoste de coordinación."),
+        "advisor.rationale.image": (
+            "Creating an image is a single-model task — generate it directly, no team.",
+            "Crear una imagen es tarea de un solo modelo — genérala directamente, sin equipo."),
         "advisor.rationale.execadv": (
             "One executor does the work; an advisor double-checks each step.",
             "Un ejecutor hace el trabajo; un asesor revisa cada paso."),

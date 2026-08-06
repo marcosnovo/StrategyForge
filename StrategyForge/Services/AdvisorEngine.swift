@@ -184,6 +184,26 @@ enum AdvisorEngine {
     /// `connected` lets the SHAPE itself be provider-aware (e.g. a heterogeneous team
     /// of specialists when several providers are connected); it defaults to Claude-only
     /// so existing callers keep today's behavior.
+    /// A text-to-IMAGE request ("crea una imagen…", "genera un logo…") — a single-model creative
+    /// task, NOT a job for an orchestrator+workers team. Requires an image noun AND a create verb,
+    /// and bails when the text is clearly about code (so "add image upload to the app" stays a
+    /// normal coding task). Drives the advisor to recommend solo + point at image generation.
+    static func isImageTask(_ task: String) -> Bool {
+        let t = normalize(task)
+        let noun = contains(t, ["imagen", "imágenes", "imagenes", "foto", "fotografía", "fotografia",
+                                "ilustración", "ilustracion", "logo", "logotipo", "póster", "poster",
+                                "wallpaper", "icono", "image", "picture", "photo", "illustration",
+                                "artwork", "icon", "avatar", "render"])
+        let verb = contains(t, ["crea", "crear", "genera", "generar", "haz", "hazme", "dibuja",
+                                "diseña", "diseñar", "make", "create", "generate", "draw", "design",
+                                "paint", "render"])
+        let codey = contains(t, ["código", "codigo", "code", "función", "funcion", "function", "feature",
+                                 "componente", "component", "endpoint", "app ", "bug", "test", "deploy",
+                                 "refactor", "subir", "upload", "botón", "boton", "button", "pantalla",
+                                 "screen", "página", "pagina", "formulario", "database", "base de datos"])
+        return noun && verb && !codey
+    }
+
     static func advise(task: String, connected: Set<AIProvider> = [.claude]) -> Advice {
         let trimmed = task.trimmingCharacters(in: .whitespacesAndNewlines)
         let text = normalize(trimmed)
@@ -231,6 +251,11 @@ enum AdvisorEngine {
         // executor+advisor. The adjustment is an explicit step in the path.
         var (shape, teamSize) = StrategyGenerator.heuristicShape(for: trimmed, connected: connected)
         var rationaleKey = "advisor.rationale.\(shapeKeySuffix(shape))"
+        // A text-to-image request is a single-model job — never an orchestrator+workers team.
+        if isImageTask(trimmed) {
+            shape = .solo; teamSize = 1
+            rationaleKey = "advisor.rationale.image"
+        }
         let isCheapModel = (model == .haiku45 || model == .sonnet5)
         let isHeavyShape = !(shape == .solo || shape == .executorAdvisor)
         // Fan-out shapes are PARALLEL LABOR (many near-identical agents); structural
@@ -312,7 +337,8 @@ enum AdvisorEngine {
     /// one-line rationale. Falls back to `advise` on any error or when AI is off.
     static func adviseWithAI(task: String, connected: Set<AIProvider> = [.claude]) async -> Advice {
         let base = advise(task: task, connected: connected)
-        guard StrategyGenerator.isAIAvailable,
+        // Don't let the AI reshape an image request into a team — it's a single-model job.
+        guard StrategyGenerator.isAIAvailable, !isImageTask(task),
               !task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return base }
         let ai = await StrategyGenerator.generate(from: task, connected: connected)
         guard ai.usedAI else { return base }
@@ -348,6 +374,13 @@ enum AdvisorEngine {
     static func adviseTiers(task: String, connected: Set<AIProvider> = [.claude],
                             deprioritize: Set<AIProvider> = [],
                             modelLocked: Set<AIProvider> = []) async -> [Tier] {
+        // Image generation is one model — show a SINGLE "one model" option, never the
+        // economy/recommended/max team ladder (which would re-inflate a fleet).
+        if isImageTask(task) {
+            let solo = advise(task: task, connected: connected)
+            return [Tier(id: "balanced", labelKey: "advisor.tier.solo",
+                         noteKey: "advisor.tier.solo.note", advice: solo)]
+        }
         let balanced = await adviseWithAI(task: task, connected: connected)
         let saver = variant(of: balanced, shift: -1, countDelta: -1,
                             effort: lower(balanced.effort),
