@@ -37,6 +37,9 @@ struct AdvisorInlineCard: View {
     @State private var showTier = false
     /// Continuous slider position (0…count-1) — smooth drag; the SELECTION snaps to the nearest.
     @State private var sliderPos: Double = 0
+    /// Chip hover cue (a tint, not motion) so it reads as an interactive control.
+    @State private var chipHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Resting = one recommendation line + primary button; the visual agent roster lives behind
     /// "See the team" (founder: minimal, but the tier choice stays visible via the chip).
     @State private var showDetails = false
@@ -147,27 +150,30 @@ struct AdvisorInlineCard: View {
         }
     }
 
-    /// The tier chip — now unmistakably a control: a bordered coral pill with a slider glyph, the
-    /// current tier NAME + cost, and a chevron. (Founder: "no se entiende que se puede tocar ahí".)
+    /// The tier chip — a self-describing "Equipo: {tier} · {cost}" control so it's obvious it SETS
+    /// the team level (founder: "no se entiende que sirve para establecer el tipo de equipo").
     private func tierChip(_ sel: AdvisorEngine.Tier) -> some View {
         Button { showTier = true } label: {
             HStack(spacing: 5) {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 10, weight: .semibold))
-                Text(model.t(sel.labelKey)).font(.sfCaption2.weight(.semibold))
+                Image(systemName: "person.2.fill").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.accent)
+                Text(model.t("advisor.tier.chipPrefix")).font(.sfCaption2).foregroundStyle(.secondary)   // the NOUN
+                Text(model.t(sel.labelKey)).font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent).lineLimit(1)  // the VALUE
                 Text(sel.advice.estimatedCost.headline).font(.sfCaption2).foregroundStyle(Theme.accent.opacity(0.85))
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold)).foregroundStyle(.tertiary)
+                    .layoutPriority(-1).lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .semibold)).foregroundStyle(.tertiary)
             }
-            .foregroundStyle(Theme.accent)
             .padding(.horizontal, 9).padding(.vertical, 4)
             .background(Capsule().fill(Theme.accentSoft))
-            .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.35), lineWidth: 1))
+            .overlay(Capsule().strokeBorder(Theme.accent.opacity(chipHovering ? 0.55 : 0.35), lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .onHover { h in withAnimation(.easeOut(duration: 0.15)) { chipHovering = h } }
         .help(model.t("advisor.tier.title"))
+        .accessibilityLabel(model.t("advisor.tier.a11y", model.t(sel.labelKey)))
         .popover(isPresented: $showTier, arrowEdge: .bottom) { tierPopover(sel) }
     }
 
-    // MARK: - Tier popover (smooth 5-stop dial, with a per-tier Coral orb)
+    // MARK: - Tier popover (fixed-size; hero orb right; energy bar that brightens with the level)
 
     private func tierIndex(_ id: String) -> Int { max(0, tiers.firstIndex { $0.id == id } ?? 0) }
     private func tierID(at i: Int) -> String { tiers[min(max(i, 0), tiers.count - 1)].id }
@@ -187,56 +193,91 @@ struct AdvisorInlineCard: View {
     private func tierPopover(_ sel: AdvisorEngine.Tier) -> some View {
         let idx = tierIndex(selectedID)
         let lastIndex = max(tiers.count - 1, 1)
-        return VStack(alignment: .leading, spacing: Space.s) {
-            HStack(spacing: Space.s) {
-                // A living Coral orb whose "mood" is the current tier — always present, per the
-                // founder's per-state mapping. It IS the flourish now (no shimmer needed).
-                ThinkingOrb(state: orbState(forIndex: idx), size: 30, tint: Theme.accent)
-                    .frame(width: 30, height: 30)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(model.t("advisor.tier.title")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
-                    Text(model.t(sel.labelKey)).font(.sfCardTitle).foregroundStyle(Theme.accent)
+        let frac = Double(idx) / Double(lastIndex)
+        return HStack(spacing: Space.m) {
+            // LEFT: label + name + energy bar + endpoints + fixed 2-line cost/note.
+            VStack(alignment: .leading, spacing: Space.s) {
+                Text(model.t("advisor.tier.title").uppercased())
+                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6).lineLimit(1)
+                Text(model.t(sel.labelKey))
+                    .font(.sfCardTitle).foregroundStyle(Theme.accent).lineLimit(1).minimumScaleFactor(0.8)
+                energyBar(lastIndex: lastIndex).frame(height: 26)
+                HStack {
+                    Text(model.t("advisor.tier.faster")).font(.sfCaption2).foregroundStyle(.secondary)
+                    Spacer()
+                    Text(model.t("advisor.tier.max")).font(.sfCaption2)
+                        .foregroundStyle(idx == lastIndex ? Theme.accent : .secondary)
                 }
-                Spacer()
+                Text("\(sel.advice.estimatedCost.headline) · \(model.t(sel.noteKey))")
+                    .font(.sfCaption2).foregroundStyle(.secondary)
+                    .lineLimit(2, reservesSpace: true).truncationMode(.tail)
+                Spacer(minLength: 0)
             }
-            HStack {
-                Text(model.t("advisor.tier.faster")).font(.sfCaption2).foregroundStyle(.secondary)
-                Spacer()
-                Text(model.t("advisor.tier.max")).font(.sfCaption2)
-                    .foregroundStyle(idx == lastIndex ? Theme.accent : .secondary)
+            Rectangle().fill(Theme.hairline).frame(width: 1).padding(.vertical, Space.s)
+            // RIGHT: the HERO orb — bigger, charging up as the level rises (the "levelling up" claim).
+            VStack {
+                Spacer(minLength: 0)
+                ThinkingOrb(state: orbState(forIndex: idx), size: 72, tint: Theme.accent)
+                    .frame(width: 72, height: 72)
+                    .scaleEffect(1.0 + 0.06 * frac)
+                    .background {
+                        Circle().fill(Theme.accentGlow.opacity(0.12 + 0.38 * frac))
+                            .frame(width: 78, height: 78).blur(radius: 10)
+                    }
+                Spacer(minLength: 0)
             }
-            // SMOOTH continuous slider (no step → glides), snapping the SELECTION to the nearest
-            // of the 5 stops as you cross each midpoint. Tick dots mark the stops.
-            Slider(value: $sliderPos, in: 0...Double(lastIndex))
-                .tint(Theme.accent)
-                .background(alignment: .center) { tickMarks(count: tiers.count) }
-                .onChange(of: sliderPos) { _, v in
-                    let id = tierID(at: Int(v.rounded()))
-                    if id != selectedID { onSelectTier(id) }
-                }
-            // Live pick + cost + tradeoff, updates as you drag.
-            Text("\(sel.advice.estimatedCost.headline) · \(model.t(sel.noteKey))")
-                .font(.sfCaption2).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            .frame(width: 84)
         }
         .padding(Space.m)
-        .frame(width: 300)
+        .frame(width: 320, height: 140)   // CONSTANT size — never resizes with tier or note length
         .onAppear { sliderPos = Double(idx) }
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.8), value: idx)
     }
 
-    /// Faint dots under the slider marking the 5 discrete stops.
-    private func tickMarks(count: Int) -> some View {
+    /// A custom energy bar (not the stock Slider): a coral track whose FILL brightens + glows as
+    /// the level rises, 5 lit-up notches, a coral thumb. Smooth drag; the selection snaps to the
+    /// nearest of the 5 stops (with a tick of haptic feedback).
+    private func energyBar(lastIndex: Int) -> some View {
         GeometryReader { g in
-            let inset: CGFloat = 10   // approx thumb radius so ticks sit under the stops
+            let inset: CGFloat = 10
             let usable = max(g.size.width - inset * 2, 1)
-            ForEach(0..<max(count, 1), id: \.self) { i in
-                Circle().fill(Theme.hairline)
-                    .frame(width: 3, height: 3)
-                    .position(x: inset + usable * CGFloat(i) / CGFloat(max(count - 1, 1)),
-                              y: g.size.height / 2)
+            let mid = g.size.height / 2
+            let frac = CGFloat(sliderPos) / CGFloat(lastIndex)          // 0…1 continuous (glides)
+            let fillW = usable * frac
+            ZStack {
+                Capsule().fill(Theme.hairline).frame(width: usable, height: 6)
+                    .position(x: inset + usable / 2, y: mid)
+                Capsule().fill(Theme.primaryFill).frame(width: fillW, height: 6)
+                    .opacity(0.45 + 0.55 * Double(frac))                 // brightness ramp
+                    .shadow(color: Theme.accentGlow.opacity(Double(frac)), radius: frac * 8)
+                    .position(x: inset + fillW / 2, y: mid)
+                ForEach(0...lastIndex, id: \.self) { i in
+                    let lit = Double(i) <= sliderPos.rounded()
+                    Circle().fill(lit ? Theme.onAccent.opacity(0.9) : Theme.hairline)
+                        .frame(width: 5, height: 5)
+                        .position(x: inset + usable * CGFloat(i) / CGFloat(lastIndex), y: mid)
+                }
+                Circle().fill(Theme.primaryFill).frame(width: 20, height: 20)
+                    .overlay(Circle().strokeBorder(Theme.onAccent, lineWidth: 2))
+                    .elevation(.e1)
+                    .position(x: inset + fillW, y: mid)
             }
+            .frame(height: g.size.height)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { v in
+                    let f = min(max((v.location.x - inset) / usable, 0), 1)
+                    sliderPos = Double(f) * Double(lastIndex)
+                    let id = tierID(at: Int(sliderPos.rounded()))
+                    if id != selectedID { onSelectTier(id) }
+                }
+                .onEnded { _ in
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85)) {
+                        sliderPos = sliderPos.rounded()
+                    }
+                })
+            .sensoryFeedback(.selection, trigger: selectedID)
         }
-        .allowsHitTesting(false)
     }
 
     /// A loop RECOMMENDATION — shown only when the engine read a repeat/verify signal

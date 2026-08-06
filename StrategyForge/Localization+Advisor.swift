@@ -55,6 +55,8 @@ extension L10n {
         "advisor.tier.high.note": ("More capable, higher cost", "Más capaz, más coste"),
         "advisor.tier.caption": ("Options", "Opciones"),
         "advisor.tier.title": ("Team tier", "Nivel del equipo"),
+        "advisor.tier.chipPrefix": ("Team:", "Equipo:"),
+        "advisor.tier.a11y": ("Team: %@, tap to change the level", "Equipo: %@, toca para cambiar el nivel"),
         "advisor.tier.faster": ("Faster & cheaper", "Más rápida y barata"),
         "advisor.tier.solo": ("One model", "Un modelo"),
         "advisor.tier.solo.note": ("Image generation runs on a single model — no team needed",
