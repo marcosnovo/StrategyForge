@@ -50,6 +50,10 @@ struct CodeModeView: View {
     /// Per-file +insertions / −deletions + change kind, keyed by repo-relative path.
     @State private var changeStats: [String: CodeGit.ChangedFile] = [:]
 
+    /// Files the reviewer has marked "viewed" — a Claude/GitHub-style review-progress signal.
+    /// Session-local (a review is a moment, not a persisted fact); reset when the file set changes.
+    @State private var viewed: Set<String> = []
+
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
     private var files: [String] { vm.editedFiles }
@@ -78,6 +82,7 @@ struct CodeModeView: View {
         }
         .onChange(of: vm.editedFiles) { _, new in
             if selected == nil || !(new.contains(selected ?? "")) { selected = new.first }
+            viewed.formIntersection(new)   // drop files that are no longer in the change set
             Task { await loadChangeStats() }
         }
         // Refresh the +/− once a run settles (the agent finished editing), and — when
@@ -170,6 +175,7 @@ struct CodeModeView: View {
                         Text("\(files.count)").font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
                     }
                 }
+                if !files.isEmpty { reviewProgress }
                 if isRepo { branchMenu }
             }
             .padding(Space.m)
@@ -188,9 +194,41 @@ struct CodeModeView: View {
         .background(Theme.insetBg)
     }
 
+    /// Review-progress: how many changed files the reviewer has marked "viewed", as a slim bar
+    /// plus an "n/total" count and a reset. Mirrors GitHub's "Viewed" review flow.
+    private var reviewProgress: some View {
+        let total = files.count
+        let done = files.filter(viewed.contains).count
+        let frac = total == 0 ? 0 : Double(done) / Double(total)
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Text(model.t("code.reviewed")).font(.sfCaption2).foregroundStyle(.tertiary)
+                Spacer()
+                Text("\(done)/\(total)").font(.sfCaption2.weight(.medium))
+                    .foregroundStyle(done == total ? AnyShapeStyle(Theme.success) : AnyShapeStyle(.secondary))
+                if done > 0 {
+                    Button { viewed.removeAll() } label: {
+                        Image(systemName: "arrow.counterclockwise").font(.system(size: 9))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.tertiary).help(model.t("code.reviewed.reset"))
+                }
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.hairline)
+                    Capsule().fill(done == total ? Theme.success : Theme.coral)
+                        .frame(width: max(0, geo.size.width * frac))
+                        .animation(.easeOut(duration: 0.25), value: frac)
+                }
+            }
+            .frame(height: 3)
+        }
+    }
+
     private func fileRow(_ path: String) -> some View {
         let isSel = selected == path
         let isStaged = staged.contains(path)
+        let isViewed = viewed.contains(path)
         return HStack(spacing: 4) {
             // Checkbox: stage / unstage this file for a selective commit.
             if isRepo {
@@ -209,6 +247,7 @@ struct CodeModeView: View {
                     Text((path as NSString).lastPathComponent)
                         .font(.sfCaption2.weight(isSel ? .semibold : .regular))
                         .foregroundStyle(isSel ? .primary : .secondary).lineLimit(1).truncationMode(.middle)
+                        .strikethrough(isViewed, color: Theme.ink.opacity(0.35))
                     // Who wrote it: a provider-tinted dot, tooltip = "Agent · Model".
                     provenanceDot(for: path)
                     Spacer(minLength: Space.xs)
@@ -222,7 +261,20 @@ struct CodeModeView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .opacity(isViewed && !isSel ? 0.5 : 1)
+            // Mark-viewed toggle (eye) — the reviewer's "I've seen this file" checkmark.
+            Button { toggleViewed(path) } label: {
+                Image(systemName: isViewed ? "eye.fill" : "eye")
+                    .font(.system(size: 11))
+                    .foregroundStyle(isViewed ? AnyShapeStyle(Theme.coral) : AnyShapeStyle(.tertiary))
+            }
+            .buttonStyle(.plain)
+            .help(model.t(isViewed ? "code.unview" : "code.view"))
         }
+    }
+
+    private func toggleViewed(_ path: String) {
+        if viewed.contains(path) { viewed.remove(path) } else { viewed.insert(path) }
     }
 
     /// A compact "+12 −3" with an M/A/D/U kind letter, so each file shows how much it
