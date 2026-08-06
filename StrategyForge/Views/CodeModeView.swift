@@ -370,7 +370,8 @@ struct CodeModeView: View {
                     Divider()
                     if let diff = diffLines, viewMode == .diff {
                         DiffScrollView(lines: diff, lineAuthors: lineAuthors(for: selected),
-                                       orchestratorName: orchestratorName)
+                                       orchestratorName: orchestratorName,
+                                       fileExtension: ((selected ?? "") as NSString).pathExtension)
                     } else {
                         ScrollView([.vertical, .horizontal]) {
                             Text(fileText)
@@ -822,6 +823,8 @@ struct DiffScrollView: View {
     /// provenance captured (e.g. a file restored from a past session).
     var lineAuthors: [Int: EditProvenance] = [:]
     var orchestratorName: String = ""
+    /// The file's extension, for syntax highlighting the diff body.
+    var fileExtension: String = ""
 
     var body: some View {
         ScrollView([.vertical, .horizontal]) {
@@ -847,15 +850,29 @@ struct DiffScrollView: View {
             provenanceBar(l)
             gutter(l.oldNumber)
             gutter(l.newNumber)
-            Text(prefix(l) + l.text)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(fg(l))
-                .textSelection(.enabled)
-                .padding(.leading, 8)
+            // The +/- marker stays coloured (fast to scan); the code body is syntax-highlighted
+            // on ink, and the row's green/red BACKGROUND is what signals add vs delete — the SOTA
+            // look (Zed/GitHub/VS Code), instead of flat all-green/all-red text.
+            HStack(spacing: 0) {
+                Text(prefix(l)).foregroundStyle(fg(l))
+                body(l)
+            }
+            .font(.system(size: 12, design: .monospaced))
+            .textSelection(.enabled)
+            .padding(.leading, 8)
             Spacer(minLength: 0)
         }
         .padding(.vertical, 1)
         .background(bg(l))
+    }
+
+    @ViewBuilder private func body(_ l: DiffLine) -> some View {
+        switch l.kind {
+        case .hunk:
+            Text(l.text).foregroundStyle(Theme.accent)
+        case .add, .del, .context:
+            Text(CodeSyntax.highlight(l.text, ext: fileExtension))
+        }
     }
 
     /// A thin provider-tinted rail on each added line, crediting whoever wrote it (tooltip
