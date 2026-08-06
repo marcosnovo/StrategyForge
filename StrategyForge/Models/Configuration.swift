@@ -46,6 +46,9 @@ struct Configuration: Codable, Identifiable, Hashable {
     /// The chat this one continues from (set when a chat is summarized-and-restarted
     /// to save tokens), so the list can show the link. Device-local.
     var continuedFrom: UUID?
+    /// True for a repo-first "Code" session (created from the Code launcher). Code chats live in
+    /// their own list under the Code section, kept OUT of the normal Chats list. Bookkeeping.
+    var isCode: Bool
 
     init(
         id: UUID = UUID(),
@@ -63,7 +66,8 @@ struct Configuration: Codable, Identifiable, Hashable {
         draft: String = "",
         totalTokens: Int = 0,
         totalCostUSD: Double = 0,
-        continuedFrom: UUID? = nil
+        continuedFrom: UUID? = nil,
+        isCode: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -81,10 +85,11 @@ struct Configuration: Codable, Identifiable, Hashable {
         self.totalTokens = totalTokens
         self.totalCostUSD = totalCostUSD
         self.continuedFrom = continuedFrom
+        self.isCode = isCode
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, strategy, provider, repoPath, repoBookmark, updatedAt, lastGeneratedAt, lastActiveAt, transcript, titleWasManuallySet, strategyIsAuto, draft, totalTokens, totalCostUSD, continuedFrom
+        case id, name, strategy, provider, repoPath, repoBookmark, updatedAt, lastGeneratedAt, lastActiveAt, transcript, titleWasManuallySet, strategyIsAuto, draft, totalTokens, totalCostUSD, continuedFrom, isCode
     }
 
     // Tolerant decode: files written before sync existed have no updatedAt.
@@ -111,6 +116,9 @@ struct Configuration: Codable, Identifiable, Hashable {
         totalTokens = try c.decodeIfPresent(Int.self, forKey: .totalTokens) ?? 0
         totalCostUSD = try c.decodeIfPresent(Double.self, forKey: .totalCostUSD) ?? 0
         continuedFrom = try c.decodeIfPresent(UUID.self, forKey: .continuedFrom)
+        // Old data predates the flag → treat as a normal chat (stays in Chats). Only new
+        // Code-launcher sessions set isCode, so normal repo-attached chats aren't misclassified.
+        isCode = try c.decodeIfPresent(Bool.self, forKey: .isCode) ?? false
     }
 
     /// True when the portable/user-visible content matches (ignores timestamps),

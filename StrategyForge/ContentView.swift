@@ -67,8 +67,12 @@ struct ContentView: View {
             } else if model.navSection == .map {
                 // Map section leads with the list of generated maps.
                 MapSelectorColumn()
+            } else if model.navSection == .code {
+                // Code leads with its OWN list of repo-first sessions (separate from Chats).
+                CodeSelectorColumn()
+                ResizableDivider(width: widthBinding($sidebarW), range: 200...460)
             } else if model.navSection == .usage
-                        || model.navSection == .particleLab || model.navSection == .code
+                        || model.navSection == .particleLab
                         || model.navSection == .skills || model.navSection == .memory
                         || model.navSection == .arena || model.navSection == .images
                         || model.navSection == .settings {
@@ -138,8 +142,21 @@ struct ContentView: View {
                 ParticleLabView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.navSection == .code {
-                CodeLauncherView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // The selected code session (opens in Code mode) — or the launcher to start one.
+                if let id = model.selectedCodeID, let chat = model.configurations.first(where: { $0.id == id }),
+                   let vm = model.chatViewModel(for: id) {
+                    ChatView(config: chat,
+                             vm: vm,
+                             showInspector: $model.showInspector,
+                             showSidebar: $model.showSidebar,
+                             showActivity: $model.showActivity,
+                             rename: { [id] title in model.renameConfiguration(id, title) },
+                             saveDraft: { [id] text in model.updateDraft(id, text) })
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    CodeLauncherView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             } else if model.navSection == .map {
                 CodeMapView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

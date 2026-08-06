@@ -2032,17 +2032,29 @@ final class AppModel {
             repoPath: repoURL.path,
             repoBookmark: bookmark,
             lastActiveAt: Date(),
-            titleWasManuallySet: true
+            titleWasManuallySet: true,
+            isCode: true
         )
         config.strategyIsAuto = false
         configurations.append(config)
+        selectedCodeID = config.id
         selectedConfigID = config.id
         liveRepoURLs[config.id] = repoURL
         openInCodeMode = config.id
         UserDefaults.standard.set(repoURL.path, forKey: "code.lastRepo")
         recordRecentRepo(repoURL.path)
-        navSection = .chats
+        navSection = .code   // stay in the Code section (its own list), not mixed into Chats
         save()
+    }
+
+    /// The code chat selected in the Code section's list (separate from the Chats selection so
+    /// the two sections don't fight over one slot).
+    var selectedCodeID: Configuration.ID?
+    /// Open an existing code chat from the Code list (enters Code mode on render).
+    func openCodeChat(_ id: Configuration.ID) {
+        selectedCodeID = id
+        selectedConfigID = id
+        openInCodeMode = id
     }
 
     /// Push a repo path onto the recent-repos list (newest first, deduped, capped).

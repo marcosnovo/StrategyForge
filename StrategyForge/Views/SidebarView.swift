@@ -52,7 +52,8 @@ struct SidebarView: View {
 
     /// Chats after the Status + Provider filters and the chosen Sort, then the search field.
     private var visibleConfigs: [Configuration] {
-        var list = model.configurations
+        // Code sessions live in their own list under the Code section — keep them out of Chats.
+        var list = model.configurations.filter { !$0.isCode }
         if statusFilter == "active" { list = list.filter(isActive) }
         if providerFilter != "all" { list = list.filter { $0.provider.rawValue == providerFilter } }
         switch sortBy {
