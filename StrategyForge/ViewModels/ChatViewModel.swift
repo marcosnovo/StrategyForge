@@ -378,6 +378,14 @@ final class ChatViewModel {
         }
     }
 
+    /// No image API key yet: drop a one-line note INTO the chat (never leave to another screen)
+    /// telling the user how to enable image generation.
+    func noteImageNeedsKey() {
+        messages.append(ChatMessage(role: .assistant,
+                                    text: L10n.string("images.needKeyInline", langCode: narrationLang)))
+        persist(messages)
+    }
+
     /// Persist a generated PNG under Application Support so the transcript can reference it across
     /// launches. Returns the absolute path.
     private static func saveGeneratedImage(_ data: Data) throws -> String {

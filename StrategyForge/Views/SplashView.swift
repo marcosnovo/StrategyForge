@@ -54,6 +54,8 @@ struct RootView: View {
         await model.refreshConnectedProviders()
         step = model.t("splash.verify")
         await model.verifyConnections()   // flag any installed-but-expired/missing logins up front
+        model.pruneEmptyChats(keeping: model.selectedConfigID)   // clear blank leftover chats
+
         step = model.t("splash.usage")
         await model.refreshUsage()   // LOCAL logs only — no Keychain prompt at launch
         if GitHubCLI.isInstalled, model.cachedGitHubRepos.isEmpty {

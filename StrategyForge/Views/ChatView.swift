@@ -425,12 +425,7 @@ struct ChatView: View {
             onDismiss: { withAnimation { advisorDismissed = true } },
             onEnableAI: { openAppleIntelligenceSettings() },
             onGenerateImage: AdvisorEngine.isImageTask(vm.input) ? {
-                if let p = readyImageProviders.first {
-                    generateImageInline(provider: p)
-                } else {
-                    model.imageStudioPrompt = vm.input.trimmingCharacters(in: .whitespacesAndNewlines)
-                    model.navSection = .images
-                }
+                generateImageInline(provider: readyImageProviders.first ?? .openai)
                 withAnimation { advisorDismissed = true }
             } : nil,
             currentTeamName: config.strategyIsAuto ? nil : model.strategyDisplayName(config.strategy))
@@ -2176,13 +2171,16 @@ struct ChatView: View {
             Section(model.t("composer.section.create")) {
                 imageMenuItem
             }
-            // TOOLS — how this turn runs.
+            // TOOLS — how this turn runs. These arm the NEXT message; a flash confirms it took
+            // (so it never reads as "nothing happened"), and it applies when you send.
             Section(model.t("composer.section.tools")) {
                 Button {
                     withAnimation(.easeOut(duration: 0.15)) { vm.grillMe.toggle() }
+                    model.flashSuccess(model.t(vm.grillMe ? "grill.on" : "grill.off"))
                 } label: { Label(model.t("grill.label"), systemImage: vm.grillMe ? "checkmark" : "checklist") }
                 Button {
                     withAnimation(.easeOut(duration: 0.15)) { vm.proposeApproaches.toggle() }
+                    model.flashSuccess(model.t(vm.proposeApproaches ? "approaches.on" : "approaches.off"))
                 } label: { Label(model.t("approaches.label"), systemImage: vm.proposeApproaches ? "checkmark" : "square.grid.2x2") }
                 if config.repoPath?.isEmpty == false {
                     Button { vm.requestIsolation() } label: {
@@ -2192,15 +2190,15 @@ struct ChatView: View {
                 }
             }
         } label: {
-            // A modern round button that mirrors the send arrow (so it reads as a real control),
-            // but quiet at rest — a neutral disc — so it never competes with the coral send. Fills
-            // coral only when a tool is armed.
+            // The SAME modern coral disc as the send arrow, so the two composer controls read as a
+            // matched pair (founder: "estilo tipo la flecha del chat").
             Image(systemName: "plus")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(armed ? Theme.onAccent : Theme.secondaryOnMaterial)
-                .frame(width: 30, height: 30)
-                .background(Circle().fill(armed ? AnyShapeStyle(Theme.primaryFill) : AnyShapeStyle(Theme.insetBg)))
-                .overlay(Circle().strokeBorder(armed ? Color.clear : Theme.hairline, lineWidth: 1))
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Theme.onAccent)
+                .shadow(color: Theme.coralTextShadow, radius: 0.5, x: 0, y: 0.5)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(Theme.primaryFill))
+                .shadow(color: Theme.accentGlow, radius: 6, x: 0, y: 2)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         .help(model.t("composer.options"))
@@ -2223,29 +2221,29 @@ struct ChatView: View {
     /// text as the prompt. No key yet → routes to Services; several keyed providers → a submenu.
     @ViewBuilder private var imageMenuItem: some View {
         let ready = readyImageProviders
-        if ready.isEmpty {
-            Button { model.navSection = .services } label: {
-                Label(model.t("images.generate.menu"), systemImage: "photo.on.rectangle.angled")
-            }
-        } else if ready.count == 1 {
-            Button { generateImageInline(provider: ready[0]) } label: {
-                Label(model.t("images.generate.menu"), systemImage: "photo.on.rectangle.angled")
-            }
-        } else {
+        if ready.count > 1 {
             Menu {
                 ForEach(ready, id: \.self) { p in
                     Button(p.displayName) { generateImageInline(provider: p) }
                 }
             } label: { Label(model.t("images.generate.menu"), systemImage: "photo.on.rectangle.angled") }
+        } else {
+            // One key (or none — then generateImageInline posts an inline "add a key" note; it
+            // never leaves the chat).
+            Button { generateImageInline(provider: ready.first ?? .openai) } label: {
+                Label(model.t("images.generate.menu"), systemImage: "photo.on.rectangle.angled")
+            }
         }
     }
 
-    /// Generate inline when there's a prompt in the composer; otherwise open the full Studio.
+    /// Generate the image INLINE, right here in the chat — never jump to another section
+    /// (founder: "que sea todo desde el chat"). Empty prompt → just focus the composer; no key →
+    /// a one-line inline note on how to enable it.
     private func generateImageInline(provider: AIProvider) {
         let prompt = vm.input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prompt.isEmpty, let key = imageKey(for: provider) else {
-            model.imageStudioPrompt = prompt
-            model.navSection = .images
+        guard !prompt.isEmpty else { inputFocused = true; return }
+        guard let key = imageKey(for: provider) else {
+            vm.noteImageNeedsKey()
             return
         }
         vm.generateImage(prompt: prompt, provider: provider, key: key, aspect: .square)

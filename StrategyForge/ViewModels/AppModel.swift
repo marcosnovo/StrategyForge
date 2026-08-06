@@ -33,16 +33,53 @@ final class AppModel {
     var selectedConfigID: Configuration.ID? {
         get { chatList.selectedID }
         set {
-            if newValue != chatList.selectedID {
+            let old = chatList.selectedID
+            if newValue != old {
                 // The diff-review result is per-chat: never let chat A's findings keep
                 // rendering under chat B's Code Mode (the panel reads the global slot).
                 diffReview = nil
+                // Leaving an untouched, empty chat? Drop it silently so the list doesn't
+                // fill with blank "New chat" entries (founder: "que no se guarde, que
+                // desaparezca"). Nothing to lose → no undo banner.
+                if let old, old != newValue,
+                   let c = configurations.first(where: { $0.id == old }), isThrowawayEmpty(c) {
+                    silentlyRemoveChat(old)
+                }
             }
             // The selected chat's ChatViewModel is built from its transcript on the
             // next render — make sure it's hydrated before that happens.
             if let id = newValue { hydrateTranscriptIfNeeded(id) }
             chatList.selectedID = newValue
         }
+    }
+
+    /// A brand-new chat the user never touched: no messages, no draft, no title, no repo, not
+    /// running. These are throwaway — dropped silently on leave / at launch so they don't clutter.
+    private func isThrowawayEmpty(_ c: Configuration) -> Bool {
+        c.transcript.isEmpty
+            && c.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && c.name.isEmpty
+            && c.repoPath == nil
+            && !runningChatIDs.contains(c.id)
+    }
+
+    private func silentlyRemoveChat(_ id: Configuration.ID) {
+        invalidateChatVM(id)
+        configurations.removeAll { $0.id == id }
+        liveRepoURLs[id] = nil
+        discardPendingTranscriptWrites(id)
+        save()
+    }
+
+    /// Remove every untouched empty chat except `keep` (the one being opened/created). Called at
+    /// launch and when creating a new chat, so the list stays tidy.
+    func pruneEmptyChats(keeping keep: Configuration.ID?) {
+        let doomed = configurations.filter { $0.id != keep && isThrowawayEmpty($0) }
+        guard !doomed.isEmpty else { return }
+        for c in doomed { invalidateChatVM(c.id); liveRepoURLs[c.id] = nil; discardPendingTranscriptWrites(c.id) }
+        let ids = Set(doomed.map(\.id))
+        configurations.removeAll { ids.contains($0.id) }
+        save()
     }
     /// Tombstones for chats deleted on this device — persisted so sync deletes them from
     /// iCloud and never lets the remote copy resurrect them (bug: deletes came back).
@@ -709,6 +746,7 @@ final class AppModel {
         )
         configurations.append(config)
         selectedConfigID = config.id
+        pruneEmptyChats(keeping: config.id)   // sweep any other blank chats left lying around
         save()
     }
 
