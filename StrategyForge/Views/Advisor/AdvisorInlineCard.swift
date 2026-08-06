@@ -32,9 +32,12 @@ struct AdvisorInlineCard: View {
     var currentTeamName: String? = nil
 
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showWhy = false
-    /// Resting = one recommendation line + primary button; the tier options and the visual
-    /// agent cards live behind "Details" (founder: essence by default, expandable).
+    /// The compact tier picker popover (Claude-effort-style: slider + a wink on the max end).
+    @State private var showTier = false
+    /// Resting = one recommendation line + primary button; the visual agent roster lives behind
+    /// "See the team" (founder: minimal, but the tier choice stays visible via the chip).
     @State private var showDetails = false
 
     private var selected: AdvisorEngine.Tier? {
@@ -42,20 +45,13 @@ struct AdvisorInlineCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
+        VStack(alignment: .leading, spacing: Space.s) {
             headerRow
             if let team = currentTeamName { chosenTeamRow(team) }
             if let sel = selected {
-                // Cost/quality OPTIONS stay visible — with a tiny label — so it's obvious you can
-                // switch them (founder: minimalism, but the options must be discoverable). Only
-                // the team roster hides behind "Details". Image tasks are one model → no options.
-                if onGenerateImage == nil, tiers.count > 1 {
-                    Text(model.t("advisor.tier.caption"))
-                        .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
-                    tierRow
-                }
-                // ESSENCE — one line (model · team · loop) + the primary action.
-                selectionRow(sel)
+                // ONE compact line: the recommended pick + a small tier CHIP (name · cost) that
+                // opens the Claude-style slider popover + the primary action. No fat chip row.
+                recommendationRow(sel)
                 // The team roster stays tucked behind a toggle (the detail, not the decision).
                 if onGenerateImage == nil {
                     detailsToggle
@@ -128,55 +124,18 @@ struct AdvisorInlineCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The three cost/quality options as selectable chips (label + per-run cost).
-    private var tierRow: some View {
-        HStack(spacing: Space.s) {
-            ForEach(tiers) { tier in
-                let on = tier.id == selectedID
-                // The "Recommended" (balanced) tier carries a soft coral border even when
-                // unselected, so the suggested pick reads at a glance.
-                let recommended = tier.id == "balanced"
-                // Every tab needs a clear surface + border so all three read as tabs —
-                // the old near-invisible hairline fill washed the unselected ones out.
-                let fill: AnyShapeStyle = on ? AnyShapeStyle(Theme.accent)
-                    : (recommended ? AnyShapeStyle(Theme.accentSoft) : AnyShapeStyle(Theme.insetBg))
-                let border: Color = on ? .clear
-                    : (recommended ? Theme.accent.opacity(0.55) : Theme.hairline)
-                Button { onSelectTier(tier.id) } label: {
-                    VStack(spacing: 2) {
-                        Text(model.t(tier.labelKey))
-                            .font(.sfCallout.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.85)
-                        // Tokens are the headline; the dollar figure rides in parens.
-                        Text(tier.advice.estimatedCost.headline)
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundStyle(on ? Theme.onAccent.opacity(0.92) : .secondary)
-                            .lineLimit(1).minimumScaleFactor(0.8)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(fill))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(border, lineWidth: on ? 0 : 1))
-                    .foregroundStyle(on ? AnyShapeStyle(Theme.onAccent) : AnyShapeStyle(.primary))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(model.t(tier.noteKey))
-            }
-        }
-    }
-
-    /// The selected option's team + model + loop, with the apply actions.
-    private func selectionRow(_ sel: AdvisorEngine.Tier) -> some View {
+    /// The recommendation on ONE line: model·team·loop + the tier chip (switcher) + the primary
+    /// action. Compact — the three fat chips are gone; switching lives in the tier popover.
+    private func recommendationRow(_ sel: AdvisorEngine.Tier) -> some View {
         HStack(spacing: Space.s) {
             Image(systemName: sel.advice.model.tierIcon)
                 .font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.accent)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(summary(sel)).font(.sfCallout).lineLimit(1).truncationMode(.tail)
-                Text(model.t(sel.noteKey)).font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
-            }
-            .help(summary(sel))
+            Text(summary(sel)).font(.sfCallout).lineLimit(1).truncationMode(.tail)
+                .help(summary(sel))
             Spacer(minLength: Space.s)
+            // The switcher: a small chip showing the current tier NAME + cost (discoverable),
+            // opening the compact slider. Hidden for a single-model / image task.
+            if onGenerateImage == nil, tiers.count > 1 { tierChip(sel) }
             if let onGenerateImage {
                 Button(model.t("images.generate"), action: onGenerateImage)
                     .buttonStyle(.moon).controlSize(.small)
@@ -184,6 +143,91 @@ struct AdvisorInlineCard: View {
                 Button(model.t(currentTeamName == nil ? "advisor.inline.applyTeam" : "advisor.inline.switchTeam"), action: onApplyTeam)
                     .buttonStyle(.moon).controlSize(.small)
             }
+        }
+    }
+
+    /// The tier chip — mirrors the composer's model/effort chip: "Recomendada · $0.90", tapping
+    /// opens the slider popover. The current tier's name + cost are always visible at rest.
+    private func tierChip(_ sel: AdvisorEngine.Tier) -> some View {
+        Button { showTier = true } label: {
+            HStack(spacing: 6) {
+                Text(model.t(sel.labelKey)).font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
+                Text(sel.advice.estimatedCost.headline)
+                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.accentSoft))
+            }
+        }
+        .buttonStyle(.plain)
+        .help(model.t(sel.noteKey))
+        .popover(isPresented: $showTier, arrowEdge: .bottom) { tierPopover(sel) }
+    }
+
+    // MARK: - Tier popover (Claude effort-slider style, with a max-tier wink)
+
+    private func tierIndex(_ id: String) -> Int { max(0, tiers.firstIndex { $0.id == id } ?? 0) }
+    private func tierID(at i: Int) -> String { tiers[min(max(i, 0), tiers.count - 1)].id }
+
+    private func tierPopover(_ sel: AdvisorEngine.Tier) -> some View {
+        let atMax = selectedID == tiers.last?.id
+        return VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: 6) {
+                Text(model.t("advisor.tier.title")).font(.sfCardTitle)
+                Text(model.t(sel.labelKey)).font(.sfCallout).foregroundStyle(Theme.accent)
+                Spacer()
+                // The strongest tier gets the app's living dot-grid flourish (the "wink").
+                if atMax && !reduceMotion { WaveDotGrid(size: 26, color: Theme.accent) }
+            }
+            HStack {
+                Text(model.t("advisor.tier.faster")).font(.sfCaption2).foregroundStyle(.secondary)
+                Spacer()
+                Text(model.t("advisor.tier.max")).font(.sfCaption2)
+                    .foregroundStyle(atMax ? Theme.accent : .secondary)
+            }
+            Slider(value: Binding(
+                get: { Double(tierIndex(selectedID)) },
+                set: { v in
+                    let id = tierID(at: Int(v.rounded()))
+                    if id != selectedID {
+                        if reduceMotion { onSelectTier(id) }
+                        else { withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { onSelectTier(id) } }
+                    }
+                }), in: 0...Double(max(tiers.count - 1, 1)), step: 1)
+                .tint(Theme.accent)
+                // A coral shimmer rides the track only while MAX is selected — a brand
+                // celebration (not a loading state), off under Reduce Motion.
+                .overlay(alignment: .leading) { if atMax { maxShimmer } }
+            // Live pick + cost + tradeoff, updates as you drag.
+            Text("\(sel.advice.estimatedCost.headline) · \(model.t(sel.noteKey))")
+                .font(.sfCaption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Space.m)
+        .frame(width: 300)
+    }
+
+    /// The travelling coral band (or a static premium gradient under Reduce Motion) on the max
+    /// tier's track — Coral's shimmer vocabulary, coral-tokened so it reads as brand, not loading.
+    @ViewBuilder private var maxShimmer: some View {
+        if reduceMotion {
+            Capsule().fill(Theme.primaryFill).frame(height: 4)
+                .shadow(color: Theme.accentGlow, radius: 3)
+                .allowsHitTesting(false)
+        } else {
+            TimelineView(.animation) { ctx in
+                GeometryReader { g in
+                    let w = g.size.width
+                    let phase = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.8) / 1.8
+                    LinearGradient(colors: [.clear, Theme.onAccent.opacity(0.55),
+                                            Theme.coralDeep.opacity(0.40), .clear],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: w * 0.4)
+                        .offset(x: -w * 0.4 + phase * (w * 1.4))
+                        .frame(height: 4).clipShape(Capsule())
+                        .blendMode(.overlay)
+                }
+            }
+            .allowsHitTesting(false)
         }
     }
 

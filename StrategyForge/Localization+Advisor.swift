@@ -48,6 +48,8 @@ extension L10n {
         "advisor.tier.max": ("Max quality", "Máxima calidad"),
         "advisor.tier.max.note": ("Better results, higher cost", "Mejores resultados, más coste"),
         "advisor.tier.caption": ("Options", "Opciones"),
+        "advisor.tier.title": ("Team tier", "Nivel del equipo"),
+        "advisor.tier.faster": ("Faster & cheaper", "Más rápida y barata"),
         "advisor.tier.solo": ("One model", "Un modelo"),
         "advisor.tier.solo.note": ("Image generation runs on a single model — no team needed",
                                    "Generar imágenes va con un solo modelo — no hace falta equipo"),
