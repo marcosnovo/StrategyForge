@@ -2131,15 +2131,15 @@ struct ChatView: View {
         // mode / model·effort / the "+" menu live behind that one disclosure (sticky once
         // opened). Matches the ChatGPT/Codex resting composer. Sensible defaults apply meanwhile.
         Group {
-            if showComposerControls {
-                HStack(spacing: Space.s) {
+            HStack(spacing: Space.s) {
+                // The "+" (Create: image · Tools) is ALWAYS visible on the left, like ChatGPT —
+                // not buried behind the options toggle where nobody found image generation.
+                composerOverflowMenu
+                if showComposerControls {
                     modeMenu
-                    composerOverflowMenu   // Grill · Approaches · Isolate — one click away
                     Spacer(minLength: Space.s)
                     modelEffortChip
-                }
-            } else {
-                HStack {
+                } else {
                     Spacer(minLength: 0)
                     Button { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { showComposerControls = true } } label: {
                         Image(systemName: "slider.horizontal.3").font(.system(size: 11))
