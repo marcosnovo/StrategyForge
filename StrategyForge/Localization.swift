@@ -1677,6 +1677,8 @@ enum L10n {
         "code.view": ("Mark as viewed", "Marcar como visto"),
         "code.unview": ("Mark as not viewed", "Marcar como no visto"),
         "review.jump": ("Jump to this line in the diff", "Ir a esta línea en el diff"),
+        "code.hunk.prev": ("Previous change", "Cambio anterior"),
+        "code.hunk.next": ("Next change", "Cambio siguiente"),
         "code.file": ("File", "Archivo"),
         "code.accept": ("Accept", "Aceptar"),
         "code.revert": ("Revert", "Revertir"),

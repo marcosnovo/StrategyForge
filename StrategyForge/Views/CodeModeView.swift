@@ -58,6 +58,8 @@ struct CodeModeView: View {
     /// pending value survives a file switch until the new diff has loaded.
     @State private var scrollRequest: Int?
     @State private var pendingScroll: Int?
+    /// Index into the current file's changed hunks, for prev/next-hunk navigation.
+    @State private var currentHunk = 0
 
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
@@ -102,7 +104,7 @@ struct CodeModeView: View {
                 }
             }
         }
-        .onChange(of: selected) { Task { await loadDiff() } }
+        .onChange(of: selected) { currentHunk = 0; Task { await loadDiff() } }
         .confirmationDialog(model.t("code.revertConfirm"), isPresented: revertBinding, titleVisibility: .visible) {
             Button(model.t("code.revert"), role: .destructive) { performRevert() }
             Button(model.t("common.cancel"), role: .cancel) { confirmRevert = nil }
@@ -189,6 +191,20 @@ struct CodeModeView: View {
             map[line] = f.severity
         }
         return map
+    }
+
+    /// The current file's hunks that actually carry a change — the units of hunk navigation.
+    private var changedHunks: [DiffHunk] {
+        guard let diff = diffLines else { return [] }
+        return DiffHunks.group(diff).filter(\.hasChange)
+    }
+
+    /// Step to the previous/next changed hunk and scroll it into view.
+    private func stepHunk(_ delta: Int) {
+        let hunks = changedHunks
+        guard !hunks.isEmpty else { return }
+        currentHunk = (currentHunk + delta + hunks.count) % hunks.count
+        if let line = hunks[currentHunk].anchorNewLine { scrollRequest = line }
     }
 
     /// Jump the diff to a finding: switch to its file if needed (scroll applies once the diff
@@ -455,6 +471,18 @@ struct CodeModeView: View {
                                 .buttonStyle(.plain)
                                 .foregroundStyle(diffSplit ? Theme.coral : .secondary)
                                 .help(model.t(diffSplit ? "code.diff.unified" : "code.diff.split"))
+                                // Prev / next changed hunk — jump between change blocks.
+                                let hunkCount = changedHunks.count
+                                if hunkCount > 1 {
+                                    Button { stepHunk(-1) } label: { Image(systemName: "chevron.up") }
+                                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                                        .help(model.t("code.hunk.prev"))
+                                    Text("\(min(currentHunk + 1, hunkCount))/\(hunkCount)")
+                                        .font(.sfFieldLabel).foregroundStyle(.tertiary).monospacedDigit()
+                                    Button { stepHunk(1) } label: { Image(systemName: "chevron.down") }
+                                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                                        .help(model.t("code.hunk.next"))
+                                }
                             }
                         }
                         Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) } label: {
