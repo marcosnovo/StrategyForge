@@ -31,7 +31,7 @@ private final class OrbFieldState {
         dots = (0..<count).map { _ in
             Dot(angle: Double.random(in: 0..<(2 * .pi)),
                 radius: pow(Double.random(in: 0...1), 0.62),   // bias inward → reads as an orb
-                size: CGFloat.random(in: 1.3...3.0),
+                size: CGFloat.random(in: 1.7...3.4),
                 spin: Double.random(in: 0.6...1.4),
                 colorIndex: Int.random(in: 0..<4))
         }
@@ -44,8 +44,14 @@ struct CursorParticleField: View {
     var count: Int = 170
     @State private var orb = OrbFieldState()
 
-    /// Coral-family palette — warm, on-brand.
-    private static let palette: [Color] = [Theme.coral, Theme.coralDeep, Theme.warning, Theme.accent]
+    /// Coral-family palette — VIVID, saturated warm tones (no muddy brick accent) so the specks
+    /// read as bright colour fills.
+    private static let palette: [Color] = [
+        Theme.coral,
+        Color(hue: 0.02, saturation: 0.92, brightness: 1.0),   // neon coral-red
+        Color(hue: 0.09, saturation: 0.95, brightness: 1.0),   // electric orange
+        Color(hue: 0.14, saturation: 0.90, brightness: 1.0),   // fluor gold
+    ]
 
     var body: some View {
         if reduceMotion {
@@ -85,23 +91,25 @@ struct CursorParticleField: View {
                                       Self.palette[dot.colorIndex % Self.palette.count]))
                     }
 
-                    // GLOW pass — a TIGHT coloured halo (small blur, brighter) so it reads as a
-                    // luminous point, not a muddy cloud.
+                    // GLOW pass — a bright coloured bloom (small blur) so each speck glows.
                     ctx.drawLayer { layer in
-                        layer.addFilter(.blur(radius: 2.5))
+                        layer.addFilter(.blur(radius: 3))
                         for f in frame where f.a > 0.02 {
-                            let gr = f.r * 2.1
+                            let gr = f.r * 2.4
                             layer.fill(Path(ellipseIn: CGRect(x: f.p.x - gr, y: f.p.y - gr, width: 2 * gr, height: 2 * gr)),
-                                       with: .color(f.c.opacity(f.a * 0.7)))
+                                       with: .color(f.c.opacity(f.a * 0.95)))
                         }
                     }
-                    // CRISP core + a small hot white centre → a real "spark" of brightness.
+                    // CRISP cores — fully saturated, fully opaque (founder: "rellenas de color y
+                    // más brillantes"). A tiny off-centre highlight gives a lit-bead sheen without
+                    // washing the colour to white.
                     for f in frame where f.a > 0.02 {
                         ctx.fill(Path(ellipseIn: CGRect(x: f.p.x - f.r, y: f.p.y - f.r, width: 2 * f.r, height: 2 * f.r)),
-                                 with: .color(f.c.opacity(min(1, f.a * 1.1))))
-                        let wr = f.r * 0.45
-                        ctx.fill(Path(ellipseIn: CGRect(x: f.p.x - wr, y: f.p.y - wr, width: 2 * wr, height: 2 * wr)),
-                                 with: .color(Color.white.opacity(f.a * 0.7)))
+                                 with: .color(f.c.opacity(min(1, f.a * 1.6))))
+                        let hr = f.r * 0.4
+                        let hp = CGPoint(x: f.p.x - f.r * 0.28, y: f.p.y - f.r * 0.28)
+                        ctx.fill(Path(ellipseIn: CGRect(x: hp.x - hr, y: hp.y - hr, width: 2 * hr, height: 2 * hr)),
+                                 with: .color(f.c.mix(with: .white, by: 0.5).opacity(f.a * 0.8)))
                     }
                 }
             }

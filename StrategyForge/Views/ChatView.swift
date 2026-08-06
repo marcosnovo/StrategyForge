@@ -358,7 +358,9 @@ struct ChatView: View {
             let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
             // Compute for the FIRST message (full card) AND for follow-up prompts (compact
             // suggestion chip) — the best-suited strategy can differ per prompt in a chat.
-            guard trimmed.count >= 25, !vm.isRunning else {
+            // Image requests are short ("crea una imagen de X") but we still want to offer
+            // "Generate image", so they bypass the length gate.
+            guard (trimmed.count >= 25 || AdvisorEngine.isImageTask(trimmed)), !vm.isRunning else {
                 withAnimation { inlineTiers = [] }
                 return
             }
@@ -2190,9 +2192,15 @@ struct ChatView: View {
                 }
             }
         } label: {
-            Image(systemName: "plus.circle")
-                .font(.system(size: 13))
-                .foregroundStyle(armed ? Theme.coral : .secondary)
+            // A modern round button that mirrors the send arrow (so it reads as a real control),
+            // but quiet at rest — a neutral disc — so it never competes with the coral send. Fills
+            // coral only when a tool is armed.
+            Image(systemName: "plus")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(armed ? Theme.onAccent : Theme.secondaryOnMaterial)
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(armed ? AnyShapeStyle(Theme.primaryFill) : AnyShapeStyle(Theme.insetBg)))
+                .overlay(Circle().strokeBorder(armed ? Color.clear : Theme.hairline, lineWidth: 1))
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         .help(model.t("composer.options"))

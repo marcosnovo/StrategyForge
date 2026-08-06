@@ -699,11 +699,11 @@ final class AppModel {
     func addConfiguration() {
         // A new chat: empty name (shows the "New chat" placeholder and enables
         // auto-titling from the first message). The team is left "auto": the first
-        // message recommends one from the prompt (executorAdvisor is only the
-        // provisional placeholder used if the user never types anything).
+        // message recommends one from the prompt. A brand-new chat with no context
+        // defaults to a SINGLE model (solo) — not a 2-role team (founder's note).
         let config = Configuration(
             name: "",
-            strategy: StrategyLibrary.executorAdvisor(),
+            strategy: StrategyLibrary.solo(),
             lastActiveAt: Date(),   // newest chat sorts to the top
             strategyIsAuto: true
         )
@@ -717,7 +717,7 @@ final class AppModel {
     func addConfiguration(provider: AIProvider) {
         let config = Configuration(
             name: "",
-            strategy: StrategyLibrary.executorAdvisor(),
+            strategy: StrategyLibrary.solo(),
             provider: provider,
             lastActiveAt: Date(),
             strategyIsAuto: true
@@ -734,7 +734,7 @@ final class AppModel {
     func addConfiguration(repoURL: URL, draft: String = "") {
         var config = Configuration(
             name: repoURL.lastPathComponent,
-            strategy: StrategyLibrary.executorAdvisor(),
+            strategy: StrategyLibrary.solo(),
             lastActiveAt: Date(),
             strategyIsAuto: true,
             draft: draft
