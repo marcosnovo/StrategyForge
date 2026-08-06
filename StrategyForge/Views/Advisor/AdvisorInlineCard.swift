@@ -157,11 +157,14 @@ struct AdvisorInlineCard: View {
             HStack(spacing: 5) {
                 Image(systemName: "person.2.fill").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.accent)
                 Text(model.t("advisor.tier.chipPrefix")).font(.sfCaption2).foregroundStyle(.secondary)   // the NOUN
-                Text(model.t(sel.labelKey)).font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent).lineLimit(1)  // the VALUE
-                Text(sel.advice.estimatedCost.headline).font(.sfCaption2).foregroundStyle(Theme.accent.opacity(0.85))
-                    .layoutPriority(-1).lineLimit(1)
+                Text(model.t(sel.labelKey)).font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
+                    .lineLimit(1).truncationMode(.tail)                                                  // the VALUE
+                Spacer(minLength: 2)
                 Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .semibold)).foregroundStyle(.tertiary)
             }
+            // FIXED width so the chip never resizes as the tier name changes — that's what made
+            // the popover jump left/right while dragging (founder). Constant width = stable anchor.
+            .frame(width: 168)
             .padding(.horizontal, 9).padding(.vertical, 4)
             .background(Capsule().fill(Theme.accentSoft))
             .overlay(Capsule().strokeBorder(Theme.accent.opacity(chipHovering ? 0.55 : 0.35), lineWidth: 1))
@@ -190,83 +193,126 @@ struct AdvisorInlineCard: View {
         }
     }
 
+    /// Instances in a tier's team (orchestrator + workers) — drives the little "team grows" row.
+    private func teamSize(_ tier: AdvisorEngine.Tier) -> Int {
+        max(1, tier.advice.strategy.roles.reduce(0) { $0 + max(1, $1.count) })
+    }
+
+    /// The bar's fill colour — a real INTENSITY ramp: dim, desaturated coral at tier 1 → vivid,
+    /// full coral at tier 5. This is the "brighter/stronger as the team grows" cue.
+    private func barColor(_ frac: Double) -> Color {
+        Color(hue: 0.025,
+              saturation: 0.45 + 0.55 * frac,
+              brightness: 0.92 + 0.06 * frac)
+    }
+
     private func tierPopover(_ sel: AdvisorEngine.Tier) -> some View {
         let idx = tierIndex(selectedID)
         let lastIndex = max(tiers.count - 1, 1)
         let frac = Double(idx) / Double(lastIndex)
-        return HStack(spacing: Space.m) {
-            // LEFT: label + name + energy bar + endpoints + fixed 2-line cost/note.
-            VStack(alignment: .leading, spacing: Space.s) {
-                Text(model.t("advisor.tier.title").uppercased())
-                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6).lineLimit(1)
-                Text(model.t(sel.labelKey))
-                    .font(.sfCardTitle).foregroundStyle(Theme.accent).lineLimit(1).minimumScaleFactor(0.8)
-                energyBar(lastIndex: lastIndex).frame(height: 26)
-                HStack {
-                    Text(model.t("advisor.tier.faster")).font(.sfCaption2).foregroundStyle(.secondary)
-                    Spacer()
-                    Text(model.t("advisor.tier.max")).font(.sfCaption2)
-                        .foregroundStyle(idx == lastIndex ? Theme.accent : .secondary)
+        return HStack(spacing: Space.l) {
+            // LEFT: the info, given room to breathe (founder: "muy junta, no se entiende").
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(model.t("advisor.tier.title").uppercased())
+                        .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.7).lineLimit(1)
+                    Text(model.t(sel.labelKey))
+                        .font(.sfDisplay).foregroundStyle(Theme.accent).lineLimit(1).minimumScaleFactor(0.7)
                 }
-                Text("\(sel.advice.estimatedCost.headline) · \(model.t(sel.noteKey))")
-                    .font(.sfCaption2).foregroundStyle(.secondary)
-                    .lineLimit(2, reservesSpace: true).truncationMode(.tail)
+                VStack(spacing: 5) {
+                    modernBar(lastIndex: lastIndex, frac: frac)
+                    HStack {
+                        Text(model.t("advisor.tier.faster")).font(.system(size: 10)).foregroundStyle(.tertiary)
+                        Spacer()
+                        Text(model.t("advisor.tier.max")).font(.system(size: 10))
+                            .foregroundStyle(idx == lastIndex ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
+                    }
+                }
+                HStack(spacing: 6) {
+                    Text(sel.advice.estimatedCost.headline)
+                        .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.ink)
+                    Text("·").foregroundStyle(.tertiary)
+                    Text(model.t(sel.noteKey)).font(.sfCaption2).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.tail)
+                }
                 Spacer(minLength: 0)
             }
-            Rectangle().fill(Theme.hairline).frame(width: 1).padding(.vertical, Space.s)
-            // RIGHT: the HERO orb — bigger, charging up as the level rises (the "levelling up" claim).
-            VStack {
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // RIGHT: the hero orb + a tiny team schematic — together they say "the team grows and
+            // gets stronger" as you raise the level (founder's ask).
+            VStack(spacing: 8) {
                 Spacer(minLength: 0)
-                ThinkingOrb(state: orbState(forIndex: idx), size: 72, tint: Theme.accent)
-                    .frame(width: 72, height: 72)
+                ThinkingOrb(state: orbState(forIndex: idx), size: 68, tint: Theme.accent)
+                    .frame(width: 68, height: 68)
                     .scaleEffect(1.0 + 0.06 * frac)
                     .background {
-                        Circle().fill(Theme.accentGlow.opacity(0.12 + 0.38 * frac))
-                            .frame(width: 78, height: 78).blur(radius: 10)
+                        Circle().fill(Theme.accentGlow.opacity(0.12 + 0.4 * frac))
+                            .frame(width: 74, height: 74).blur(radius: 10)
                     }
+                teamGrowRow(count: teamSize(sel))
                 Spacer(minLength: 0)
             }
-            .frame(width: 84)
+            .frame(width: 96)
         }
-        .padding(Space.m)
-        .frame(width: 320, height: 140)   // CONSTANT size — never resizes with tier or note length
+        .padding(Space.l)
+        .frame(width: 340, height: 176)   // CONSTANT size — never resizes with tier or note length
         .onAppear { sliderPos = Double(idx) }
         .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.8), value: idx)
     }
 
-    /// A custom energy bar (not the stock Slider): a coral track whose FILL brightens + glows as
-    /// the level rises, 5 lit-up notches, a coral thumb. Smooth drag; the selection snaps to the
-    /// nearest of the 5 stops (with a tick of haptic feedback).
-    private func energyBar(lastIndex: Int) -> some View {
-        GeometryReader { g in
-            let inset: CGFloat = 10
-            let usable = max(g.size.width - inset * 2, 1)
-            let mid = g.size.height / 2
-            let frac = CGFloat(sliderPos) / CGFloat(lastIndex)          // 0…1 continuous (glides)
-            let fillW = usable * frac
-            ZStack {
-                Capsule().fill(Theme.hairline).frame(width: usable, height: 6)
-                    .position(x: inset + usable / 2, y: mid)
-                Capsule().fill(Theme.primaryFill).frame(width: fillW, height: 6)
-                    .opacity(0.45 + 0.55 * Double(frac))                 // brightness ramp
-                    .shadow(color: Theme.accentGlow.opacity(Double(frac)), radius: frac * 8)
-                    .position(x: inset + fillW / 2, y: mid)
-                ForEach(0...lastIndex, id: \.self) { i in
-                    let lit = Double(i) <= sliderPos.rounded()
-                    Circle().fill(lit ? Theme.onAccent.opacity(0.9) : Theme.hairline)
-                        .frame(width: 5, height: 5)
-                        .position(x: inset + usable * CGFloat(i) / CGFloat(lastIndex), y: mid)
+    /// A little roster of people icons that fills up (and brightens) with the tier — a compact,
+    /// literal "the team grows" cue beside the orb. Capped at 6 slots.
+    private func teamGrowRow(count: Int) -> some View {
+        let slots = 6
+        let filled = min(count, slots)
+        return VStack(spacing: 3) {
+            HStack(spacing: 3) {
+                ForEach(0..<slots, id: \.self) { i in
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(i < filled ? Theme.accent : Theme.hairline)
                 }
-                Circle().fill(Theme.primaryFill).frame(width: 20, height: 20)
-                    .overlay(Circle().strokeBorder(Theme.onAccent, lineWidth: 2))
-                    .elevation(.e1)
-                    .position(x: inset + fillW, y: mid)
             }
-            .frame(height: g.size.height)
-            .contentShape(Rectangle())
+            Text(model.t("advisor.tier.agents", count))
+                .font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+        }
+    }
+
+    /// A ModernSlider-style bar (github.com/arjun-dureja/ModernSlider), Coral-tuned: a chunky
+    /// rounded track, a white circular knob with a people glyph, and a FILL whose colour intensity
+    /// + glow ramps up with the level. Smooth continuous drag; selection snaps to the nearest stop.
+    private func modernBar(lastIndex: Int, frac: Double) -> some View {
+        GeometryReader { g in
+            let h: CGFloat = 26
+            let cr: CGFloat = 13
+            let knobR = h / 2
+            let usable = g.size.width
+            let travel = max(usable - h, 1)                  // knob centre range
+            let live = CGFloat(sliderPos) / CGFloat(lastIndex)
+            let cx = knobR + travel * live                   // knob centre x
+            let fill = barColor(Double(live))
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: cr, style: .continuous).fill(Theme.insetBg)
+                    .overlay(RoundedRectangle(cornerRadius: cr, style: .continuous).strokeBorder(Theme.hairline, lineWidth: 0.5))
+                // The coral fill grows to the knob; its colour brightens + it glows more as it rises.
+                RoundedRectangle(cornerRadius: cr, style: .continuous).fill(fill)
+                    .frame(width: cx + knobR)
+                    .shadow(color: Theme.accentGlow.opacity(0.35 + 0.65 * Double(live)), radius: 2 + 8 * live)
+                    .mask(RoundedRectangle(cornerRadius: cr, style: .continuous))
+                // The white knob with a people glyph (it's the TEAM dial).
+                Circle().fill(.white)
+                    .frame(width: h - 4, height: h - 4)
+                    .overlay(Image(systemName: "person.2.fill")
+                        .font(.system(size: (h - 4) / 2.4, weight: .semibold)).foregroundStyle(fill))
+                    .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
+                    .position(x: cx, y: h / 2)
+            }
+            .frame(width: usable, height: h)
+            .contentShape(RoundedRectangle(cornerRadius: cr, style: .continuous))
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { v in
-                    let f = min(max((v.location.x - inset) / usable, 0), 1)
+                    let f = min(max((v.location.x - knobR) / travel, 0), 1)
                     sliderPos = Double(f) * Double(lastIndex)
                     let id = tierID(at: Int(sliderPos.rounded()))
                     if id != selectedID { onSelectTier(id) }
@@ -278,6 +324,7 @@ struct AdvisorInlineCard: View {
                 })
             .sensoryFeedback(.selection, trigger: selectedID)
         }
+        .frame(height: 26)
     }
 
     /// A loop RECOMMENDATION — shown only when the engine read a repeat/verify signal
