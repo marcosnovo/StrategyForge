@@ -22,6 +22,10 @@ struct AdvisorInlineCard: View {
     let onDismiss: () -> Void
     /// Open System Settings so the user can turn on Apple Intelligence.
     var onEnableAI: () -> Void = {}
+    /// Set when the draft is a text-to-image request: the card then offers "Generate image"
+    /// directly (a single-model job) instead of "Apply team", so image tasks don't pretend to
+    /// need a fleet a coding CLI couldn't run anyway.
+    var onGenerateImage: (() -> Void)? = nil
     /// When the chat already has a team the user deliberately chose, its name — so the
     /// card frames itself as "you chose X, here's what I'd recommend" instead of a
     /// blank suggestion. nil when the team is still auto.
@@ -42,8 +46,11 @@ struct AdvisorInlineCard: View {
             if let sel = selected {
                 Divider().opacity(0.5)
                 selectionRow(sel)
-                providerMixRow(sel)
-                if sel.advice.loopKind != .turnBased { loopHintRow(sel) }
+                // Image tasks skip the team/provider mix — it's one model, generated directly.
+                if onGenerateImage == nil {
+                    providerMixRow(sel)
+                    if sel.advice.loopKind != .turnBased { loopHintRow(sel) }
+                }
             }
         }
         .padding(Space.l)
@@ -156,8 +163,13 @@ struct AdvisorInlineCard: View {
             }
             .help(summary(sel))
             Spacer(minLength: Space.s)
-            Button(model.t(currentTeamName == nil ? "advisor.inline.applyTeam" : "advisor.inline.switchTeam"), action: onApplyTeam)
-                .buttonStyle(.moon).controlSize(.small)
+            if let onGenerateImage {
+                Button(model.t("images.generate"), action: onGenerateImage)
+                    .buttonStyle(.moon).controlSize(.small)
+            } else {
+                Button(model.t(currentTeamName == nil ? "advisor.inline.applyTeam" : "advisor.inline.switchTeam"), action: onApplyTeam)
+                    .buttonStyle(.moon).controlSize(.small)
+            }
         }
     }
 

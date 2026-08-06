@@ -422,6 +422,15 @@ struct ChatView: View {
             onCreateLoop: { if let a = selectedTier?.advice { createLoop(from: a) } },
             onDismiss: { withAnimation { advisorDismissed = true } },
             onEnableAI: { openAppleIntelligenceSettings() },
+            onGenerateImage: AdvisorEngine.isImageTask(vm.input) ? {
+                if let p = readyImageProviders.first {
+                    generateImageInline(provider: p)
+                } else {
+                    model.imageStudioPrompt = vm.input.trimmingCharacters(in: .whitespacesAndNewlines)
+                    model.navSection = .images
+                }
+                withAnimation { advisorDismissed = true }
+            } : nil,
             currentTeamName: config.strategyIsAuto ? nil : model.strategyDisplayName(config.strategy))
             .padding(.horizontal, Space.m)
             .padding(.top, Space.s)
