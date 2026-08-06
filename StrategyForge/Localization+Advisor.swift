@@ -219,6 +219,8 @@ extension L10n {
         "advisor.inline.caption": ("Advisor", "Asesor"),
         "advisor.inline.applyTeam": ("Apply team", "Aplicar equipo"),
         "advisor.inline.team": ("The team", "El equipo"),
+        "advisor.inline.details": ("Details", "Ver detalles"),
+        "advisor.inline.hideDetails": ("Hide details", "Ocultar detalles"),
         "advisor.inline.switchTeam": ("Switch to this", "Cambiar a este"),
         "advisor.inline.youChose": ("You chose “%@” — here's what I'd recommend for this task:",
                                     "Elegiste «%@» — esto es lo que recomendaría para esta tarea:"),

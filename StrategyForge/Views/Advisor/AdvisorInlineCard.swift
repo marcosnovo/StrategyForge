@@ -33,6 +33,9 @@ struct AdvisorInlineCard: View {
 
     @Environment(AppModel.self) private var model
     @State private var showWhy = false
+    /// Resting = one recommendation line + primary button; the tier options and the visual
+    /// agent cards live behind "Details" (founder: essence by default, expandable).
+    @State private var showDetails = false
 
     private var selected: AdvisorEngine.Tier? {
         tiers.first { $0.id == selectedID } ?? tiers.first { $0.id == "balanced" } ?? tiers.first
@@ -42,14 +45,18 @@ struct AdvisorInlineCard: View {
         VStack(alignment: .leading, spacing: Space.m) {
             headerRow
             if let team = currentTeamName { chosenTeamRow(team) }
-            tierRow
             if let sel = selected {
-                Divider().opacity(0.5)
+                // ESSENCE — one line (model · team · loop) + the primary action.
                 selectionRow(sel)
-                // Image tasks skip the team/provider mix — it's one model, generated directly.
+                // Image tasks are one model generated directly — no tiers/agents to expand.
                 if onGenerateImage == nil {
-                    providerMixRow(sel)
-                    if sel.advice.loopKind != .turnBased { loopHintRow(sel) }
+                    detailsToggle
+                    if showDetails {
+                        Divider().opacity(0.5)
+                        tierRow
+                        agentCards(sel)
+                        if sel.advice.loopKind != .turnBased { loopHintRow(sel) }
+                    }
                 }
             }
         }
@@ -196,32 +203,31 @@ struct AdvisorInlineCard: View {
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.tealSoft))
     }
 
-    /// The cross-provider mix for the selected tier — the flagship "best AI per role".
-    /// Uses the real picks when ≥2 providers are connected; otherwise shows the IDEAL
-    /// mix with the not-yet-connected providers dimmed + a one-tap connect nudge.
-    @ViewBuilder private func providerMixRow(_ sel: AdvisorEngine.Tier) -> some View {
+    /// The quiet "Details" toggle — reveals the tier options + the visual agent cards.
+    private var detailsToggle: some View {
+        Button { withAnimation(.easeOut(duration: 0.18)) { showDetails.toggle() } } label: {
+            HStack(spacing: 4) {
+                Text(model.t(showDetails ? "advisor.inline.hideDetails" : "advisor.inline.details"))
+                Image(systemName: showDetails ? "chevron.up" : "chevron.down").font(.system(size: 8, weight: .semibold))
+            }
+            .font(.sfCaption2).foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The team as VISUAL cards — provider logo + role + model — instead of a dense text row.
+    /// Uses the real picks when ≥2 providers are connected; otherwise the IDEAL mix, with the
+    /// not-yet-connected providers dimmed + a one-tap connect nudge.
+    @ViewBuilder private func agentCards(_ sel: AdvisorEngine.Tier) -> some View {
         let picks = displayPicks(sel)
         if !picks.isEmpty {
             let hasLocked = picks.contains { !$0.isConnected }
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(model.t("advisor.inline.team"))
                     .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
-                HStack(spacing: Space.m) {
-                    ForEach(Array(picks.prefix(4)), id: \.self) { pick in
-                        HStack(spacing: 4) {
-                            Circle().fill(pick.provider.tint).frame(width: 7, height: 7)
-                                .opacity(pick.isConnected ? 1 : 0.4)
-                            Text(pick.roleName).font(.sfCaption2)
-                                .foregroundStyle(pick.isConnected ? .primary : .secondary).lineLimit(1)
-                            Text(pick.modelDisplayName).scaledFont(9, design: .monospaced)
-                                .foregroundStyle(.secondary).lineLimit(1)
-                            if !pick.isConnected {
-                                Image(systemName: "lock.fill").scaledFont(7).foregroundStyle(.tertiary)
-                            }
-                        }
-                        .help(model.t(pick.reasonKey))
-                    }
-                    Spacer(minLength: 0)
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: Space.s), GridItem(.flexible(), spacing: Space.s)],
+                          spacing: Space.s) {
+                    ForEach(Array(picks.prefix(6)), id: \.self) { agentCard($0) }
                 }
                 if hasLocked {
                     Button { model.openConnectedServices() } label: {
@@ -233,6 +239,26 @@ struct AdvisorInlineCard: View {
             }
             .padding(.top, 2)
         }
+    }
+
+    private func agentCard(_ pick: AdvisorEngine.ProviderPick) -> some View {
+        HStack(spacing: 7) {
+            ProviderLogo(provider: pick.provider, size: 15, templateTint: pick.provider.tint)
+                .opacity(pick.isConnected ? 1 : 0.4)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(pick.roleName).font(.sfCaption2.weight(.medium))
+                    .foregroundStyle(pick.isConnected ? Theme.ink : .secondary).lineLimit(1)
+                Text(pick.modelDisplayName).scaledFont(9, design: .monospaced)
+                    .foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            if !pick.isConnected { Image(systemName: "lock.fill").scaledFont(7).foregroundStyle(.tertiary) }
+        }
+        .padding(.horizontal, Space.s).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous).fill(Theme.cardBg))
+        .overlay(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+            .strokeBorder(Theme.hairline, lineWidth: 1))
+        .help(model.t(pick.reasonKey))
     }
 
     /// Real picks when the run will actually mix providers; otherwise the aspirational
