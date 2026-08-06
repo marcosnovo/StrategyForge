@@ -44,6 +44,8 @@ struct ChatView: View {
     /// appear automatically once a chat has any messages; on a brand-new chat the box stays
     /// clean (ChatGPT-like) with a small "…" to open them on demand.
     @State private var showComposerControls = false
+    /// The header "Context" popover: sources fed in + results produced (ChatGPT-style).
+    @State private var showContext = false
     /// Dismiss the "run this as a loop?" contextual suggestion for this session.
     @State private var loopSuggestDismissed = false
     /// Dismiss the "attach a folder" (work-in-repo) contextual suggestion for this session.
@@ -823,6 +825,10 @@ struct ChatView: View {
                     if codeMode { showActivity = false }   // one right-side slot, mutually exclusive
                 }
             }
+            // Context: the sources fed in + the results produced this chat (ChatGPT-style panel).
+            headerIcon("doc.text.magnifyingglass", help: model.t("context.panel.title"),
+                       accessibility: model.t("context.panel.title"), active: showContext) { showContext.toggle() }
+                .popover(isPresented: $showContext, arrowEdge: .bottom) { contextPanel }
             headerIcon("sidebar.trailing", help: model.t("chat.activity.help"),
                        accessibility: model.t("chat.activity"), active: showActivity) {
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
@@ -1268,6 +1274,56 @@ struct ChatView: View {
         .padding(Space.xl)
         // The living Coral orb — behind and AROUND the panel only. Blank under Reduce Motion.
         .background(CursorParticleField().ignoresSafeArea())
+    }
+
+    /// The "Context" popover — a clean two-section panel (Results the agents produced + Sources
+    /// you fed in), adapted from ChatGPT's context panel. Each row reveals the file in Finder.
+    private var contextPanel: some View {
+        let images = vm.messages.compactMap(\.imagePath)
+        let results = Array(vm.editedFiles.reversed())
+        let hasResults = !results.isEmpty || !images.isEmpty
+        let hasRepo = (config.repoPath?.isEmpty == false)
+        let hasSources = !vm.attachments.isEmpty || hasRepo
+        return VStack(alignment: .leading, spacing: Space.m) {
+            if !hasResults && !hasSources {
+                Text(model.t("context.empty")).font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true).frame(width: 260, alignment: .leading)
+            }
+            if hasResults {
+                Text(model.t("context.results")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                ForEach(images.reversed().prefix(4), id: \.self) { contextRow(path: $0, kind: .image) }
+                ForEach(results.prefix(8), id: \.self) { contextRow(path: $0, kind: .file) }
+            }
+            if hasResults && hasSources { Divider().padding(.vertical, 2) }
+            if hasSources {
+                Text(model.t("context.sources")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.8)
+                if let repo = config.repoPath, !repo.isEmpty { contextRow(path: repo, kind: .folder) }
+                ForEach(vm.attachments) { att in contextRow(path: att.url.path, kind: .file) }
+            }
+        }
+        .padding(Space.m)
+        .frame(width: 300)
+    }
+
+    private enum ContextRowKind { case file, image, folder }
+    private func contextRow(path: String, kind: ContextRowKind) -> some View {
+        let icon = switch kind { case .folder: "folder"; case .image: "photo"; case .file: "doc.text" }
+        return Button {
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        } label: {
+            HStack(spacing: Space.s) {
+                Image(systemName: icon).font(.system(size: 12))
+                    .foregroundStyle(kind == .image ? Theme.coral : Theme.secondaryOnMaterial).frame(width: 16)
+                Text((path as NSString).lastPathComponent)
+                    .font(.sfCaption2).foregroundStyle(Theme.ink).lineLimit(1).truncationMode(.middle)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, Space.xs).padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverTint(cornerRadius: Theme.rowCorner)
+        .help(path)
     }
 
     /// An inline generated image in the transcript — a rounded card with Save / Copy actions,
