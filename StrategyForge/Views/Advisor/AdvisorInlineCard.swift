@@ -40,9 +40,6 @@ struct AdvisorInlineCard: View {
     /// Chip hover cue (a tint, not motion) so it reads as an interactive control.
     @State private var chipHovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Resting = one recommendation line + primary button; the visual agent roster lives behind
-    /// "See the team" (founder: minimal, but the tier choice stays visible via the chip).
-    @State private var showDetails = false
 
     private var selected: AdvisorEngine.Tier? {
         tiers.first { $0.id == selectedID } ?? tiers.first { $0.id == "balanced" } ?? tiers.first
@@ -56,14 +53,11 @@ struct AdvisorInlineCard: View {
                 // ONE compact line: the recommended pick + a small tier CHIP (name · cost) that
                 // opens the Claude-style slider popover + the primary action. No fat chip row.
                 recommendationRow(sel)
-                // The team roster stays tucked behind a toggle (the detail, not the decision).
+                // A simple, always-visible team strip that changes with the tier — no "See the
+                // team" toggle needed (the roster also updates live in the Agents panel).
                 if onGenerateImage == nil {
-                    detailsToggle
-                    if showDetails {
-                        Divider().opacity(0.5)
-                        agentCards(sel)
-                        if sel.advice.loopKind != .turnBased { loopHintRow(sel) }
-                    }
+                    teamStrip(sel)
+                    if sel.advice.loopKind != .turnBased { loopHintRow(sel) }
                 }
             }
         }
@@ -236,6 +230,11 @@ struct AdvisorInlineCard: View {
                         .lineLimit(1).truncationMode(.tail)
                 }
                 Spacer(minLength: 0)
+                // Point to where the full roster lives — it updates live as you change the tier.
+                Label(model.t("advisor.tier.seeInPanel"), systemImage: "arrow.right")
+                    .font(.system(size: 10)).foregroundStyle(.tertiary)
+                    .labelStyle(.titleAndIcon)
+                    .lineLimit(1).minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -350,64 +349,39 @@ struct AdvisorInlineCard: View {
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.tealSoft))
     }
 
-    /// The quiet toggle that reveals the visual agent roster (the options themselves stay above,
-    /// always visible). Labeled by what it shows so it's discoverable.
-    private var detailsToggle: some View {
-        Button { withAnimation(.easeOut(duration: 0.18)) { showDetails.toggle() } } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "person.2")
-                Text(model.t(showDetails ? "advisor.inline.hideTeam" : "advisor.inline.showTeam"))
-                Image(systemName: showDetails ? "chevron.up" : "chevron.down").font(.system(size: 8, weight: .semibold))
-            }
-            .font(.sfCaption2).foregroundStyle(.secondary)
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// The team as VISUAL cards — provider logo + role + model — instead of a dense text row.
-    /// Uses the real picks when ≥2 providers are connected; otherwise the IDEAL mix, with the
-    /// not-yet-connected providers dimmed + a one-tap connect nudge.
-    @ViewBuilder private func agentCards(_ sel: AdvisorEngine.Tier) -> some View {
+    /// A simple, always-visible team strip on the LEFT of the card — one small chip per role
+    /// (provider logo + role name), which changes live as the tier is raised so the user sees the
+    /// team it will apply. Replaces the old "See the team" toggle (the full roster also updates in
+    /// the Agents panel). Locked providers dim + a one-tap connect nudge.
+    @ViewBuilder private func teamStrip(_ sel: AdvisorEngine.Tier) -> some View {
         let picks = displayPicks(sel)
         if !picks.isEmpty {
             let hasLocked = picks.contains { !$0.isConnected }
-            VStack(alignment: .leading, spacing: 6) {
-                Text(model.t("advisor.inline.team"))
-                    .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: Space.s), GridItem(.flexible(), spacing: Space.s)],
-                          spacing: Space.s) {
-                    ForEach(Array(picks.prefix(6)), id: \.self) { agentCard($0) }
+            HStack(spacing: 6) {
+                ForEach(Array(picks.prefix(4)), id: \.self) { pick in
+                    HStack(spacing: 4) {
+                        ProviderLogo(provider: pick.provider, size: 12, templateTint: pick.provider.tint)
+                        Text(pick.roleName).font(.sfCaption2).foregroundStyle(Theme.ink).lineLimit(1)
+                    }
+                    .opacity(pick.isConnected ? 1 : 0.5)
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(Capsule().fill(Theme.insetBg))
+                    .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 0.5))
+                    .help(model.t(pick.reasonKey))
+                }
+                if picks.count > 4 {
+                    Text("+\(picks.count - 4)").font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
                 }
                 if hasLocked {
                     Button { model.openConnectedServices() } label: {
-                        Label(model.t("advisor.provider.connect"), systemImage: "link")
-                            .font(.sfCaption2.weight(.medium))
+                        Image(systemName: "link").font(.system(size: 11, weight: .medium))
                     }
                     .buttonStyle(.plain).foregroundStyle(Theme.accent)
+                    .help(model.t("advisor.provider.connect"))
                 }
+                Spacer(minLength: 0)
             }
-            .padding(.top, 2)
         }
-    }
-
-    private func agentCard(_ pick: AdvisorEngine.ProviderPick) -> some View {
-        HStack(spacing: 7) {
-            ProviderLogo(provider: pick.provider, size: 15, templateTint: pick.provider.tint)
-                .opacity(pick.isConnected ? 1 : 0.4)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(pick.roleName).font(.sfCaption2.weight(.medium))
-                    .foregroundStyle(pick.isConnected ? Theme.ink : .secondary).lineLimit(1)
-                Text(pick.modelDisplayName).scaledFont(9, design: .monospaced)
-                    .foregroundStyle(.secondary).lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            if !pick.isConnected { Image(systemName: "lock.fill").scaledFont(7).foregroundStyle(.tertiary) }
-        }
-        .padding(.horizontal, Space.s).padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous).fill(Theme.cardBg))
-        .overlay(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
-            .strokeBorder(Theme.hairline, lineWidth: 1))
-        .help(model.t(pick.reasonKey))
     }
 
     /// Real picks when the run will actually mix providers; otherwise the aspirational

@@ -57,6 +57,7 @@ extension L10n {
         "advisor.tier.title": ("Team tier", "Nivel del equipo"),
         "advisor.tier.chipPrefix": ("Team:", "Equipo:"),
         "advisor.tier.agents": ("%lld agents", "%lld agentes"),
+        "advisor.tier.seeInPanel": ("See the full team in the Agents panel", "Ve el equipo completo en el panel de Agentes"),
         "advisor.tier.a11y": ("Team: %@, tap to change the level", "Equipo: %@, toca para cambiar el nivel"),
         "advisor.tier.faster": ("Faster & cheaper", "Más rápida y barata"),
         "advisor.tier.solo": ("One model", "Un modelo"),
