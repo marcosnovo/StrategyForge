@@ -825,6 +825,18 @@ struct DiffScrollView: View {
     var orchestratorName: String = ""
     /// The file's extension, for syntax highlighting the diff body.
     var fileExtension: String = ""
+    /// Word-level intraline change ranges (character offsets) per line id — computed once from the
+    /// paired del/add runs so the row can emphasise ONLY the tokens that actually changed.
+    private let emphasis: [DiffLine.ID: Range<Int>]
+
+    init(lines: [DiffLine], lineAuthors: [Int: EditProvenance] = [:],
+         orchestratorName: String = "", fileExtension: String = "") {
+        self.lines = lines
+        self.lineAuthors = lineAuthors
+        self.orchestratorName = orchestratorName
+        self.fileExtension = fileExtension
+        self.emphasis = Self.computeEmphasis(lines)
+    }
 
     var body: some View {
         ScrollView([.vertical, .horizontal]) {
@@ -871,8 +883,61 @@ struct DiffScrollView: View {
         case .hunk:
             Text(l.text).foregroundStyle(Theme.accent)
         case .add, .del, .context:
-            Text(CodeSyntax.highlight(l.text, ext: fileExtension))
+            Text(highlighted(l))
         }
+    }
+
+    /// Syntax-highlighted line, with the changed tokens (word-level diff) given a stronger
+    /// green/red wash so the eye lands on exactly what changed — the Zed/GitHub read.
+    private func highlighted(_ l: DiffLine) -> AttributedString {
+        var a = CodeSyntax.highlight(l.text, ext: fileExtension)
+        if let r = emphasis[l.id], !l.text.isEmpty {
+            let chars = a.characters
+            let lo = chars.index(chars.startIndex, offsetBy: min(r.lowerBound, chars.count))
+            let hi = chars.index(chars.startIndex, offsetBy: min(r.upperBound, chars.count))
+            if lo < hi {
+                let wash = (l.kind == .del ? Theme.danger : Theme.success).opacity(0.28)
+                a[lo..<hi].backgroundColor = wash
+            }
+        }
+        return a
+    }
+
+    /// Pair each run of deleted lines with the following run of added lines and, for each pair,
+    /// find the changed middle via a common-prefix/suffix trim — cheap and reads well for edits.
+    /// Skips near-total rewrites (the row background already signals those).
+    private static func computeEmphasis(_ lines: [DiffLine]) -> [DiffLine.ID: Range<Int>] {
+        var map: [DiffLine.ID: Range<Int>] = [:]
+        var i = 0
+        while i < lines.count {
+            guard lines[i].kind == .del else { i += 1; continue }
+            var dels: [Int] = []; var j = i
+            while j < lines.count, lines[j].kind == .del { dels.append(j); j += 1 }
+            var adds: [Int] = []; var k = j
+            while k < lines.count, lines[k].kind == .add { adds.append(k); k += 1 }
+            for p in 0..<min(dels.count, adds.count) {
+                let d = lines[dels[p]], ad = lines[adds[p]]
+                if let (dr, ar) = wordDiff(d.text, ad.text) {
+                    map[d.id] = dr; map[ad.id] = ar
+                }
+            }
+            i = k
+        }
+        return map
+    }
+
+    private static func wordDiff(_ old: String, _ new: String) -> (Range<Int>, Range<Int>)? {
+        let o = Array(old), n = Array(new)
+        guard o != n, !o.isEmpty, !n.isEmpty else { return nil }
+        var p = 0
+        while p < o.count, p < n.count, o[p] == n[p] { p += 1 }
+        var s = 0
+        while s < (o.count - p), s < (n.count - p), o[o.count - 1 - s] == n[n.count - 1 - s] { s += 1 }
+        let oR = p..<(o.count - s), nR = p..<(n.count - s)
+        // Skip if the "change" is basically the whole line on both sides (a full rewrite).
+        let oFrac = Double(oR.count) / Double(o.count), nFrac = Double(nR.count) / Double(n.count)
+        if oFrac > 0.85, nFrac > 0.85 { return nil }
+        return (oR, nR)
     }
 
     /// A thin provider-tinted rail on each added line, crediting whoever wrote it (tooltip
