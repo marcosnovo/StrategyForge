@@ -21,6 +21,7 @@ struct CodeModeView: View {
     @State private var loadingDiff = false
     @State private var viewMode: ViewMode = .diff
     enum ViewMode: String, CaseIterable { case diff, file }
+    @AppStorage("code.diffSplit") private var diffSplit = false
 
     // Git panel state
     @State private var branch: String?
@@ -349,6 +350,15 @@ struct CodeModeView: View {
                                 Text(model.t("code.file")).tag(ViewMode.file)
                             }
                             .pickerStyle(.segmented).tint(Theme.coral).labelsHidden().fixedSize()
+                            // Unified ↔ split (side-by-side) toggle — only meaningful in diff mode.
+                            if viewMode == .diff {
+                                Button { diffSplit.toggle() } label: {
+                                    Image(systemName: diffSplit ? "rectangle.split.2x1.fill" : "rectangle.split.2x1")
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(diffSplit ? Theme.coral : .secondary)
+                                .help(model.t(diffSplit ? "code.diff.unified" : "code.diff.split"))
+                            }
                         }
                         Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) } label: {
                             Image(systemName: "folder")
@@ -369,9 +379,14 @@ struct CodeModeView: View {
                     .padding(Space.m)
                     Divider()
                     if let diff = diffLines, viewMode == .diff {
-                        DiffScrollView(lines: diff, lineAuthors: lineAuthors(for: selected),
-                                       orchestratorName: orchestratorName,
-                                       fileExtension: ((selected ?? "") as NSString).pathExtension)
+                        if diffSplit {
+                            SplitDiffScrollView(lines: diff,
+                                                fileExtension: ((selected ?? "") as NSString).pathExtension)
+                        } else {
+                            DiffScrollView(lines: diff, lineAuthors: lineAuthors(for: selected),
+                                           orchestratorName: orchestratorName,
+                                           fileExtension: ((selected ?? "") as NSString).pathExtension)
+                        }
                     } else {
                         ScrollView([.vertical, .horizontal]) {
                             Text(fileText)
@@ -835,7 +850,7 @@ struct DiffScrollView: View {
         self.lineAuthors = lineAuthors
         self.orchestratorName = orchestratorName
         self.fileExtension = fileExtension
-        self.emphasis = Self.computeEmphasis(lines)
+        self.emphasis = DiffEmphasis.compute(lines)
     }
 
     var body: some View {
@@ -887,57 +902,9 @@ struct DiffScrollView: View {
         }
     }
 
-    /// Syntax-highlighted line, with the changed tokens (word-level diff) given a stronger
-    /// green/red wash so the eye lands on exactly what changed — the Zed/GitHub read.
+    /// Syntax-highlighted line, with the changed tokens (word-level diff) washed stronger.
     private func highlighted(_ l: DiffLine) -> AttributedString {
-        var a = CodeSyntax.highlight(l.text, ext: fileExtension)
-        if let r = emphasis[l.id], !l.text.isEmpty {
-            let chars = a.characters
-            let lo = chars.index(chars.startIndex, offsetBy: min(r.lowerBound, chars.count))
-            let hi = chars.index(chars.startIndex, offsetBy: min(r.upperBound, chars.count))
-            if lo < hi {
-                let wash = (l.kind == .del ? Theme.danger : Theme.success).opacity(0.28)
-                a[lo..<hi].backgroundColor = wash
-            }
-        }
-        return a
-    }
-
-    /// Pair each run of deleted lines with the following run of added lines and, for each pair,
-    /// find the changed middle via a common-prefix/suffix trim — cheap and reads well for edits.
-    /// Skips near-total rewrites (the row background already signals those).
-    private static func computeEmphasis(_ lines: [DiffLine]) -> [DiffLine.ID: Range<Int>] {
-        var map: [DiffLine.ID: Range<Int>] = [:]
-        var i = 0
-        while i < lines.count {
-            guard lines[i].kind == .del else { i += 1; continue }
-            var dels: [Int] = []; var j = i
-            while j < lines.count, lines[j].kind == .del { dels.append(j); j += 1 }
-            var adds: [Int] = []; var k = j
-            while k < lines.count, lines[k].kind == .add { adds.append(k); k += 1 }
-            for p in 0..<min(dels.count, adds.count) {
-                let d = lines[dels[p]], ad = lines[adds[p]]
-                if let (dr, ar) = wordDiff(d.text, ad.text) {
-                    map[d.id] = dr; map[ad.id] = ar
-                }
-            }
-            i = k
-        }
-        return map
-    }
-
-    private static func wordDiff(_ old: String, _ new: String) -> (Range<Int>, Range<Int>)? {
-        let o = Array(old), n = Array(new)
-        guard o != n, !o.isEmpty, !n.isEmpty else { return nil }
-        var p = 0
-        while p < o.count, p < n.count, o[p] == n[p] { p += 1 }
-        var s = 0
-        while s < (o.count - p), s < (n.count - p), o[o.count - 1 - s] == n[n.count - 1 - s] { s += 1 }
-        let oR = p..<(o.count - s), nR = p..<(n.count - s)
-        // Skip if the "change" is basically the whole line on both sides (a full rewrite).
-        let oFrac = Double(oR.count) / Double(o.count), nFrac = Double(nR.count) / Double(n.count)
-        if oFrac > 0.85, nFrac > 0.85 { return nil }
-        return (oR, nR)
+        CodeSyntax.diffLine(l.text, ext: fileExtension, emphasis: emphasis[l.id], isDelete: l.kind == .del)
     }
 
     /// A thin provider-tinted rail on each added line, crediting whoever wrote it (tooltip
@@ -978,5 +945,113 @@ struct DiffScrollView: View {
         case .hunk: return Theme.accent.opacity(0.08)
         case .context: return .clear
         }
+    }
+}
+
+/// Side-by-side (split) diff — old on the left, new on the right, context on both. Built from the
+/// flat DiffLine list by pairing each del run with the following add run, so the same syntax +
+/// word-level highlighting applies. One shared vertical ScrollView keeps the two sides in sync.
+struct SplitDiffScrollView: View {
+    let lines: [DiffLine]
+    var fileExtension: String = ""
+
+    private let rows: [SideRow]
+    private let emphasis: [DiffLine.ID: Range<Int>]
+
+    init(lines: [DiffLine], fileExtension: String = "") {
+        self.lines = lines
+        self.fileExtension = fileExtension
+        self.emphasis = DiffEmphasis.compute(lines)
+        self.rows = Self.pair(lines)
+    }
+
+    struct SideRow: Identifiable {
+        let id = UUID()
+        var left: DiffLine?     // deleted / context (old side)
+        var right: DiffLine?    // added / context (new side)
+        var hunk: String?       // a full-width hunk header row
+    }
+
+    var body: some View {
+        ScrollView([.vertical, .horizontal]) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(rows) { r in row(r) }
+            }
+            .padding(.vertical, Space.s)
+        }
+    }
+
+    @ViewBuilder private func row(_ r: SideRow) -> some View {
+        if let h = r.hunk {
+            Text(h).font(.system(size: 12, design: .monospaced)).foregroundStyle(Theme.accent)
+                .padding(.vertical, 1).padding(.horizontal, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.accent.opacity(0.08))
+        } else {
+            HStack(spacing: 0) {
+                cell(r.left, side: .left)
+                Rectangle().fill(Theme.hairline).frame(width: 1)
+                cell(r.right, side: .right)
+            }
+        }
+    }
+
+    private enum Side { case left, right }
+    @ViewBuilder private func cell(_ l: DiffLine?, side: Side) -> some View {
+        HStack(spacing: 0) {
+            Text((side == .left ? l?.oldNumber : l?.newNumber).map(String.init) ?? "")
+                .font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
+                .frame(width: 34, alignment: .trailing).padding(.trailing, 4)
+            if let l {
+                Text(CodeSyntax.diffLine(l.text, ext: fileExtension, emphasis: emphasis[l.id], isDelete: l.kind == .del))
+                    .font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
+                    .padding(.leading, 6)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cellBg(l, side: side))
+    }
+
+    private func cellBg(_ l: DiffLine?, side: Side) -> Color {
+        guard let l else { return Theme.insetBg.opacity(0.25) }   // no counterpart → faint filler
+        switch l.kind {
+        case .del: return Theme.danger.opacity(0.10)
+        case .add: return Theme.success.opacity(0.10)
+        default:   return .clear
+        }
+    }
+
+    /// Pair the flat diff into aligned left/right rows.
+    private static func pair(_ lines: [DiffLine]) -> [SideRow] {
+        var rows: [SideRow] = []
+        var i = 0
+        while i < lines.count {
+            let l = lines[i]
+            switch l.kind {
+            case .hunk:
+                rows.append(SideRow(hunk: l.text)); i += 1
+            case .context:
+                rows.append(SideRow(left: l, right: l)); i += 1
+            case .del:
+                var dels: [DiffLine] = []; var j = i
+                while j < lines.count, lines[j].kind == .del { dels.append(lines[j]); j += 1 }
+                var adds: [DiffLine] = []; var k = j
+                while k < lines.count, lines[k].kind == .add { adds.append(lines[k]); k += 1 }
+                let n = max(dels.count, adds.count)
+                for p in 0..<n {
+                    rows.append(SideRow(left: p < dels.count ? dels[p] : nil,
+                                        right: p < adds.count ? adds[p] : nil))
+                }
+                i = k
+            case .add:
+                var adds: [DiffLine] = []; var k = i
+                while k < lines.count, lines[k].kind == .add { adds.append(lines[k]); k += 1 }
+                for a in adds { rows.append(SideRow(left: nil, right: a)) }
+                i = k
+            }
+        }
+        return rows
     }
 }

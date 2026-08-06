@@ -1670,6 +1670,8 @@ enum L10n {
                            "Sin cambios aún. Pide al agente que edite o cree archivos."),
         "code.pick": ("Pick a file to view its contents.", "Elige un archivo para ver su contenido."),
         "code.diff": ("Diff", "Diff"),
+        "code.diff.split": ("Side-by-side view", "Vista en paralelo"),
+        "code.diff.unified": ("Unified view", "Vista unificada"),
         "code.file": ("File", "Archivo"),
         "code.accept": ("Accept", "Aceptar"),
         "code.revert": ("Revert", "Revertir"),

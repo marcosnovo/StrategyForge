@@ -69,4 +69,54 @@ enum CodeSyntax {
         }
         return AttributedString(s)
     }
+
+    /// Syntax-highlight a diff line and wash the word-level changed range (if any) a stronger
+    /// green/red — shared by the unified and split diff views.
+    static func diffLine(_ text: String, ext: String, emphasis: Range<Int>?, isDelete: Bool) -> AttributedString {
+        var a = highlight(text, ext: ext)
+        if let r = emphasis, !text.isEmpty {
+            let chars = a.characters
+            let lo = chars.index(chars.startIndex, offsetBy: min(r.lowerBound, chars.count))
+            let hi = chars.index(chars.startIndex, offsetBy: min(r.upperBound, chars.count))
+            if lo < hi {
+                a[lo..<hi].backgroundColor = (isDelete ? Theme.danger : Theme.success).opacity(0.28)
+            }
+        }
+        return a
+    }
+}
+
+/// Word-level intraline diff: pair each run of deleted lines with the following run of added
+/// lines and find the changed middle via a common prefix/suffix trim. Shared by both diff views.
+enum DiffEmphasis {
+    static func compute(_ lines: [DiffLine]) -> [DiffLine.ID: Range<Int>] {
+        var map: [DiffLine.ID: Range<Int>] = [:]
+        var i = 0
+        while i < lines.count {
+            guard lines[i].kind == .del else { i += 1; continue }
+            var dels: [Int] = []; var j = i
+            while j < lines.count, lines[j].kind == .del { dels.append(j); j += 1 }
+            var adds: [Int] = []; var k = j
+            while k < lines.count, lines[k].kind == .add { adds.append(k); k += 1 }
+            for p in 0..<min(dels.count, adds.count) {
+                if let (dr, ar) = wordDiff(lines[dels[p]].text, lines[adds[p]].text) {
+                    map[lines[dels[p]].id] = dr; map[lines[adds[p]].id] = ar
+                }
+            }
+            i = k
+        }
+        return map
+    }
+
+    static func wordDiff(_ old: String, _ new: String) -> (Range<Int>, Range<Int>)? {
+        let o = Array(old), n = Array(new)
+        guard o != n, !o.isEmpty, !n.isEmpty else { return nil }
+        var p = 0
+        while p < o.count, p < n.count, o[p] == n[p] { p += 1 }
+        var s = 0
+        while s < (o.count - p), s < (n.count - p), o[o.count - 1 - s] == n[n.count - 1 - s] { s += 1 }
+        let oR = p..<(o.count - s), nR = p..<(n.count - s)
+        if Double(oR.count) / Double(o.count) > 0.85, Double(nR.count) / Double(n.count) > 0.85 { return nil }
+        return (oR, nR)
+    }
 }
