@@ -268,6 +268,30 @@ enum CodeGit {
         return (p.terminationStatus == 0, String(data: data, encoding: .utf8) ?? "")
     }
 
+    /// Capture a NON-DESTRUCTIVE snapshot of the current working tree + index and return its
+    /// commit sha. `git stash create` builds a stash commit object WITHOUT touching the working
+    /// tree, index, or the stash list — so taking a checkpoint never disturbs the user's work.
+    /// Returns nil when there's nothing to snapshot (a clean tree) or git is unavailable.
+    nonisolated static func createCheckpoint(repo: String) async -> String? {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return nil }
+            let r = runResult(git, ["-C", repo, "stash", "create", "Coral checkpoint"])
+            let sha = r.out.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (r.ok && !sha.isEmpty) ? sha : nil
+        }.value
+    }
+
+    /// Rewind the working tree to a checkpoint sha. DESTRUCTIVE — it discards uncommitted
+    /// changes made since the checkpoint by restoring tracked files to the snapshot's tree
+    /// (`git checkout <sha> -- .`). Untracked files created afterwards are left alone. Callers
+    /// must confirm first. Returns git's own output on failure.
+    nonisolated static func restoreCheckpoint(repo: String, sha: String) async -> (ok: Bool, out: String) {
+        await Task.detached(priority: .userInitiated) {
+            guard let git = gitPath() else { return (false, "git not found") }
+            return runResult(git, ["-C", repo, "checkout", sha, "--", "."])
+        }.value
+    }
+
     /// Commit only what's already staged (no `add -A`).
     nonisolated static func commitStaged(repo: String, message: String) async -> (ok: Bool, out: String) {
         await Task.detached(priority: .userInitiated) {

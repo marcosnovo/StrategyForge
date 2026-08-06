@@ -67,6 +67,16 @@ struct CodeModeView: View {
     /// Active review-severity filter (nil = show every tier). Tapping a tier chip focuses it.
     @State private var reviewFilter: ReviewSeverity?
 
+    /// Session checkpoints: non-destructive snapshots (git stash create) you can rewind to.
+    @State private var checkpoints: [Checkpoint] = []
+    @State private var confirmRestore: Checkpoint?
+    struct Checkpoint: Identifiable, Equatable {
+        let id = UUID()
+        let sha: String
+        let label: String
+        let at: Date
+    }
+
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
     private var files: [String] { vm.editedFiles }
@@ -118,6 +128,15 @@ struct CodeModeView: View {
         .confirmationDialog(model.t("code.commitConfirm"), isPresented: $confirmCommit, titleVisibility: .visible) {
             Button(model.t("code.commit")) { performCommit() }
             Button(model.t("common.cancel"), role: .cancel) {}
+        }
+        .confirmationDialog(model.t("code.checkpoint.restoreConfirm"),
+                            isPresented: Binding(get: { confirmRestore != nil },
+                                                 set: { if !$0 { confirmRestore = nil } }),
+                            titleVisibility: .visible) {
+            Button(model.t("code.checkpoint.rewind"), role: .destructive) {
+                if let cp = confirmRestore { performRestore(cp) }
+            }
+            Button(model.t("common.cancel"), role: .cancel) { confirmRestore = nil }
         }
         .alert(model.t("code.branch.new"), isPresented: $showNewBranch) {
             TextField(model.t("code.branch.placeholder"), text: $newBranchName)
@@ -826,6 +845,61 @@ struct CodeModeView: View {
         .buttonStyle(.plain)
     }
 
+    /// Checkpoints: capture a non-destructive snapshot, or rewind to a past one. A safety net
+    /// for reviewing agent work — snapshot before you accept, roll back if it went wrong.
+    private var checkpointMenu: some View {
+        Menu {
+            Button {
+                Task { await captureCheckpoint() }
+            } label: { Label(model.t("code.checkpoint.capture"), systemImage: "camera.aperture") }
+            .disabled(gitBusy)
+            if !checkpoints.isEmpty {
+                Divider()
+                Text(model.t("code.checkpoint.rewindTo")).font(.sfFieldLabel)
+                ForEach(checkpoints.reversed()) { cp in
+                    Button {
+                        confirmRestore = cp
+                    } label: {
+                        Label("\(cp.label) · \(cp.at.formatted(date: .omitted, time: .shortened))",
+                              systemImage: "clock.arrow.circlepath")
+                    }
+                }
+            }
+        } label: {
+            Label(model.t("code.checkpoint"), systemImage: "clock.arrow.circlepath")
+        }
+        .menuStyle(.borderlessButton).fixedSize()
+        .help(model.t("code.checkpoint.help"))
+    }
+
+    private func captureCheckpoint() async {
+        guard let repo = vm.config.repoPath else { return }
+        gitBusy = true; gitError = nil
+        if let sha = await CodeGit.createCheckpoint(repo: repo) {
+            let n = checkpoints.count + 1
+            checkpoints.append(Checkpoint(sha: sha, label: model.t("code.checkpoint.label", n), at: Date()))
+            model.flashSuccess(model.t("code.checkpoint.saved"))
+        } else {
+            gitError = model.t("code.checkpoint.empty")
+        }
+        gitBusy = false
+    }
+
+    private func performRestore(_ cp: Checkpoint) {
+        guard let repo = vm.config.repoPath else { return }
+        confirmRestore = nil; gitBusy = true; gitError = nil
+        Task {
+            let r = await CodeGit.restoreCheckpoint(repo: repo, sha: cp.sha)
+            if r.ok {
+                await loadDiff(); await loadChangeStats()
+                model.flashSuccess(model.t("code.checkpoint.restored"))
+            } else {
+                gitError = r.out.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            gitBusy = false
+        }
+    }
+
     /// Commit staged/working changes with an editable, auto-drafted message.
     private var commitBar: some View {
         VStack(spacing: 0) {
@@ -847,6 +921,7 @@ struct CodeModeView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(gitBusy || pushing || model.isReviewingDiff)
+                checkpointMenu
                 Button(model.t("code.commit")) { confirmCommit = true }
                     .buttonStyle(.bordered)
                     .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty || gitBusy || pushing)
