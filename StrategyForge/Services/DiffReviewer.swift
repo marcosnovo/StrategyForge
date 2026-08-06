@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 /// How serious a finding is — drives ordering, color, and the optional commit gate.
 enum ReviewSeverity: String, Codable, CaseIterable, Sendable {
@@ -18,6 +19,8 @@ enum ReviewSeverity: String, Codable, CaseIterable, Sendable {
     /// Sort weight (high first).
     var rank: Int { switch self { case .high: 0; case .medium: 1; case .low: 2 } }
     var labelKey: String { "review.severity.\(rawValue)" }
+    /// Gutter/marker colour, matching the review panel's severity shapes.
+    var tint: Color { switch self { case .high: Theme.danger; case .medium: Theme.warning; case .low: Theme.inkDim } }
 }
 
 /// One issue the reviewer found in the diff.

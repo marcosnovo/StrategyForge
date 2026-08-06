@@ -1676,6 +1676,7 @@ enum L10n {
         "code.reviewed.reset": ("Reset review progress", "Reiniciar progreso de revisión"),
         "code.view": ("Mark as viewed", "Marcar como visto"),
         "code.unview": ("Mark as not viewed", "Marcar como no visto"),
+        "review.jump": ("Jump to this line in the diff", "Ir a esta línea en el diff"),
         "code.file": ("File", "Archivo"),
         "code.accept": ("Accept", "Aceptar"),
         "code.revert": ("Revert", "Revertir"),

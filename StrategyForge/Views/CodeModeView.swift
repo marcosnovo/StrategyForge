@@ -54,6 +54,11 @@ struct CodeModeView: View {
     /// Session-local (a review is a moment, not a persisted fact); reset when the file set changes.
     @State private var viewed: Set<String> = []
 
+    /// Scroll the diff to a given new-file line (set when a review finding is clicked); a
+    /// pending value survives a file switch until the new diff has loaded.
+    @State private var scrollRequest: Int?
+    @State private var pendingScroll: Int?
+
     private var isRepo: Bool { !(vm.config.repoPath ?? "").isEmpty }
 
     private var files: [String] { vm.editedFiles }
@@ -161,6 +166,46 @@ struct CodeModeView: View {
             (try? String(contentsOfFile: path, encoding: .utf8)) ?? unreadable
         }.value
         loadingDiff = false
+        // A finding-jump that switched files waits for the diff to load, then scrolls.
+        if let pending = pendingScroll {
+            pendingScroll = nil
+            viewMode = .diff
+            scrollRequest = pending
+        }
+    }
+
+    /// Reviewer findings pinned to the currently-selected file, keyed by new-file line →
+    /// highest severity on that line (for the gutter markers).
+    private var findingLinesForSelected: [Int: ReviewSeverity] {
+        guard let sel = selected, let review = model.diffReview else { return [:] }
+        let selName = (sel as NSString).lastPathComponent
+        var map: [Int: ReviewSeverity] = [:]
+        for f in review.findings {
+            guard let line = f.line, !f.file.isEmpty else { continue }
+            // Match on full path or basename — the model may pin either.
+            let fName = (f.file as NSString).lastPathComponent
+            guard sel.hasSuffix(f.file) || f.file.hasSuffix(sel) || fName == selName else { continue }
+            if let existing = map[line], existing.rank <= f.severity.rank { continue }
+            map[line] = f.severity
+        }
+        return map
+    }
+
+    /// Jump the diff to a finding: switch to its file if needed (scroll applies once the diff
+    /// loads), otherwise scroll straight away.
+    private func jumpToFinding(_ f: ReviewFinding) {
+        guard let line = f.line else { return }
+        let selName = (selected as NSString?)?.lastPathComponent
+        let sameFile = f.file.isEmpty
+            || (selected.map { $0.hasSuffix(f.file) || f.file.hasSuffix($0) } ?? false)
+            || (f.file as NSString).lastPathComponent == selName
+        if sameFile {
+            viewMode = .diff
+            scrollRequest = line
+        } else if let match = files.first(where: { $0.hasSuffix(f.file) || f.file.hasSuffix($0) || ($0 as NSString).lastPathComponent == (f.file as NSString).lastPathComponent }) {
+            pendingScroll = line
+            selected = match   // triggers loadDiff → applies pendingScroll
+        }
     }
 
     // MARK: Left — changed files
@@ -437,7 +482,9 @@ struct CodeModeView: View {
                         } else {
                             DiffScrollView(lines: diff, lineAuthors: lineAuthors(for: selected),
                                            orchestratorName: orchestratorName,
-                                           fileExtension: ((selected ?? "") as NSString).pathExtension)
+                                           fileExtension: ((selected ?? "") as NSString).pathExtension,
+                                           findingLines: findingLinesForSelected,
+                                           scrollRequest: $scrollRequest)
                         }
                     } else {
                         ScrollView([.vertical, .horizontal]) {
@@ -576,6 +623,7 @@ struct CodeModeView: View {
                     .buttonStyle(.plain).foregroundStyle(.secondary)
             }
             ForEach(review.findings) { f in
+                let jumpable = f.line != nil && !f.file.isEmpty
                 HStack(alignment: .top, spacing: Space.s) {
                     // Severity marker by shape+color (colorblind-safe).
                     severityMarker(f.severity).frame(width: 9, height: 9).padding(.top, 3)
@@ -584,7 +632,10 @@ struct CodeModeView: View {
                             Text(f.title).font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.ink)
                             if !f.file.isEmpty {
                                 Text(f.line.map { "\((f.file as NSString).lastPathComponent):\($0)" } ?? (f.file as NSString).lastPathComponent)
-                                    .font(.sfFieldLabel).foregroundStyle(.tertiary)
+                                    .font(.sfFieldLabel).foregroundStyle(jumpable ? AnyShapeStyle(Theme.coral) : AnyShapeStyle(.tertiary))
+                            }
+                            if jumpable {
+                                Image(systemName: "arrow.right.circle").font(.system(size: 9)).foregroundStyle(Theme.coral.opacity(0.7))
                             }
                         }
                         if !f.detail.isEmpty {
@@ -592,7 +643,11 @@ struct CodeModeView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
+                    Spacer(minLength: 0)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { if jumpable { jumpToFinding(f) } }
+                .help(jumpable ? model.t("review.jump") : "")
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("\(model.t(f.severity.labelKey)): \(f.title). \(f.detail)")
             }
@@ -892,41 +947,63 @@ struct DiffScrollView: View {
     var orchestratorName: String = ""
     /// The file's extension, for syntax highlighting the diff body.
     var fileExtension: String = ""
+    /// Reviewer findings pinned to new-file line numbers → a severity marker in the gutter.
+    var findingLines: [Int: ReviewSeverity] = [:]
+    /// Set to a new-file line number to scroll that line into view; cleared once handled.
+    @Binding var scrollRequest: Int?
     /// Word-level intraline change ranges (character offsets) per line id — computed once from the
     /// paired del/add runs so the row can emphasise ONLY the tokens that actually changed.
     private let emphasis: [DiffLine.ID: Range<Int>]
 
     init(lines: [DiffLine], lineAuthors: [Int: EditProvenance] = [:],
-         orchestratorName: String = "", fileExtension: String = "") {
+         orchestratorName: String = "", fileExtension: String = "",
+         findingLines: [Int: ReviewSeverity] = [:], scrollRequest: Binding<Int?> = .constant(nil)) {
         self.lines = lines
         self.lineAuthors = lineAuthors
         self.orchestratorName = orchestratorName
         self.fileExtension = fileExtension
+        self.findingLines = findingLines
+        self._scrollRequest = scrollRequest
         self.emphasis = DiffEmphasis.compute(lines)
     }
 
     var body: some View {
-        ScrollView([.vertical, .horizontal]) {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(lines) { line in row(line) }
+        ScrollViewReader { proxy in
+            ScrollView([.vertical, .horizontal]) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(lines) { line in row(line) }
+                }
+                // Lazy rows can't size to offscreen peers, so pin the stack's width to the
+                // widest line up front — keeping horizontal scrolling coherent.
+                .frame(minWidth: minRowWidth, maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, Space.s)
             }
-            // Lazy rows can't size to offscreen peers, so pin the stack's width to the
-            // widest line up front — keeping horizontal scrolling coherent.
-            .frame(minWidth: minRowWidth, maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, Space.s)
+            .onChange(of: scrollRequest) { _, req in
+                guard let req, let target = lineID(forNewLine: req) else { return }
+                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(target, anchor: .center) }
+                scrollRequest = nil
+            }
         }
+    }
+
+    /// The row id (DiffLine.id) whose new-file number is `n`, or the closest one at/after it —
+    /// so a finding pinned to a context line still lands somewhere sensible.
+    private func lineID(forNewLine n: Int) -> DiffLine.ID? {
+        if let exact = lines.first(where: { $0.newNumber == n }) { return exact.id }
+        return lines.filter { ($0.newNumber ?? -1) >= n }.min { ($0.newNumber ?? 0) < ($1.newNumber ?? 0) }?.id
     }
 
     /// Estimated width of the widest row: two gutters + leading pad + monospaced text
     /// (~7.3pt per character at 12pt; `utf8.count` is O(1) and only ever overestimates).
     private var minRowWidth: CGFloat {
         let maxChars = lines.reduce(0) { max($0, $1.text.utf8.count) }
-        return 3 + 2 * (38 + 4) + 8 + CGFloat(maxChars + 2) * 7.3
+        return 3 + 10 + 2 * (38 + 4) + 8 + CGFloat(maxChars + 2) * 7.3
     }
 
     private func row(_ l: DiffLine) -> some View {
         HStack(spacing: 0) {
             provenanceBar(l)
+            findingMarker(l)
             gutter(l.oldNumber)
             gutter(l.newNumber)
             // The +/- marker stays coloured (fast to scan); the code body is syntax-highlighted
@@ -958,6 +1035,20 @@ struct DiffScrollView: View {
     private func highlighted(_ l: DiffLine) -> AttributedString {
         CodeSyntax.diffLine(l.text, ext: fileExtension, emphasis: emphasis[l.id], isDelete: l.kind == .del)
     }
+
+    /// A reviewer-finding marker in the gutter: a small severity-tinted dot on any line a
+    /// finding was pinned to, so issues are visible right where they live in the code.
+    @ViewBuilder private func findingMarker(_ l: DiffLine) -> some View {
+        if let n = l.newNumber, let sev = findingLines[n] {
+            Circle().fill(sev.tint).frame(width: 6, height: 6)
+                .frame(width: 10)
+                .help(model_reviewTip)
+        } else {
+            Color.clear.frame(width: 10)
+        }
+    }
+    // A static tip string (DiffScrollView has no model env); kept simple.
+    private var model_reviewTip: String { "Reviewer finding" }
 
     /// A thin provider-tinted rail on each added line, crediting whoever wrote it (tooltip
     /// = "Agent · Model"). A clear rail keeps every row aligned when there's no author.
