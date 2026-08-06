@@ -70,6 +70,9 @@ struct AppSettings: Codable, Hashable {
     /// posting URL isn't a credential the way an API key is, and it never leaves this Mac
     /// except as the POST target the user chose.
     var loopWebhookURL: String?
+    /// Providers pinned to the left rail's usage door — up to 3, so a multi-provider user can
+    /// watch what matters in that tiny space without oversaturating it. Default: just Claude.
+    var usageFavorites: [String]
 
     init(
         defaultReposPath: String? = nil,
@@ -87,7 +90,8 @@ struct AppSettings: Codable, Hashable {
         openaiUseAPIKey: Bool = false,
         votedFutureProviders: Set<String> = [],
         requestedProviders: [String] = [],
-        loopWebhookURL: String? = nil
+        loopWebhookURL: String? = nil,
+        usageFavorites: [String] = ["claude"]
     ) {
         self.defaultReposPath = defaultReposPath
         self.defaultReposBookmark = defaultReposBookmark
@@ -105,6 +109,7 @@ struct AppSettings: Codable, Hashable {
         self.votedFutureProviders = votedFutureProviders
         self.requestedProviders = requestedProviders
         self.loopWebhookURL = loopWebhookURL
+        self.usageFavorites = usageFavorites
     }
 
     // Tolerant decoding so older saved data (without newer keys) still loads.
@@ -114,6 +119,7 @@ struct AppSettings: Codable, Hashable {
         case codexReasoningEffort, openaiUseAPIKey
         case votedFutureProviders, requestedProviders
         case loopWebhookURL
+        case usageFavorites
     }
 
     init(from decoder: Decoder) throws {
@@ -134,6 +140,21 @@ struct AppSettings: Codable, Hashable {
         votedFutureProviders = try c.decodeIfPresent(Set<String>.self, forKey: .votedFutureProviders) ?? []
         requestedProviders = try c.decodeIfPresent([String].self, forKey: .requestedProviders) ?? []
         loopWebhookURL = try c.decodeIfPresent(String.self, forKey: .loopWebhookURL)
+        usageFavorites = try c.decodeIfPresent([String].self, forKey: .usageFavorites) ?? ["claude"]
+    }
+
+    /// Providers pinned to the rail's usage door (mapped from stored raw values), capped at 3.
+    var usageFavoriteProviders: [AIProvider] {
+        usageFavorites.compactMap { AIProvider(rawValue: $0) }.prefix(3).map { $0 }
+    }
+    func isUsageFavorite(_ p: AIProvider) -> Bool { usageFavorites.contains(p.rawValue) }
+    /// Toggle a provider as a usage favorite. Returns false (no-op) when trying to ADD a 4th.
+    @discardableResult
+    mutating func toggleUsageFavorite(_ p: AIProvider) -> Bool {
+        if let i = usageFavorites.firstIndex(of: p.rawValue) { usageFavorites.remove(at: i); return true }
+        guard usageFavorites.count < 3 else { return false }
+        usageFavorites.append(p.rawValue)
+        return true
     }
 
     /// The configured binary name/path for a provider.

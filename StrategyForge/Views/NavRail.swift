@@ -103,9 +103,9 @@ struct NavRail: View {
                 .padding(.vertical, Space.xs)
             }
 
-            // The ONE usage door: shows the live rate-limit % AND opens Usage (a neutral
-            // gauge tile until a % is cached). No Keychain touch here (see the .task below).
-            ClaudeUsagePill(style: .tile)
+            // The usage door: up to 3 pinned provider favorites (rate-limit % or tokens), so a
+            // multi-provider user sees what matters here. Opens Usage; no Keychain touch (see .task).
+            RailUsageFavorites()
 
             item("gearshape.fill", "sidebar.settings", active: model.navSection == .settings) {
                 model.guardedLeave { model.navSection = .settings }

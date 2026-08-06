@@ -135,7 +135,9 @@ struct UsageView: View {
     }
 
     private func providerCardHeader(_ p: AIProvider, last: Date?) -> some View {
-        HStack(spacing: Space.s) {
+        let fav = model.settings.isUsageFavorite(p)
+        let atCap = model.settings.usageFavorites.count >= 3
+        return HStack(spacing: Space.s) {
             ProviderLogo(provider: p, size: 18, templateTint: p.tint)
             Text(p.displayName).font(.sfCardTitle).lineLimit(1)
             planBadge(p)
@@ -144,6 +146,14 @@ struct UsageView: View {
                 Text(model.t("usage.lastActivity", relative(last)))
                     .scaledFont(9).foregroundStyle(.tertiary).lineLimit(1)
             }
+            // Pin up to 3 providers to the left rail's usage door.
+            Button { model.toggleUsageFavorite(p) } label: {
+                Image(systemName: fav ? "star.fill" : "star")
+                    .font(.system(size: 12)).foregroundStyle(fav ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
+            }
+            .buttonStyle(.plain)
+            .disabled(!fav && atCap)
+            .help(model.t(fav ? "usage.favorite.on" : (atCap ? "usage.favorite.full" : "usage.favorite.off")))
         }
     }
 
@@ -238,9 +248,22 @@ struct UsageView: View {
     }
 
     private var geminiUsageCard: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
+        let tokens = model.usageTokens(for: .gemini)
+        return VStack(alignment: .leading, spacing: Space.m) {
             providerCardHeader(.gemini, last: nil)
-            providerEmpty(model.t("usage.gemini.none"))
+            if tokens > 0 {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(model.t("usage.gemini.tokens")).font(.sfFieldLabel).foregroundStyle(.secondary).tracking(0.6)
+                        Spacer()
+                        Text(formatTokens(tokens)).font(.sfMono).foregroundStyle(.secondary)
+                    }
+                    Text(model.t("usage.gemini.note")).font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                providerEmpty(model.t("usage.gemini.note"))
+            }
             Spacer(minLength: 0)
         }
         .equalCard()

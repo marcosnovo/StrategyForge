@@ -309,6 +309,23 @@ final class AppModel {
     var claudeExact: ClaudeUsageAPI.Exact? { usageStore.claudeExact }
     var isRefreshingUsage: Bool { usageStore.isRefreshingUsage }
 
+    /// The rate-limit utilization % for a provider, when it exposes one: Claude's 5-hour window,
+    /// Codex/ChatGPT's plan %. Gemini has no such API (only tokens) → nil.
+    func usagePercent(for p: AIProvider) -> Double? {
+        switch p {
+        case .claude: return claudeExact.map { max($0.fiveHourPercent, 0) }
+        case .openai: return (codexUsage?.primary ?? codexUsage?.secondary)?.usedPercent
+        case .gemini: return nil
+        }
+    }
+    /// Tokens spent on a provider (rolled up from this device's chats) — the fallback signal for
+    /// providers with no rate-limit API (e.g. Gemini).
+    func usageTokens(for p: AIProvider) -> Int {
+        spendByProvider().first { $0.provider == p }?.tokens ?? 0
+    }
+    /// Pin/unpin a provider to the rail's usage door (max 3). Persists.
+    func toggleUsageFavorite(_ p: AIProvider) { _ = settings.toggleUsageFavorite(p); _ = save() }
+
     // MARK: - App updates
     /// A newer release than this build, when one is available (nil = up to date /
     /// offline). Drives the Settings "download" row and the nav-rail update dot.

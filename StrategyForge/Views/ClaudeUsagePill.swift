@@ -104,3 +104,62 @@ struct ClaudeUsagePill: View {
         return f.localizedString(for: d, relativeTo: Date())
     }
 }
+
+/// The rail's usage door — now multi-provider. Shows up to 3 provider favorites (pinned in the
+/// Usage section), each a tiny logo + its rate-limit % (Claude/Codex) or token count (Gemini, which
+/// exposes no %). Fits the narrow rail without oversaturating it; one tap opens Usage. Falls back
+/// to the single neutral tile when no favorites are set.
+struct RailUsageFavorites: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let favs = model.settings.usageFavoriteProviders
+        if favs.isEmpty {
+            ClaudeUsagePill(style: .tile)
+        } else {
+            VStack(spacing: 2) {
+                ForEach(favs, id: \.self) { tile($0) }
+            }
+        }
+    }
+
+    private func tile(_ p: AIProvider) -> some View {
+        Button {
+            model.navSection = .usage
+            Task { await model.refreshUsage(includeExact: true) }
+        } label: {
+            HStack(spacing: 4) {
+                ProviderLogo(provider: p, size: 13, templateTint: p.tint)
+                value(p)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .frame(maxWidth: .infinity)
+            .background(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
+                .fill(model.navSection == .usage ? Theme.selectionFill : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(p.displayName + " · " + model.t("rail.usage"))
+        .accessibilityLabel(p.displayName + " " + model.t("rail.usage"))
+    }
+
+    @ViewBuilder private func value(_ p: AIProvider) -> some View {
+        if let pct = model.usagePercent(for: p) {
+            Text("\(Int(pct.rounded()))%")
+                .font(.system(size: 11, weight: .semibold, design: .rounded)).monospacedDigit()
+                .foregroundStyle(Theme.usageTint(pct)).contentTransition(.numericText())
+        } else {
+            let tok = model.usageTokens(for: p)
+            Text(tok > 0 ? Self.abbrev(tok) : "·")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(Theme.secondaryOnMaterial)
+        }
+    }
+
+    static func abbrev(_ n: Int) -> String {
+        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
+        if n >= 1_000 { return "\(n / 1000)k" }
+        return "\(n)"
+    }
+}
