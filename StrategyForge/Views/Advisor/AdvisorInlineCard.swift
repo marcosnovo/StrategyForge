@@ -46,14 +46,21 @@ struct AdvisorInlineCard: View {
             headerRow
             if let team = currentTeamName { chosenTeamRow(team) }
             if let sel = selected {
+                // Cost/quality OPTIONS stay visible — with a tiny label — so it's obvious you can
+                // switch them (founder: minimalism, but the options must be discoverable). Only
+                // the team roster hides behind "Details". Image tasks are one model → no options.
+                if onGenerateImage == nil, tiers.count > 1 {
+                    Text(model.t("advisor.tier.caption"))
+                        .font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
+                    tierRow
+                }
                 // ESSENCE — one line (model · team · loop) + the primary action.
                 selectionRow(sel)
-                // Image tasks are one model generated directly — no tiers/agents to expand.
+                // The team roster stays tucked behind a toggle (the detail, not the decision).
                 if onGenerateImage == nil {
                     detailsToggle
                     if showDetails {
                         Divider().opacity(0.5)
-                        tierRow
                         agentCards(sel)
                         if sel.advice.loopKind != .turnBased { loopHintRow(sel) }
                     }
@@ -203,11 +210,13 @@ struct AdvisorInlineCard: View {
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.tealSoft))
     }
 
-    /// The quiet "Details" toggle — reveals the tier options + the visual agent cards.
+    /// The quiet toggle that reveals the visual agent roster (the options themselves stay above,
+    /// always visible). Labeled by what it shows so it's discoverable.
     private var detailsToggle: some View {
         Button { withAnimation(.easeOut(duration: 0.18)) { showDetails.toggle() } } label: {
             HStack(spacing: 4) {
-                Text(model.t(showDetails ? "advisor.inline.hideDetails" : "advisor.inline.details"))
+                Image(systemName: "person.2")
+                Text(model.t(showDetails ? "advisor.inline.hideTeam" : "advisor.inline.showTeam"))
                 Image(systemName: showDetails ? "chevron.up" : "chevron.down").font(.system(size: 8, weight: .semibold))
             }
             .font(.sfCaption2).foregroundStyle(.secondary)
