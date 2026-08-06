@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ChatView: View {
     @Environment(AppModel.self) private var model
@@ -325,6 +326,13 @@ struct ChatView: View {
                                 .padding(.top, Space.s)
                         }
                     }
+                }
+                if vm.isGeneratingImage {
+                    HStack(spacing: Space.s) {
+                        WorkingLine(label: model.t("images.generating"))
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, Space.m).padding(.top, Space.s)
                 }
                 inputBar
             }
@@ -1106,7 +1114,10 @@ struct ChatView: View {
                     // we render PLAIN text (re-parsing Markdown on every token is what
                     // made it feel choppy); the full Markdown renders once it settles.
                     Group {
-                        if isStreaming {
+                        if let path = message.imagePath {
+                            // An inline generated image (Image Studio in the chat).
+                            generatedImage(path: path)
+                        } else if isStreaming {
                             // While a meta turn orchestrates, this is the live narration (role
                             // chips + step lines + "Paso N/M") — text-first and legible, the
                             // pattern the founder liked. The topology lives in the panel's
@@ -1257,6 +1268,41 @@ struct ChatView: View {
         .padding(Space.xl)
         // The living Coral orb — behind and AROUND the panel only. Blank under Reduce Motion.
         .background(CursorParticleField().ignoresSafeArea())
+    }
+
+    /// An inline generated image in the transcript — a rounded card with Save / Copy actions,
+    /// so an image produced in the chat behaves like any other result.
+    @ViewBuilder
+    private func generatedImage(path: String) -> some View {
+        if let img = NSImage(contentsOfFile: path) {
+            VStack(alignment: .leading, spacing: Space.s) {
+                Image(nsImage: img)
+                    .resizable().scaledToFit()
+                    .frame(maxWidth: 420, alignment: .leading)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.innerCorner, style: .continuous)
+                        .strokeBorder(Theme.hairline, lineWidth: 1))
+                HStack(spacing: Space.m) {
+                    Button {
+                        let panel = NSSavePanel()
+                        panel.allowedContentTypes = [.png]
+                        panel.nameFieldStringValue = "coral-image.png"
+                        if panel.runModal() == .OK, let url = panel.url {
+                            try? Data(contentsOf: URL(fileURLWithPath: path)).write(to: url)
+                        }
+                    } label: { Label(model.t("images.save"), systemImage: "square.and.arrow.down") }
+                        .buttonStyle(.plain).font(.sfCaption2).foregroundStyle(.secondary)
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.writeObjects([img])
+                    } label: { Label(model.t("images.copy"), systemImage: "doc.on.doc") }
+                        .buttonStyle(.plain).font(.sfCaption2).foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            Label(model.t("images.error.decode"), systemImage: "photo")
+                .font(.sfCaption2).foregroundStyle(.secondary)
+        }
     }
 
     /// A quiet example-prompt row: a small leading glyph + the prompt, no card/elevation/border
@@ -2059,25 +2105,25 @@ struct ChatView: View {
     private var composerOverflowMenu: some View {
         let armed = vm.grillMe || vm.proposeApproaches || vm.isolation != nil
         return Menu {
-            Button {
-                withAnimation(.easeOut(duration: 0.15)) { vm.grillMe.toggle() }
-            } label: { Label(model.t("grill.label"), systemImage: vm.grillMe ? "checkmark" : "checklist") }
-            Button {
-                withAnimation(.easeOut(duration: 0.15)) { vm.proposeApproaches.toggle() }
-            } label: { Label(model.t("approaches.label"), systemImage: vm.proposeApproaches ? "checkmark" : "square.grid.2x2") }
-            if config.repoPath?.isEmpty == false {
-                Button { vm.requestIsolation() } label: {
-                    Label(model.t("isolate.label"), systemImage: vm.isolation != nil ? "checkmark" : "shield")
-                }
-                .disabled(vm.isolationBusy)
+            // CREATE — things Coral produces (images now; more later), sectioned like ChatGPT's "+".
+            Section(model.t("composer.section.create")) {
+                imageMenuItem
             }
-            Divider()
-            // Jump to the Image Studio, carrying whatever's in the composer as the prompt — the
-            // coding CLIs can't make images, so this hands off to the image APIs.
-            Button {
-                model.imageStudioPrompt = vm.input.trimmingCharacters(in: .whitespacesAndNewlines)
-                model.navSection = .images
-            } label: { Label(model.t("images.generate.menu"), systemImage: "photo.on.rectangle.angled") }
+            // TOOLS — how this turn runs.
+            Section(model.t("composer.section.tools")) {
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { vm.grillMe.toggle() }
+                } label: { Label(model.t("grill.label"), systemImage: vm.grillMe ? "checkmark" : "checklist") }
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { vm.proposeApproaches.toggle() }
+                } label: { Label(model.t("approaches.label"), systemImage: vm.proposeApproaches ? "checkmark" : "square.grid.2x2") }
+                if config.repoPath?.isEmpty == false {
+                    Button { vm.requestIsolation() } label: {
+                        Label(model.t("isolate.label"), systemImage: vm.isolation != nil ? "checkmark" : "shield")
+                    }
+                    .disabled(vm.isolationBusy)
+                }
+            }
         } label: {
             Image(systemName: "plus.circle")
                 .font(.system(size: 13))
@@ -2086,6 +2132,53 @@ struct ChatView: View {
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         .help(model.t("composer.options"))
         .accessibilityLabel(model.t("composer.options"))
+    }
+
+    /// The Gemini/OpenAI keys that can actually make images right now.
+    private func imageKey(for p: AIProvider) -> String? {
+        switch p {
+        case .openai: return model.openAIAPIKey
+        case .gemini: return model.geminiAPIKey
+        default:      return nil
+        }
+    }
+    private var readyImageProviders: [AIProvider] {
+        ImageGenerator.supportedProviders.filter { imageKey(for: $0) != nil }
+    }
+
+    /// "Generate image" in the composer menu — generates INLINE in the chat using the composer
+    /// text as the prompt. No key yet → routes to Services; several keyed providers → a submenu.
+    @ViewBuilder private var imageMenuItem: some View {
+        let ready = readyImageProviders
+        if ready.isEmpty {
+            Button { model.navSection = .services } label: {
+                Label(model.t("images.generate.menu"), systemImage: "photo.on.rectangle.angled")
+            }
+        } else if ready.count == 1 {
+            Button { generateImageInline(provider: ready[0]) } label: {
+                Label(model.t("images.generate.menu"), systemImage: "photo.on.rectangle.angled")
+            }
+        } else {
+            Menu {
+                ForEach(ready, id: \.self) { p in
+                    Button(p.displayName) { generateImageInline(provider: p) }
+                }
+            } label: { Label(model.t("images.generate.menu"), systemImage: "photo.on.rectangle.angled") }
+        }
+    }
+
+    /// Generate inline when there's a prompt in the composer; otherwise open the full Studio.
+    private func generateImageInline(provider: AIProvider) {
+        let prompt = vm.input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty, let key = imageKey(for: provider) else {
+            model.imageStudioPrompt = prompt
+            model.navSection = .images
+            return
+        }
+        vm.generateImage(prompt: prompt, provider: provider, key: key, aspect: .square)
+        vm.input = ""
+        saveDraft("")
+        inputFocused = true
     }
 
     /// The banner shown while a run is isolated: review the diff, merge it into the working

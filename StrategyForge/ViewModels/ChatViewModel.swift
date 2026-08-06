@@ -16,6 +16,9 @@ struct ChatMessage: Identifiable, Hashable, Codable {
     var id = UUID()
     var role: Role
     var text: String
+    /// Absolute path to a generated image (PNG) rendered inline in the transcript — nil for a
+    /// normal text turn. Optional so old persisted transcripts decode unchanged.
+    var imagePath: String? = nil
 }
 
 /// Reasoning effort for a turn — from fastest to most thorough. Steers how hard the
@@ -349,6 +352,44 @@ final class ChatViewModel {
         messages.append(ChatMessage(role: .assistant, text: headerPrefix + (body.isEmpty ? "—" : body)))
         persist(messages)
     }
+    /// True while an inline image is being generated (drives the composer's working line).
+    var isGeneratingImage = false
+
+    /// Generate an image INLINE in this chat: appends the prompt as a user turn, then an assistant
+    /// turn carrying the PNG (or an error). The coding CLIs can't make images, so this calls the
+    /// image APIs directly (see ImageGenerator) with the key the caller resolved.
+    func generateImage(prompt: String, provider: AIProvider, key: String, aspect: ImageAspect) {
+        let p = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !p.isEmpty, !isGeneratingImage else { return }
+        messages.append(ChatMessage(role: .user, text: p))
+        persist(messages)
+        isGeneratingImage = true
+        Task {
+            defer { isGeneratingImage = false }
+            do {
+                let data = try await ImageGenerator.generate(prompt: p, provider: provider, aspect: aspect, apiKey: key)
+                let path = try Self.saveGeneratedImage(data)
+                messages.append(ChatMessage(role: .assistant, text: "", imagePath: path))
+            } catch {
+                let msg = (error as? ImageGenError)?.errorDescription ?? error.localizedDescription
+                messages.append(ChatMessage(role: .assistant, text: "⚠️ \(msg)"))
+            }
+            persist(messages)
+        }
+    }
+
+    /// Persist a generated PNG under Application Support so the transcript can reference it across
+    /// launches. Returns the absolute path.
+    private static func saveGeneratedImage(_ data: Data) throws -> String {
+        let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                               appropriateFor: nil, create: true)
+            .appendingPathComponent("Coral/GeneratedImages", isDirectory: true)
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        let url = base.appendingPathComponent("\(UUID().uuidString).png")
+        try data.write(to: url)
+        return url.path
+    }
+
     /// Notifies the owner (AppModel) when a turn starts/ends, so global running
     /// indicators and finish banners work even when this chat isn't on screen.
     @ObservationIgnored var onRunningChanged: ((Bool) -> Void)?

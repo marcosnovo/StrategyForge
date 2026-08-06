@@ -786,6 +786,8 @@ enum L10n {
             "Solo pregunta. Coral elige los agentes adecuados para tu tarea — uno para una pregunta rápida, un equipo para algo mayor. Apúntalo a una carpeta cuando quieras; rediseña el equipo cuando quieras."),
         "empty.editor.start": ("Start a chat", "Empezar a chatear"),
         "composer.options": ("Options (mode, model, context)", "Opciones (modo, modelo, contexto)"),
+        "composer.section.create": ("Create", "Crear"),
+        "composer.section.tools": ("Tools", "Herramientas"),
         "picker.showAll": ("Show all (%lld more)", "Ver todas (%lld más)"),
         "chat.answeredByTeam": ("Team of %lld ▸", "Equipo de %lld ▸"),
         "chat.answeredByTeam.help": ("A team of agents produced this — tap to see who did what.",
