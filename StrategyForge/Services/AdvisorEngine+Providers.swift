@@ -38,12 +38,13 @@ extension AdvisorEngine {
     enum TierBias: Hashable {
         case saver, balanced, max
 
-        /// Map a tier id ("saver" | "balanced" | "max") to a bias.
+        /// Map a tier id to a provider bias. The 5-stop dial (econ · value · balanced · high · max)
+        /// collapses to three biases: the two cheap stops lean saver, the two strong stops lean max.
         static func from(tierID: String) -> TierBias {
             switch tierID {
-            case "saver": return .saver
-            case "max":   return .max
-            default:      return .balanced
+            case "econ", "value", "saver": return .saver
+            case "high", "max":            return .max
+            default:                       return .balanced
             }
         }
     }

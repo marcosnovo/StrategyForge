@@ -382,25 +382,27 @@ enum AdvisorEngine {
                          noteKey: "advisor.tier.solo.note", advice: solo)]
         }
         let balanced = await adviseWithAI(task: task, connected: connected)
-        let saver = variant(of: balanced, shift: -1, countDelta: -1,
-                            effort: lower(balanced.effort),
-                            id: "saver", labelKey: "advisor.tier.saver", noteKey: "advisor.tier.saver.note")
-        let max = variant(of: balanced, shift: +1, countDelta: +2,
-                          effort: higher(balanced.effort),
-                          id: "max", labelKey: "advisor.tier.max", noteKey: "advisor.tier.max.note")
+        // FIVE stops on a smooth quality dial, always — a ramp of model tier + team size + effort
+        // from cheapest to strongest, centred on the AI-shaped "balanced" recommendation. Each end
+        // is two model tiers away so the ramp is legible; costs tell the tradeoff honestly.
+        // (id "balanced" stays the mid default so existing selection logic is unchanged.)
         let mid = Tier(id: "balanced", labelKey: "advisor.tier.balanced",
                        noteKey: "advisor.tier.balanced.note", advice: balanced)
-        // Drop a tier that collapses to the same model AND team as the balanced one
-        // (e.g. already at Haiku → no cheaper tier), so we never show duplicates.
-        // Dedup on the CLAUDE-only shapes (before any cross-provider reassignment)
-        // so the "no cheaper option" collapse still fires as it did originally.
-        var tiers = [saver, mid, max]
-        tiers = tiers.enumerated().filter { i, t in
-            i == 1 || !sameShape(t.advice, as: balanced)
-        }.map { $0.element }
-        // Cross-provider: reassign providers per tier with its matching bias, so the
-        // Economy tier leans on fast/cheap models and Max on top capability — each
-        // still explained by its own provider picks. No-op when <2 providers connected.
+        let ramp: [(id: String, label: String, note: String, shift: Int, count: Int, effort: CostEffort)] = [
+            ("econ",  "advisor.tier.econ",  "advisor.tier.econ.note",  -2, -2, .low),
+            ("value", "advisor.tier.value", "advisor.tier.value.note", -1, -1, lower(balanced.effort)),
+            ("high",  "advisor.tier.high",  "advisor.tier.high.note",  +1, +1, higher(balanced.effort)),
+            ("max",   "advisor.tier.max",   "advisor.tier.max.note",   +2, +2, higher(balanced.effort)),
+        ]
+        var built = ramp.map {
+            variant(of: balanced, shift: $0.shift, countDelta: $0.count, effort: $0.effort,
+                    id: $0.id, labelKey: $0.label, noteKey: $0.note)
+        }
+        built.append(mid)
+        // Order cheapest → strongest: econ · value · balanced · high · max.
+        let order = ["econ", "value", "balanced", "high", "max"]
+        var tiers = order.compactMap { id in built.first { $0.id == id } }
+        // Cross-provider: bias each tier's providers (economy → cheap/fast, max → top capability).
         if Set(connected).count > 1 {
             tiers = tiers.map { t in
                 let advice = applyingProviders(t.advice, connected: connected,
@@ -409,35 +411,7 @@ enum AdvisorEngine {
                 return Tier(id: t.id, labelKey: t.labelKey, noteKey: t.noteKey, advice: advice)
             }
         }
-        // Guarantee the Economy tier reads as genuinely cheaper: the cross-provider
-        // re-apply can revert the orchestrator to the same top Claude reasoner as the
-        // balanced tier, so if the two heads collapsed, force Economy one Claude tier
-        // down (deterministic; only while on Claude and not already at the floor).
-        if let si = tiers.firstIndex(where: { $0.id == "saver" }),
-           let mi = tiers.firstIndex(where: { $0.id == "balanced" }),
-           tiers[si].advice.model == tiers[mi].advice.model,
-           tiers[si].advice.model != .haiku45 {
-            tiers[si] = forcingHeadDown(tiers[si])
-        }
         return tiers
-    }
-
-    /// Lower the orchestrator (head) model by one Claude tier, re-estimating cost —
-    /// used to keep the Economy tier's headline model distinct from Recommended.
-    private static func forcingHeadDown(_ t: Tier) -> Tier {
-        var s = t.advice.strategy
-        guard let i = s.roles.firstIndex(where: { $0.isOrchestrator }),
-              s.roles[i].provider == .claude else { return t }
-        let lowered = downTier(s.roles[i].model)
-        guard lowered != s.roles[i].model else { return t }
-        s.roles[i].model = lowered
-        let advice = Advice(model: lowered, strategy: s, shapeRationaleKey: t.advice.shapeRationaleKey,
-                            loopKind: t.advice.loopKind, effort: t.advice.effort,
-                            decisionPath: t.advice.decisionPath, goalSuggestion: t.advice.goalSuggestion,
-                            estimatedCost: CostEstimator.estimate(s, effort: t.advice.effort),
-                            aiRationale: t.advice.aiRationale, usedAI: t.advice.usedAI,
-                            providerPicks: t.advice.providerPicks)
-        return Tier(id: t.id, labelKey: t.labelKey, noteKey: t.noteKey, advice: advice)
     }
 
     /// Build a cost/quality variant of an advice: shift EVERY agent's model up/down a
@@ -461,12 +435,9 @@ enum AdvisorEngine {
     }
 
     private static func shiftModel(_ m: ClaudeModel, by: Int) -> ClaudeModel {
-        by < 0 ? downTier(m) : (by > 0 ? upTier(m) : m)
-    }
-
-    private static func sameShape(_ a: Advice, as b: Advice) -> Bool {
-        a.model == b.model
-            && a.strategy.roles.map { "\($0.name)|\($0.count)" } == b.strategy.roles.map { "\($0.name)|\($0.count)" }
+        var r = m
+        for _ in 0..<abs(by) { r = by < 0 ? downTier(r) : upTier(r) }
+        return r
     }
 
     private static func downTier(_ m: ClaudeModel) -> ClaudeModel {

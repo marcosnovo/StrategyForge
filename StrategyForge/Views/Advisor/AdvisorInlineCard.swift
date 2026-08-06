@@ -32,10 +32,11 @@ struct AdvisorInlineCard: View {
     var currentTeamName: String? = nil
 
     @Environment(AppModel.self) private var model
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showWhy = false
-    /// The compact tier picker popover (Claude-effort-style: slider + a wink on the max end).
+    /// The compact tier picker popover (Claude-effort-style: smooth 5-stop dial + per-tier orb).
     @State private var showTier = false
+    /// Continuous slider position (0…count-1) — smooth drag; the SELECTION snaps to the nearest.
+    @State private var sliderPos: Double = 0
     /// Resting = one recommendation line + primary button; the visual agent roster lives behind
     /// "See the team" (founder: minimal, but the tier choice stays visible via the chip).
     @State private var showDetails = false
@@ -146,57 +147,73 @@ struct AdvisorInlineCard: View {
         }
     }
 
-    /// The tier chip — mirrors the composer's model/effort chip: "Recomendada · $0.90", tapping
-    /// opens the slider popover. The current tier's name + cost are always visible at rest.
+    /// The tier chip — now unmistakably a control: a bordered coral pill with a slider glyph, the
+    /// current tier NAME + cost, and a chevron. (Founder: "no se entiende que se puede tocar ahí".)
     private func tierChip(_ sel: AdvisorEngine.Tier) -> some View {
         Button { showTier = true } label: {
-            HStack(spacing: 6) {
-                Text(model.t(sel.labelKey)).font(.sfCaption2.weight(.medium)).foregroundStyle(.secondary)
-                Text(sel.advice.estimatedCost.headline)
-                    .font(.sfCaption2.weight(.semibold)).foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Capsule().fill(Theme.accentSoft))
+            HStack(spacing: 5) {
+                Image(systemName: "slider.horizontal.3").font(.system(size: 10, weight: .semibold))
+                Text(model.t(sel.labelKey)).font(.sfCaption2.weight(.semibold))
+                Text(sel.advice.estimatedCost.headline).font(.sfCaption2).foregroundStyle(Theme.accent.opacity(0.85))
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold)).foregroundStyle(.tertiary)
             }
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 9).padding(.vertical, 4)
+            .background(Capsule().fill(Theme.accentSoft))
+            .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.35), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .help(model.t(sel.noteKey))
+        .help(model.t("advisor.tier.title"))
         .popover(isPresented: $showTier, arrowEdge: .bottom) { tierPopover(sel) }
     }
 
-    // MARK: - Tier popover (Claude effort-slider style, with a max-tier wink)
+    // MARK: - Tier popover (smooth 5-stop dial, with a per-tier Coral orb)
 
     private func tierIndex(_ id: String) -> Int { max(0, tiers.firstIndex { $0.id == id } ?? 0) }
     private func tierID(at i: Int) -> String { tiers[min(max(i, 0), tiers.count - 1)].id }
 
+    /// Each stop gets its own Coral thinking-orb, cheapest→strongest (founder's mapping):
+    /// working · listening · searching · solving · connecting.
+    private func orbState(forIndex i: Int) -> OrbState {
+        switch i {
+        case 0:  return .working
+        case 1:  return .listening
+        case 2:  return .searching
+        case 3:  return .solving
+        default: return .connecting
+        }
+    }
+
     private func tierPopover(_ sel: AdvisorEngine.Tier) -> some View {
-        let atMax = selectedID == tiers.last?.id
+        let idx = tierIndex(selectedID)
+        let lastIndex = max(tiers.count - 1, 1)
         return VStack(alignment: .leading, spacing: Space.s) {
-            HStack(spacing: 6) {
-                Text(model.t("advisor.tier.title")).font(.sfCardTitle)
-                Text(model.t(sel.labelKey)).font(.sfCallout).foregroundStyle(Theme.accent)
+            HStack(spacing: Space.s) {
+                // A living Coral orb whose "mood" is the current tier — always present, per the
+                // founder's per-state mapping. It IS the flourish now (no shimmer needed).
+                ThinkingOrb(state: orbState(forIndex: idx), size: 30, tint: Theme.accent)
+                    .frame(width: 30, height: 30)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(model.t("advisor.tier.title")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
+                    Text(model.t(sel.labelKey)).font(.sfCardTitle).foregroundStyle(Theme.accent)
+                }
                 Spacer()
-                // The strongest tier gets the app's living dot-grid flourish (the "wink").
-                if atMax && !reduceMotion { WaveDotGrid(size: 26, color: Theme.accent) }
             }
             HStack {
                 Text(model.t("advisor.tier.faster")).font(.sfCaption2).foregroundStyle(.secondary)
                 Spacer()
                 Text(model.t("advisor.tier.max")).font(.sfCaption2)
-                    .foregroundStyle(atMax ? Theme.accent : .secondary)
+                    .foregroundStyle(idx == lastIndex ? Theme.accent : .secondary)
             }
-            Slider(value: Binding(
-                get: { Double(tierIndex(selectedID)) },
-                set: { v in
-                    let id = tierID(at: Int(v.rounded()))
-                    if id != selectedID {
-                        if reduceMotion { onSelectTier(id) }
-                        else { withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { onSelectTier(id) } }
-                    }
-                }), in: 0...Double(max(tiers.count - 1, 1)), step: 1)
+            // SMOOTH continuous slider (no step → glides), snapping the SELECTION to the nearest
+            // of the 5 stops as you cross each midpoint. Tick dots mark the stops.
+            Slider(value: $sliderPos, in: 0...Double(lastIndex))
                 .tint(Theme.accent)
-                // A coral shimmer rides the track only while MAX is selected — a brand
-                // celebration (not a loading state), off under Reduce Motion.
-                .overlay(alignment: .leading) { if atMax { maxShimmer } }
+                .background(alignment: .center) { tickMarks(count: tiers.count) }
+                .onChange(of: sliderPos) { _, v in
+                    let id = tierID(at: Int(v.rounded()))
+                    if id != selectedID { onSelectTier(id) }
+                }
             // Live pick + cost + tradeoff, updates as you drag.
             Text("\(sel.advice.estimatedCost.headline) · \(model.t(sel.noteKey))")
                 .font(.sfCaption2).foregroundStyle(.secondary)
@@ -204,31 +221,22 @@ struct AdvisorInlineCard: View {
         }
         .padding(Space.m)
         .frame(width: 300)
+        .onAppear { sliderPos = Double(idx) }
     }
 
-    /// The travelling coral band (or a static premium gradient under Reduce Motion) on the max
-    /// tier's track — Coral's shimmer vocabulary, coral-tokened so it reads as brand, not loading.
-    @ViewBuilder private var maxShimmer: some View {
-        if reduceMotion {
-            Capsule().fill(Theme.primaryFill).frame(height: 4)
-                .shadow(color: Theme.accentGlow, radius: 3)
-                .allowsHitTesting(false)
-        } else {
-            TimelineView(.animation) { ctx in
-                GeometryReader { g in
-                    let w = g.size.width
-                    let phase = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.8) / 1.8
-                    LinearGradient(colors: [.clear, Theme.onAccent.opacity(0.55),
-                                            Theme.coralDeep.opacity(0.40), .clear],
-                                   startPoint: .leading, endPoint: .trailing)
-                        .frame(width: w * 0.4)
-                        .offset(x: -w * 0.4 + phase * (w * 1.4))
-                        .frame(height: 4).clipShape(Capsule())
-                        .blendMode(.overlay)
-                }
+    /// Faint dots under the slider marking the 5 discrete stops.
+    private func tickMarks(count: Int) -> some View {
+        GeometryReader { g in
+            let inset: CGFloat = 10   // approx thumb radius so ticks sit under the stops
+            let usable = max(g.size.width - inset * 2, 1)
+            ForEach(0..<max(count, 1), id: \.self) { i in
+                Circle().fill(Theme.hairline)
+                    .frame(width: 3, height: 3)
+                    .position(x: inset + usable * CGFloat(i) / CGFloat(max(count - 1, 1)),
+                              y: g.size.height / 2)
             }
-            .allowsHitTesting(false)
         }
+        .allowsHitTesting(false)
     }
 
     /// A loop RECOMMENDATION — shown only when the engine read a repeat/verify signal
