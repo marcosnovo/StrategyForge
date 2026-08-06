@@ -429,8 +429,11 @@ struct ChatView: View {
                 withAnimation { advisorDismissed = true }
             } : nil,
             currentTeamName: config.strategyIsAuto ? nil : model.strategyDisplayName(config.strategy))
+            // Float it as a centred modal above the composer, not an edge-to-edge band.
+            .frame(maxWidth: 620)
+            .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal, Space.m)
-            .padding(.top, Space.s)
+            .padding(.bottom, Space.s)
     }
 
     /// A follow-up prompt's suggested assignee — the advisor's recommendation for THIS

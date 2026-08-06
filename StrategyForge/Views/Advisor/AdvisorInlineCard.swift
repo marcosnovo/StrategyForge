@@ -41,6 +41,8 @@ struct AdvisorInlineCard: View {
     @State private var chipHovering = false
     /// Drives the entrance (spring rise + settle scale) and the one-shot badge sparkle.
     @State private var appeared = false
+    /// One-shot coral glow ring that flashes as the modal appears.
+    @State private var glowFlash = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var selected: AdvisorEngine.Tier? {
@@ -65,17 +67,27 @@ struct AdvisorInlineCard: View {
         }
         .padding(Space.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Airy translucent glass so the composer's suggestion reads as a floating pane.
-        .glassPanel(cornerRadius: Theme.innerCorner)
-        // Entrance: a soft spring rise + settle-in scale (not a hard pop). The "wink" is the
-        // sparkle on the Apple Intelligence badge firing once — see sourceBadge.
-        .scaleEffect(appeared ? 1 : 0.97, anchor: .bottom)
+        // A real FLOATING modal (founder: "aparece encuadrado, queda mal"): rounded glass that
+        // clearly lifts off the composer with an elevation shadow + a hairline, not a flush band.
+        .glassPanel(cornerRadius: Theme.corner)
+        .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .strokeBorder(Theme.hairline, lineWidth: 1))
+        // One-shot coral glow ring on entrance — the noticeable "wink".
+        .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+            .strokeBorder(Theme.coral.opacity(glowFlash ? 0.55 : 0), lineWidth: 2)
+            .blur(radius: 3).allowsHitTesting(false))
+        .elevation(.e4)
+        // Entrance: a spring rise with a little overshoot (from 0.9) so it's clearly felt, plus
+        // the glow ring flash + the badge sparkle. Instant under Reduce Motion.
+        .scaleEffect(appeared ? 1 : 0.9, anchor: .bottom)
         .opacity(appeared ? 1 : 0)
         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity),
                                 removal: .opacity))
         .onAppear {
             guard !reduceMotion else { appeared = true; return }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) { appeared = true }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.62)) { appeared = true }
+            glowFlash = true
+            withAnimation(.easeOut(duration: 0.7).delay(0.15)) { glowFlash = false }
         }
     }
 
@@ -419,8 +431,8 @@ struct AdvisorInlineCard: View {
         let ai = selected?.advice.usedAI ?? false
         return HStack(spacing: 4) {
             Image(systemName: ai ? "sparkles" : "cpu")
-                // The wink: the sparkles do one bounce when the card appears (nonRepeating).
-                .symbolEffect(.bounce, options: .nonRepeating, value: appeared)
+                // The wink: the sparkles bounce a few times when the modal appears.
+                .symbolEffect(.bounce, options: .repeat(2), value: appeared)
             Text(model.t(ai ? "advisor.source.ai.full" : "advisor.source.local.full"))
         }
         .font(.sfCaption2.weight(.semibold))

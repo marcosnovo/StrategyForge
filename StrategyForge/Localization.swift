@@ -1843,7 +1843,7 @@ enum L10n {
         "account.signOut": ("Sign out", "Cerrar sesión"),
         "account.googleNote": ("Google sign-in gives you an identity, but iCloud sync needs Sign in with Apple.",
                                "Con Google tienes identidad, pero la sincronización con iCloud requiere Iniciar sesión con Apple."),
-        "account.googleUnconfigured": ("Google sign-in isn't set up yet (no client ID).", "Google aún no está configurado (falta el client ID)."),
+        "account.googleUnconfigured": ("Google sign-in isn't set up yet.", "El inicio de sesión con Google aún no está configurado."),
         "account.syncNow": ("Sync now", "Sincronizar ahora"),
         "account.syncScope": ("Only your configurations sync (name + strategy). Repo folders stay on this Mac.",
                               "Solo se sincronizan tus configuraciones (nombre + estrategia). Las carpetas de proyecto se quedan en este Mac."),
