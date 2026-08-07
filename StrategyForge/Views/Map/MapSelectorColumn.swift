@@ -196,9 +196,17 @@ struct MapSelectorColumn: View {
         let active = store.currentMapID == m.id
         let onDisk = m.repoPath.map { FileManager.default.fileExists(atPath: $0) } ?? false
         return HStack(spacing: 8) {
-            Image(systemName: m.kind == .github ? "cloud" : "folder")
-                .font(.system(size: 12)).foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
-                .frame(width: 16)
+            // Identify the repo's origin at a glance: the real GitHub mark for cloud repos,
+            // a folder for local ones.
+            Group {
+                if m.kind == .github {
+                    GitHubMark(size: 14)
+                } else {
+                    Image(systemName: "folder").font(.system(size: 12))
+                }
+            }
+            .foregroundStyle(active ? Theme.coral : Theme.secondaryOnMaterial)
+            .frame(width: 16)
             VStack(alignment: .leading, spacing: 1) {
                 Text(m.name).font(.sfBodyM.weight(active ? .semibold : .medium))
                     .foregroundStyle(Theme.ink).lineLimit(1)
