@@ -142,14 +142,11 @@ final class AppModel {
     /// whose stored login isn't known-stale. This is the gate the chat/team launcher checks so a
     /// run never starts on a provider that will just fail.
     func providerUsable(_ provider: AIProvider) -> Bool {
-        if provider == .gemini {
-            let has = hasGeminiAPIKey
-            // Reconcile the launch-pre-flight marker here (a user-initiated gate check, not the
-            // Keychain-free splash), so a configured key stops the "Reconnect Gemini" nag.
-            ProviderAuth.setGeminiAPIKeyPresent(has)
-            if has { staleAuth.remove(.gemini) }
-            return has
-        }
+        // Gemini's only working path is an API key (free CLI retired). Use the cached marker —
+        // NEVER read the Keychain here: providerUsable is called from view bodies
+        // (ChatView.blockedProviders), and a synchronous Keychain read on the main thread hangs
+        // the app at launch. The marker is reconciled on save + at run time (providerAPIKeys()).
+        if provider == .gemini { return hasGeminiAPIKey }
         guard isConnected(provider) else { return false }
         return !staleAuth.contains(provider)
     }
@@ -231,11 +228,14 @@ final class AppModel {
         KeychainStore.data(for: Self.openAIKeyItem).flatMap { String(data: $0, encoding: .utf8) }
             .flatMap { $0.isEmpty ? nil : $0 }
     }
-    var hasOpenAIAPIKey: Bool { openAIAPIKey != nil }
+    /// Presence via the NON-secret marker — never the Keychain — so it's safe to call from a
+    /// SwiftUI view body (a synchronous Keychain read on the main thread hangs the app).
+    var hasOpenAIAPIKey: Bool { ProviderAuth.openAIAPIKeyPresent }
     func setOpenAIAPIKey(_ key: String?) {
         let trimmed = key?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if trimmed.isEmpty { KeychainStore.delete(Self.openAIKeyItem) }
         else { KeychainStore.set(Data(trimmed.utf8), for: Self.openAIKeyItem) }
+        ProviderAuth.setOpenAIAPIKeyPresent(!trimmed.isEmpty)
     }
 
     // MARK: Gemini API key (Keychain)
@@ -249,7 +249,9 @@ final class AppModel {
         KeychainStore.data(for: Self.geminiKeyItem).flatMap { String(data: $0, encoding: .utf8) }
             .flatMap { $0.isEmpty ? nil : $0 }
     }
-    var hasGeminiAPIKey: Bool { geminiAPIKey != nil }
+    /// Presence via the NON-secret marker — never the Keychain — so it's safe to call from a
+    /// SwiftUI view body (a synchronous Keychain read on the main thread hangs the app at launch).
+    var hasGeminiAPIKey: Bool { ProviderAuth.geminiAPIKeyPresent }
     func setGeminiAPIKey(_ key: String?) {
         let trimmed = key?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if trimmed.isEmpty { KeychainStore.delete(Self.geminiKeyItem) }
@@ -267,6 +269,11 @@ final class AppModel {
         var keys: [AIProvider: String] = [:]
         if settings.openaiUseAPIKey, let key = openAIAPIKey { keys[.openai] = key }
         if let g = geminiAPIKey { keys[.gemini] = g }
+        // Reconcile the non-secret presence markers from the real Keychain values here (a
+        // run-time / not-a-view-body path) so existing keys — saved before the markers existed —
+        // heal the has*APIKey checks used across the UI.
+        ProviderAuth.setGeminiAPIKeyPresent(keys[.gemini] != nil)
+        if settings.openaiUseAPIKey { ProviderAuth.setOpenAIAPIKeyPresent(keys[.openai] != nil) }
         return keys
     }
 

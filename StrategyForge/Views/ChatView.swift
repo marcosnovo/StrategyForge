@@ -1839,7 +1839,9 @@ struct ChatView: View {
             .frame(minWidth: 640, idealWidth: 820, minHeight: 400, idealHeight: 600)
             .background(Theme.appBg)
         }
-        .task(id: config.repoPath) { shipTools = ShipService.available() }
+        // ShipService.available() shells out to `which` — run it OFF the main thread so the
+        // subprocess never blocks the UI (a synchronous `which` on main can stall/hang launch).
+        .task(id: config.repoPath) { shipTools = await Task.detached { ShipService.available() }.value }
         .confirmationDialog(model.t("ship.confirm.title", shipTool?.displayName ?? ""),
                             isPresented: $showShipConfirm, titleVisibility: .visible) {
             Button(model.t("ship.confirm.deploy"), role: .destructive) {

@@ -626,7 +626,14 @@ struct ProviderConfigView: View {
             }
         }
         .card()
-        .onAppear { if model.hasGeminiAPIKey, geminiKeyDraft.isEmpty { geminiKeyDraft = model.geminiAPIKey ?? "" } }
+        .onAppear {
+            // The user opened Providers → safe to touch the Keychain here (not a launch/body
+            // path). Reconcile the non-secret presence marker from the real key so it heals
+            // keys saved before markers existed, and prefill the field.
+            let key = model.geminiAPIKey
+            ProviderAuth.setGeminiAPIKeyPresent(key != nil)
+            if let key, geminiKeyDraft.isEmpty { geminiKeyDraft = key }
+        }
     }
 
     /// OpenAI/Codex model control: honest note about the subscription constraint, plus
@@ -660,7 +667,11 @@ struct ProviderConfigView: View {
             }
         }
         .card()
-        .onAppear { if model.hasOpenAIAPIKey, apiKeyDraft.isEmpty { apiKeyDraft = model.openAIAPIKey ?? "" } }
+        .onAppear {
+            let key = model.openAIAPIKey
+            ProviderAuth.setOpenAIAPIKeyPresent(key != nil)
+            if let key, apiKeyDraft.isEmpty { apiKeyDraft = key }
+        }
     }
 
     /// Reasoning-effort picker (works with a ChatGPT-account login, unlike model choice).

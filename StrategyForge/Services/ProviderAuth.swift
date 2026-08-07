@@ -34,14 +34,24 @@ enum ProviderAuth {
         }
     }
 
-    // A non-secret mirror of "a Gemini API key is configured", so the launch pre-flight can
-    // judge Gemini usable without touching the Keychain. Written by AppModel.setGeminiAPIKey.
+    // Non-secret mirrors of "an API key is configured" for each provider, so the UI + launch
+    // path can judge usability WITHOUT a synchronous Keychain read. Reading the Keychain from a
+    // SwiftUI view body (e.g. blockedProviders) on the main thread can HANG the app at launch —
+    // the prompt can't surface before the window exists → deadlock. These markers are written
+    // whenever a key is saved / a run reads the keys, and read cheaply everywhere else.
     private static let geminiKeyMarker = "gemini.hasAPIKey"
+    private static let openAIKeyMarker = "openai.hasAPIKey"
     nonisolated static func setGeminiAPIKeyPresent(_ present: Bool) {
         UserDefaults.standard.set(present, forKey: geminiKeyMarker)
     }
     nonisolated static var geminiAPIKeyPresent: Bool {
         UserDefaults.standard.bool(forKey: geminiKeyMarker)
+    }
+    nonisolated static func setOpenAIAPIKeyPresent(_ present: Bool) {
+        UserDefaults.standard.set(present, forKey: openAIKeyMarker)
+    }
+    nonisolated static var openAIAPIKeyPresent: Bool {
+        UserDefaults.standard.bool(forKey: openAIKeyMarker)
     }
 
     /// One provider's login freshness from its on-disk credentials (never the Keychain).
