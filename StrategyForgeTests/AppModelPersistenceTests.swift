@@ -355,3 +355,43 @@ struct AppModelPersistenceTests {
         }
     }
 }
+
+@MainActor
+struct EvalFromFindingTests {
+
+    private func freshModel() -> AppModel {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return AppModel(storeDirectory: dir)
+    }
+
+    @Test func findingBecomesAScenario() {
+        let model = freshModel()
+        let f = ReviewFinding(severity: .high, title: "Off-by-one in pagination",
+                              detail: "Use < not <=", file: "Paginator.swift", line: 42)
+        let s = model.evalScenario(from: f)
+        #expect(s.prompt.contains("Paginator.swift"))
+        #expect(s.expectation.contains("Off-by-one in pagination"))
+        #expect(s.expectation.contains("Use < not <="))
+    }
+
+    @Test func addEvalScenarioAppendsAndResetsBaseline() {
+        let model = freshModel()
+        var config = Configuration(name: "Team", strategy: StrategyLibrary.solo())
+        config.strategy.evalSuite = EvalSuite(scenarios: [], baseline: ["stale": true])
+        model.configurations.append(config)
+
+        let ok = model.addEvalScenario(EvalScenario(prompt: "p", expectation: "e", category: .answersCorrectly),
+                                       toConfig: config.id)
+        #expect(ok)
+        let suite = model.configurations.first { $0.id == config.id }?.strategy.evalSuite
+        #expect(suite?.scenarios.count == 1)
+        #expect(suite?.baseline.isEmpty == true)   // new scenario id → stale baseline dropped
+    }
+
+    @Test func addEvalScenarioFailsForUnknownConfig() {
+        let model = freshModel()
+        #expect(!model.addEvalScenario(EvalScenario(prompt: "p", expectation: "e", category: .answersCorrectly),
+                                       toConfig: UUID()))
+    }
+}

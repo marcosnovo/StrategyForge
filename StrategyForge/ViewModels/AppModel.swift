@@ -458,6 +458,32 @@ final class AppModel {
         }
     }
 
+    /// Turn a review finding into a PERMANENT eval scenario on the chat's team suite (the
+    /// article's "your best tests are in your logs" — a bug the reviewer caught becomes a probe
+    /// the team is graded against forever). Appends + persists; new-scenario ids invalidate the
+    /// stale baseline for that suite. Returns false if the config is gone.
+    @discardableResult
+    func addEvalScenario(_ scenario: EvalScenario, toConfig id: Configuration.ID) -> Bool {
+        guard let i = configurations.firstIndex(where: { $0.id == id }) else { return false }
+        var suite = configurations[i].strategy.evalSuite ?? EvalSuite()
+        suite.scenarios.append(scenario)
+        suite.baseline = [:]   // a new scenario has a new id — the old baseline no longer matches
+        configurations[i].strategy.evalSuite = suite
+        save()
+        return true
+    }
+
+    /// Build a regression probe from a reviewer finding: "don't reintroduce this pitfall".
+    func evalScenario(from finding: ReviewFinding) -> EvalScenario {
+        let loc = finding.file.isEmpty ? "" : " in \(finding.file)"
+        let prompt = "Redo the change\(loc) that this review flagged, and make sure it does NOT "
+            + "reintroduce the following issue: \(finding.title)."
+        let expectation = finding.detail.isEmpty
+            ? "Avoids the pitfall: \(finding.title)."
+            : "Avoids the pitfall: \(finding.title). \(finding.detail)"
+        return EvalScenario(prompt: prompt, expectation: expectation, category: .answersCorrectly)
+    }
+
     /// The service shown in the main area while in the Services section.
     var selectedService: AIProvider = .claude
     /// A developer TOOL (GitHub/Git) selected in the Services section — when set, the

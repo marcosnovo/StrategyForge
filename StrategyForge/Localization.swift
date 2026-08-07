@@ -1704,6 +1704,8 @@ enum L10n {
         "code.unview": ("Mark as not viewed", "Marcar como no visto"),
         "review.jump": ("Jump to this line in the diff", "Ir a esta línea en el diff"),
         "gate.title": ("Merge gate", "Puerta de merge"),
+        "eval.saveAsTest": ("Save as a permanent eval test", "Guardar como test de eval permanente"),
+        "eval.savedFromFinding": ("Saved as an eval test for this team", "Guardado como test de eval del equipo"),
         "gate.decision.autoMerge": ("could merge without a human", "podría fusionarse sin humano"),
         "gate.decision.needsReview": ("needs a human review", "necesita revisión humana"),
         "gate.decision.blocked": ("blocked — a human must decide", "bloqueado — decide un humano"),

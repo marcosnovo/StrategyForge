@@ -916,6 +916,15 @@ struct CodeModeView: View {
                         }
                     }
                     Spacer(minLength: 0)
+                    // Turn this caught bug into a permanent eval test for the team (logs → tests).
+                    Button {
+                        if model.addEvalScenario(model.evalScenario(from: f), toConfig: vm.config.id) {
+                            model.flashSuccess(model.t("eval.savedFromFinding"))
+                        }
+                    } label: {
+                        Image(systemName: "testtube.2").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                    }
+                    .buttonStyle(.plain).help(model.t("eval.saveAsTest"))
                 }
                 .contentShape(Rectangle())
                 .onTapGesture { if jumpable { jumpToFinding(f) } }
