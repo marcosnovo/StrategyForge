@@ -93,8 +93,10 @@ enum CodexUsageStore {
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
         guard let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys,
                                                       options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return nil }
-        // Rate-limit state is recent — only recently-touched session files matter.
-        let cutoff = now.addingTimeInterval(-4 * 86_400)
+        // Rate-limit state stays relevant for the length of the LONGEST window — the weekly
+        // bucket is 7 days, so a 4-day cutoff made the whole card vanish "suddenly" after a
+        // few idle days even though your weekly % was still live. Use ~15 days of headroom.
+        let cutoff = now.addingTimeInterval(-15 * 86_400)
         var files: [(url: URL, mod: Date)] = []
         for case let url as URL in en where url.pathExtension == "jsonl" {
             let mod = (try? url.resourceValues(forKeys: Set(keys)))?.contentModificationDate ?? .distantPast
@@ -104,32 +106,46 @@ enum CodexUsageStore {
         files.sort { $0.mod > $1.mod }
 
         let decoder = JSONDecoder()
-        // Look through the most recent files until one yields a token_count event.
-        for file in files.prefix(40) {
+        func window(_ w: Line.Window?) -> CodexWindow? {
+            guard let w, let pct = w.used_percent, let mins = w.window_minutes else { return nil }
+            return CodexWindow(usedPercent: pct, windowMinutes: mins,
+                               resetsAt: w.resets_at.map { Date(timeIntervalSince1970: $0) })
+        }
+        // Scan newest→oldest, keeping the newest token_count that actually CARRIES rate-limit
+        // data (the % we render). A recent session can log token_count with no rate_limits
+        // (e.g. an API-key run) — don't stop at it and show an empty card; keep looking, and
+        // only fall back to a tokens-only event if nothing in the window has rate limits.
+        var fallback: (line: Line, date: Date)?
+        for file in files.prefix(60) {
             guard let text = try? String(contentsOf: file.url, encoding: .utf8) else { continue }
-            var best: (line: Line, date: Date)?
+            var withRL: (line: Line, date: Date)?
             text.enumerateLines { raw, _ in
                 guard raw.contains("token_count") else { return }
                 guard let data = raw.data(using: .utf8),
                       let parsed = try? decoder.decode(Line.self, from: data),
                       parsed.payload?.type == "token_count" else { return }
                 let d = parseDate(parsed.timestamp) ?? .distantPast
-                if best == nil || d >= best!.date { best = (parsed, d) }
+                let rl = parsed.payload?.rate_limits
+                let hasRL = window(rl?.primary) != nil || window(rl?.secondary) != nil
+                if hasRL, withRL == nil || d >= withRL!.date { withRL = (parsed, d) }
+                if !hasRL, fallback == nil || d >= fallback!.date { fallback = (parsed, d) }
             }
-            guard let hit = best else { continue }
-            let rl = hit.line.payload?.rate_limits
-            func window(_ w: Line.Window?) -> CodexWindow? {
-                guard let w, let pct = w.used_percent, let mins = w.window_minutes else { return nil }
-                return CodexWindow(usedPercent: pct, windowMinutes: mins,
-                                   resetsAt: w.resets_at.map { Date(timeIntervalSince1970: $0) })
+            if let hit = withRL {
+                let rl = hit.line.payload?.rate_limits
+                return CodexUsage(
+                    planType: rl?.plan_type,
+                    primary: window(rl?.primary),
+                    secondary: window(rl?.secondary),
+                    totalTokens: hit.line.payload?.info?.total_token_usage?.total_tokens ?? 0,
+                    lastActivity: hit.date == .distantPast ? nil : hit.date,
+                    computedAt: now)
             }
-            return CodexUsage(
-                planType: rl?.plan_type,
-                primary: window(rl?.primary),
-                secondary: window(rl?.secondary),
-                totalTokens: hit.line.payload?.info?.total_token_usage?.total_tokens ?? 0,
-                lastActivity: hit.date == .distantPast ? nil : hit.date,
-                computedAt: now)
+        }
+        // No rate-limit data anywhere in the window — surface tokens only (better than a blank).
+        if let hit = fallback {
+            return CodexUsage(planType: hit.line.payload?.rate_limits?.plan_type, primary: nil, secondary: nil,
+                              totalTokens: hit.line.payload?.info?.total_token_usage?.total_tokens ?? 0,
+                              lastActivity: hit.date == .distantPast ? nil : hit.date, computedAt: now)
         }
         return nil
     }
