@@ -23,10 +23,19 @@ struct ImageStudioView: View {
     @State private var lastData: Data?
     @State private var errorText: String?
 
-    /// Image providers that actually have a usable key right now.
+    /// Image providers that have a key — via the non-secret markers, NOT the Keychain (this is
+    /// read from the view body; a synchronous Keychain read on the main thread hangs the UI).
     private var readyProviders: [AIProvider] {
-        ImageGenerator.supportedProviders.filter { keyFor($0) != nil }
+        ImageGenerator.supportedProviders.filter { hasKey($0) }
     }
+    private func hasKey(_ p: AIProvider) -> Bool {
+        switch p {
+        case .openai: return model.hasOpenAIAPIKey
+        case .gemini: return model.hasGeminiAPIKey
+        default:      return false
+        }
+    }
+    /// The actual secret, read only at generation time (an action, never a view body).
     private func keyFor(_ p: AIProvider) -> String? {
         switch p {
         case .openai: return model.openAIAPIKey
@@ -35,7 +44,7 @@ struct ImageStudioView: View {
         }
     }
     private var canGenerate: Bool {
-        !isGenerating && !prompt.trimmingCharacters(in: .whitespaces).isEmpty && keyFor(provider) != nil
+        !isGenerating && !prompt.trimmingCharacters(in: .whitespaces).isEmpty && hasKey(provider)
     }
 
     var body: some View {
@@ -57,7 +66,7 @@ struct ImageStudioView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
         .onAppear {
-            if let first = readyProviders.first, keyFor(provider) == nil { provider = first }
+            if let first = readyProviders.first, !hasKey(provider) { provider = first }
             // Carry a prompt handed over from the chat composer (consumed once).
             if !model.imageStudioPrompt.isEmpty {
                 prompt = model.imageStudioPrompt

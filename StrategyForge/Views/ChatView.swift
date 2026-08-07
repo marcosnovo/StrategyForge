@@ -2225,8 +2225,17 @@ struct ChatView: View {
         default:      return nil
         }
     }
+    /// Presence via the non-secret markers — NOT the Keychain — since this is read while building
+    /// the composer menu (a view body); a synchronous Keychain read there can hang the UI.
+    private func hasImageKey(for p: AIProvider) -> Bool {
+        switch p {
+        case .openai: return model.hasOpenAIAPIKey
+        case .gemini: return model.hasGeminiAPIKey
+        default:      return false
+        }
+    }
     private var readyImageProviders: [AIProvider] {
-        ImageGenerator.supportedProviders.filter { imageKey(for: $0) != nil }
+        ImageGenerator.supportedProviders.filter { hasImageKey(for: $0) }
     }
 
     /// "Generate image" in the composer menu — generates INLINE in the chat using the composer
