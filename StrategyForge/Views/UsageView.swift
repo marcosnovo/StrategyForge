@@ -43,7 +43,9 @@ struct UsageView: View {
         // fetch the exact rate-limit % (which reads the Keychain), attempted once/session.
         .task {
             if model.claudeUsage == nil { await model.refreshUsage() }
-            await model.refreshExactUsage()
+            // Show the REAL 5-hour/week % on entry (the local estimate can't see web/desktop
+            // usage), fetching only when the snapshot is missing or stale.
+            await model.refreshExactUsageIfStale()
         }
     }
 

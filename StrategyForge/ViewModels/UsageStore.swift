@@ -78,4 +78,15 @@ final class UsageStore {
             }
         }
     }
+
+    /// Auto-refresh the exact % when opening Usage: fetch (which reads the Keychain) only when
+    /// there's no snapshot or it's older than `maxAge`, so a fresh, correct figure shows on
+    /// entry without a fetch on every re-render. (Founder chose truth-on-entry over the old
+    /// never-prompt-on-entry rule; a signed release persists "Always Allow" so it asks once.)
+    func refreshExactUsageIfStale(maxAge: TimeInterval = 120) async {
+        if claudeExact == nil { claudeExact = Self.loadCachedExact() }
+        let age = claudeExact.map { Date().timeIntervalSince($0.computedAt) } ?? .greatestFiniteMagnitude
+        guard age >= maxAge else { return }
+        await refreshExactUsage(force: true)
+    }
 }

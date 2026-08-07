@@ -382,6 +382,11 @@ final class AppModel {
     func refreshExactUsage(force: Bool = false) async {
         await usageStore.refreshExactUsage(force: force)
     }
+    /// Auto-refresh the exact Claude % on entering Usage (reads the Keychain only when the
+    /// snapshot is missing/stale) — so the real figure shows without pressing ↻.
+    func refreshExactUsageIfStale() async {
+        await usageStore.refreshExactUsageIfStale()
+    }
 
     /// A CLI-backed single-shot runner configured from current settings — used by the
     /// eval engine (answer = editing off but not read-only; judge = readOnly, the
