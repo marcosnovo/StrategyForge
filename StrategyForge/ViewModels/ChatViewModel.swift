@@ -895,6 +895,7 @@ final class ChatViewModel {
                 id: name,
                 title: name,
                 subtitle: roleTasks[name],
+                model: role.modelDisplayName,   // provider/model per node (video-style)
                 state: state,
                 tint: role.role.tint,
                 startedAt: roleStartedAt[name])

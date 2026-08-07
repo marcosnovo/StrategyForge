@@ -26,7 +26,8 @@ enum LiveNodeState: Equatable { case idle, running, done, failed }
 struct LiveGraphNode: Identifiable, Equatable {
     let id: String
     var title: String
-    var subtitle: String?          // model or the orchestrator's assigned task
+    var subtitle: String?          // the orchestrator's assigned task (shown while running)
+    var model: String?             // short model/provider label, shown under the node
     var state: LiveNodeState = .idle
     var tint: Color = Theme.accent // provider tint
     var startedAt: Date?
@@ -227,16 +228,25 @@ struct LiveAgentGraphView: View {
         ctx.stroke(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
                    with: .color(ring), lineWidth: 1)
 
-        // Title always; subtitle only for the active node (avoids clutter).
+        // Title always; then the model (video-style provider label); then the live task for the
+        // active node only (avoids clutter).
         ctx.draw(Text(node.title)
             .font(.system(size: 9, weight: .medium, design: .monospaced))
             .foregroundColor(Theme.ink.opacity(0.85)),
                  at: CGPoint(x: p.x, y: p.y + r + 9))
+        var below = p.y + r + 20
+        if let m = node.model, !m.isEmpty {
+            ctx.draw(Text(m.uppercased())
+                .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
+                .foregroundColor(node.tint.opacity(running ? 0.95 : 0.6)),
+                     at: CGPoint(x: p.x, y: below))
+            below += 10
+        }
         if running, let sub = node.subtitle, !sub.isEmpty {
             ctx.draw(Text(sub)
                 .font(.system(size: 8, design: .monospaced))
                 .foregroundColor(.secondary),
-                     at: CGPoint(x: p.x, y: p.y + r + 20))
+                     at: CGPoint(x: p.x, y: below))
         }
     }
 
@@ -250,6 +260,12 @@ struct LiveAgentGraphView: View {
                 Text(snapshot.phase.isEmpty ? "IDLE" : snapshot.phase.uppercased())
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundStyle(Theme.accent)
+                // The currently-routed model(s) — the video's "ROUTE → …" read.
+                if let route = activeRoute {
+                    Text("→ \(route)")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary).lineLimit(1)
+                }
                 Spacer()
                 Text(hud)
                     .font(.system(size: 10, design: .monospaced))
@@ -265,6 +281,15 @@ struct LiveAgentGraphView: View {
         let mins = Int(snapshot.elapsed) / 60, secs = Int(snapshot.elapsed) % 60
         let k = snapshot.tokens >= 1000 ? String(format: "%.1fk", Double(snapshot.tokens) / 1000) : "\(snapshot.tokens)"
         return String(format: "AGENTS %d · TOKENS %@ · %02d:%02d", snapshot.activeCount, k, mins, secs)
+    }
+
+    /// The model(s) currently doing the work — for the "→ model" route in the HUD. Distinct
+    /// model names of the running nodes (deduped), or nil when none are active.
+    private var activeRoute: String? {
+        let models = snapshot.nodes.filter { $0.state == .running }.compactMap { $0.model }
+        guard !models.isEmpty else { return nil }
+        var seen = Set<String>(); let uniq = models.filter { seen.insert($0).inserted }
+        return uniq.prefix(2).joined(separator: ", ") + (uniq.count > 2 ? "…" : "")
     }
 
     private var a11ySummary: String {
@@ -293,12 +318,12 @@ struct LiveGraphLabSection: View {
     @State private var runToken = 0
 
     private static let seed: [LiveGraphNode] = [
-        LiveGraphNode(id: "backend",  title: "backend",  subtitle: "opus", tint: Theme.accent),
-        LiveGraphNode(id: "frontend", title: "frontend", subtitle: "sonnet", tint: Color(red: 0.26, green: 0.52, blue: 0.96)),
-        LiveGraphNode(id: "tests",    title: "tests",    subtitle: "sonnet", tint: Color(red: 0.10, green: 0.72, blue: 0.60)),
-        LiveGraphNode(id: "security", title: "security", subtitle: "opus", tint: Theme.accent),
-        LiveGraphNode(id: "docs",     title: "docs",     subtitle: "haiku", tint: Color(red: 0.55, green: 0.35, blue: 0.80)),
-        LiveGraphNode(id: "reviewer", title: "reviewer", subtitle: "verifier", tint: Color(red: 0.10, green: 0.72, blue: 0.60)),
+        LiveGraphNode(id: "backend",  title: "backend",  model: "Opus 4.8", tint: Theme.accent),
+        LiveGraphNode(id: "frontend", title: "frontend", model: "GPT-5.2", tint: Color(red: 0.26, green: 0.52, blue: 0.96)),
+        LiveGraphNode(id: "tests",    title: "tests",    model: "Sonnet 5", tint: Color(red: 0.10, green: 0.72, blue: 0.60)),
+        LiveGraphNode(id: "security", title: "security", model: "Gemini 3 Pro", tint: Theme.accent),
+        LiveGraphNode(id: "docs",     title: "docs",     model: "Haiku 4.5", tint: Color(red: 0.55, green: 0.35, blue: 0.80)),
+        LiveGraphNode(id: "reviewer", title: "reviewer", model: "Grok 4.5", tint: Color(red: 0.10, green: 0.72, blue: 0.60)),
     ]
 
     var body: some View {
@@ -378,12 +403,12 @@ struct LiveGraphLabSection: View {
     LiveAgentGraphView(snapshot: LiveGraphSnapshot(
         orchestratorTitle: "Orchestrator",
         nodes: [
-            LiveGraphNode(id: "backend", title: "backend", subtitle: "auditing routes", state: .running, tint: Theme.accent, startedAt: Date()),
-            LiveGraphNode(id: "frontend", title: "frontend", state: .done, tint: Color(red: 0.26, green: 0.52, blue: 0.96), endedAt: Date()),
-            LiveGraphNode(id: "tests", title: "tests", subtitle: "running suite", state: .running, tint: Color(red: 0.10, green: 0.72, blue: 0.60), startedAt: Date()),
-            LiveGraphNode(id: "security", title: "security", state: .idle, tint: Theme.accent),
-            LiveGraphNode(id: "docs", title: "docs", state: .done, tint: Color(red: 0.55, green: 0.35, blue: 0.80), endedAt: Date()),
-            LiveGraphNode(id: "reviewer", title: "reviewer", state: .idle, tint: Color(red: 0.10, green: 0.72, blue: 0.60)),
+            LiveGraphNode(id: "backend", title: "backend", subtitle: "auditing routes", model: "Opus 4.8", state: .running, tint: Theme.accent, startedAt: Date()),
+            LiveGraphNode(id: "frontend", title: "frontend", model: "GPT-5.2", state: .done, tint: Color(red: 0.26, green: 0.52, blue: 0.96), endedAt: Date()),
+            LiveGraphNode(id: "tests", title: "tests", subtitle: "running suite", model: "Sonnet 5", state: .running, tint: Color(red: 0.10, green: 0.72, blue: 0.60), startedAt: Date()),
+            LiveGraphNode(id: "security", title: "security", model: "Gemini 3 Pro", state: .idle, tint: Theme.accent),
+            LiveGraphNode(id: "docs", title: "docs", model: "Haiku 4.5", state: .done, tint: Color(red: 0.55, green: 0.35, blue: 0.80), endedAt: Date()),
+            LiveGraphNode(id: "reviewer", title: "reviewer", model: "Grok 4.5", state: .idle, tint: Color(red: 0.10, green: 0.72, blue: 0.60)),
         ],
         phase: "working", tokens: 48200, elapsed: 74, running: true))
     .frame(width: 560, height: 360)
