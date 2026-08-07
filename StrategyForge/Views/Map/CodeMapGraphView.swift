@@ -303,7 +303,6 @@ struct CodeMapGraphView: View {
     private func layoutButton(_ mode: GraphLayout, _ icon: String, _ help: String) -> some View {
         let active = layout == mode
         return Button {
-            armEntrance()   // re-reveal on switching layout
             withAnimation(.easeInOut(duration: 0.25)) {
                 layout = mode
                 let rx = mode == .sphere ? 0.5 : 0.0
@@ -324,7 +323,6 @@ struct CodeMapGraphView: View {
     /// (the knowledge-graph reading), so it reads as an active, discoverable switch.
     private var colorModeButton: some View {
         Button {
-            armEntrance()   // re-reveal so the new colouring animates in
             withAnimation(.easeInOut(duration: 0.2)) {
                 colorMode = colorMode == .cluster ? .kind : .cluster
                 // The type reading is clearest on a light "paper" canvas (the second-brain look).
