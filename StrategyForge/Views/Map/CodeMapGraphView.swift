@@ -66,8 +66,13 @@ struct CodeMapGraphView: View {
     /// The three visualizations: clusters as a rotating globe, the same lobes flat, or a single
     /// force-directed CONSTELLATION (spring-electrical) where the whole codebase relaxes into one
     /// organic hub-and-spoke web — the classic "graph" look.
-    enum GraphLayout { case sphere, flat, force, knowledge }
+    enum GraphLayout { case sphere, flat, force }
     @State private var layout: GraphLayout = .sphere
+    /// What node COLOUR encodes: clusters (community, the branded coral lobes) or entity TYPE
+    /// (file/function/class…, the "knowledge graph" reading with a legend). A toggle, not a
+    /// separate view — the two were otherwise near-identical webs.
+    enum ColorMode { case cluster, kind }
+    @State private var colorMode: ColorMode = .cluster
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -94,11 +99,10 @@ struct CodeMapGraphView: View {
 
     private func color(_ community: Int) -> Color { Self.clusterColor(rank: rankOf[community] ?? 999) }
 
-    /// A node's colour: in the KNOWLEDGE view it's categorical by ENTITY KIND (file/function/…),
-    /// the "second-brain" look where colour tells you what TYPE a node is — like Obsidian's graph.
-    /// Every other view colours by cluster (community).
+    /// A node's colour: by ENTITY KIND (file/function/… — the "second-brain" reading, with a
+    /// legend) when Color-by-Type is on, otherwise by cluster (the branded coral lobes).
     private func nodeTint(_ node: CodeGraph.Node) -> Color {
-        layout == .knowledge ? Self.kindColor(node.kind) : color(node.community)
+        colorMode == .kind ? Self.kindColor(node.kind) : color(node.community)
     }
 
     /// A stable categorical palette keyed by entity kind. Known kinds get hand-picked, legible
@@ -218,23 +222,17 @@ struct CodeMapGraphView: View {
             VStack(spacing: 6) { layoutPicker; canvasToggle }.padding(Space.m)
         }
         .overlay(alignment: .bottomTrailing) { zoomControls }
-        .overlay(alignment: .topTrailing) { if layout == .knowledge { kindLegend } }
+        .overlay(alignment: .topTrailing) { if colorMode == .kind { kindLegend } }
         .background(ScrollZoomInstaller { factor in setZoom(scale * factor) })
         .contentShape(Rectangle())
         .gesture(
             // Drag ROTATES in both modes (flat = tilting the plane in 3D, like the sphere).
             DragGesture()
                 .onChanged { g in
-                    if layout == .knowledge {
-                        // A flat 2D graph pans (like moving a canvas), it doesn't tilt in 3D.
-                        offset = CGSize(width: lastOffset.width + g.translation.width,
-                                        height: lastOffset.height + g.translation.height)
-                    } else {
-                        rotY = lastRotY + Double(g.translation.width) * 0.01
-                        rotX = min(max(lastRotX - Double(g.translation.height) * 0.01, -1.4), 1.4)
-                    }
+                    rotY = lastRotY + Double(g.translation.width) * 0.01
+                    rotX = min(max(lastRotX - Double(g.translation.height) * 0.01, -1.4), 1.4)
                 }
-                .onEnded { _ in lastRotX = rotX; lastRotY = rotY; lastOffset = offset }
+                .onEnded { _ in lastRotX = rotX; lastRotY = rotY }
         )
         .simultaneousGesture(
             MagnificationGesture()
@@ -263,7 +261,9 @@ struct CodeMapGraphView: View {
             layoutButton(.sphere, "globe", "Globe")
             layoutButton(.flat, "square.grid.2x2", "Flat lobes")
             layoutButton(.force, "point.3.filled.connected.trianglepath.dotted", "Constellation")
-            layoutButton(.knowledge, "brain", "Knowledge graph")
+            Divider().frame(width: 20).padding(.vertical, 1)
+            // Colour-by toggle: clusters (coral lobes) ↔ entity type (the knowledge-graph reading).
+            colorModeButton
         }
         .padding(3)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.regularMaterial))
@@ -276,8 +276,6 @@ struct CodeMapGraphView: View {
                 layout = mode
                 let rx = mode == .sphere ? 0.5 : 0.0
                 rotX = rx; lastRotX = rx; rotY = 0; lastRotY = 0
-                // The knowledge graph reads best on a light "paper" canvas (the second-brain look).
-                if mode == .knowledge { darkOverride = false }
                 resetView()
             }
         } label: {
@@ -290,6 +288,27 @@ struct CodeMapGraphView: View {
         }
         .buttonStyle(.plain).help(help)
     }
+    /// Toggle what node colour encodes: clusters ⇄ entity type. Coral-tinted when on "type"
+    /// (the knowledge-graph reading), so it reads as an active, discoverable switch.
+    private var colorModeButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                colorMode = colorMode == .cluster ? .kind : .cluster
+                // The type reading is clearest on a light "paper" canvas (the second-brain look).
+                if colorMode == .kind { darkOverride = false }
+            }
+        } label: {
+            Image(systemName: colorMode == .kind ? "tag.fill" : "circle.hexagongrid.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(colorMode == .kind ? Theme.coral : Theme.secondaryOnMaterial)
+                .frame(width: 24, height: 24)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(colorMode == .kind ? Theme.coral.opacity(0.16) : Color.clear))
+        }
+        .buttonStyle(.plain)
+        .help(colorMode == .kind ? "Colour by cluster" : "Colour by type")
+    }
+
     /// Legend for the knowledge graph: the entity kinds present (by frequency) with their colour —
     /// so colour is decodable ("orange = files, blue = functions"), like the reference's Pages/Tags.
     private var kindLegend: some View {
@@ -376,7 +395,7 @@ struct CodeMapGraphView: View {
         // globe coords, the flat map uses its 2D layout laid on a plane (z=0). At rest the flat
         // map is head-on (rot 0 → looks 2D); dragging tilts it in 3D, exactly like the sphere.
         let R = min(size.width, size.height) * 0.42 * scale
-        let src = layout == .sphere ? sphere3D : ((layout == .force || layout == .knowledge) ? force3D : flat3D)
+        let src = layout == .sphere ? sphere3D : (layout == .force ? force3D : flat3D)
         // Hoist the rotation's trig OUT of the per-node loop — cos/sin(rotX,rotY) are constant
         // for the whole frame, so this drops ~4 transcendental calls PER NODE to 4 per frame.
         let cy = cos(rotY), sy = sin(rotY), cx = cos(rotX), sx = sin(rotX)
@@ -410,7 +429,8 @@ struct CodeMapGraphView: View {
 
             // Cluster glows read as lobes; in the single-web constellation they'd be scattered
             // blobs, so the constellation stays clean (structure carried by edges, not haze).
-            if layout != .force && layout != .knowledge {
+            // Cluster glows only make sense when colour == cluster and the layout is lobed.
+            if layout != .force && colorMode == .cluster {
                 drawClusterGlows(nodes: nodes, frames: pos, dimmed: dimming, pulse: glowPulse, ctx: &ctx)
             }
 
@@ -425,13 +445,13 @@ struct CodeMapGraphView: View {
                     // Declutter (globe/flat only): SKIP leaf↔leaf intra-cluster edges — smog inside
                     // a lobe you already read as a coloured glow. The CONSTELLATION is all about the
                     // wiring, so it draws every edge (brighter) — that's what makes the web read.
-                    if layout != .force && layout != .knowledge {
+                    if layout != .force {
                         guard cross || hubIDs.contains(e.source) || hubIDs.contains(e.target) else { continue }
                     }
-                    // Knowledge graph: uniform thin neutral wiring (the Obsidian look) — structure
-                    // is carried by node colour + size, not edge hue.
-                    if layout == .knowledge {
-                        curve(e, frames: pos, color: neutral.opacity(0.14), width: 0.6, ctx: &ctx)
+                    // Colour-by-type: uniform thin neutral wiring (the Obsidian look) — structure
+                    // is carried by node colour + size, not by edge hue.
+                    if colorMode == .kind {
+                        curve(e, frames: pos, color: neutral.opacity(0.16), width: layout == .force ? 0.7 : 0.55, ctx: &ctx)
                         continue
                     }
                     let crossA = layout == .force ? 0.28 : 0.16
@@ -441,7 +461,7 @@ struct CodeMapGraphView: View {
                     let w: CGFloat = layout == .force ? (cross ? 1.1 : 0.75) : (cross ? 0.9 : 0.55)
                     curve(e, frames: pos, color: col, width: w, ctx: &ctx)
                 }
-                if time > 0 && layout != .knowledge {
+                if time > 0 && colorMode == .cluster {
                     // Pulses only on the FRONT cross-cluster ropes — the ones you can see.
                     var count = 0
                     for e in edges where byID[e.source]?.community != byID[e.target]?.community
@@ -486,7 +506,7 @@ struct CodeMapGraphView: View {
     /// focus + its neighbours. Front-face only on the sphere.
     private func drawLabels(nodes: [CodeGraph.Node], pos: [String: CGPoint], depth: [String: Double],
                             focus: String?, neighbors: Set<String>, ctx: inout GraphicsContext) {
-        if focus == nil && (layout == .force || layout == .knowledge) {
+        if focus == nil && (layout == .force || colorMode == .kind) {
             // The constellation is one web, not lobes — so label the biggest HUBS (nodes is
             // degree-sorted) instead of cluster centroids. That's what names the structure here.
             for node in nodes.prefix(16) {
@@ -589,9 +609,9 @@ struct CodeMapGraphView: View {
         let rect = CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)
         let a = alphaMul
 
-        // Knowledge graph: a clean flat disc + thin ring (the Obsidian/second-brain dot), no
+        // Colour-by-type: a clean flat disc + thin ring (the Obsidian/second-brain dot), no
         // neuron bloom or firing core — colour = kind, size = connections.
-        if layout == .knowledge {
+        if colorMode == .kind {
             ctx.fill(Path(ellipseIn: rect), with: .color(tint.opacity((dim ? 0.22 : 0.95) * a)))
             ctx.stroke(Path(ellipseIn: rect.insetBy(dx: 0.4, dy: 0.4)),
                        with: .color(tint.mix(with: neutral, by: 0.25).opacity((dim ? 0.15 : 0.7) * a)),
