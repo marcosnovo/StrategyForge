@@ -97,6 +97,12 @@ struct AgentActivityPanel: View {
             .zoomWindowOnDoubleClick()
             .zIndex(1)
 
+            // A subtle request-progress meter while the team runs — "how much is left?"
+            if vm.isRunning {
+                RequestProgressBar(progress: vm.runProgress)
+                    .padding(.horizontal, Space.m).padding(.top, Space.xs)
+            }
+
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.m) {
                     // THE STAGE — the multi-agent constellation. At rest it shows the

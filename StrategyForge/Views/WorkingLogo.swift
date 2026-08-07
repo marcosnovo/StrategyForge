@@ -30,6 +30,52 @@ struct ElapsedText: View {
     }
 }
 
+/// A subtle, segmented request-progress bar — "how much is left for my request?" — modelled
+/// on the reference video's quiet tick meter. `progress` nil = indeterminate (a soft highlight
+/// sweeps the ticks); a value fills ticks proportionally. Coral fill on a hairline track.
+struct RequestProgressBar: View {
+    /// 0…1, or nil for an indeterminate run (no known step count).
+    var progress: Double?
+    var segments: Int = 14
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { geo in
+            let gap: CGFloat = 3
+            let w = max(1, (geo.size.width - gap * CGFloat(segments - 1)) / CGFloat(segments))
+            if let p = progress {
+                let filled = Int((Double(segments) * min(max(p, 0), 1)).rounded())
+                HStack(spacing: gap) {
+                    ForEach(0..<segments, id: \.self) { i in
+                        Capsule().fill(i < filled ? Theme.coral : Theme.hairline)
+                            .frame(width: w)
+                            .animation(.easeOut(duration: 0.3), value: filled)
+                    }
+                }
+            } else if reduceMotion {
+                HStack(spacing: gap) {
+                    ForEach(0..<segments, id: \.self) { _ in Capsule().fill(Theme.coral.opacity(0.3)).frame(width: w) }
+                }
+            } else {
+                // Indeterminate: a soft coral highlight sweeps left→right across the ticks.
+                TimelineView(.animation) { tl in
+                    let t = tl.date.timeIntervalSinceReferenceDate
+                    let head = (t * 0.6).truncatingRemainder(dividingBy: 1.0)   // 0…1 sweep
+                    HStack(spacing: gap) {
+                        ForEach(0..<segments, id: \.self) { i in
+                            let d = abs(Double(i) / Double(segments - 1) - head)
+                            Capsule().fill(Theme.coral.opacity(max(0.12, 0.9 - d * 3)))
+                                .frame(width: w)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(height: 3)
+        .accessibilityHidden(true)
+    }
+}
+
 /// A drop-in "we're working" line: the brand spinner + a status label + a LIVE elapsed
 /// counter that ticks every second. Self-timing — it starts counting the moment it appears
 /// (so callers just do `if busy { WorkingLine("Generating…") }`, no start-date bookkeeping).

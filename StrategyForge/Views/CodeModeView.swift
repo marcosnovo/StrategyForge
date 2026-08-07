@@ -588,8 +588,9 @@ struct CodeModeView: View {
     /// the fix for "it feels like it does nothing": the diff pane stays empty until files are
     /// written (which can be minutes of planning), so without this the workspace looks frozen.
     private var runStatusBar: some View {
-        HStack(spacing: Space.s) {
+        VStack(spacing: 6) {
             WorkingLine(label: liveStatusLabel)
+            RequestProgressBar(progress: vm.runProgress)   // how much is left, subtly
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -306,6 +306,22 @@ final class ChatViewModel {
     /// only one would ever look active. Increment on each instance start, decrement on each
     /// finish/fail; the role stays "working" until it hits 0.
     var rolesRunning: [String: Int] = [:]
+    /// Total worker instances the plan scheduled this turn (from `.rolePlanned`) — the
+    /// denominator for the user-facing request progress bar. 0 until the plan lands.
+    @ObservationIgnored private var plannedInstanceTotal = 0
+
+    /// A rough 0…1 estimate of how far the current request has gotten, for a subtle progress
+    /// bar ("how much is left?"). Meta runs have a real signal — planning → delegating
+    /// (done/total workers) → synthesizing. Native single-provider turns have no sub-steps, so
+    /// it returns nil (the bar shows an indeterminate shimmer instead of a fake number).
+    var runProgress: Double? {
+        guard isRunning, usesMetaOrchestrator else { return nil }
+        if plannedInstanceTotal == 0 { return 0.08 }                 // planning
+        let running = rolesRunning.values.reduce(0, +)
+        if running == 0 { return 0.92 }                              // workers done → synthesizing
+        let done = max(0, plannedInstanceTotal - running)
+        return 0.12 + (Double(done) / Double(plannedInstanceTotal)) * 0.76
+    }
     /// Meta path: a live, human-readable narration of what the team is doing, written
     /// into the assistant bubble as it happens (the one-shot legs don't token-stream,
     /// so without this the chat looks frozen until the final synthesis lands).
@@ -986,6 +1002,7 @@ final class ChatViewModel {
         roleStartedAt = [:]
         roleLiveLine = [:]
         rolesRunning = [:]
+        plannedInstanceTotal = 0
         pendingCommands = [:]
         turnStartedAt = Date()
         authPromptedThisTurn = []
@@ -1317,6 +1334,7 @@ final class ChatViewModel {
             // correct total and a role stays "working" until its LAST instance completes,
             // regardless of the order events arrive from the concurrent workers.
             for (role, n) in counts where n > 0 { rolesRunning[role] = n }
+            plannedInstanceTotal = max(plannedInstanceTotal, counts.values.reduce(0, +))
         case .roleStarted(let role, _, let model, let task):
             if role == orchName {
                 activeSubagent = nil
