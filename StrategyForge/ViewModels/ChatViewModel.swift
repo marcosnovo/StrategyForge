@@ -410,6 +410,9 @@ final class ChatViewModel {
     /// failure catch (MetaOrchestrator) — so without this guard the same provider prompts the
     /// user to sign in twice in a single run. Reset at the start of each turn/retry.
     private var authPromptedThisTurn: Set<AIProvider> = []
+    /// True when the user hit Stop this turn — so the epilogue doesn't mistake a deliberate
+    /// stop for an interrupted run and nag with a "Continue" notice.
+    @ObservationIgnored private var userStopped = false
     /// Running token total + cost for this chat, grows per turn.
     var totalTokens = 0
     var totalCostUSD = 0.0
@@ -1033,6 +1036,7 @@ final class ChatViewModel {
         messages.append(ChatMessage(role: .assistant, text: ""))
         let assistantIndex = messages.count - 1
         isRunning = true
+        userStopped = false
         let resume = hasSession
         persist(messages) // save the question immediately, before the (long) run
 
@@ -1078,9 +1082,15 @@ final class ChatViewModel {
             snapshotTurn(prompt: displayText, tokens: totalTokens - startTokens,
                          cost: totalCostUSD - startCost)
             // Drop the assistant placeholder if nothing came back (e.g. it errored).
-            if messages.indices.contains(assistantIndex), messages[assistantIndex].text.isEmpty {
-                messages.remove(at: assistantIndex)
+            let producedNothing = messages.indices.contains(assistantIndex) && messages[assistantIndex].text.isEmpty
+            if producedNothing { messages.remove(at: assistantIndex) }
+            // A turn that ended with NO output, NO error, and that the user did NOT stop is an
+            // interrupted run (e.g. network drop). Don't leave the workspace silent — surface a
+            // gentle notice so the user gets the one-tap "Continue" (which resumes the session).
+            if producedNothing, errorText == nil, needsReauth == nil, !userStopped, !Task.isCancelled {
+                errorText = tr("chat.interrupted")
             }
+            userStopped = false
             persist(messages)
             // Send the next queued message (if any) now that the run is free.
             flushQueue()
@@ -1581,7 +1591,14 @@ final class ChatViewModel {
         pendingPermission = nil
     }
 
+    /// Localize a key from the VM (which has no AppModel handle) using the system language.
+    private func tr(_ key: String) -> String {
+        let lang = (Locale.current.language.languageCode?.identifier == "es") ? "es" : "en"
+        return L10n.string(key, langCode: lang)
+    }
+
     func stop() {
+        userStopped = true
         runTask?.cancel()
         runTask = nil
         isRunning = false

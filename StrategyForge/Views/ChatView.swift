@@ -1689,6 +1689,12 @@ struct ChatView: View {
                     }
                     .buttonStyle(.moon).controlSize(.small)
                 } else {
+                    // A network drop / interrupted run: one tap resumes the session and
+                    // continues where it left off (Claude --resume; meta replays context).
+                    Button { vm.errorText = nil; vm.retryAllowingAll() } label: {
+                        Label(model.t("chat.continueRun"), systemImage: "play.circle")
+                    }
+                    .buttonStyle(.moon).controlSize(.small)
                     Button(model.t("banner.fix")) { model.navSection = .services }
                         .controlSize(.small)
                 }
