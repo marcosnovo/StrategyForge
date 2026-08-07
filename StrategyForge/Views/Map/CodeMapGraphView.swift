@@ -92,6 +92,21 @@ struct CodeMapGraphView: View {
     @State private var force3D: [String: V3] = [:]
     /// community id → size rank (0 = biggest), so colouring uses the DOMINANT clusters.
     @State private var rankOf: [Int: Int] = [:]
+    /// Reference-clock timestamp the current entrance animation started from (the map grows out
+    /// from the centre + fades in). Re-armed on load and on layout / colour-mode changes.
+    @State private var entranceStartRef = Date().timeIntervalSinceReferenceDate
+    private let entranceDuration = 0.9
+
+    /// Eased 0→1 entrance progress for a given frame time (1 = settled). Static under Reduce Motion.
+    private func entranceFactor(_ time: Double) -> Double {
+        guard !reduceMotion, time > 0 else { return 1 }
+        let d = (time - entranceStartRef) / entranceDuration
+        if d >= 1 { return 1 }
+        if d <= 0 { return 0.0001 }
+        let x = 1 - d
+        return 1 - x * x * x   // easeOutCubic — quick out, gentle settle
+    }
+    private func armEntrance() { entranceStartRef = Date().timeIntervalSinceReferenceDate }
 
     private let maxNodes = 240
     private let maxEdges = 650
@@ -208,9 +223,10 @@ struct CodeMapGraphView: View {
             }
             if !reduceMotion {
                 TimelineView(.animation(minimumInterval: 1.0 / fps)) { tl in
-                    graphCanvas(time: tl.date.timeIntervalSinceReferenceDate,
-                                nodes: nodes, byID: byID, edges: edges,
+                    let t = tl.date.timeIntervalSinceReferenceDate
+                    graphCanvas(time: t, nodes: nodes, byID: byID, edges: edges,
                                 labelIDs: labelIDs, hubIDs: hubIDs, focus: focus, neighbors: neighbors)
+                        .opacity(min(1, entranceFactor(t) * 1.15))   // fade the map in as it grows
                 }
             } else {
                 graphCanvas(time: 0, nodes: nodes, byID: byID, edges: edges,
@@ -250,6 +266,7 @@ struct CodeMapGraphView: View {
             sphere3D = Self.layout3D(nodes: derived.nodes)
             force3D = Self.normalize3D(Self.layoutRadial(nodes: derived.nodes, edges: derived.edges))
             rankOf = graph.communityRank()
+            armEntrance()   // grow the freshly-loaded map in from the centre
         }
     }
 
@@ -272,6 +289,7 @@ struct CodeMapGraphView: View {
     private func layoutButton(_ mode: GraphLayout, _ icon: String, _ help: String) -> some View {
         let active = layout == mode
         return Button {
+            armEntrance()   // re-reveal on switching layout
             withAnimation(.easeInOut(duration: 0.25)) {
                 layout = mode
                 let rx = mode == .sphere ? 0.5 : 0.0
@@ -292,6 +310,7 @@ struct CodeMapGraphView: View {
     /// (the knowledge-graph reading), so it reads as an active, discoverable switch.
     private var colorModeButton: some View {
         Button {
+            armEntrance()   // re-reveal so the new colouring animates in
             withAnimation(.easeInOut(duration: 0.2)) {
                 colorMode = colorMode == .cluster ? .kind : .cluster
                 // The type reading is clearest on a light "paper" canvas (the second-brain look).
@@ -399,12 +418,17 @@ struct CodeMapGraphView: View {
         // Hoist the rotation's trig OUT of the per-node loop — cos/sin(rotX,rotY) are constant
         // for the whole frame, so this drops ~4 transcendental calls PER NODE to 4 per frame.
         let cy = cos(rotY), sy = sin(rotY), cx = cos(rotX), sx = sin(rotX)
-        for node in nodes {
+        // Entrance: the whole map grows out from the centre and settles into place (the
+        // reference video's reveal). A per-node stagger by degree makes hubs land first.
+        let e = entranceFactor(time)
+        for (i, node) in nodes.enumerated() {
             guard let p = src[node.id] else { continue }
-            let rx = p.x * cy + p.z * sy
-            let z1 = -p.x * sy + p.z * cy
-            let ry = p.y * cx - z1 * sx
-            let rz = p.y * sx + z1 * cx
+            let ne = e >= 1 ? 1.0 : min(1, max(0.0001, (e - 0.18 * Double(i) / Double(max(nodes.count - 1, 1))) / 0.82))
+            let sx0 = p.x * ne, sy0 = p.y * ne, sz0 = p.z * ne
+            let rx = sx0 * cy + sz0 * sy
+            let z1 = -sx0 * sy + sz0 * cy
+            let ry = sy0 * cx - z1 * sx
+            let rz = sy0 * sx + z1 * cx
             let persp = 1.7 / (1.7 - rz)
             pos[node.id] = CGPoint(x: center.x + CGFloat(rx * persp) * R + offset.width,
                                    y: center.y + CGFloat(ry * persp) * R + offset.height)
