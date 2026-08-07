@@ -877,6 +877,9 @@ struct CodeModeView: View {
                 Button { model.diffReview = nil } label: { Image(systemName: "xmark").font(.system(size: 10)) }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
             }
+            // The advisory merge gate: could this change merge without a human? Reads the
+            // evidence in order (blast radius → checks → findings). Advisory — nothing auto-merges.
+            if let v = model.mergeVerdict { mergeGateChip(v) }
             // Severity tier chips — counts per tier, tap to focus one tier (tap again = all).
             if review.error == nil, review.findings.count > 1 {
                 HStack(spacing: Space.xs) {
@@ -923,6 +926,38 @@ struct CodeModeView: View {
         }
         .padding(.horizontal, Space.m).padding(.vertical, Space.s)
         .background(Theme.chromeBg)
+    }
+
+    /// The advisory merge-gate verdict: an icon + decision + the deciding reason.
+    private func mergeGateChip(_ v: MergeVerdict) -> some View {
+        let tint: Color = switch v.decision {
+        case .autoMerge: Theme.success
+        case .needsReview: Theme.warning
+        case .blocked: Theme.danger
+        }
+        let icon: String = switch v.decision {
+        case .autoMerge: "checkmark.shield.fill"
+        case .needsReview: "person.fill.checkmark"
+        case .blocked: "hand.raised.fill"
+        }
+        return HStack(alignment: .top, spacing: Space.s) {
+            Image(systemName: icon).font(.sfCaption2).foregroundStyle(tint).padding(.top, 1)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: Space.xs) {
+                    Text(model.t("gate.title")).font(.sfFieldLabel).foregroundStyle(.tertiary).tracking(0.6)
+                    Text(model.t(v.decision.labelKey)).font(.sfCaption2.weight(.semibold)).foregroundStyle(tint)
+                }
+                if let why = v.reasons.last {
+                    Text(why).font(.sfCaption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(Space.s)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(tint.opacity(0.22), lineWidth: 1))
+        .help(v.reasons.joined(separator: " · "))
     }
 
     @ViewBuilder private func severityMarker(_ s: ReviewSeverity) -> some View {

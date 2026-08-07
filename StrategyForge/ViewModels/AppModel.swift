@@ -402,8 +402,29 @@ final class AppModel {
     // MARK: - Code review (automated diff review — LangChain "software factory")
     /// The last review's findings (for the chat being viewed in Code mode). Transient.
     var diffReview: DiffReview?
+    /// The reviewed diff's blast-radius lane (captured alongside the review) — an input to the
+    /// advisory MergeGate verdict shown in the review panel.
+    var diffBlast: BlastAssessment?
     /// True while a review is in flight.
     var isReviewingDiff = false
+
+    /// The advisory MergeGate verdict for the current review: reads the evidence in order
+    /// (blast radius → deterministic → blocking findings → …) and says whether this change
+    /// could merge without a human. Advisory only — nothing auto-merges. nil until a review runs.
+    var mergeVerdict: MergeVerdict? {
+        guard let review = diffReview, review.error == nil, let blast = diffBlast else { return nil }
+        let blocking = review.findings.filter { $0.severity == .high }.count
+        let evidence = MergeEvidence(blast: blast,
+                                     deterministicPassed: nil,   // no in-app test signal yet
+                                     blockingFindings: blocking,
+                                     trajectoryClean: nil,
+                                     priorRollbacks: 0,
+                                     selfAssessment: nil)
+        // Advisory only — nothing here auto-merges — so show the TRUE verdict (what the gate
+        // would decide) rather than the shadow-downgraded one; it's the useful "safe? / needs
+        // you?" signal before you commit/PR.
+        return MergeGate.evaluate(evidence, shadow: false)
+    }
 
     /// Review the working diff of a chat's repo with an INDEPENDENT read-only agent, so
     /// bugs/regressions surface before Commit + PR (reviewer ≠ author, applied to code).
@@ -421,11 +442,13 @@ final class AppModel {
             flashSuccess(t("review.noChanges"))
             return
         }
+        let blast = BlastRadiusClassifier.classify(diff: diff)
         let review = await DiffReviewer.review(diff: diff, runner: oneShotRunner(readOnly: true))
         // The result belongs to the chat it was started from: if the user switched
         // chats while the reviewer ran, drop it rather than render it under (and
         // attribute it to) another chat's repo.
         guard selectedConfigID == reviewedID else { return }
+        diffBlast = blast
         diffReview = review
         if let error = review.error {
             flashFailure(error)   // the reviewer never ran — not a clean verdict
