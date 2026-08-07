@@ -145,13 +145,24 @@ struct AgentActivityPanel: View {
     /// its own hue, coral S-curve wires, live signal dots + a breathing halo on the active
     /// agent while running. At rest it's the calm configured crew ("your team, ready").
     private var agentStage: some View {
-        StrategyDiagramView(strategy: shownStrategy,
-                            activeAgent: vm.activeSubagent,
-                            isLive: vm.isRunning,
-                            compact: true,
-                            ambient: false)   // PERF: static at rest — only animate during a live run
-            .frame(height: 236)
-            .padding(Space.m)
+        Group {
+            if vm.isRunning {
+                // The signature moment: the live coral-orb engine — orchestrator core, subagents
+                // lighting up as they run (fan-out) and returning as they finish (fan-in), with
+                // real provider tints. This is "how the agents are actually acting + relating".
+                LiveAgentGraphView(snapshot: vm.liveGraph)
+                    .frame(height: 236)
+            } else {
+                // At rest: the calm configured topology ("your team, ready").
+                StrategyDiagramView(strategy: shownStrategy,
+                                    activeAgent: vm.activeSubagent,
+                                    isLive: false,
+                                    compact: true,
+                                    ambient: false)
+                    .frame(height: 236)
+            }
+        }
+        .padding(Space.m)
     }
 
     /// "Now" — what's happening this turn: the live usage meter and the current task list.
