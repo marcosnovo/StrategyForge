@@ -792,14 +792,17 @@ final class AppModel {
             strategy: StrategyLibrary.solo(),
             lastActiveAt: Date(),
             strategyIsAuto: true,
-            draft: draft
+            draft: draft,
+            isCode: true   // repo-bound session → lives in the Code list, not Chats
         )
         config.repoPath = repoURL.path
         config.repoBookmark = try? repoURL.bookmarkData(options: [.withSecurityScope],
                                                         includingResourceValuesForKeys: nil, relativeTo: nil)
         configurations.append(config)
+        selectedCodeID = config.id
         selectedConfigID = config.id
-        navSection = .chats
+        openInCodeMode = config.id
+        navSection = .code
         save()
     }
 
@@ -2052,9 +2055,20 @@ final class AppModel {
     var selectedCodeID: Configuration.ID?
     /// Open an existing code chat from the Code list (enters Code mode on render).
     func openCodeChat(_ id: Configuration.ID) {
+        markCode(id)
         selectedCodeID = id
         selectedConfigID = id
         openInCodeMode = id
+    }
+
+    /// Flag a session as a code chat so it lives ONLY in the Code list, never the Chats
+    /// sidebar. The invariant is "if it's used as code, it IS code" — this heals sessions
+    /// created before the flag existed or via a non-code path (e.g. a repo chat later opened
+    /// in Code mode), which is why one leaked into Chats.
+    func markCode(_ id: Configuration.ID) {
+        guard let i = configurations.firstIndex(where: { $0.id == id }), !configurations[i].isCode else { return }
+        configurations[i].isCode = true
+        save()
     }
 
     /// Push a repo path onto the recent-repos list (newest first, deduped, capped).

@@ -178,6 +178,7 @@ struct ChatView: View {
         .onAppear {
             if model.openInCodeMode == config.id {
                 codeMode = true
+                model.markCode(config.id)
                 model.openInCodeMode = nil
             }
             model.clearAttention(config.id)   // the user is now looking at it
@@ -831,7 +832,7 @@ struct ChatView: View {
                 headerIcon("chevron.left.forwardslash.chevron.right", help: model.t("chat.codeMode.help"),
                            accessibility: model.t("chat.codeMode"), active: codeMode) {
                     codeMode.toggle()
-                    if codeMode { showActivity = false }   // one right-side slot, mutually exclusive
+                    if codeMode { showActivity = false; model.markCode(config.id) }   // becomes a code chat
                 }
             }
             // Context: the sources fed in + the results produced this chat (ChatGPT-style panel).

@@ -556,9 +556,40 @@ struct CodeModeView: View {
 
     private var fileViewer: some View {
         ZStack(alignment: .topTrailing) {
-            fileViewerBody
+            VStack(spacing: 0) {
+                if vm.isRunning { runStatusBar }   // never look frozen during a run
+                fileViewerBody
+            }
             agentsCompanion   // floating team graph, top-right, over the diff
         }
+    }
+
+    /// A prominent "the team is working" bar shown across the top of the code workspace during a
+    /// live run — brand spinner + live elapsed counter + the newest narration/tool line. This is
+    /// the fix for "it feels like it does nothing": the diff pane stays empty until files are
+    /// written (which can be minutes of planning), so without this the workspace looks frozen.
+    private var runStatusBar: some View {
+        HStack(spacing: Space.s) {
+            WorkingLine(label: liveStatusLabel)
+        }
+        .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.accentSoft.opacity(0.5))
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    /// The newest sign of life to show in the status bar: a running role's live narration, else
+    /// the last activity step, else a generic "working" line.
+    private var liveStatusLabel: String {
+        if let line = vm.roleLiveLine.values.first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) {
+            return line
+        }
+        if let step = vm.timeline.last {
+            if let d = step.detail, !d.isEmpty { return "\(step.title): \(d)" }
+            return step.title
+        }
+        if !vm.rolesInProgress.isEmpty { return model.t("code.working.agents") }
+        return model.t("code.working")
     }
 
     private var fileViewerBody: some View {
@@ -691,7 +722,7 @@ struct CodeModeView: View {
                 }
                 .buttonStyle(.plain)
                 .help(model.t(agentsExpanded ? "code.agents.hide" : "code.agents.show"))
-                if agentsExpanded {
+                if agentsExpanded || vm.isRunning {   // always reveal the live graph during a run
                     Divider().frame(width: 300)
                     Group {
                         if vm.isRunning {

@@ -1699,6 +1699,8 @@ enum L10n {
         "code.checkpoint.restoreConfirm": ("Rewind the working tree to this checkpoint? Uncommitted changes since then are discarded.",
                                            "¿Volver el árbol de trabajo a este punto? Los cambios sin confirmar posteriores se descartan."),
         "code.agents": ("Agents", "Agentes"),
+        "code.working": ("Working…", "Trabajando…"),
+        "code.working.agents": ("Agents are working…", "Los agentes están trabajando…"),
         "code.agents.hide": ("Hide the agents view", "Ocultar la vista de agentes"),
         "code.agents.show": ("Show the agents view", "Mostrar la vista de agentes"),
         "code.file": ("File", "Archivo"),
