@@ -22,9 +22,9 @@ struct MapSelectorColumn: View {
     @AppStorage("map.sortBy")  private var sortBy = "recency"     // recency | name | oldest
     @AppStorage("map.kind")    private var kindFilter = "all"     // all | local | github
 
-    /// The maps to show: kind filter → sort → search. (Grouping happens in `sections`.)
+    /// The maps to show: dedupe → kind filter → sort → search. (Grouping happens in `sections`.)
     private var visibleMaps: [SavedMap] {
-        var list = MapStore.shared.maps
+        var list = Self.deduped(MapStore.shared.maps)
         if kindFilter != "all" { list = list.filter { $0.kind.rawValue == kindFilter } }
         switch sortBy {
         case "name":   list.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -36,6 +36,32 @@ struct MapSelectorColumn: View {
         return list.filter {
             $0.name.localizedCaseInsensitiveContains(q) || $0.subtitle.localizedCaseInsensitiveContains(q)
         }
+    }
+
+    /// Collapse repeats of the SAME repo — e.g. a map built both from a GitHub clone (kind
+    /// .github) and from its local path (kind .local), or a clone whose path drifted into a new
+    /// id — keeping the most recently updated. Purely a display concern (the store is untouched).
+    static func deduped(_ maps: [SavedMap]) -> [SavedMap] {
+        var best: [String: SavedMap] = [:]
+        var order: [String] = []
+        for m in maps {
+            let key = identity(m)
+            if let existing = best[key] {
+                if m.updatedAt > existing.updatedAt { best[key] = m }
+            } else {
+                best[key] = m; order.append(key)
+            }
+        }
+        return order.compactMap { best[$0] }
+    }
+
+    /// A repo's identity independent of kind/path: its basename, lowercased. GitHub uses the
+    /// "owner/repo" tail; local uses the repo folder name.
+    private static func identity(_ m: SavedMap) -> String {
+        let base = m.kind == .github
+            ? (m.subtitle as NSString).lastPathComponent
+            : ((m.repoPath.map { ($0 as NSString).lastPathComponent }) ?? m.name)
+        return base.lowercased()
     }
 
     /// The list split into titled sections per the group-by choice (empty when grouping is off).
