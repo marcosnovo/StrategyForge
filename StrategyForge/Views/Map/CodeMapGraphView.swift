@@ -95,18 +95,30 @@ struct CodeMapGraphView: View {
     /// Reference-clock timestamp the current entrance animation started from (the map grows out
     /// from the centre + fades in). Re-armed on load and on layout / colour-mode changes.
     @State private var entranceStartRef = Date().timeIntervalSinceReferenceDate
-    private let entranceDuration = 0.9
+    /// True only while the entrance plays — drives the temporary 60fps so the reveal is smooth.
+    @State private var entranceActive = false
+    @State private var entranceResetTask: Task<Void, Never>?
+    private let entranceDuration = 0.6
 
     /// Eased 0→1 entrance progress for a given frame time (1 = settled). Static under Reduce Motion.
     private func entranceFactor(_ time: Double) -> Double {
-        guard !reduceMotion, time > 0 else { return 1 }
+        guard !reduceMotion, entranceActive, time > 0 else { return 1 }
         let d = (time - entranceStartRef) / entranceDuration
         if d >= 1 { return 1 }
         if d <= 0 { return 0.0001 }
         let x = 1 - d
-        return 1 - x * x * x   // easeOutCubic — quick out, gentle settle
+        return 1 - x * x   // easeOutQuad — snappy start, quick settle
     }
-    private func armEntrance() { entranceStartRef = Date().timeIntervalSinceReferenceDate }
+    private func armEntrance() {
+        guard !reduceMotion else { return }
+        entranceStartRef = Date().timeIntervalSinceReferenceDate
+        entranceActive = true
+        entranceResetTask?.cancel()
+        entranceResetTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64((entranceDuration + 0.15) * 1_000_000_000))
+            entranceActive = false   // back to the cheap idle frame rate
+        }
+    }
 
     private let maxNodes = 240
     private let maxEdges = 650
@@ -211,7 +223,9 @@ struct CodeMapGraphView: View {
         let neighbors = Self.neighborIDs(of: focus, in: edges)
         // Ambient breathing is a slow sinusoid — 12fps is imperceptible for it and halves the
         // idle redraw cost; bump to 20fps only when a selection has particles worth smoothing.
-        let fps: Double = focus != nil ? 20 : 12
+        // 60fps while the entrance plays (otherwise the reveal steps at the idle 12fps), then
+        // drop back to the cheap idle rate once it has settled.
+        let fps: Double = entranceActive ? 60 : (focus != nil ? 20 : 12)
 
         ZStack {
             // Backdrop: a deep radial (glows read as light) or the app surface (light canvas).
@@ -423,7 +437,7 @@ struct CodeMapGraphView: View {
         let e = entranceFactor(time)
         for (i, node) in nodes.enumerated() {
             guard let p = src[node.id] else { continue }
-            let ne = e >= 1 ? 1.0 : min(1, max(0.0001, (e - 0.18 * Double(i) / Double(max(nodes.count - 1, 1))) / 0.82))
+            let ne = e >= 1 ? 1.0 : min(1, max(0.0001, (e - 0.10 * Double(i) / Double(max(nodes.count - 1, 1))) / 0.90))
             let sx0 = p.x * ne, sy0 = p.y * ne, sz0 = p.z * ne
             let rx = sx0 * cy + sz0 * sy
             let z1 = -sx0 * sy + sz0 * cy
