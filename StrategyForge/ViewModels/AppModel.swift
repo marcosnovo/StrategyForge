@@ -142,7 +142,14 @@ final class AppModel {
     /// whose stored login isn't known-stale. This is the gate the chat/team launcher checks so a
     /// run never starts on a provider that will just fail.
     func providerUsable(_ provider: AIProvider) -> Bool {
-        if provider == .gemini { return hasGeminiAPIKey }
+        if provider == .gemini {
+            let has = hasGeminiAPIKey
+            // Reconcile the launch-pre-flight marker here (a user-initiated gate check, not the
+            // Keychain-free splash), so a configured key stops the "Reconnect Gemini" nag.
+            ProviderAuth.setGeminiAPIKeyPresent(has)
+            if has { staleAuth.remove(.gemini) }
+            return has
+        }
         guard isConnected(provider) else { return false }
         return !staleAuth.contains(provider)
     }
@@ -164,7 +171,10 @@ final class AppModel {
     /// prompt) and record which ones need reconnecting. Called at launch (splash) and on demand.
     func verifyConnections() async {
         let states = await ProviderAuth.verify(connectedProviders)
-        let stale = Set(states.filter { $0.value == .expired || $0.value == .missing }.keys)
+        var stale = Set(states.filter { $0.value == .expired || $0.value == .missing }.keys)
+        // A configured Gemini API key is a valid path (the free CLI is retired) — don't flag it
+        // as needing reconnect. Marker is non-secret, so this stays Keychain-free at launch.
+        if ProviderAuth.geminiAPIKeyPresent { stale.remove(.gemini) }
         staleAuth = stale
         for (p, s) in states where s == .expired || s == .missing {
             DiagnosticsLog.record("connection check: \(p.displayName) login \(s == .expired ? "expired" : "missing")", level: "WARN")
@@ -244,6 +254,10 @@ final class AppModel {
         let trimmed = key?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if trimmed.isEmpty { KeychainStore.delete(Self.geminiKeyItem) }
         else { KeychainStore.set(Data(trimmed.utf8), for: Self.geminiKeyItem) }
+        // Mirror presence into a NON-secret marker so the launch pre-flight (which must not
+        // read the Keychain) knows Gemini is usable via its API key — otherwise it keeps
+        // flagging "Reconnect Gemini" every run because the retired CLI has no oauth file.
+        ProviderAuth.setGeminiAPIKeyPresent(!trimmed.isEmpty)
     }
 
     /// API keys to hand the provider runner: OpenAI's (only in opt-in API mode, which re-enables

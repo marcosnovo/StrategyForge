@@ -34,6 +34,16 @@ enum ProviderAuth {
         }
     }
 
+    // A non-secret mirror of "a Gemini API key is configured", so the launch pre-flight can
+    // judge Gemini usable without touching the Keychain. Written by AppModel.setGeminiAPIKey.
+    private static let geminiKeyMarker = "gemini.hasAPIKey"
+    nonisolated static func setGeminiAPIKeyPresent(_ present: Bool) {
+        UserDefaults.standard.set(present, forKey: geminiKeyMarker)
+    }
+    nonisolated static var geminiAPIKeyPresent: Bool {
+        UserDefaults.standard.bool(forKey: geminiKeyMarker)
+    }
+
     /// One provider's login freshness from its on-disk credentials (never the Keychain).
     nonisolated static func freshness(_ provider: AIProvider) -> State {
         switch provider {
@@ -47,7 +57,12 @@ enum ProviderAuth {
                 ? expiryState(fileAt: path, keyPath: ["claudeAiOauth", "expiresAt"], unit: .millis)
                 : .unknown
         case .gemini:
-            // `gemini` / `agy` write this on a successful Google login.
+            // Google retired the free `gemini` CLI login, so a GEMINI_API_KEY is the one path
+            // that actually runs Gemini headless. If a key is configured, Gemini is usable and
+            // the CLI oauth file is irrelevant — don't cry "reconnect". (Marker is non-secret,
+            // mirrored from the Keychain on save, so we never read the Keychain here.)
+            if geminiAPIKeyPresent { return .ok }
+            // Otherwise fall back to the CLI login file (`gemini`/`agy` write it on Google login).
             let path = "\(NSHomeDirectory())/.gemini/oauth_creds.json"
             guard FileManager.default.fileExists(atPath: path) else { return .missing }
             return expiryState(fileAt: path, keyPath: ["expiry_date"], unit: .millis)
