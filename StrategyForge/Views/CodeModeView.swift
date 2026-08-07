@@ -60,6 +60,8 @@ struct CodeModeView: View {
     @State private var pendingScroll: Int?
     /// Index into the current file's changed hunks, for prev/next-hunk navigation.
     @State private var currentHunk = 0
+    /// The launch-checklist sheet for this project (empty repo → shipped).
+    @State private var showChecklist = false
     /// The floating "agents" companion over the diff — expanded shows the live team graph, so
     /// you can watch the agents work AND read their diff at once (they used to be mutually
     /// exclusive right-hand columns). Collapsed to a pill; persisted.
@@ -135,6 +137,7 @@ struct CodeModeView: View {
             Button(model.t("code.commit")) { performCommit() }
             Button(model.t("common.cancel"), role: .cancel) {}
         }
+        .sheet(isPresented: $showChecklist) { LaunchChecklistView(projectID: vm.config.id) }
         .confirmationDialog(model.t("code.checkpoint.restoreConfirm"),
                             isPresented: Binding(get: { confirmRestore != nil },
                                                  set: { if !$0 { confirmRestore = nil } }),
@@ -564,6 +567,22 @@ struct CodeModeView: View {
         }
     }
 
+    /// Toolbar entry to the launch checklist. Shows the done/total fraction as a badge once a
+    /// checklist exists, so shipping progress is visible at a glance.
+    @ViewBuilder private var checklistToolbarButton: some View {
+        let list = ChecklistStore.shared.checklist(forProject: vm.config.id)
+        Button { showChecklist = true } label: {
+            HStack(spacing: 4) {
+                Image(systemName: list?.isComplete == true ? "checkmark.seal.fill" : "checklist")
+                if let list, list.totalItems > 0 {
+                    Text("\(list.doneItems)/\(list.totalItems)").font(.sfFieldLabel).monospacedDigit()
+                }
+            }
+            .foregroundStyle(list?.isComplete == true ? Theme.success : .secondary)
+        }
+        .buttonStyle(.plain).help(model.t("checklist.help"))
+    }
+
     /// A prominent "the team is working" bar shown across the top of the code workspace during a
     /// live run — brand spinner + live elapsed counter + the newest narration/tool line. This is
     /// the fix for "it feels like it does nothing": the diff pane stays empty until files are
@@ -643,6 +662,8 @@ struct CodeModeView: View {
                                 }
                             }
                         }
+                        // Launch checklist for this project (empty repo → shipped).
+                        checklistToolbarButton
                         Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) } label: {
                             Image(systemName: "folder")
                         }
