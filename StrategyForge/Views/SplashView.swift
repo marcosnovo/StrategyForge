@@ -12,6 +12,16 @@
 
 import SwiftUI
 
+/// True when the process is hosting an XCTest bundle. `StrategyForgeTests` is app-hosted
+/// (TEST_HOST = Coral.app), so running the suite launches the FULL app — and its launch
+/// warm-up spawns provider CLIs, PTY login checks, and network fetches that can HANG the
+/// test host ("los tests se quedan congelados"). Anything that shells out or hits the
+/// network at launch must be skipped when this is true so the gate stays fast + deterministic.
+enum AppEnvironment {
+    static let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        || NSClassFromString("XCTestCase") != nil
+}
+
 /// Wraps the app content and holds a splash over it until the (bounded) preload finishes.
 struct RootView: View {
     @Environment(AppModel.self) private var model
@@ -35,6 +45,9 @@ struct RootView: View {
     /// moment (no jarring flash) and at most a few seconds (a slow `gh` keeps warming in
     /// the background after we reveal the app).
     private func preload() async {
+        // Under XCTest the app is only a host for the unit bundle — never run the launch
+        // warm-up (it shells out / hits the network and can freeze the whole run).
+        if AppEnvironment.isRunningTests { ready = true; return }
         async let minShow: Void = quietSleep(ms: 650)
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await runSteps() }
