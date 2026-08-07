@@ -16,6 +16,10 @@ struct MemoryView: View {
 
     @State private var selectedID: Learning.ID?
     @State private var kindFilter: LearningKind?   // nil = all
+    /// A focused hygiene review mode (from the "needs attention" bar). nil = normal list.
+    @State private var focus: Focus?
+    @State private var showAudit = false
+    enum Focus: Hashable { case pending, stale, conflicts }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -26,16 +30,71 @@ struct MemoryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.appBg)
         .tint(Theme.accent)
+        .sheet(isPresented: $showAudit) { auditSheet }
+    }
+
+    /// The audit trail — what was learned, approved, edited, forgotten, and when. Keeps the
+    /// knowledge base observable and traceable (a wrong memory can be found and rolled back).
+    private var auditSheet: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Label(model.t("memory.audit.title"), systemImage: "clock.arrow.circlepath").font(.sfCardTitle)
+                Spacer()
+                Button(model.t("common.done")) { showAudit = false }.keyboardShortcut(.defaultAction)
+            }
+            .padding(Space.m)
+            Divider()
+            if store.auditLog.isEmpty {
+                Spacer()
+                Text(model.t("memory.audit.empty")).font(.sfCaption2).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(store.auditLog) { e in
+                            HStack(spacing: Space.s) {
+                                Image(systemName: e.action.icon).font(.system(size: 12))
+                                    .foregroundStyle(e.action == .forgotten || e.action == .deleted ? Theme.danger : Theme.accent)
+                                    .frame(width: 18)
+                                Text(model.t(e.action.labelKey)).font(.sfCaption2.weight(.medium)).foregroundStyle(Theme.ink)
+                                Text(e.title.isEmpty ? model.t("memory.untitled") : e.title)
+                                    .font(.sfCaption2).foregroundStyle(.secondary).lineLimit(1)
+                                Spacer(minLength: Space.s)
+                                Text(e.at.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.sfFieldLabel).foregroundStyle(.tertiary)
+                            }
+                            .padding(.horizontal, Space.m).padding(.vertical, 6)
+                            Divider().opacity(0.4)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(width: 520, height: 460)
     }
 
     private var filtered: [Learning] {
-        let base = kindFilter.map { k in store.learnings.filter { $0.kind == k } } ?? store.learnings
+        var base = kindFilter.map { k in store.learnings.filter { $0.kind == k } } ?? store.learnings
+        // A hygiene focus narrows the list to just what needs attention.
+        switch focus {
+        case .pending:   base = base.filter { !$0.reviewed && !$0.pinned }
+        case .stale:     base = base.filter { MemoryHygiene.staleness($0, now: Date()) == .stale }
+        case .conflicts: base = base.filter { conflictIDs.contains($0.id) }
+        case nil:        break
+        }
         // Pinned first, then newest — a stable, scannable order.
         return base.sorted { a, b in
             if a.pinned != b.pinned { return a.pinned }
             return a.createdAt > b.createdAt
         }
     }
+
+    /// Ids involved in at least one contradiction (for the conflicts focus + row markers).
+    private var conflictIDs: Set<Learning.ID> {
+        Set(store.conflicts.flatMap { [$0.a, $0.b] })
+    }
+    private var staleCount: Int { store.staleLearnings().count }
 
     // MARK: - Left column
 
@@ -48,10 +107,13 @@ struct MemoryView: View {
                     .buttonStyle(.plain).help(model.t("memory.add"))
                 Button { importStateFile() } label: { Image(systemName: "square.and.arrow.down") }
                     .buttonStyle(.plain).help(model.t("memory.import"))
+                Button { showAudit = true } label: { Image(systemName: "clock.arrow.circlepath") }
+                    .buttonStyle(.plain).help(model.t("memory.audit.title"))
             }
             .padding(.horizontal, Space.m).padding(.top, Space.m).padding(.bottom, Space.s)
             .background(Theme.chromeBg)
 
+            attentionBar
             filterBar
             Divider()
 
@@ -72,6 +134,47 @@ struct MemoryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .translucentColumn()
+    }
+
+    /// A compact "needs attention" bar: pending approvals, stale (keep-or-forget), and
+    /// contradictions. Each pill toggles a focused review; hidden entirely when all is clean,
+    /// so the base stays quiet until there's genuinely something to decide.
+    @ViewBuilder private var attentionBar: some View {
+        let pending = store.pendingReviewCount
+        let stale = staleCount
+        let conflicts = store.conflicts.count
+        if pending + stale + conflicts > 0 {
+            HStack(spacing: Space.xs) {
+                if pending > 0 {
+                    attentionPill(.pending, "tray.full", "\(pending)", model.t("memory.attn.pending"), Theme.warning)
+                }
+                if conflicts > 0 {
+                    attentionPill(.conflicts, "arrow.triangle.branch", "\(conflicts)", model.t("memory.attn.conflicts"), Theme.danger)
+                }
+                if stale > 0 {
+                    attentionPill(.stale, "wind", "\(stale)", model.t("memory.attn.stale"), Theme.inkDim)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, Space.s).padding(.vertical, Space.xs)
+        }
+    }
+
+    private func attentionPill(_ f: Focus, _ icon: String, _ count: String, _ label: String, _ tint: Color) -> some View {
+        let on = focus == f
+        return Button { focus = on ? nil : f; selectedID = nil } label: {
+            HStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 10))
+                Text(count).font(.sfCaption2.weight(.semibold)).monospacedDigit()
+                Text(label).font(.sfCaption2)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(on ? tint.opacity(0.18) : Theme.insetBg))
+            .overlay(Capsule().strokeBorder(on ? tint.opacity(0.6) : .clear, lineWidth: 1))
+            .foregroundStyle(Theme.ink)
+        }
+        .buttonStyle(.plain)
+        .help(label)
     }
 
     private var filterBar: some View {
@@ -118,6 +221,14 @@ struct MemoryView: View {
                          }
                          .buttonStyle(.plain)
                          .help(model.t("memory.pending.help"))
+                     }
+                     if conflictIDs.contains(learning.id) {
+                         Image(systemName: "arrow.triangle.branch").font(.system(size: 10)).foregroundStyle(Theme.danger)
+                             .help(model.t("memory.attn.conflicts"))
+                     }
+                     if MemoryHygiene.staleness(learning, now: Date()) == .stale {
+                         Image(systemName: "wind").font(.system(size: 10)).foregroundStyle(Theme.inkDim)
+                             .help(model.t("memory.staleness.stale"))
                      }
                      if learning.pinned {
                          Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(Theme.accent)
@@ -172,6 +283,27 @@ struct MemoryView: View {
                     .buttonStyle(.bordered).controlSize(.small)
                 }
 
+                // Contradiction notice: this memory disagrees with another about the same
+                // subject. We never auto-merge — the human decides which survives.
+                if let other = conflictingPartner(learning.wrappedValue) {
+                    hygieneNotice(icon: "arrow.triangle.branch", tint: Theme.danger,
+                                  text: model.t("memory.conflict.notice", other.title)) {
+                        Button(model.t("memory.conflict.open")) { selectedID = other.id }
+                            .buttonStyle(.bordered).controlSize(.small)
+                    }
+                }
+                // Staleness notice: old + long unused → keep (mark relevant) or forget.
+                if MemoryHygiene.staleness(learning.wrappedValue, now: Date()) == .stale {
+                    hygieneNotice(icon: "wind", tint: Theme.inkDim, text: model.t("memory.stale.notice")) {
+                        Button(model.t("memory.stale.keep")) { store.markApplied(ids: [learning.wrappedValue.id]) }
+                            .buttonStyle(.bordered).controlSize(.small)
+                        Button(model.t("memory.stale.forget"), role: .destructive) {
+                            store.delete(learning.wrappedValue.id, forgotten: true); selectedID = nil
+                        }
+                        .buttonStyle(.bordered).controlSize(.small)
+                    }
+                }
+
                 field(model.t("memory.field.title")) {
                     TextField(model.t("memory.field.title"), text: learning.title).textFieldStyle(.roundedBorder)
                 }
@@ -196,6 +328,30 @@ struct MemoryView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// A calm inset banner used for the conflict / stale prompts — icon + explanation + actions.
+    private func hygieneNotice<Actions: View>(icon: String, tint: Color, text: String,
+                                              @ViewBuilder actions: () -> Actions) -> some View {
+        HStack(alignment: .top, spacing: Space.s) {
+            Image(systemName: icon).foregroundStyle(tint).font(.sfCallout)
+            VStack(alignment: .leading, spacing: Space.s) {
+                Text(text).font(.sfCaption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: Space.s) { actions() }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(Space.m)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(tint.opacity(0.25), lineWidth: 1))
+    }
+
+    /// The other learning this one conflicts with (same subject + scope, divergent guidance).
+    private func conflictingPartner(_ l: Learning) -> Learning? {
+        guard let c = store.conflicts.first(where: { $0.a == l.id || $0.b == l.id }) else { return nil }
+        let otherID = (c.a == l.id) ? c.b : c.a
+        return store.learning(otherID)
     }
 
     private func field<Content: View>(_ label: String, @ViewBuilder _ content: () -> Content) -> some View {
