@@ -67,6 +67,9 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
     /// How many times this learning has been injected into a generated file — a light
     /// usefulness signal for ranking.
     var timesApplied: Int
+    /// When it was last injected into a run — the "still relevant?" signal for staleness
+    /// (a memory nobody has used in months is a candidate to forget). nil = never applied.
+    var lastAppliedAt: Date?
     /// Pinned learnings always sort first and are always eligible for injection.
     var pinned: Bool
     /// Human-reviewed = canonical (the "operational truth layer": knowledge enters the corpus
@@ -78,7 +81,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
     init(id: UUID = UUID(), kind: LearningKind, title: String, body: String = "",
          tags: [String] = [], repoScope: String? = nil,
          source: LearningSource, createdAt: Date = Date(), updatedAt: Date? = nil,
-         timesApplied: Int = 0, pinned: Bool = false, reviewed: Bool = true) {
+         timesApplied: Int = 0, lastAppliedAt: Date? = nil, pinned: Bool = false, reviewed: Bool = true) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -89,6 +92,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
         self.timesApplied = timesApplied
+        self.lastAppliedAt = lastAppliedAt
         self.pinned = pinned
         self.reviewed = reviewed
     }
@@ -96,7 +100,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
     // Tolerant decode so older saved data (without newer keys) still loads — the same
     // per-field `decodeIfPresent ?? default` idiom as AppSettings.
     private enum CodingKeys: String, CodingKey {
-        case id, kind, title, body, tags, repoScope, source, createdAt, updatedAt, timesApplied, pinned, reviewed
+        case id, kind, title, body, tags, repoScope, source, createdAt, updatedAt, timesApplied, lastAppliedAt, pinned, reviewed
     }
 
     init(from decoder: Decoder) throws {
@@ -112,6 +116,7 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
         timesApplied = try c.decodeIfPresent(Int.self, forKey: .timesApplied) ?? 0
+        lastAppliedAt = try c.decodeIfPresent(Date.self, forKey: .lastAppliedAt)
         pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
         // Grandfather entries saved before review existed → treated as reviewed (don't silently
         // drop knowledge the user already relied on).
@@ -123,4 +128,30 @@ struct Learning: Identifiable, Codable, Hashable, Sendable {
     var dedupeKey: String {
         "\(kind.rawValue)|\(title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())|\(repoScope ?? "")"
     }
+}
+
+/// An audit-trail entry: what happened to the knowledge base, and when. A wrong memory
+/// persists into every future run that reads it, so control means keeping the learning
+/// observable — export, inspect, roll back (Anthropic's memory-control guidance).
+struct MemoryEvent: Identifiable, Codable, Hashable, Sendable {
+    enum Action: String, Codable, Sendable {
+        case added, approved, edited, pinned, unpinned, deleted, forgotten
+        var labelKey: String { "memory.audit.\(rawValue)" }
+        var icon: String {
+            switch self {
+            case .added:     return "plus.circle"
+            case .approved:  return "checkmark.seal"
+            case .edited:    return "pencil"
+            case .pinned:    return "pin.fill"
+            case .unpinned:  return "pin.slash"
+            case .deleted:   return "trash"
+            case .forgotten: return "wind"
+            }
+        }
+    }
+    var id: UUID = UUID()
+    var action: Action
+    /// Snapshot of the learning's title at the time (so the log is readable even after delete).
+    var title: String
+    var at: Date
 }

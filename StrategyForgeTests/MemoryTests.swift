@@ -326,3 +326,87 @@ struct MemoryLogicTests {
         #expect(out.contains("- **No force unwrap**"))
     }
 }
+
+@MainActor
+struct MemoryHygieneTests {
+
+    private func learning(_ title: String, kind: LearningKind = .pattern, scope: String? = nil,
+                          created: Date, applied: Date? = nil, pinned: Bool = false, body: String = "b") -> Learning {
+        Learning(kind: kind, title: title, body: body, repoScope: scope,
+                 source: LearningSource(origin: .manual), createdAt: created,
+                 lastAppliedAt: applied, pinned: pinned)
+    }
+
+    @Test func stalenessTiersOnAgeAndDisuse() {
+        let now = Date(timeIntervalSince1970: 1_000 * 86_400)
+        let fresh = learning("a", created: now.addingTimeInterval(-10 * 86_400))
+        let aging = learning("b", created: now.addingTimeInterval(-70 * 86_400))
+        let stale = learning("c", created: now.addingTimeInterval(-200 * 86_400))
+        #expect(MemoryHygiene.staleness(fresh, now: now) == .fresh)
+        #expect(MemoryHygiene.staleness(aging, now: now) == .aging)
+        #expect(MemoryHygiene.staleness(stale, now: now) == .stale)
+    }
+
+    @Test func recentApplyResetsStaleness() {
+        let now = Date(timeIntervalSince1970: 1_000 * 86_400)
+        // Old creation, but applied yesterday → fresh (still relevant).
+        let l = learning("x", created: now.addingTimeInterval(-300 * 86_400),
+                         applied: now.addingTimeInterval(-1 * 86_400))
+        #expect(MemoryHygiene.staleness(l, now: now) == .fresh)
+    }
+
+    @Test func pinnedNeverGoesStale() {
+        let now = Date(timeIntervalSince1970: 1_000 * 86_400)
+        let l = learning("x", created: now.addingTimeInterval(-999 * 86_400), pinned: true)
+        #expect(MemoryHygiene.staleness(l, now: now) == .fresh)
+    }
+
+    @Test func conflictsSurfaceDivergentGuidanceOnSameSubject() {
+        let now = Date()
+        // Same subject + scope, DIFFERENT kind (pattern vs mistake) → conflict.
+        let a = learning("Deploy via CI", kind: .pattern, scope: "repoA", created: now, body: "always CI")
+        let b = learning("Deploy via CI", kind: .mistake, scope: "repoA", created: now, body: "CI is flaky")
+        let conflicts = MemoryHygiene.conflicts([a, b])
+        #expect(conflicts.count == 1)
+        #expect(conflicts.first?.subject == "Deploy via CI")
+    }
+
+    @Test func noConflictAcrossDifferentScopesOrSubjects() {
+        let now = Date()
+        let a = learning("Deploy via CI", kind: .pattern, scope: "repoA", created: now)
+        let b = learning("Deploy via CI", kind: .mistake, scope: "repoB", created: now)  // different scope
+        let c = learning("Use tabs", kind: .pattern, scope: "repoA", created: now)       // different subject
+        #expect(MemoryHygiene.conflicts([a, b, c]).isEmpty)
+    }
+}
+
+@MainActor
+struct MemoryAuditTests {
+
+    private func freshStore() -> MemoryStore {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return MemoryStore(storeDirectory: dir)
+    }
+
+    @Test func auditTrailRecordsAddApproveForget() {
+        let store = freshStore()
+        let id = store.add(Learning(kind: .pattern, title: "T", source: LearningSource(origin: .review), reviewed: false))
+        store.approve(id)
+        store.delete(id, forgotten: true)
+        let actions = store.auditLog.map(\.action)
+        #expect(actions.contains(.added))
+        #expect(actions.contains(.approved))
+        #expect(actions.contains(.forgotten))
+        // Newest first.
+        #expect(store.auditLog.first?.action == .forgotten)
+    }
+
+    @Test func markAppliedRefreshesLastApplied() {
+        let store = freshStore()
+        let id = store.add(Learning(kind: .pattern, title: "T", source: LearningSource(origin: .manual)))
+        #expect(store.learning(id)?.lastAppliedAt == nil)
+        store.markApplied(ids: [id])
+        #expect(store.learning(id)?.lastAppliedAt != nil)
+    }
+}

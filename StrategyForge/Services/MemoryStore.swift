@@ -27,6 +27,16 @@ final class MemoryStore {
 
     private(set) var learnings: [Learning] = []
 
+    /// Audit trail (newest first, capped) — what was learned, approved, edited, forgotten, and
+    /// when. Keeps the knowledge base observable so a wrong memory can be traced and rolled back.
+    private(set) var auditLog: [MemoryEvent] = []
+    private static let auditCap = 300
+
+    private func audit(_ action: MemoryEvent.Action, _ title: String) {
+        auditLog.insert(MemoryEvent(action: action, title: title, at: Date()), at: 0)
+        if auditLog.count > Self.auditCap { auditLog.removeLast(auditLog.count - Self.auditCap) }
+    }
+
     /// Error sink wired by the app shell: (localization key, %@ detail).
     @ObservationIgnored var onError: ((String, String) -> Void)?
     /// A corrupt-load error parked until the app shell can show it (load() runs before
@@ -62,6 +72,7 @@ final class MemoryStore {
             return learnings[i].id
         }
         learnings.insert(learning, at: 0)
+        audit(.added, learning.title)
         save()
         return learning.id
     }
@@ -71,11 +82,20 @@ final class MemoryStore {
         var edited = learning
         edited.updatedAt = Date()                                // stamp for last-writer-wins
         learnings[i] = edited
+        audit(.edited, edited.title)
         save()
     }
 
     func delete(_ id: Learning.ID) {
+        delete(id, forgotten: false)
+    }
+
+    /// Delete a learning. `forgotten: true` marks it in the audit trail as a deliberate
+    /// "forget" (staleness sweep) rather than a plain manual delete.
+    func delete(_ id: Learning.ID, forgotten: Bool) {
+        guard let l = learnings.first(where: { $0.id == id }) else { return }
         learnings.removeAll { $0.id == id }
+        audit(forgotten ? .forgotten : .deleted, l.title)
         save()
     }
 
@@ -83,6 +103,7 @@ final class MemoryStore {
         guard let i = learnings.firstIndex(where: { $0.id == id }) else { return }
         learnings[i].pinned.toggle()
         learnings[i].updatedAt = Date()
+        audit(learnings[i].pinned ? .pinned : .unpinned, learnings[i].title)
         save()
     }
 
@@ -92,6 +113,7 @@ final class MemoryStore {
         guard let i = learnings.firstIndex(where: { $0.id == id }), !learnings[i].reviewed else { return }
         learnings[i].reviewed = true
         learnings[i].updatedAt = Date()
+        audit(.approved, learnings[i].title)
         save()
     }
 
@@ -102,11 +124,21 @@ final class MemoryStore {
     func markApplied(ids: [Learning.ID]) {
         guard !ids.isEmpty else { return }
         let set = Set(ids)
+        let now = Date()
         for i in learnings.indices where set.contains(learnings[i].id) {
             learnings[i].timesApplied += 1
+            learnings[i].lastAppliedAt = now   // refresh relevance → resets staleness
         }
         save()
     }
+
+    // MARK: - Hygiene (forgetting + contradictions)
+
+    /// Stale learnings (old + long unused, never pinned) — surfaced for a keep-or-forget review.
+    func staleLearnings(now: Date = Date()) -> [Learning] { MemoryHygiene.staleLearnings(learnings, now: now) }
+    /// Conflicting pairs (same subject + scope, divergent guidance) — surfaced, never auto-merged.
+    var conflicts: [MemoryConflict] { MemoryHygiene.conflicts(learnings) }
+    func learning(_ id: Learning.ID) -> Learning? { learnings.first { $0.id == id } }
 
     // MARK: - Digest + reflection
 
@@ -159,13 +191,15 @@ final class MemoryStore {
 
         var schemaVersion: Int
         var learnings: [Learning]
+        var auditLog: [MemoryEvent]
 
-        init(learnings: [Learning], schemaVersion: Int = currentVersion) {
+        init(learnings: [Learning], auditLog: [MemoryEvent] = [], schemaVersion: Int = currentVersion) {
             self.schemaVersion = schemaVersion
             self.learnings = learnings
+            self.auditLog = auditLog
         }
 
-        enum CodingKeys: String, CodingKey { case schemaVersion, learnings }
+        enum CodingKeys: String, CodingKey { case schemaVersion, learnings, auditLog }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -182,13 +216,14 @@ final class MemoryStore {
             } else {
                 learnings = []
             }
+            auditLog = (try? c.decodeIfPresent([MemoryEvent].self, forKey: .auditLog)) ?? []
         }
     }
 
     private var storeURL: URL { storeDirectory.appendingPathComponent("memory.json") }
 
     func save() {
-        let state = Persisted(learnings: learnings)
+        let state = Persisted(learnings: learnings, auditLog: auditLog)
         do {
             let data = try JSONEncoder().encode(state)
             try data.write(to: storeURL, options: .atomic)
@@ -213,5 +248,6 @@ final class MemoryStore {
             return
         }
         learnings = decoded.learnings
+        auditLog = decoded.auditLog
     }
 }
