@@ -12,13 +12,21 @@ import Foundation
 import Observation
 
 struct ChatMessage: Identifiable, Hashable, Codable {
-    enum Role: String, Codable { case user, assistant }
+    /// `peer` is a message that arrived from one of your OTHER chats (see PeerMessage).
+    /// It reads like a prompt but it isn't one: the user didn't write it, so the
+    /// transcript attributes it to the sending chat rather than to them.
+    enum Role: String, Codable { case user, assistant, peer }
     var id = UUID()
     var role: Role
     var text: String
     /// Absolute path to a generated image (PNG) rendered inline in the transcript — nil for a
     /// normal text turn. Optional so old persisted transcripts decode unchanged.
     var imagePath: String? = nil
+    /// For a `.peer` row: the name of the chat that sent it, and its id as the reply
+    /// address. Both nil on every other role, and on transcripts written before this
+    /// existed, so old persisted data decodes unchanged.
+    var peerSender: String? = nil
+    var peerReplyTo: UUID? = nil
 }
 
 /// Reasoning effort for a turn — from fastest to most thorough. Steers how hard the
@@ -179,6 +187,10 @@ struct QueuedMessage: Identifiable, Hashable {
     let id = UUID()
     var text: String
     var attachments: [Attachment]
+    /// Set when the queued item is a message from ANOTHER chat rather than the user's
+    /// type-ahead — it runs as a peer turn when the queue drains. Sharing one queue is
+    /// deliberate: it keeps arrival order across both sources with no second scheduler.
+    var peer: PeerMessage? = nil
 }
 
 /// The infrastructure settings a run reads FRESH each turn — CLI binary paths, API
@@ -836,12 +848,58 @@ final class ChatViewModel {
     /// If the run is idle and messages are waiting, send the next one. Called at the end
     /// of every finished turn so the queue drains one message per turn, in order.
     private func flushQueue() {
-        guard !isRunning, !queued.isEmpty else { return }
+        // `repoFolderMissing` is checked here, not just in `send`: flushing pops the
+        // item BEFORE sending, so draining into a `send` that bails would eat it.
+        guard !isRunning, !queued.isEmpty, !repoFolderMissing else { return }
         let next = queued.removeFirst()
+        if let peer = next.peer { send(peer: peer); return }
         input = next.text
         attachments = next.attachments
         send()
     }
+
+    /// Deliver a message from another chat (see PeerMessage). It becomes a real turn —
+    /// the same machinery as a prompt the user typed, minus the authority.
+    ///
+    /// Behind a running turn it waits in the same queue as the user's type-ahead, so
+    /// both land in arrival order with no second scheduler. Claude Code reads a peer
+    /// message between tool calls; a Coral turn is one headless process we can't
+    /// interrupt, so the turn edge is the seam.
+    /// It ALWAYS enqueues and never starts a turn itself. Both properties are load-bearing:
+    ///
+    /// - **Order.** Joining the same queue at arrival is what actually gives the shared
+    ///   FIFO with the user's type-ahead. Starting immediately when the VM looked idle
+    ///   let a later peer message jump a prompt the user had queued earlier.
+    /// - **Reentrancy.** `isRunning`'s `didSet` fires `onRunningChanged` synchronously
+    ///   from inside the finishing run task, and AppModel delivers mail from there.
+    ///   Starting a turn at that point would cancel the very task running the epilogue
+    ///   and reset per-turn state under it — the old epilogue would then go on to remove
+    ///   the placeholder at ITS stale `assistantIndex`, shifting the new turn's slot and
+    ///   discarding its reply. (The `epoch == runEpoch` guard sits earlier in the
+    ///   epilogue, so it can't catch this.) Appending is inert; the epilogue's own
+    ///   `flushQueue()` then starts the turn at the right moment.
+    func receive(_ message: PeerMessage) {
+        queued.append(QueuedMessage(text: message.text, attachments: [], peer: message))
+        kickQueue()
+    }
+
+    /// Start draining if nothing is running. The hop through a Task is deliberate: this
+    /// can be reached from inside `isRunning`'s `didSet`, and the flush must not run
+    /// before the current turn's epilogue has finished.
+    private func kickQueue() {
+        guard !isRunning, !queued.isEmpty else { return }
+        Task { @MainActor [weak self] in
+            self?.flushQueue()
+        }
+    }
+
+    /// Hands peer mail back to the bus when a stop would otherwise strand it. Set by
+    /// AppModel; nil in tests and previews.
+    @ObservationIgnored var onPeerMailReturned: (([PeerMessage]) -> Void)?
+
+    /// Peer messages still queued and never run. Read when this VM is torn down, so
+    /// AppModel can hand them back to the bus instead of dropping them on the floor.
+    var undeliveredPeers: [PeerMessage] { queued.compactMap(\.peer) }
 
     /// The folder Claude runs in: the chosen repo, or a per-chat scratch folder so
     /// questions / document reviews work without picking a project.
@@ -942,8 +1000,18 @@ final class ChatViewModel {
         persist(messages)
     }
 
-    func send() {
-        var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Start a turn.
+    ///
+    /// `peer` is set when the turn was started by a message from ANOTHER chat rather
+    /// than by the user typing (see PeerMessage). A peer turn differs in four ways, all
+    /// of them about authority: the model gets the guard-railed framing instead of the
+    /// bare text, the transcript attributes the row to the sender, the composer's
+    /// interrogate/approaches toggles don't apply (they're the user's intent, not the
+    /// sender's), and it never auto-titles the chat or picks its team — another chat
+    /// doesn't get to name this one.
+    func send(peer: PeerMessage? = nil) {
+        var text = peer?.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isRunning else { return }
         // Fail clearly if the chosen project folder was moved/deleted, instead of
         // spawning the CLI in a missing directory and getting a cryptic error.
@@ -961,17 +1029,25 @@ final class ChatViewModel {
         let repo = workingDirectory()
 
         // Fold any attached files into the prompt + grant read access to their dirs.
-        let atts = attachments
-        attachments = []
+        // A peer message is text only — it never carries the sender's files.
+        let atts = peer == nil ? attachments : []
+        if peer == nil { attachments = [] }
         let extraDirs = Array(Set(atts.map { $0.url.deletingLastPathComponent().path }))
         lastExtraDirs = extraDirs
         let promptBody: String = atts.isEmpty ? text
             : text + "\n\nAttached files to review:\n" + atts.map { "- \($0.name): \($0.url.path)" }.joined(separator: "\n")
         // Steer reasoning depth by appending the effort directive to the REAL prompt
         // only (never the display text the user sees in the transcript).
-        var promptText = promptBody + effort.promptDirective
-        if grillMe { promptText += Self.grillDirective }   // interrogate me before implementing
-        if proposeApproaches { promptText += Self.approachesDirective }   // N approaches, I pick
+        // A peer turn is driven by the guard-railed framing, not the bare text, and the
+        // composer's toggles belong to the user — the other chat doesn't inherit them.
+        var promptText: String
+        if let peer {
+            promptText = peer.promptForModel + effort.promptDirective
+        } else {
+            promptText = promptBody + effort.promptDirective
+            if grillMe { promptText += Self.grillDirective }   // interrogate me before implementing
+            if proposeApproaches { promptText += Self.approachesDirective }   // N approaches, I pick
+        }
         // On the FIRST turn of a session, inject the repo's code map (when graphify has
         // built one) so the agent opens with structure instead of spending its window
         // re-reading files to rebuild the same map. It persists via session resume, so
@@ -984,7 +1060,7 @@ final class ChatViewModel {
         let displayText: String = atts.isEmpty ? text
             : text + "\n\n📎 " + atts.map { $0.name }.joined(separator: ", ")
 
-        input = ""
+        if peer == nil { input = "" }   // a peer turn never touches the user's draft
         errorText = nil
         activity = []
         activeSubagent = nil
@@ -1009,7 +1085,7 @@ final class ChatViewModel {
         authPromptedThisTurn = []
         lastStreamPersist = .distantPast
         runTask?.cancel()   // never leave a prior run's subprocess orphaned
-        if messages.isEmpty {
+        if messages.isEmpty, peer == nil {
             // First turn on an "auto" chat: recommend a team from the prompt with the
             // on-device model (async, free, private) BEFORE the run, so the very first
             // turn already uses the fitting team. `autoRecommendStrategy` returns nil
@@ -1031,13 +1107,14 @@ final class ChatViewModel {
             return
         }
         commitAndRun(promptText: promptText, displayText: displayText,
-                     repo: repo, useMeta: useMeta, extraDirs: extraDirs)
+                     repo: repo, useMeta: useMeta, extraDirs: extraDirs, peer: peer)
     }
 
     /// Write the team files, append the turn, and launch the run. Split out of `send`
     /// so the first turn can first `await` an on-device team recommendation.
     private func commitAndRun(promptText: String, displayText: String,
-                              repo: String, useMeta: Bool, extraDirs: [String]) {
+                              repo: String, useMeta: Bool, extraDirs: [String],
+                              peer: PeerMessage? = nil) {
         // Put the strategy's .claude files in the working folder so the team applies.
         if config.repoPath?.isEmpty ?? true {
             do {
@@ -1050,7 +1127,12 @@ final class ChatViewModel {
         } else {
             ensureStrategyFiles()
         }
-        messages.append(ChatMessage(role: .user, text: displayText))
+        if let peer {
+            messages.append(ChatMessage(role: .peer, text: displayText, peerSender: peer.fromName,
+                                        peerReplyTo: peer.fromChatID))
+        } else {
+            messages.append(ChatMessage(role: .user, text: displayText))
+        }
         messages.append(ChatMessage(role: .assistant, text: ""))
         let assistantIndex = messages.count - 1
         isRunning = true
@@ -1624,7 +1706,15 @@ final class ChatViewModel {
         pendingPermission = nil
         // Interrupting the run also drops anything queued behind it — the user hit stop,
         // so don't quietly fire off the messages they'd lined up.
+        //
+        // Peer mail is the exception, and it has to be read AFTER `isRunning = false`:
+        // that assignment synchronously delivers anything the bus was holding, so this
+        // is the first point where the queue is complete. The user never saw those
+        // messages, so dropping them the way we drop their own type-ahead would lose
+        // mail silently — hand them back to the bus instead.
+        let strandedPeers = undeliveredPeers
         queued = []
+        if !strandedPeers.isEmpty { onPeerMailReturned?(strandedPeers) }
         Analytics.log(.runCancelled)
     }
 }

@@ -100,6 +100,11 @@ struct ChatView: View {
     /// Artifact viewer: the blocks to show and whether the sheet is open.
     @State private var shownArtifacts: [Artifact] = []
     @State private var showArtifacts = false
+    /// Cross-chat messaging: the compose sheet, its draft, and the chat it targets
+    /// (pre-set when replying to a message this chat received).
+    @State private var showPeerSend = false
+    @State private var peerReplyTarget: Configuration.ID?
+    @State private var peerDraft = ""
     /// Persisted, user-resizable width of the agent-activity panel.
     @AppStorage("col.activity") private var activityW = 320.0
     /// Width of the right-side Code workspace panel (files/diffs/terminal/git). Wider
@@ -1065,7 +1070,46 @@ struct ChatView: View {
 
     @ViewBuilder
     private func bubble(_ message: ChatMessage, isStreaming: Bool) -> some View {
-        if message.role == .user {
+        if message.role == .peer {
+            // A message from ANOTHER chat. Deliberately NOT a user bubble: the user
+            // didn't write it, and reading it as if they had is exactly the confusion
+            // worth designing out. So it's a full-width note, attributed to the sender,
+            // with the reply affordance instead of "edit".
+            HStack(alignment: .top, spacing: Space.s) {
+                Image(systemName: "arrow.left.arrow.right.circle.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.inkDim)
+                    .frame(width: 28, alignment: .center)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text(model.t("peer.from", message.peerSender ?? model.t("chat.untitled")))
+                        .font(.sfCaption2)
+                        .foregroundStyle(Theme.inkDim)
+                    Text(message.text)
+                        .font(.sfBodyM)
+                        .lineSpacing(Theme.bodyLineSpacing)
+                        .foregroundStyle(Theme.ink)
+                        .textSelection(.enabled)
+                }
+                .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.bubbleCorner, style: .continuous)
+                        .fill(Theme.userBubbleChip))
+                .contextMenu {
+                    copyButton(message.text)
+                    if let replyTo = message.peerReplyTo,
+                       model.configurations.contains(where: { $0.id == replyTo }) {
+                        Button {
+                            peerReplyTarget = replyTo
+                            showPeerSend = true
+                        } label: {
+                            Label(model.t("peer.reply"), systemImage: "arrowshape.turn.up.left")
+                        }
+                    }
+                }
+            }
+        } else if message.role == .user {
             // User: compact bubble on the right. Capped at ~560 so a long message shares
             // the same calm column as the assistant (not a full-width coral slab), with a
             // near-flat shadow so the transcript doesn't read as a row of buttons (wave B).
@@ -1857,6 +1901,96 @@ struct ChatView: View {
                                     set: { if !$0 { vm.pendingPermission = nil } })) {
             if let p = vm.pendingPermission { permissionSheet(p) }
         }
+        .sheet(isPresented: $showPeerSend) { peerSendSheet }
+    }
+
+    // MARK: - Cross-chat messaging
+
+    /// Compose a message to another chat, and clear whatever mail is waiting on this
+    /// one's approval. Both live in one sheet because they're the same conversation
+    /// seen from its two ends, and because the inbound default is "ask me first" — held
+    /// mail needs somewhere to be answered or the feature never delivers anything.
+    private var peerSendSheet: some View {
+        let targets = model.peerTargets(excluding: vm.config.id)
+        let held = model.peerBus.heldMessages(for: vm.config.id)
+        return VStack(alignment: .leading, spacing: Space.m) {
+            Text(model.t("peer.send.title")).font(.sfCardTitle)
+            Text(model.t("peer.send.caption"))
+                .font(.sfCaption2).foregroundStyle(Theme.inkDim)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !held.isEmpty {
+                Divider()
+                Text(model.t("peer.inbox.title")).font(.sfFieldLabel)
+                ForEach(held) { message in
+                    HStack(alignment: .top, spacing: Space.s) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(model.t("peer.from", message.fromName))
+                                .font(.sfCaption2).foregroundStyle(Theme.inkDim)
+                            Text(message.text).font(.sfCallout).foregroundStyle(Theme.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: Space.s)
+                        Button(model.t("peer.inbox.approve")) {
+                            model.peerBus.approveHeld(message.id, for: vm.config.id)
+                            model.deliverPeerMail(to: vm.config.id)
+                        }
+                        Button(model.t("peer.inbox.deny")) {
+                            model.peerBus.dropHeld(message.id, for: vm.config.id)
+                        }
+                    }
+                }
+                Divider()
+            }
+
+            if targets.isEmpty {
+                Text(model.t("peer.send.noTargets"))
+                    .font(.sfCallout).foregroundStyle(Theme.inkDim)
+            } else {
+                Picker(model.t("peer.send.to"), selection: $peerReplyTarget) {
+                    ForEach(targets) { target in
+                        Text(model.chatDisplayName(target.id)).tag(Optional(target.id))
+                    }
+                }
+                TextEditor(text: $peerDraft)
+                    .font(.sfBodyM)
+                    .frame(minHeight: 90)
+                    .overlay(alignment: .topLeading) {
+                        if peerDraft.isEmpty {
+                            Text(model.t("peer.send.placeholder"))
+                                .font(.sfBodyM).foregroundStyle(Theme.inkDim)
+                                .padding(.top, 8).padding(.leading, 5)
+                                .allowsHitTesting(false)
+                        }
+                    }
+            }
+
+            HStack {
+                Spacer()
+                Button(model.t("common.cancel")) { showPeerSend = false }
+                Button(model.t("peer.send.action")) { sendPeerDraft() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(peerReplyTarget == nil
+                              || peerDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(Space.l)
+        .frame(width: 460)
+        .onAppear { if peerReplyTarget == nil { peerReplyTarget = targets.first?.id } }
+    }
+
+    private func sendPeerDraft() {
+        guard let target = peerReplyTarget else { return }
+        let outcome = model.sendPeerMessage(peerDraft, from: vm.config.id, to: target)
+        switch outcome {
+        case .queued, .held:
+            // `.held` already flashed its own notice from AppModel.
+            if outcome == .queued { model.flashSuccess(model.t("peer.sent", model.chatDisplayName(target))) }
+            peerDraft = ""
+            showPeerSend = false
+        case .refused(let why):
+            model.flashFailure(model.t(why.labelKey))
+        }
     }
 
     /// The reference's circular gradient send control: a coral-filled Circle with a
@@ -2003,7 +2137,7 @@ struct ChatView: View {
     // MARK: - Slash commands
 
     private struct SlashCommand: Identifiable {
-        enum Action { case mode(String), effort(Effort), clear }
+        enum Action { case mode(String), effort(Effort), clear, peerSend }
         let name: String
         let descKey: String
         let icon: String
@@ -2019,7 +2153,9 @@ struct ChatView: View {
          .init(name: "fast", descKey: "slash.fast", icon: "hare", action: .effort(.fast)),
          .init(name: "think", descKey: "slash.think", icon: "brain", action: .effort(.high)),
          .init(name: "ultra", descKey: "slash.ultra", icon: "sparkles", action: .effort(.ultra)),
-         .init(name: "clear", descKey: "slash.clear", icon: "eraser", action: .clear)]
+         .init(name: "clear", descKey: "slash.clear", icon: "eraser", action: .clear),
+         .init(name: "message", descKey: "slash.message", icon: "arrow.left.arrow.right.circle",
+               action: .peerSend)]
     }
 
     private var slashPopover: some View {
@@ -2065,6 +2201,9 @@ struct ChatView: View {
         case .clear:
             vm.clearTranscript()
             saveDraft("")
+        case .peerSend:
+            peerReplyTarget = nil   // let the sheet default to the first available chat
+            showPeerSend = true
         }
         vm.input = ""
         slashMatches = []

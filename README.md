@@ -58,6 +58,14 @@ normal Gatekeeper allow.
   and opt-in **Auto-PR** when a run finishes. A one-tap **Review** runs an independent
   read-only agent over the working diff and surfaces bugs/regressions (by severity) before
   you commit — reviewer ≠ author, applied to code.
+- **Let chats message each other.** A chat can send a short, plain-text note to one of
+  your other chats (`/message`) — "the migration landed, rebasing is safe now" — so a
+  finding crosses between parallel chats and worktrees instead of you copy-pasting
+  between them. Modeled on Claude Code's cross-session messaging, with the same limits:
+  text only (never the sender's transcript, files, or context), the receiving chat is
+  told it came from another chat and not from you, so it can't approve anything or
+  change configuration, and repeats are throttled so two chats can't loop. Arriving mail
+  waits for your approval by default.
 - **Generate the config files.** Coral can also just write the Claude Code configuration
   (`.claude/agents/*.md` + an orchestration `CLAUDE.md`) into a repo, so a team you
   designed here runs in a plain `claude` session too. A team with teammates also gets a
