@@ -69,6 +69,23 @@ struct SettingsView: View {
                 }
                 Text(model.t("settings.autonomy.caption"))
                     .font(.caption).foregroundStyle(.secondary)
+
+                Picker(model.t("settings.peerInbound"), selection: Binding(
+                    get: { model.settings.peerInbound },
+                    set: {
+                        model.settings.peerInbound = $0
+                        model.save()
+                        // Re-apply to anything already held, the way Claude Code
+                        // re-evaluates held messages when the mode changes.
+                        model.applyPeerInboundChange()
+                    }
+                )) {
+                    ForEach(PeerInbound.allCases) { level in
+                        Text(model.t(level.labelKey)).tag(level)
+                    }
+                }
+                Text(model.t("settings.peerInbound.caption"))
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             // De-duplicated: provider connection lives in ONE canonical place — the

@@ -1084,6 +1084,7 @@ final class AppModel {
         for i in configurations.indices where configurations[i].continuedFrom == id {
             configurations[i].continuedFrom = nil
         }
+        peerBus.forget(id)   // drop its inbox + every route touching it
         discardPendingTranscriptWrites(id)   // a straggler must not resurrect the sidecar
         try? FileManager.default.removeItem(at: activityURL(id))     // drop the history sidecar
         try? FileManager.default.removeItem(at: transcriptURL(id))   // and the transcript sidecar
@@ -2041,6 +2042,8 @@ final class AppModel {
                 self.runningChatIDs.insert(id)
             } else {
                 self.runningChatIDs.remove(id)
+                // The turn edge is the delivery seam for mail that arrived mid-run.
+                self.deliverPeerMail(to: id)
                 let elsewhere = self.navSection != .chats || self.selectedConfigID != id
                 let needsPermission = !(vm?.deniedTools.isEmpty ?? true)
                 // Finish banner only when the user is somewhere else.
@@ -2064,10 +2067,87 @@ final class AppModel {
         return vm
     }
 
+    // MARK: - Cross-chat messaging
+
+    /// The inbox behind chat-to-chat messages (see PeerMessage).
+    ///
+    /// It lives on AppModel, not on the ChatViewModel, for two reasons: VMs are evicted
+    /// for memory (`evictIdleChatVMs`) and mail has to outlive them, and Coral's `claude`
+    /// processes are per-turn, so the app is the only thing here with a long enough life
+    /// to hold an inbox at all.
+    @ObservationIgnored let peerBus = PeerMessageBus()
+
+    /// A chat's name as it should read to another chat.
+    func chatDisplayName(_ id: Configuration.ID) -> String {
+        let name = configurations.first(where: { $0.id == id })?.name ?? ""
+        return name.isEmpty ? t("chat.untitled") : name
+    }
+
+    /// The chats a given chat can address — the `ListAgents` analogue. Every other chat
+    /// qualifies: unlike Claude Code, reachability here doesn't depend on the target
+    /// running, because Coral holds the inbox.
+    func peerTargets(excluding sender: Configuration.ID?) -> [Configuration] {
+        configurations.filter { $0.id != sender }
+    }
+
+    /// Send a plain-text message from one chat to another — the `SendMessage` analogue.
+    /// Text only: never the sender's transcript, files, or context.
+    @discardableResult
+    func sendPeerMessage(_ text: String, from senderID: Configuration.ID,
+                         to receiverID: Configuration.ID) -> PeerDeliveryOutcome {
+        guard configurations.contains(where: { $0.id == receiverID }) else {
+            return .refused(.unknownPeer)
+        }
+        let message = PeerMessage(fromChatID: senderID, fromName: chatDisplayName(senderID),
+                                  text: text, sentAt: Date())
+        let outcome = peerBus.offer(message, to: receiverID,
+                                    policy: settings.peerInbound, now: Date())
+        switch outcome {
+        case .queued:
+            deliverPeerMail(to: receiverID)
+        case .held:
+            // Nothing runs until the user approves, so tell them there's mail waiting.
+            flagAttention(receiverID, critical: false)
+            flashSuccess(t("peer.held", chatDisplayName(receiverID)))
+        case .refused:
+            break
+        }
+        return outcome
+    }
+
+    /// Hand a chat whatever mail is waiting for it.
+    ///
+    /// Only when it's idle: a Coral turn is one headless `claude` process that can't be
+    /// interrupted mid-flight, so the turn edge is the delivery seam. A running chat
+    /// drains instead from `onRunningChanged` when its turn ends. The first message
+    /// starts a turn and the rest queue inside the VM, in arrival order.
+    func deliverPeerMail(to id: Configuration.ID) {
+        guard peerBus.queuedCount(for: id) > 0 else { return }
+        guard let vm = chatViewModel(for: id), !vm.isRunning else { return }
+        for message in peerBus.drainQueued(for: id) { vm.receive(message) }
+        if navSection != .chats || selectedConfigID != id {
+            flagAttention(id, critical: false)
+        }
+    }
+
+    /// Re-apply the inbound rule to every chat after the setting changes: an `accept`
+    /// releases what was held, a `refuse` drops it. Mirrors Claude Code re-applying the
+    /// inbound rules when a session's mode changes while messages are held.
+    func applyPeerInboundChange() {
+        let policy = settings.peerInbound
+        for config in configurations {
+            peerBus.applyPolicyChange(policy, for: config.id)
+            if policy == .accept { deliverPeerMail(to: config.id) }
+        }
+    }
+
     /// Drop a chat's cached VM (stops any in-flight run). Call after the chat's
     /// repo binding changes or before deleting the chat — NEVER from a view body.
     func invalidateChatVM(_ id: Configuration.ID) {
         if let vm = chatVMs[id] {
+            // Hand any undelivered mail back to the bus before the VM goes away —
+            // eviction is a memory decision and must not cost the chat its messages.
+            peerBus.requeue(vm.undeliveredPeers, for: id)
             // Detach the running-state callback first: stop() flips isRunning,
             // and the callback would otherwise flash a spurious "turn done"
             // banner for a chat that is being deleted or re-bound.

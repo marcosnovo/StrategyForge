@@ -73,6 +73,11 @@ struct AppSettings: Codable, Hashable {
     /// Providers pinned to the left rail's usage door — up to 3, so a multi-provider user can
     /// watch what matters in that tiny space without oversaturating it. Default: just Claude.
     var usageFavorites: [String]
+    /// What a chat does with messages arriving from your OTHER chats (see PeerMessage).
+    /// Defaults to `.hold`: a message from another chat starts a real turn that spends
+    /// tokens and can touch the repo, so the first one asks before it lands. Set it to
+    /// `.accept` once you trust the flow — unattended loops need `.accept` to react at all.
+    var peerInbound: PeerInbound
 
     init(
         defaultReposPath: String? = nil,
@@ -91,7 +96,8 @@ struct AppSettings: Codable, Hashable {
         votedFutureProviders: Set<String> = [],
         requestedProviders: [String] = [],
         loopWebhookURL: String? = nil,
-        usageFavorites: [String] = ["claude"]
+        usageFavorites: [String] = ["claude"],
+        peerInbound: PeerInbound = .hold
     ) {
         self.defaultReposPath = defaultReposPath
         self.defaultReposBookmark = defaultReposBookmark
@@ -110,6 +116,7 @@ struct AppSettings: Codable, Hashable {
         self.requestedProviders = requestedProviders
         self.loopWebhookURL = loopWebhookURL
         self.usageFavorites = usageFavorites
+        self.peerInbound = peerInbound
     }
 
     // Tolerant decoding so older saved data (without newer keys) still loads.
@@ -120,6 +127,7 @@ struct AppSettings: Codable, Hashable {
         case votedFutureProviders, requestedProviders
         case loopWebhookURL
         case usageFavorites
+        case peerInbound
     }
 
     init(from decoder: Decoder) throws {
@@ -141,6 +149,7 @@ struct AppSettings: Codable, Hashable {
         requestedProviders = try c.decodeIfPresent([String].self, forKey: .requestedProviders) ?? []
         loopWebhookURL = try c.decodeIfPresent(String.self, forKey: .loopWebhookURL)
         usageFavorites = try c.decodeIfPresent([String].self, forKey: .usageFavorites) ?? ["claude"]
+        peerInbound = try c.decodeIfPresent(PeerInbound.self, forKey: .peerInbound) ?? .hold
     }
 
     /// Providers pinned to the rail's usage door (mapped from stored raw values), capped at 3.
