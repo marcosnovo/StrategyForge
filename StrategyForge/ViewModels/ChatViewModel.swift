@@ -848,7 +848,9 @@ final class ChatViewModel {
     /// If the run is idle and messages are waiting, send the next one. Called at the end
     /// of every finished turn so the queue drains one message per turn, in order.
     private func flushQueue() {
-        guard !isRunning, !queued.isEmpty else { return }
+        // `repoFolderMissing` is checked here, not just in `send`: flushing pops the
+        // item BEFORE sending, so draining into a `send` that bails would eat it.
+        guard !isRunning, !queued.isEmpty, !repoFolderMissing else { return }
         let next = queued.removeFirst()
         if let peer = next.peer { send(peer: peer); return }
         input = next.text
@@ -863,16 +865,37 @@ final class ChatViewModel {
     /// both land in arrival order with no second scheduler. Claude Code reads a peer
     /// message between tool calls; a Coral turn is one headless process we can't
     /// interrupt, so the turn edge is the seam.
+    /// It ALWAYS enqueues and never starts a turn itself. Both properties are load-bearing:
+    ///
+    /// - **Order.** Joining the same queue at arrival is what actually gives the shared
+    ///   FIFO with the user's type-ahead. Starting immediately when the VM looked idle
+    ///   let a later peer message jump a prompt the user had queued earlier.
+    /// - **Reentrancy.** `isRunning`'s `didSet` fires `onRunningChanged` synchronously
+    ///   from inside the finishing run task, and AppModel delivers mail from there.
+    ///   Starting a turn at that point would cancel the very task running the epilogue
+    ///   and reset per-turn state under it — the old epilogue would then go on to remove
+    ///   the placeholder at ITS stale `assistantIndex`, shifting the new turn's slot and
+    ///   discarding its reply. (The `epoch == runEpoch` guard sits earlier in the
+    ///   epilogue, so it can't catch this.) Appending is inert; the epilogue's own
+    ///   `flushQueue()` then starts the turn at the right moment.
     func receive(_ message: PeerMessage) {
-        // `repoFolderMissing` matters here: `send` bails early on it, and since the
-        // message has already been drained from the bus, starting a turn that refuses
-        // to run would silently eat it. Queue instead, so it survives to a later flush.
-        guard !isRunning, !repoFolderMissing else {
-            queued.append(QueuedMessage(text: message.text, attachments: [], peer: message))
-            return
-        }
-        send(peer: message)
+        queued.append(QueuedMessage(text: message.text, attachments: [], peer: message))
+        kickQueue()
     }
+
+    /// Start draining if nothing is running. The hop through a Task is deliberate: this
+    /// can be reached from inside `isRunning`'s `didSet`, and the flush must not run
+    /// before the current turn's epilogue has finished.
+    private func kickQueue() {
+        guard !isRunning, !queued.isEmpty else { return }
+        Task { @MainActor [weak self] in
+            self?.flushQueue()
+        }
+    }
+
+    /// Hands peer mail back to the bus when a stop would otherwise strand it. Set by
+    /// AppModel; nil in tests and previews.
+    @ObservationIgnored var onPeerMailReturned: (([PeerMessage]) -> Void)?
 
     /// Peer messages still queued and never run. Read when this VM is torn down, so
     /// AppModel can hand them back to the bus instead of dropping them on the floor.
@@ -1683,7 +1706,15 @@ final class ChatViewModel {
         pendingPermission = nil
         // Interrupting the run also drops anything queued behind it — the user hit stop,
         // so don't quietly fire off the messages they'd lined up.
+        //
+        // Peer mail is the exception, and it has to be read AFTER `isRunning = false`:
+        // that assignment synchronously delivers anything the bus was holding, so this
+        // is the first point where the queue is complete. The user never saw those
+        // messages, so dropping them the way we drop their own type-ahead would lose
+        // mail silently — hand them back to the bus instead.
+        let strandedPeers = undeliveredPeers
         queued = []
+        if !strandedPeers.isEmpty { onPeerMailReturned?(strandedPeers) }
         Analytics.log(.runCancelled)
     }
 }

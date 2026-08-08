@@ -2036,6 +2036,11 @@ final class AppModel {
             persistUsage: { [weak self] tokens, cost in self?.updateUsage(id, tokens: tokens, costUSD: cost) },
             persistActivity: { [weak self] turn in self?.appendActivity(id, turn) },
             initialHistory: loadActivity(id))
+        // A stop clears the chat's queue; peer mail goes back to the bus instead of
+        // being dropped, so it can be delivered (or approved) later.
+        vm.onPeerMailReturned = { [weak self] messages in
+            self?.peerBus.requeue(messages, for: id)
+        }
         vm.onRunningChanged = { [weak self, weak vm] running in
             guard let self else { return }
             if running {
@@ -2115,15 +2120,15 @@ final class AppModel {
         return outcome
     }
 
-    /// Hand a chat whatever mail is waiting for it.
+    /// Hand a chat whatever mail is waiting for it, whether or not it's running.
     ///
-    /// Only when it's idle: a Coral turn is one headless `claude` process that can't be
-    /// interrupted mid-flight, so the turn edge is the delivery seam. A running chat
-    /// drains instead from `onRunningChanged` when its turn ends. The first message
-    /// starts a turn and the rest queue inside the VM, in arrival order.
+    /// `ChatViewModel.receive` only ever enqueues — it never starts a turn — so this is
+    /// safe to call at arrival time and from inside `isRunning`'s `didSet`. Delivering
+    /// at arrival is also what keeps peer mail in true arrival order with the user's own
+    /// type-ahead: both sit in one queue, and the VM drains it when the turn frees up.
     func deliverPeerMail(to id: Configuration.ID) {
         guard peerBus.queuedCount(for: id) > 0 else { return }
-        guard let vm = chatViewModel(for: id), !vm.isRunning else { return }
+        guard let vm = chatViewModel(for: id) else { return }
         for message in peerBus.drainQueued(for: id) { vm.receive(message) }
         if navSection != .chats || selectedConfigID != id {
             flagAttention(id, critical: false)
