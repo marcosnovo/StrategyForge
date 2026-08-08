@@ -2047,7 +2047,10 @@ final class AppModel {
                 self.runningChatIDs.insert(id)
             } else {
                 self.runningChatIDs.remove(id)
-                // The turn edge is the delivery seam for mail that arrived mid-run.
+                // Mail is normally delivered on arrival; this catches what the bus is
+                // still holding — mail a `stop()` handed back, or that arrived while
+                // this chat had no VM. Safe from inside `isRunning`'s `didSet` because
+                // `receive` only enqueues.
                 self.deliverPeerMail(to: id)
                 let elsewhere = self.navSection != .chats || self.selectedConfigID != id
                 let needsPermission = !(vm?.deniedTools.isEmpty ?? true)
